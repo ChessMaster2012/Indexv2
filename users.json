@@ -1,0 +1,14 @@
+[
+  {
+    "id": "dcdc588afe753f0beb5990dd",
+    "method": "email",
+    "identifier": "michael.sviriduk@gmail.com",
+    "passwordHash": "dbcb5c991cfe3f7120acc085d1cd679c30f3f27483c5f33cab8ee73f4ddae66372cb5fe6a9757815b1979270e0e6fe99cc513f779a2ec62795ed02266ef7283d",
+    "salt": "f2fc429852d0645bdb38bd7e61a94f11",
+    "firstName": "Michael",
+    "lastName": "Sviriduk",
+    "school": "Northwest High School",
+    "grade": "9",
+    "createdAt": 1789944980827
+  }
+]
