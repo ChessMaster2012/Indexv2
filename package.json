@@ -1,0 +1,22 @@
+{
+  "name": "index-study-app",
+  "version": "1.0.0",
+  "description": "Index \u2014 AP study app with AI tutor, study-set builder, and live multiplayer trivia games (Trivia Dash, Rocket Race, Tower Climb, Gold Rush). Deployable to any Node host.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node server.js & SERVER_PID=$!; sleep 1; node test-e2e.js; kill $SERVER_PID"
+  },
+  "dependencies": {
+    "express": "^4.22.3",
+    "socket.io": "^4.8.3",
+    "@huggingface/transformers": "3.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
