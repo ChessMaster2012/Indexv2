@@ -495,6 +495,52 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
   </div>
 </div>
 
+<!-- Early gate controller: keeps the agreement button usable even if a later app script errors. -->
+<script>
+(function(){
+  const ACCEPT_KEY='index-site-terms-accepted-device';
+  const ACCEPT_KEY_OLD='index-site-terms-acceptance';
+  const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic'];
+  function accepted(){
+    try{
+      if(localStorage.getItem(ACCEPT_KEY)==='1') return true;
+      const v=JSON.parse(localStorage.getItem(ACCEPT_KEY_OLD)||'null');
+      if(v && v.acceptedAt){ localStorage.setItem(ACCEPT_KEY,'1'); return true; }
+      return ['index-site-terms-accepted','index-terms-accepted'].some(k=>localStorage.getItem(k)==='1'||localStorage.getItem(k)==='true');
+    }catch(e){ return false; }
+  }
+  function update(){
+    const btn=document.getElementById('accept-site-terms');
+    if(!btn) return;
+    btn.disabled=!ids.every(id=>document.getElementById(id)?.checked);
+  }
+  function hide(){
+    const gate=document.getElementById('site-gate');
+    if(gate) gate.classList.add('hidden');
+    document.body.style.overflow='';
+  }
+  function setup(){
+    if(accepted()) hide();
+    ids.forEach(id=>document.getElementById(id)?.addEventListener('change',update));
+    const btn=document.getElementById('accept-site-terms');
+    if(btn){
+      btn.addEventListener('click',function(){
+        if(!ids.every(id=>document.getElementById(id)?.checked)) return;
+        try{
+          localStorage.setItem(ACCEPT_KEY,'1');
+          localStorage.setItem(ACCEPT_KEY_OLD,JSON.stringify({version:'2026-09-21-v1',acceptedAt:new Date().toISOString()}));
+        }catch(e){}
+        hide();
+        // Reload so the normal app initialization runs cleanly after acceptance.
+        setTimeout(()=>window.location.reload(),0);
+      });
+    }
+    update();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',setup); else setup();
+})();
+</script>
+
 <div class="county-gate hidden" id="county-gate" aria-modal="true" role="dialog" aria-labelledby="county-gate-title">
   <div class="county-gate-card">
     <div class="eyebrow">One more step</div>
