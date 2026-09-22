@@ -556,7 +556,9 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><span class="brand-emoji">🎯</span><span class="brand-mark">Index</span></div>
-    <div class="profile-slot" id="profile-slot"></div>
+    <div class="profile-slot" id="profile-slot">
+      <button class="signin-btn" data-action="open-signin" type="button">👤 Sign in / Create account</button>
+    </div>
     <nav id="nav">
       <button class="nav-btn active" data-view="dashboard"><span>🏠</span><span>Dashboard</span></button>
       <button class="nav-btn" data-view="courses"><span>📚</span><span>Courses</span></button>
@@ -1423,6 +1425,7 @@ function displayName(){
 }
 function renderProfileSlot(){
   const el = document.getElementById('profile-slot');
+  if(!el) return;
   const name = displayName();
   const avatarIcon = cosmeticById?.(state.progress?.equipped?.avatar)?.icon || (name ? name[0].toUpperCase() : '👤');
   if(name){
@@ -3013,6 +3016,8 @@ function acceptSiteTerms(){
   initializeApp();
 }
 async function initializeApp(){
+  // Render the profile control immediately. It must remain available even if an API call is slow or fails.
+  renderProfileSlot();
   populateSubjectSelects();
   updateNoteTopicSuggestions();
   updateLearnTopicSuggestions();
