@@ -25,14 +25,6 @@ const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '');
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
-// Baseline security headers for a student-facing web application.
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  next();
-});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Safety / conduct guardrails for a student-facing study tool.
@@ -124,16 +116,6 @@ GENERAL FORMATTING RULES:
 `;
     const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
     const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
-    // Data-minimization safeguard: reject common direct identifiers before a prompt reaches the external AI provider.
-    const sensitivePatterns = [
-      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
-      /\b(?:\+?1[-. ]?)?(?:\(?\d{3}\)?[-. ]?)\d{3}[-. ]?\d{4}\b/,
-      /\b\d{3}-\d{2}-\d{4}\b/,
-      /\b(?:student|school)\s*(?:id|identification)\s*[:#-]?\s*[A-Z0-9-]{4,}\b/i
-    ];
-    if (sensitivePatterns.some(re => re.test(transcript))) {
-      return res.status(400).json({ error: 'For privacy, remove email addresses, phone numbers, Social Security numbers, or student/school ID numbers before using the AI Tutor.' });
-    }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
     const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
@@ -418,7 +400,6 @@ function normalizeEmail(v) { return String(v || '').trim().toLowerCase(); }
 function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
 app.get('/api/auth/status', async (req, res) => {
-  res.set('Cache-Control','no-store');
   let persistentStorageReady = false;
   if (SUPABASE_ENABLED) {
     try {
@@ -579,6 +560,27 @@ app.put('/api/account/state', async (req,res)=>{
   }
 });
 
+app.post('/api/rewards/daily-wheel/spin', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Sign in to use the Daily Wheel so your reward can sync to your account.'});
+  try {
+    if (SUPABASE_ENABLED) { const row = await dbFindUserById(req.user.id); if (row) req.user = dbRowToUser(row); }
+    const existing = req.user.accountData && typeof req.user.accountData === 'object' ? req.user.accountData : {};
+    const progress = existing.progress && typeof existing.progress === 'object' ? existing.progress : {};
+    const today = new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    if (String(progress.dailyWheelDate || '') === today) return res.status(409).json({error:'You already spun today.', reward:Number(progress.dailyWheelReward)||0, state:existing});
+    const rewards=[{amount:10,weight:30},{amount:25,weight:25},{amount:50,weight:20},{amount:75,weight:15},{amount:100,weight:7},{amount:250,weight:2.5},{amount:500,weight:.5}];
+    const total=rewards.reduce((a,r)=>a+r.weight,0); let roll=crypto.randomInt(0,1000000)/1000000*total; let rolled=rewards[rewards.length-1].amount;
+    for(const item of rewards){ if((roll-=item.weight)<0){rolled=item.amount;break;} }
+    const earnedToday=progress.dailyCoinDate===today?Math.max(0,Number(progress.dailyCoinEarned)||0):0;
+    const grant=Math.max(0,Math.min(rolled,DAILY_COIN_CAP-earnedToday));
+    const updated={...existing,progress:{...progress,coins:Math.max(0,Number(progress.coins)||0)+grant,dailyCoinDate:today,dailyCoinEarned:earnedToday+grant,dailyWheelDate:today,dailyWheelLastSpinAt:Date.now(),dailyWheelReward:grant}};
+    req.user.accountData=sanitizeAccountState(updated);
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    usersById.set(req.user.id,req.user);
+    res.json({ok:true,reward:grant,rolled,state:req.user.accountData});
+  } catch(e){ console.error('Daily wheel error:',e.message); res.status(503).json({error:'Could not save your Daily Wheel reward right now. Please try again.'}); }
+});
+
 app.post('/api/auth/profile', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
   try {
@@ -611,7 +613,6 @@ app.post('/api/auth/profile', async (req, res) => {
 });
 
 app.post('/api/auth/delete', async (req, res) => {
-  res.set('Cache-Control','no-store');
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
   const user = req.user;
   users.delete('email:' + normalizeEmail(user.identifier || user.email));
