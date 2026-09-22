@@ -20,7 +20,7 @@ body{font-family:var(--font-ui);background:var(--bg);color:var(--ink);-webkit-fo
 button{font-family:inherit;cursor:pointer;}
 input,textarea,select{font-family:inherit;}
 ::selection{background:var(--yellow);color:var(--ink);}
-.app{display:flex;min-height:100vh;width:100%;min-width:100%;}
+.app{display:flex;min-height:100vh;}
 .sidebar{width:230px;flex-shrink:0;background:linear-gradient(180deg,#2E2266,#1C1440);color:#fff;display:flex;flex-direction:column;padding:22px 15px;position:sticky;top:0;height:100vh;}
 .brand{display:flex;align-items:center;gap:8px;padding:2px 8px 16px 8px;}
 .brand-mark{font-family:var(--font-display);font-size:25px;font-weight:700;color:#fff;}
@@ -37,7 +37,7 @@ nav{display:flex;flex-direction:column;gap:3px;}
 .nav-btn.active{background:linear-gradient(90deg,var(--purple),var(--pink));color:#fff;box-shadow:0 3px 10px rgba(124,92,252,0.4);}
 .sidebar-foot{margin-top:auto;padding-top:12px;font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;}
 .sidebar-badge{font-size:12px;color:#fff;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-weight:700;}
-.main{flex:1 1 auto;min-width:0;width:100%;padding:36px 42px 60px;max-width:none;min-height:100vh;}
+.main{flex:1;min-width:0;padding:36px 42px 60px;max-width:1200px;}
 /* v10 visual refresh */
 .main{background:radial-gradient(circle at 90% 0%,rgba(124,92,252,.07),transparent 28%),radial-gradient(circle at 10% 18%,rgba(255,111,168,.055),transparent 24%);}
 .panel,.course-card,.game-card,.topic-row,.set-pick-item,.stat{box-shadow:0 8px 28px rgba(36,31,61,.055);}
@@ -106,34 +106,6 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .btn-sm{padding:7px 13px;font-size:12.5px;}
 .btn-lg{padding:14px 26px;font-size:15px;}
 .btn:disabled{opacity:0.45;cursor:default;transform:none !important;filter:none !important;}
-.reward-shell{display:grid;grid-template-columns:1.35fr .65fr;gap:18px;}
-@media(max-width:900px){.reward-shell{grid-template-columns:1fr;}}
-.reward-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px;}
-.reward-tab{border:2px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;font-size:12.5px;font-weight:800;color:var(--ink-soft);}
-.reward-tab.active{background:var(--purple);border-color:var(--purple);color:#fff;}
-.bp-hero{background:linear-gradient(135deg,var(--purple),var(--pink));color:#fff;border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 12px 28px rgba(124,92,252,.2);}
-.bp-track{height:12px;border-radius:999px;background:rgba(255,255,255,.25);overflow:hidden;margin:12px 0 8px;}
-.bp-fill{height:100%;background:#fff;border-radius:999px;transition:width .25s;}
-.bp-levels{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px;}
-.bp-level{background:#fff;border:2px solid var(--line);border-radius:16px;padding:13px;position:relative;}
-.bp-level.unlocked{border-color:var(--green);background:#f5fffb;}
-.bp-level.current{box-shadow:0 0 0 3px rgba(124,92,252,.12);}
-.bp-level .bp-num{font-family:var(--font-display);font-size:18px;}
-.bp-reward{font-size:12px;color:var(--ink-soft);margin-top:6px;line-height:1.4;}
-.cosmetic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;}
-.cosmetic-card{border:2px solid var(--line);background:#fff;border-radius:16px;padding:14px;text-align:center;min-height:130px;}
-.cosmetic-card.unlocked{border-color:var(--green);}
-.cosmetic-card.equipped{border-color:var(--purple);box-shadow:0 0 0 3px rgba(124,92,252,.12);}
-.cosmetic-icon{font-size:34px;line-height:1;margin:6px 0 8px;}
-.avatar-stage{border-radius:22px;padding:26px;background:linear-gradient(135deg,#2e2266,#7c5cfc);color:#fff;text-align:center;margin-bottom:16px;}
-.avatar-preview{width:118px;height:118px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:58px;background:#fff;box-shadow:0 12px 28px rgba(0,0,0,.18);border:8px solid rgba(255,255,255,.7);}
-.avatar-preview.square{border-radius:28px;}
-.pack-card{border:2px solid var(--line);border-radius:20px;padding:20px;background:linear-gradient(145deg,#fff,#f6f1ff);text-align:center;}
-.pack-art{font-size:62px;margin:6px 0 10px;}
-.coin-pill{display:inline-flex;align-items:center;gap:6px;background:#fff4c8;border:2px solid #f0d46a;color:#8a6500;border-radius:999px;padding:7px 12px;font-weight:900;font-size:12px;}
-.reward-muted{font-size:12px;color:var(--ink-soft);line-height:1.5;}
-.reward-toast{position:fixed;right:22px;bottom:22px;z-index:10000;background:#241f3d;color:#fff;border-radius:16px;padding:13px 16px;box-shadow:0 12px 30px rgba(0,0,0,.2);font-size:13px;font-weight:800;animation:fadeIn .2s ease;}
-
 .chip{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:800;padding:4px 11px 4px 8px;border-radius:20px;color:#fff;}
 .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
 .beta-tag{font-size:9.5px;background:var(--line);color:var(--ink-soft);padding:2px 7px;border-radius:8px;vertical-align:middle;margin-left:6px;font-weight:800;text-transform:uppercase;}
@@ -172,24 +144,6 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .add-topic-row input{flex:1;padding:10px 13px;border:2px solid var(--line);border-radius:12px;background:var(--card);font-size:13.5px;}
 .overlay{position:fixed;inset:0;background:rgba(28,20,64,0.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;z-index:50;}
 .overlay.hidden{display:none;}
-.site-gate{position:fixed;inset:0;background:rgba(28,20,64,.72);backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:22px;overflow:auto;z-index:1000;}
-.site-gate.hidden{display:none;}
-.site-gate-card{width:min(680px,100%);background:#fff;border:2px solid var(--line);border-radius:26px;padding:30px 32px 28px;box-shadow:0 30px 90px rgba(20,12,55,.35);}
-.site-gate-card h2{font-size:28px;margin-bottom:8px;}
-.county-gate{position:fixed;inset:0;background:rgba(28,20,64,.78);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:22px;overflow:auto;z-index:1100}.county-gate.hidden{display:none}.county-gate-card{width:min(720px,100%);background:#fff;border:2px solid var(--line);border-radius:26px;padding:30px 32px 28px;box-shadow:0 30px 90px rgba(20,12,55,.38)}.county-gate-card h2{font-size:28px;margin-bottom:8px}.county-search{width:100%;border:2px solid var(--line);border-radius:13px;padding:12px 14px;font:inherit;margin:14px 0}.county-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;max-height:330px;overflow:auto;padding-right:3px}.county-option{border:2px solid var(--line);background:#fff;border-radius:13px;padding:12px;text-align:left;font-weight:850;color:var(--ink);font-size:12px;cursor:pointer}.county-option:hover,.county-option.selected{border-color:var(--purple);background:#f5f1ff}.county-meta{font-size:11px;color:var(--ink-soft);margin-top:3px;font-weight:650}.county-required{margin-top:12px;color:#b42318;font-size:12px;min-height:18px}.county-gate-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:16px}@media(max-width:640px){.county-gate-card{padding:24px 20px}.county-gate-card h2{font-size:24px}.county-grid{grid-template-columns:1fr}}
-
-.site-gate-card .gate-subtitle{color:var(--ink-soft);font-size:13.5px;line-height:1.55;margin:0 0 20px;}
-.gate-checks{display:flex;flex-direction:column;gap:10px;margin:18px 0;}
-.gate-check{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border:2px solid var(--line);border-radius:14px;background:#fff;font-size:12.5px;line-height:1.45;color:var(--ink);cursor:pointer;}
-.gate-check:hover{border-color:#D9D0F8;background:#FCFAFF;}
-.gate-check input{margin-top:3px;width:17px;height:17px;accent-color:var(--purple);flex:0 0 auto;}
-.gate-links{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0;}
-.gate-link{color:var(--purple-deep);font-weight:800;text-decoration:none;}
-.gate-link:hover{text-decoration:underline;}
-.gate-note{font-size:11px;color:var(--ink-soft);line-height:1.5;margin:14px 0 0;}
-.gate-actions{display:flex;justify-content:flex-end;margin-top:20px;}
-#accept-site-terms:disabled{opacity:.45;cursor:not-allowed;}
-@media(max-width:640px){.site-gate-card{padding:24px 20px;}.site-gate-card h2{font-size:24px;}}
 .modal{background:var(--card);border-radius:22px;max-width:640px;width:100%;padding:26px 28px 28px;border:2px solid var(--line);box-shadow:0 24px 60px rgba(28,20,64,0.3);}
 .modal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;}
 .modal-close{background:var(--bg);border:none;color:var(--ink-soft);font-size:18px;line-height:1;padding:6px 10px;border-radius:999px;}
@@ -200,6 +154,8 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .field textarea{resize:vertical;min-height:110px;line-height:1.5;}
 .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--purple);}
 .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+.google-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:11px;border:2px solid var(--line);border-radius:12px;background:#fff;font-weight:800;font-size:13.5px;color:#3c4043;}
+.google-btn:hover{box-shadow:0 2px 8px rgba(0,0,0,0.15);}
 .g-badge{width:18px;height:18px;border-radius:50%;background:#4285F4;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;}
 .signin-divider{text-align:center;font-size:11.5px;color:var(--ink-soft);margin:14px 0;text-transform:uppercase;letter-spacing:0.05em;font-weight:800;}
 .tutor-shell{display:flex;flex-direction:column;height:calc(100vh - 130px);min-height:480px;background:var(--card);border:2px solid var(--line);border-radius:22px;overflow:hidden;}
@@ -239,6 +195,10 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .note-import-panel{border:2px dashed var(--line);border-radius:14px;padding:13px;margin-bottom:14px;background:var(--bg);}
 .note-import-panel h4{font-family:var(--font-display);font-size:14px;margin:0 0 5px;}
 .note-import-panel p{font-size:12px;color:var(--ink-soft);margin:0 0 10px;line-height:1.45;}
+.drive-file-list{max-height:230px;overflow:auto;display:flex;flex-direction:column;gap:7px;}
+.drive-file{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:11px;background:#fff;}
+.drive-file-name{font-size:12.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.drive-file-meta{font-size:10.5px;color:var(--ink-soft);margin-top:2px;}
 
 .empty-state{text-align:center;padding:60px 20px;color:var(--ink-soft);}
 .empty-state h3{color:var(--ink);margin-bottom:8px;}
@@ -410,155 +370,14 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 @media(max-width:1000px){.command-grid{grid-template-columns:repeat(2,1fr)}.study-lab{grid-template-columns:1fr}}
 @media(max-width:620px){.command-grid{grid-template-columns:1fr}.district-options{grid-template-columns:1fr}.personal-banner{align-items:flex-start;flex-direction:column}}
 
-
-/* ===== Rewards 2.0 ===== */
-.rewards-page{padding-bottom:70px}
-.rewards-topline{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:18px}
-.rewards-eyebrow{font-size:11px;letter-spacing:.13em;font-weight:900;color:var(--purple);text-transform:uppercase}
-.rewards-title{font-family:var(--font-display);font-size:36px;line-height:1.05;margin:4px 0 7px}
-.rewards-subtitle{max-width:760px}
-.rewards-wallet{display:flex;align-items:center;gap:10px;background:#211c39;color:#fff;border-radius:18px;padding:10px 14px;box-shadow:0 10px 24px rgba(36,31,61,.16)}
-.rewards-wallet .wallet-coins{font-size:20px;font-weight:950}
-.daily-cap{margin:14px 0 20px;border:1px solid var(--line);background:linear-gradient(135deg,#fff,#f8f5ff);border-radius:18px;padding:14px 16px}
-.daily-cap-head{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:12px;font-weight:900}
-.daily-cap-track{height:9px;background:#ece8f6;border-radius:999px;overflow:hidden;margin:9px 0 5px}
-.daily-cap-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#7c5cfc,#ff5ca8);transition:width .4s ease}
-.pack-showcase{position:relative;overflow:hidden;border-radius:28px;padding:26px;background:radial-gradient(circle at 85% 10%,rgba(255,255,255,.25),transparent 28%),linear-gradient(135deg,#18132f,#3d2c83 58%,#7c5cfc);color:#fff;box-shadow:0 22px 50px rgba(63,44,131,.25);margin-bottom:18px}
-.pack-showcase:before{content:"";position:absolute;inset:-30%;background:repeating-linear-gradient(120deg,rgba(255,255,255,.035) 0 2px,transparent 2px 18px);transform:rotate(-7deg);pointer-events:none}
-.pack-showcase-inner{position:relative;z-index:1}
-.pack-showcase-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
-.pack-showcase-title{font-family:var(--font-display);font-size:27px;font-weight:800}
-.pack-showcase-copy{font-size:12.5px;color:rgba(255,255,255,.78);max-width:560px;line-height:1.55}
-.pack-shelf{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-@media(max-width:850px){.pack-shelf{grid-template-columns:1fr}}
-.pack-option{position:relative;min-height:245px;border:1px solid rgba(255,255,255,.16);border-radius:22px;padding:18px;background:rgba(255,255,255,.075);backdrop-filter:blur(8px);overflow:hidden;transition:transform .18s ease,border-color .18s ease,background .18s ease}
-.pack-option:hover{transform:translateY(-5px);border-color:rgba(255,255,255,.38);background:rgba(255,255,255,.11)}
-.pack-option:after{content:"";position:absolute;inset:auto -15% -55% 20%;height:150px;background:radial-gradient(circle,rgba(255,255,255,.16),transparent 65%);pointer-events:none}
-.pack-rarity-line{height:4px;border-radius:999px;margin:-2px 0 15px}
-.pack-option[data-pack="study"] .pack-rarity-line{background:linear-gradient(90deg,#9da5b4,#7c5cfc)}
-.pack-option[data-pack="focus"] .pack-rarity-line{background:linear-gradient(90deg,#4da3ff,#7c5cfc,#ff5ca8)}
-.pack-option[data-pack="mastery"] .pack-rarity-line{background:linear-gradient(90deg,#ffd76a,#ff8c42,#ff5ca8)}
-.pack-box{height:104px;width:92px;margin:2px auto 12px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:52px;position:relative;box-shadow:0 16px 28px rgba(0,0,0,.22);transform:perspective(400px) rotateX(4deg)}
-.pack-option[data-pack="study"] .pack-box{background:linear-gradient(145deg,#6f58e8,#3e2b9c)}
-.pack-option[data-pack="focus"] .pack-box{background:linear-gradient(145deg,#2f91ff,#6d47e8)}
-.pack-option[data-pack="mastery"] .pack-box{background:linear-gradient(145deg,#f5b83d,#d84c7f)}
-.pack-name{font-weight:950;font-size:16px;text-align:center}.pack-desc{font-size:11.5px;color:rgba(255,255,255,.68);text-align:center;line-height:1.45;min-height:34px;margin:6px 0 11px}
-.pack-cost{display:flex;justify-content:center;margin-bottom:9px}.pack-option .btn{width:100%;justify-content:center}
-.pack-odds{display:flex;justify-content:center;gap:5px;flex-wrap:wrap;margin-top:9px}
-.rarity-pill{font-size:9.5px;font-weight:900;padding:4px 7px;border-radius:999px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.12)}
-.rarity-pill.legendary{color:#ffe18a}.rarity-pill.epic{color:#d6a8ff}.rarity-pill.rare{color:#8fd4ff}.rarity-pill.common{color:#d7dbe5}
-.rewards-lower{display:grid;grid-template-columns:1.25fr .75fr;gap:18px;margin-top:18px}
-@media(max-width:900px){.rewards-lower{grid-template-columns:1fr}}
-.rarity-collection{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:11px}
-.rarity-card{position:relative;min-height:165px;border-radius:18px;padding:14px;overflow:hidden;color:#fff;border:1px solid rgba(255,255,255,.12);box-shadow:0 8px 20px rgba(0,0,0,.09)}
-.rarity-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% 15%,rgba(255,255,255,.35),transparent 28%);pointer-events:none}
-.rarity-card.common{background:linear-gradient(145deg,#4f596a,#242a35)}
-.rarity-card.rare{background:linear-gradient(145deg,#167bd8,#214bb7)}
-.rarity-card.epic{background:linear-gradient(145deg,#7b35d6,#40207f)}
-.rarity-card.legendary{background:linear-gradient(145deg,#d88924,#a83b69 55%,#642c8e)}
-.rarity-card .collection-icon{font-size:42px;text-align:center;margin:10px 0 8px;filter:drop-shadow(0 5px 8px rgba(0,0,0,.2))}
-.rarity-card .collection-name{text-align:center;font-weight:950;font-size:12px}.rarity-card .collection-rarity{text-align:center;font-size:9px;opacity:.78;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
-.pack-modal{position:fixed;inset:0;z-index:12000;background:rgba(9,6,22,.82);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}
-.pack-modal.hidden{display:none}
-.pack-opening{width:min(620px,96vw);background:#f8f6ff;border-radius:28px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.42);text-align:center}
-.pack-opening-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.pack-opening-head h3{font-family:var(--font-display);font-size:23px}
-.reel-window{height:390px;position:relative;overflow:hidden;border-radius:22px;background:#171329;border:4px solid #2e2750;box-shadow:inset 0 0 40px rgba(0,0,0,.55),0 12px 30px rgba(0,0,0,.18)}
-.reel-window:before,.reel-window:after{content:"";position:absolute;left:0;right:0;height:78px;z-index:4;pointer-events:none}.reel-window:before{top:0;background:linear-gradient(#171329,transparent)}.reel-window:after{bottom:0;background:linear-gradient(transparent,#171329)}
-.reel-marker{position:absolute;z-index:6;left:6%;right:6%;top:50%;height:94px;transform:translateY(-50%);border:2px solid rgba(255,255,255,.9);border-radius:16px;box-shadow:0 0 0 5px rgba(124,92,252,.2),0 0 30px rgba(124,92,252,.35);pointer-events:none}
-.reel-track{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:10px 6%;will-change:transform}
-.reel-item{height:94px;flex:0 0 94px;border-radius:16px;display:flex;align-items:center;gap:14px;padding:12px 18px;color:#fff;text-align:left;border:1px solid rgba(255,255,255,.14);box-shadow:0 8px 18px rgba(0,0,0,.16)}
-.reel-item .reel-icon{font-size:42px;width:62px;text-align:center}.reel-item .reel-name{font-size:14px;font-weight:950}.reel-item .reel-rarity{font-size:9px;text-transform:uppercase;letter-spacing:.12em;opacity:.8;margin-top:4px}
-.reel-item.common{background:linear-gradient(135deg,#566070,#272d38)}.reel-item.rare{background:linear-gradient(135deg,#177fdd,#2445a8)}.reel-item.epic{background:linear-gradient(135deg,#8b3be2,#43217d)}.reel-item.legendary{background:linear-gradient(135deg,#e49a2b,#9e3c72 55%,#63318e)}
-.pack-result{padding:17px 10px 3px}.pack-result .result-rarity{font-size:11px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.pack-result .result-name{font-family:var(--font-display);font-size:28px;margin-top:3px}.pack-result .result-note{font-size:12px;color:var(--ink-soft);margin-top:4px}
-@keyframes packPop{0%{transform:scale(.88);opacity:.2}70%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}
-.pack-result.reveal{animation:packPop .45s ease}
-.avatar-preview{position:relative;overflow:hidden}
-.avatar-outfit{position:absolute;right:5px;bottom:5px;font-size:27px}.avatar-accessory{position:absolute;right:8px;top:8px;font-size:24px}.avatar-bg-library{background:radial-gradient(circle at 30% 30%,#fff8dc,#e8d9b7 50%,#b58f55)}.avatar-bg-space{background:radial-gradient(circle at 35% 25%,#8e6cff,#25134f 55%,#0b0820)}.avatar-bg-lab{background:radial-gradient(circle at 25% 25%,#c9fff0,#65c8b2 45%,#277c83)}
-
 </style>
 </head>
 <body>
 
-<div class="site-gate" id="site-gate" aria-modal="true" role="dialog" aria-labelledby="site-gate-title">
-  <div class="site-gate-card">
-    <div class="eyebrow">Before you start</div>
-    <h2 id="site-gate-title">Please review and agree to use Index.</h2>
-    <p class="gate-subtitle">Index is a student study tool. Before using the site, review the rules below. You must check every box before the rest of the app becomes available.</p>
-    <div class="gate-checks">
-      <label class="gate-check"><input type="checkbox" id="gate-terms"> <span>I agree to the <a class="gate-link" id="gate-terms-link" href="/terms.html" target="_blank" rel="noopener">Terms of Use</a>.</span></label>
-      <label class="gate-check"><input type="checkbox" id="gate-privacy"> <span>I have reviewed the <a class="gate-link" id="gate-privacy-link" href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> and understand what information Index processes.</span></label>
-      <label class="gate-check"><input type="checkbox" id="gate-conduct"> <span>I agree to follow the <a class="gate-link" id="gate-conduct-link" href="/mcps-review.html#safety" target="_blank" rel="noopener">Student Safety &amp; Conduct rules</a>, including respectful behavior in live games.</span></label>
-      <label class="gate-check"><input type="checkbox" id="gate-academic"> <span>I understand that the AI Tutor is for learning and may be wrong, and I will not use it to cheat on an active graded test, quiz, or exam.</span></label>
-    </div>
-    <p class="gate-note">Index is an independent project and is not currently affiliated with, endorsed by, or approved by Montgomery County Public Schools. Do not enter passwords, student ID numbers, home addresses, phone numbers, or other sensitive student information into study content or AI messages.</p>
-    <div class="gate-actions"><button class="btn btn-primary btn-lg" id="accept-site-terms" type="button" disabled>I agree &amp; continue</button></div>
-  </div>
-</div>
-
-<!-- Early gate controller: keeps the agreement button usable even if a later app script errors. -->
-<script>
-(function(){
-  const ACCEPT_KEY='index-site-terms-accepted-device';
-  const ACCEPT_KEY_OLD='index-site-terms-acceptance';
-  const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic'];
-  function accepted(){
-    try{
-      if(localStorage.getItem(ACCEPT_KEY)==='1') return true;
-      const v=JSON.parse(localStorage.getItem(ACCEPT_KEY_OLD)||'null');
-      if(v && v.acceptedAt){ localStorage.setItem(ACCEPT_KEY,'1'); return true; }
-      return ['index-site-terms-accepted','index-terms-accepted'].some(k=>localStorage.getItem(k)==='1'||localStorage.getItem(k)==='true');
-    }catch(e){ return false; }
-  }
-  function update(){
-    const btn=document.getElementById('accept-site-terms');
-    if(!btn) return;
-    btn.disabled=!ids.every(id=>document.getElementById(id)?.checked);
-  }
-  function hide(){
-    const gate=document.getElementById('site-gate');
-    if(gate) gate.classList.add('hidden');
-    document.body.style.overflow='';
-  }
-  function setup(){
-    if(accepted()) hide();
-    ids.forEach(id=>document.getElementById(id)?.addEventListener('change',update));
-    const btn=document.getElementById('accept-site-terms');
-    if(btn){
-      btn.addEventListener('click',function(){
-        if(!ids.every(id=>document.getElementById(id)?.checked)) return;
-        try{
-          localStorage.setItem(ACCEPT_KEY,'1');
-          localStorage.setItem(ACCEPT_KEY_OLD,JSON.stringify({version:'2026-09-21-v1',acceptedAt:new Date().toISOString()}));
-        }catch(e){}
-        hide();
-        // Reload so the normal app initialization runs cleanly after acceptance.
-        setTimeout(()=>window.location.reload(),0);
-      });
-    }
-    update();
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',setup); else setup();
-})();
-</script>
-
-<div class="county-gate hidden" id="county-gate" aria-modal="true" role="dialog" aria-labelledby="county-gate-title">
-  <div class="county-gate-card">
-    <div class="eyebrow">One more step</div>
-    <h2 id="county-gate-title">Choose your county or school district.</h2>
-    <p class="gate-subtitle">Index uses this choice to show the correct local review information, privacy addendum, school-use guidance, and links. It is saved only on this device. Index does not use your exact location.</p>
-    <input class="county-search" id="county-gate-search" type="text" placeholder="Search county or school district…" autocomplete="off">
-    <div class="county-grid" id="county-gate-options"></div>
-    <div class="county-required" id="county-gate-status"></div>
-    <div class="county-gate-actions"><button class="btn btn-primary btn-lg" id="continue-county" type="button" disabled>Continue</button></div>
-  </div>
-</div>
-
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><span class="brand-emoji">🎯</span><span class="brand-mark">Index</span></div>
-    <div class="profile-slot" id="profile-slot">
-      <button class="signin-btn" data-action="open-signin" type="button">👤 Sign in / Create account</button>
-    </div>
+    <div class="profile-slot" id="profile-slot"></div>
     <nav id="nav">
       <button class="nav-btn active" data-view="dashboard"><span>🏠</span><span>Dashboard</span></button>
       <button class="nav-btn" data-view="courses"><span>📚</span><span>Courses</span></button>
@@ -568,8 +387,6 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
       <button class="nav-btn" data-view="studysets"><span>🗂️</span><span>Study Sets</span></button>
       <button class="nav-btn" data-view="games"><span>🕹️</span><span>Games</span></button>
       <button class="nav-btn" data-view="live"><span>⚡</span><span>Live Game</span></button>
-      <button class="nav-btn" data-view="rewards"><span>🏆</span><span>Rewards</span></button>
-      <a class="nav-btn" href="/mcps-review.html" style="text-decoration:none;"><span>🛡️</span><span id="local-review-nav">Local Review</span></a>
     </nav>
     <div class="sidebar-foot" id="sidebar-foot"></div>
   </aside>
@@ -588,8 +405,8 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
       </div>
       <div class="progress-banner" id="progress-banner"></div>
       <div class="personal-banner">
-        <div><h3 id="personal-greeting">Your study command center</h3><p id="personal-subtitle">Choose your county or school district to personalize your experience and see the correct local review information.</p></div>
-        <button class="district-chip" data-action="open-district">📍 <span id="district-chip-text">Choose county</span> ✎</button>
+        <div><h3 id="personal-greeting">Your study command center</h3><p id="personal-subtitle">Pick a district to personalize your experience and get smarter study shortcuts.</p></div>
+        <button class="district-chip" data-action="open-district">📍 <span id="district-chip-text">Choose school district</span> ✎</button>
       </div>
       <div class="command-grid">
         <button class="command-card" data-action="goto" data-view="tutor"><span class="cc-icon">💬</span><b>Ask the AI Tutor</b><span>Get a step-by-step explanation without leaving your study flow.</span><span class="cc-arrow">→</span></button>
@@ -614,7 +431,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
         <div class="game-card" style="--gc:var(--purple);"><h3>📚 Course Map</h3><p>Jump from a course unit straight into a lesson, notes, quiz, or game.</p></div>
         <div class="game-card" style="--gc:var(--blue);"><h3>🎯 Smart Review</h3><p>Your flashcards track due dates so review can focus on the material that needs attention.</p></div>
         <div class="game-card" style="--gc:var(--pink);"><h3>🏆 Classroom Modes</h3><p>Choose a game style before you host and keep everyone on the same question set.</p></div>
-        <div class="game-card" style="--gc:var(--green);"><h3>🗺️ County & District Personalization</h3><p>Pick your county or school district to keep your study dashboard relevant to your local school context.</p></div>
+        <div class="game-card" style="--gc:var(--green);"><h3>🗺️ District Personalization</h3><p>Pick your school district to keep your study dashboard relevant to your school context.</p></div>
       </div></div>
     </section>
 
@@ -696,10 +513,6 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
       <div id="games-stage"></div>
     </section>
 
-    <section class="view" id="view-rewards">
-      <div id="rewards-stage"></div>
-    </section>
-
     <section class="view" id="view-live">
       <div class="row">
         <div><h2 style="font-size:24px;font-weight:600;">Live Game</h2><p class="lede" style="margin-top:4px;">Host a live round from a quiz and play it with anyone in real time, or join one with a room code — no sign-in needed.</p></div>
@@ -710,13 +523,9 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
   </main>
 </div>
 
-<div style="text-align:center;padding:18px 16px 28px;color:var(--ink-soft);font-size:11px;line-height:1.8;">
-  <span>Index is an independent study tool and is not affiliated with or endorsed by MCPS.</span><br>
-  <a href="/mcps-review.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;"><span id="local-review-footer">Local Review</span></a>
-  <a href="/privacy.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Privacy Policy</a>
-  <a href="/terms.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Terms</a>
-  <a href="/contact.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Contact</a>
-  <button data-action="open-conduct" style="background:none;border:0;color:var(--purple);font-weight:800;cursor:pointer;margin:0 7px;">Student conduct</button>
+<div style="text-align:center;padding:18px 16px 28px;color:var(--ink-soft);font-size:11px;">
+  <span>Index is an independent study tool and is not affiliated with or endorsed by MCPS.</span>
+  <button data-action="open-privacy" style="background:none;border:0;color:var(--purple);font-weight:800;cursor:pointer;margin-left:8px;">Privacy & data</button><button data-action="open-conduct" style="background:none;border:0;color:var(--purple);font-weight:800;cursor:pointer;margin-left:8px;">Student conduct</button>
 </div>
 
 <div class="overlay hidden" id="privacy-modal">
@@ -769,6 +578,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
       <div class="note-source-row" id="note-source-row">
         <button type="button" class="note-source-btn active" data-note-source="type">✏️ Type / paste</button>
         <button type="button" class="note-source-btn" data-note-source="computer">💻 Upload from computer</button>
+        <button type="button" class="note-source-btn" data-note-source="drive">☁️ Google Drive</button>
       </div>
     </div>
     <div class="note-import-panel hidden" id="note-computer-panel">
@@ -777,6 +587,17 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
       <input type="file" id="note-file-input" accept=".txt,.md,.markdown,.csv,.json,.html,.htm,text/plain,text/markdown,text/csv,application/json,text/html" class="hidden">
       <button type="button" class="btn btn-ghost btn-sm" data-action="choose-note-file">Choose file</button>
       <span id="note-file-name" style="font-size:11px;color:var(--ink-soft);margin-left:7px;"></span>
+    </div>
+    <div class="note-import-panel hidden" id="note-drive-panel">
+      <h4>☁️ Import from Google Drive</h4>
+      <p>Connect Google Drive, then choose a Google Doc or text-based file. Your Drive files are not saved to Index.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:9px;">
+        <button type="button" class="btn btn-ghost btn-sm" data-action="connect-drive" id="drive-connect-btn">Connect Google Drive</button>
+        <button type="button" class="btn btn-ghost btn-sm hidden" data-action="refresh-drive" id="drive-refresh-btn">Refresh files</button>
+        <button type="button" class="btn btn-ghost btn-sm hidden" data-action="disconnect-drive" id="drive-disconnect-btn">Disconnect</button>
+      </div>
+      <div id="drive-status" style="font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;"></div>
+      <div class="drive-file-list" id="drive-file-list"></div>
     </div>
     <div class="field"><label>Note</label><textarea id="note-content" placeholder="Write, paste, or import what you want to remember…"></textarea></div>
     <div class="modal-actions"><button class="btn btn-ghost" data-action="close-note-modal">Cancel</button><button class="btn btn-primary" data-action="save-note">Save note</button></div>
@@ -794,26 +615,14 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 </div>
 
 <div class="overlay hidden" id="signin-modal">
-  <div class="modal" style="max-width:460px;">
+  <div class="modal" style="max-width:440px;">
     <div class="modal-head"><h3 id="signin-modal-title" style="font-size:18px;">Sign in</h3><button class="modal-close" data-action="close-signin">×</button></div>
 
-    <!-- Signed-in profile -->
+    <!-- Signed-in: minimal profile -->
     <div id="account-panel" class="hidden">
-      <div class="profile-account-card">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-          <div id="account-avatar-preview" class="avatar" style="width:48px;height:48px;font-size:24px;"></div>
-          <div><div style="font-size:16px;font-weight:950;" id="account-profile-name">Your profile</div><p class="lede" style="font-size:11px;margin:2px 0 0;" id="account-contact"></p></div>
-        </div>
-        <div class="stat-row" style="margin-bottom:12px;">
-          <div class="stat"><div class="stat-num" id="account-level">1</div><div class="stat-label">Level</div></div>
-          <div class="stat"><div class="stat-num" id="account-xp">0</div><div class="stat-label">XP</div></div>
-          <div class="stat"><div class="stat-num" id="account-coins">0</div><div class="stat-label">Coins</div></div>
-          <div class="stat"><div class="stat-num" id="account-cosmetics">0</div><div class="stat-label">Cosmetics</div></div>
-        </div>
-        <button class="btn btn-ghost btn-sm" data-action="goto-rewards-from-profile">🏆 Open Rewards & Packs</button>
-      </div>
-      <div class="field" style="margin-top:14px;"><label>Display name (optional)</label><input type="text" id="account-first" maxlength="60" placeholder="Nickname or first name"></div>
-      <p class="lede" style="font-size:11.5px;margin:0 0 12px;">Your email is used for sign-in and account recovery. Your Index rewards progress, coins, XP, cosmetics, and selected profile settings can be saved to your account. You do not need to provide your school, grade, student ID, address, or phone number.</p>
+      <div class="field"><label>Display name (optional)</label><input type="text" id="account-first" maxlength="60" placeholder="Nickname or first name"></div>
+      <p class="lede" style="font-size:12px;margin:0 0 12px;" id="account-contact"></p>
+      <p class="lede" style="font-size:11.5px;margin:0 0 12px;">You do not need to provide your school, grade, student ID, address, or phone number.</p>
       <div class="modal-actions" style="justify-content:space-between;">
         <button class="btn btn-ghost" data-action="account-signout">Sign out</button>
         <div style="display:flex;gap:8px;">
@@ -823,43 +632,23 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
       </div>
     </div>
 
-    <!-- Signed-out: email/password auth -->
+    <!-- Signed-out: auth methods -->
     <div id="auth-panel">
       <div id="auth-complete-banner" class="lesson-result good hidden" style="margin-bottom:14px;">You're signed in! Add an optional display name so teammates can recognize you.</div>
-      <div class="field"><label id="auth-identifier-label">Email</label><input type="text" id="auth-identifier" name="username" autocomplete="username" placeholder="you@example.com"></div>
-      <div class="field hidden" id="auth-username-field"><label>Username</label><input type="text" id="auth-username" name="signup-username" maxlength="24" autocomplete="username" placeholder="3–24 letters, numbers, or . _ -"></div>
-      <div class="field"><label>Password</label><input type="password" id="auth-password" name="password" autocomplete="current-password" placeholder="At least 8 characters"></div>
+      <button class="google-btn hidden" id="google-signin-btn" data-action="google-signin"><span class="g-badge">G</span> Continue with Google</button>
+      <div class="signin-divider" id="signin-divider-or">or</div>
+      <div class="toggle-row" id="auth-method-toggle">
+        <button class="toggle-btn active" data-method="email">Email</button>
+      </div>
+      <div class="field"><label id="auth-identifier-label">Email</label><input type="text" id="auth-identifier" placeholder="you@school.edu"></div>
+      <div class="field"><label>Password</label><input type="password" id="auth-password" placeholder="At least 8 characters"></div>
       <div id="auth-status"></div>
       <div class="modal-actions" style="justify-content:space-between;">
         <button class="btn btn-ghost btn-sm" data-action="toggle-auth-mode" id="auth-mode-toggle">Have an account? Log in</button>
         <button class="btn btn-primary" data-action="auth-submit" id="auth-submit-btn">Sign up</button>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
-        <button class="btn btn-ghost btn-sm" data-action="forgot-username">Forgot username?</button>
-        <button class="btn btn-ghost btn-sm" data-action="forgot-password">Forgot password?</button>
-      </div>
-      <p class="lede" style="font-size:11px;margin:10px 0 0;">Your email/username is remembered on this device to make signing in easier. Your password is handled by your browser's password manager rather than stored in Index. Never enter sensitive student information.</p>
+      <p class="lede" style="font-size:11px;margin:10px 0 0;">Only provide information needed for sign-in. Never enter sensitive student information.</p>
       <p class="lede" style="font-size:11.5px;margin:14px 0 0;">Prefer not to make an account? <button data-action="guest-continue" style="background:none;border:none;color:var(--purple);font-weight:800;padding:0;cursor:pointer;">Just set a nickname</button> — that still works for joining live games.</p>
-    </div>
-
-    <!-- Recovery: username or password -->
-    <div id="recovery-panel" class="hidden">
-      <p class="lede" id="recovery-copy" style="font-size:12.5px;margin:0 0 14px;"></p>
-      <div class="field"><label>Email</label><input type="email" id="recovery-email" autocomplete="email" placeholder="you@example.com"></div>
-      <div id="recovery-status"></div>
-      <div class="modal-actions" style="justify-content:space-between;">
-        <button class="btn btn-ghost" data-action="recovery-back">Back to sign in</button>
-        <button class="btn btn-primary" data-action="recovery-submit" id="recovery-submit-btn">Send recovery email</button>
-      </div>
-    </div>
-
-    <!-- Reset password from a one-time email link -->
-    <div id="reset-panel" class="hidden">
-      <p class="lede" style="font-size:12.5px;margin:0 0 14px;">Choose a new password for your Index account. This reset link expires after one hour.</p>
-      <div class="field"><label>New password</label><input type="password" id="reset-password" autocomplete="new-password" placeholder="At least 8 characters"></div>
-      <div class="field"><label>Confirm new password</label><input type="password" id="reset-password-confirm" autocomplete="new-password" placeholder="Enter it again"></div>
-      <div id="reset-status"></div>
-      <div class="modal-actions"><button class="btn btn-primary" data-action="reset-submit">Set new password</button></div>
     </div>
 
     <!-- Guest quick-name fallback -->
@@ -943,15 +732,14 @@ const GAME_MODES = {
 
 /* ============================== STATE ============================== */
 let state = {
-  rewardsTab:'battlepass',
   view:'dashboard', notes: [], studySets: [], chat: [], chatLoading:false, editingNoteId:null,
   builder:{ source:'notes', selectedNoteIds:new Set() },
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, unlockedCosmetics:[], claimedBPLevels:[], equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[] },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
-  customTopics:{}, profile:{}, district:'', county:'', aiEnabled:false, account:null,
+  customTopics:{}, profile:{}, district:'', aiEnabled:false, account:null, googleEnabled:false, driveConnected:false,
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
          session:null, players:[], answeredCount:0, myLastAnswer:null, myChest:null,
          hostSubjectId:null, hostSetId:null, timerInterval:null, config:{questionCount:10,timePerQuestion:20,shuffleQuestions:true,shuffleAnswers:false,showLeaderboard:true,autoAdvance:false,maxPlayers:50,title:''} }
@@ -1018,12 +806,10 @@ function loadLocalData(){
   state.notes = lsGet('index-notes', []);
   state.studySets = lsGet('index-studysets', []);
   const p = lsGet('index-progress', {});
-  state.progress = { xp:Number(p.xp)||0, activeDates:p.activeDates||[], lessonsLearned:p.lessonsLearned||[], coins:Number(p.coins)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], equipped:p.equipped||{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
+  state.progress = { xp:p.xp||0, activeDates:p.activeDates||[], lessonsLearned:p.lessonsLearned||[] };
   state.customTopics = lsGet('index-customtopics', {});
   state.profile = lsGet('index-profile', {});
   state.district = state.profile.district || '';
-  state.county = state.profile.county || '';
-  applyLocalJurisdictionUI();
   // One-time cleanup: earlier local-AI generations could save cards/questions with a
   // blank answer. Strip those out now so old sets stop showing missing answers.
   let dirty = false;
@@ -1044,233 +830,10 @@ function loadLocalData(){
 }
 function persistNotes(){ lsSet('index-notes', state.notes); }
 function persistSets(){ lsSet('index-studysets', state.studySets); }
-function persistProgress(){ persistProgressLocalOnly(); scheduleAccountStateSync(); }
+function persistProgress(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned}); }
 function persistCustomTopics(){ lsSet('index-customtopics', state.customTopics); }
-function persistProfile(){ lsSet('index-profile', state.profile); scheduleAccountStateSync(); }
-let accountSyncTimer = null;
-let accountSyncInFlight = false;
-let accountSyncQueued = false;
-function accountStatePayload(){ return {progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0},profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||''}}; }
-async function syncAccountStateNow(){
-  if(!state.account) return;
-  if(accountSyncInFlight){ accountSyncQueued=true; return; }
-  accountSyncInFlight=true;
-  try{ await fetch('/api/account/state',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:accountStatePayload()})}); }catch(e){}
-  accountSyncInFlight=false;
-  if(accountSyncQueued){ accountSyncQueued=false; scheduleAccountStateSync(); }
-}
-function scheduleAccountStateSync(){ if(!state.account) return; clearTimeout(accountSyncTimer); accountSyncTimer=setTimeout(syncAccountStateNow,350); }
-async function loadAccountState(){
-  if(!state.account) return;
-  try{
-    const r=await fetch('/api/account/state', {cache:'no-store'}); const d=await r.json();
-    if(r.status===401){
-      state.account=null;
-      renderProfileSlot();
-      return;
-    }
-    if(!r.ok || !d.state) { await syncAccountStateNow(); return; }
-    const a=d.state;
-    if(a.progress) state.progress={...state.progress,...a.progress,equipped:a.progress.equipped||state.progress.equipped};
-    if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; }
-    persistProgressLocalOnly(); persistProfileLocalOnly();
-  }catch(e){}
-}
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
-function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
+function persistProfile(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
-
-/* ============================== REWARDS / BATTLE PASS ============================== */
-const REWARD_COSMETICS = [
-  {id:'avatar-scholar',type:'avatar',name:'Scholar',icon:'🧑‍🎓',rarity:'Common'},
-  {id:'avatar-scientist',type:'avatar',name:'Scientist',icon:'🧑‍🔬',rarity:'Rare'},
-  {id:'avatar-astronaut',type:'avatar',name:'Astronaut',icon:'🧑‍🚀',rarity:'Epic'},
-  {id:'avatar-artist',type:'avatar',name:'Artist',icon:'🧑‍🎨',rarity:'Rare'},
-  {id:'avatar-builder',type:'avatar',name:'Builder',icon:'🧑‍🔧',rarity:'Common'},
-  {id:'outfit-books',type:'outfit',name:'Book Stack',icon:'📚',rarity:'Common'},
-  {id:'outfit-lab',type:'outfit',name:'Lab Coat',icon:'🥼',rarity:'Rare'},
-  {id:'outfit-varsity',type:'outfit',name:'Varsity',icon:'🎽',rarity:'Rare'},
-  {id:'outfit-hoodie',type:'outfit',name:'Study Hoodie',icon:'🧥',rarity:'Common'},
-  {id:'accessory-star',type:'accessory',name:'Star Badge',icon:'⭐',rarity:'Common'},
-  {id:'accessory-crown',type:'accessory',name:'Crown',icon:'👑',rarity:'Epic'},
-  {id:'accessory-lightning',type:'accessory',name:'Lightning Pin',icon:'⚡',rarity:'Rare'},
-  {id:'frame-purple',type:'frame',name:'Purple Frame',icon:'🟣',rarity:'Common'},
-  {id:'frame-gold',type:'frame',name:'Gold Frame',icon:'🟡',rarity:'Epic'},
-  {id:'frame-neon',type:'frame',name:'Neon Frame',icon:'💠',rarity:'Legendary'},
-  {id:'bg-library',type:'background',name:'Library',icon:'📖',rarity:'Common'},
-  {id:'bg-space',type:'background',name:'Space',icon:'🌌',rarity:'Epic'},
-  {id:'bg-lab',type:'background',name:'Science Lab',icon:'🧪',rarity:'Rare'}
-];
-const BP_REWARDS = Array.from({length:50},(_,i)=>{
-  const level=i+1;
-  if(level===1) return {level,kind:'coins',amount:100,label:'100 coins'};
-  if(level===2) return {level,kind:'cosmetic',id:'avatar-scholar',label:'Scholar avatar'};
-  if(level===3) return {level,kind:'coins',amount:100,label:'100 coins'};
-  if(level===5) return {level,kind:'cosmetic',id:'outfit-books',label:'Book Stack outfit'};
-  if(level===7) return {level,kind:'coins',amount:150,label:'150 coins'};
-  if(level===10) return {level,kind:'cosmetic',id:'frame-purple',label:'Purple frame'};
-  if(level===12) return {level,kind:'coins',amount:150,label:'150 coins'};
-  if(level===15) return {level,kind:'cosmetic',id:'avatar-scientist',label:'Scientist avatar'};
-  if(level===18) return {level,kind:'coins',amount:200,label:'200 coins'};
-  if(level===20) return {level,kind:'cosmetic',id:'outfit-lab',label:'Lab Coat outfit'};
-  if(level===25) return {level,kind:'cosmetic',id:'accessory-lightning',label:'Lightning pin'};
-  if(level===30) return {level,kind:'cosmetic',id:'bg-library',label:'Library background'};
-  if(level===35) return {level,kind:'cosmetic',id:'avatar-astronaut',label:'Astronaut avatar'};
-  if(level===40) return {level,kind:'cosmetic',id:'frame-gold',label:'Gold frame'};
-  if(level===45) return {level,kind:'cosmetic',id:'bg-space',label:'Space background'};
-  if(level===50) return {level,kind:'cosmetic',id:'frame-neon',label:'Neon frame'};
-  return {level,kind:'coins',amount:50,label:'50 coins'};
-});
-function battlePassLevel(){ return Math.min(50, Math.floor((state.progress.xp||0)/100)+1); }
-function rewardForLevel(level){ return BP_REWARDS.find(r=>r.level===level); }
-function ensureRewardUnlocks(){
-  if(!Array.isArray(state.progress.unlockedCosmetics)) state.progress.unlockedCosmetics=[];
-  for(let level=1; level<=battlePassLevel(); level++){
-    const r=rewardForLevel(level); if(!r || r.kind!=='cosmetic' || !r.id) continue;
-    if(!state.progress.unlockedCosmetics.includes(r.id)) state.progress.unlockedCosmetics.push(r.id);
-  }
-  if(!state.progress.equipped) state.progress.equipped={avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'};
-  persistProgress();
-}
-
-const DAILY_COIN_CAP = 500;
-function coinDayStr(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
-function getDailyCoinState(){
-  const today=coinDayStr();
-  const saved=lsGet('index-daily-coins',{date:today,earned:0});
-  return saved.date===today ? {date:today,earned:Math.max(0,Number(saved.earned)||0)} : {date:today,earned:0};
-}
-function saveDailyCoinState(earned){ lsSet('index-daily-coins',{date:coinDayStr(),earned:Math.max(0,Math.floor(earned))}); }
-function dailyCoinsRemaining(){ return Math.max(0,DAILY_COIN_CAP-getDailyCoinState().earned); }
-
-function addCoins(amount, reason=''){
-  const n=Math.max(0,Math.floor(Number(amount)||0)); if(!n) return 0;
-  const daily=getDailyCoinState();
-  const grant=Math.min(n, DAILY_COIN_CAP-daily.earned);
-  if(grant<=0){ showRewardToast('🪙 Daily coin cap reached · come back tomorrow'); return 0; }
-  state.progress.coins=(state.progress.coins||0)+grant;
-  daily.earned+=grant;
-  saveDailyCoinState(daily.earned);
-  persistProgress(); renderSidebarBadge();
-  showRewardToast(`🪙 +${grant} coins${reason?' · '+reason:''}${grant<n?' · daily cap':''}`);
-  return grant;
-}
-function showRewardToast(text){
-  const old=document.querySelector('.reward-toast'); if(old) old.remove();
-  const el=document.createElement('div'); el.className='reward-toast'; el.textContent=text; document.body.appendChild(el); setTimeout(()=>el.remove(),2600);
-}
-function cosmeticById(id){ return REWARD_COSMETICS.find(c=>c.id===id); }
-function rewardRarityClass(r){ return String(r||'Common').toLowerCase(); }
-function packConfig(kind){
-  if(kind==='mastery') return {name:'Mastery Pack',cost:250,weights:{Common:35,Rare:35,Epic:23,Legendary:7}};
-  if(kind==='focus') return {name:'Focus Pack',cost:175,weights:{Common:45,Rare:34,Epic:17,Legendary:4}};
-  return {name:'Study Pack',cost:100,weights:{Common:65,Rare:25,Epic:8,Legendary:2}};
-}
-function rollPack(kind='study'){
-  const cfg=packConfig(kind), by={};
-  Object.keys(cfg.weights).forEach(r=>by[r]=REWARD_COSMETICS.filter(c=>c.rarity===r));
-  const total=Object.values(cfg.weights).reduce((a,b)=>a+b,0);
-  let n=Math.random()*total, rarity='Common';
-  for(const [r,w] of Object.entries(cfg.weights)){ n-=w; if(n<=0){rarity=r;break;} }
-  const pool=by[rarity]?.length ? by[rarity] : REWARD_COSMETICS;
-  return pool[Math.floor(Math.random()*pool.length)];
-}
-function playPackTick(){
-  try{
-    const C=window.AudioContext||window.webkitAudioContext; if(!C) return;
-    const ctx=window.__indexAudio||(window.__indexAudio=new C()); if(ctx.state==='suspended') ctx.resume();
-    const o=ctx.createOscillator(), g=ctx.createGain();
-    o.type='triangle'; o.frequency.setValueAtTime(540,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(220,ctx.currentTime+.055);
-    g.gain.setValueAtTime(.0001,ctx.currentTime); g.gain.exponentialRampToValueAtTime(.055,ctx.currentTime+.008); g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+.075);
-    o.connect(g); g.connect(ctx.destination); o.start(); o.stop(ctx.currentTime+.08);
-  }catch(e){}
-}
-function playPackReveal(){
-  try{
-    const C=window.AudioContext||window.webkitAudioContext; if(!C) return;
-    const ctx=window.__indexAudio||(window.__indexAudio=new C()); if(ctx.state==='suspended') ctx.resume();
-    [660,880,1046].forEach((f,i)=>{
-      const o=ctx.createOscillator(),g=ctx.createGain(); o.type='sine'; o.frequency.value=f;
-      g.gain.setValueAtTime(.0001,ctx.currentTime+i*.07); g.gain.exponentialRampToValueAtTime(.08,ctx.currentTime+i*.07+.015); g.gain.exponentialRampToValueAtTime(.0001,ctx.currentTime+i*.07+.24);
-      o.connect(g); g.connect(ctx.destination); o.start(ctx.currentTime+i*.07); o.stop(ctx.currentTime+i*.07+.25);
-    });
-  }catch(e){}
-}
-function buildReelItems(reward){
-  const items=[];
-  for(let i=0;i<13;i++) items.push(REWARD_COSMETICS[Math.floor(Math.random()*REWARD_COSMETICS.length)]);
-  items.splice(7,0,reward);
-  return items;
-}
-function openRewardPack(kind='study'){
-  const cfg=packConfig(kind);
-  if((state.progress.coins||0)<cfg.cost){ alert(`You need ${cfg.cost} coins to open the ${cfg.name}. Earn coins by playing teacher-hosted Live Games.`); return; }
-  ensureRewardUnlocks();
-  state.progress.coins-=cfg.cost;
-  const reward=rollPack(kind);
-  const duplicate=state.progress.unlockedCosmetics.includes(reward.id);
-  if(!duplicate) state.progress.unlockedCosmetics.push(reward.id);
-  state.progress.openedPacks=(state.progress.openedPacks||0)+1;
-  persistProgress(); renderSidebarBadge();
-
-  const modal=document.getElementById('pack-modal'), track=document.getElementById('pack-reel-track'), result=document.getElementById('pack-result');
-  if(!modal||!track||!result) return;
-  track.innerHTML=buildReelItems(reward).map(c=>`<div class="reel-item ${rewardRarityClass(c.rarity)}"><div class="reel-icon">${c.icon}</div><div><div class="reel-name">${esc(c.name)}</div><div class="reel-rarity">${esc(c.rarity)}</div></div></div>`).join('');
-  result.innerHTML='';
-  modal.classList.remove('hidden');
-  track.style.transition='none'; track.style.transform='translateY(0px)'; void track.offsetHeight;
-  const finalOffset=-(7*104-148);
-  let tick=0; const timer=setInterval(()=>{tick++;playPackTick();if(tick>=22)clearInterval(timer);},78);
-  track.style.transition='transform 1.85s cubic-bezier(.08,.75,.12,1)';
-  track.style.transform=`translateY(${finalOffset}px)`;
-  setTimeout(()=>{
-    playPackReveal(); celebrate();
-    const bonus=duplicate?Math.min(60,Math.floor(cfg.cost*.4)):0;
-    if(duplicate){ state.progress.coins+=bonus; persistProgress(); renderSidebarBadge(); }
-    result.innerHTML=`<div class="pack-result reveal">
-      <div class="result-rarity" style="color:${reward.rarity==='Legendary'?'#b26b00':reward.rarity==='Epic'?'#7540ba':reward.rarity==='Rare'?'#1774c8':'#596273'}">${esc(reward.rarity)} ${duplicate?'· Duplicate':''}</div>
-      <div class="result-name">${reward.icon} ${esc(reward.name)}</div>
-      <div class="result-note">${duplicate?`You already own this cosmetic, so ${bonus} coins were returned.`:'New cosmetic unlocked and added to your collection.'}</div>
-      <div style="margin-top:12px"><button class="btn btn-primary" data-action="close-pack-modal">Continue</button></div>
-    </div>`;
-  },1950);
-}
-function closePackModal(){ document.getElementById('pack-modal')?.classList.add('hidden'); renderRewards(); }
-function equipCosmetic(id){
-  if(!state.progress.unlockedCosmetics.includes(id)) return;
-  const c=cosmeticById(id); if(!c) return;
-  state.progress.equipped[c.type]=id; persistProgress(); renderRewards(); renderProfileSlot();
-}
-function avatarPreviewHtml(){
-  ensureRewardUnlocks();
-  const eq=state.progress.equipped||{};
-  const avatar=cosmeticById(eq.avatar)?.icon||'🧑‍🎓', outfit=cosmeticById(eq.outfit)?.icon||'📚', accessory=cosmeticById(eq.accessory)?.icon||'';
-  const bg=cosmeticById(eq.background)?.icon||'✨';
-  const bgClass=eq.background==='bg-space'?'avatar-bg-space':eq.background==='bg-lab'?'avatar-bg-lab':'avatar-bg-library';
-  const frame=eq.frame==='frame-gold'?'8px solid #f0d46a':eq.frame==='frame-neon'?'8px solid #57f4ff':'8px solid rgba(255,255,255,.7)';
-  return `<div class="avatar-preview ${bgClass}" style="border:${frame};">${avatar}<span class="avatar-outfit">${outfit}</span>${accessory?`<span class="avatar-accessory">${accessory}</span>`:''}</div><div style="font-size:14px;font-weight:900;">${esc(cosmeticById(eq.avatar)?.name||'Scholar')}</div><div style="font-size:12px;opacity:.85;margin-top:4px;">${esc(cosmeticById(eq.outfit)?.name||'Study outfit')} · ${esc(cosmeticById(eq.background)?.name||'Default')} ${esc(bg)}</div>`;
-}
-function renderRewards(){
-  ensureRewardUnlocks();
-  const root=document.getElementById('rewards-stage'); if(!root) return;
-  const lvl=battlePassLevel(), xp=state.progress.xp||0, into=lvl>=50?100:xp%100, tab=state.rewardsTab||'battlepass';
-  const daily=getDailyCoinState(), remaining=DAILY_COIN_CAP-daily.earned, pct=Math.min(100,daily.earned/DAILY_COIN_CAP*100);
-  const tabHtml=`<div class="reward-tabs"><button class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass">🏆 Battle Pass</button><button class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar">🧑 Avatar</button><button class="reward-tab ${tab==='packs'?'active':''}" data-action="reward-tab" data-tab="packs">📦 Packs</button></div>`;
-  const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Teacher-hosted Live Games are the source of coins for cosmetic packs.</p></div><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
-  let body='';
-  if(tab==='battlepass'){
-    body=`<div class="bp-hero"><div style="display:flex;justify-content:space-between;gap:10px;align-items:end;flex-wrap:wrap;"><div><div style="font-size:12px;font-weight:800;opacity:.9;">INDEX BATTLE PASS</div><div style="font-family:var(--font-display);font-size:30px;font-weight:700;">Level ${lvl} <span style="font-size:14px;font-family:var(--font-ui);font-weight:800;opacity:.85;">/ 50</span></div></div><div style="font-size:13px;font-weight:800;">${into}/100 XP</div></div><div class="bp-track"><div class="bp-fill" style="width:${lvl>=50?100:into}%"></div></div><div style="font-size:11.5px;opacity:.9;">XP comes from learning activities. It never costs money.</div></div><div class="bp-levels">${BP_REWARDS.map(r=>{const unlocked=lvl>=r.level,current=lvl===r.level;return `<div class="bp-level ${unlocked?'unlocked':''} ${current?'current':''}"><div class="bp-num">Level ${r.level} ${unlocked?'✓':''}</div><div class="bp-reward">${esc(r.label)}</div></div>`}).join('')}</div>`;
-  } else if(tab==='avatar'){
-    const unlocked=state.progress.unlockedCosmetics, groups=['avatar','outfit','accessory','frame','background'];
-    body=`<div class="reward-shell"><div><div class="avatar-stage">${avatarPreviewHtml()}<div style="margin-top:14px;font-size:11.5px;opacity:.8;">Cosmetics are visual only. They do not affect grades, scores, or access.</div></div>${groups.map(type=>`<div class="panel" style="margin-bottom:14px;"><h3>${type[0].toUpperCase()+type.slice(1)}s</h3><div class="cosmetic-grid">${REWARD_COSMETICS.filter(c=>c.type===type).map(c=>{const ok=unlocked.includes(c.id),eq=state.progress.equipped[type]===c.id;return `<div class="cosmetic-card ${ok?'unlocked':''} ${eq?'equipped':''}"><div class="cosmetic-icon">${c.icon}</div><strong>${esc(c.name)}</strong><div class="reward-muted">${c.rarity} · ${ok?'Unlocked':'Locked'}</div>${ok?`<button class="btn ${eq?'btn-dark':'btn-primary'} btn-sm" style="margin-top:9px;" data-action="equip-cosmetic" data-id="${c.id}">${eq?'Equipped':'Equip'}</button>`:''}</div>`}).join('')}</div></div>`).join('')}</div><div><div class="panel"><h3>Your collection</h3><p class="reward-muted">${unlocked.length} cosmetics unlocked. Packs can add more.</p><button class="btn btn-primary" data-action="reward-tab" data-tab="packs">Open Packs</button></div></div></div>`;
-  } else {
-    const packCard=(kind)=>{const c=packConfig(kind),can=(state.progress.coins||0)>=c.cost;return `<div class="pack-option" data-pack="${kind}"><div class="pack-rarity-line"></div><div class="pack-box">📦</div><div class="pack-name">${c.name}</div><div class="pack-desc">One random cosmetic with a higher chance of premium rarity as the pack tier rises.</div><div class="pack-cost"><span class="coin-pill">🪙 ${c.cost}</span></div><button class="btn ${can?'btn-primary':'btn-ghost'}" data-action="open-pack" data-pack="${kind}" ${can?'':'disabled'}>${can?'Open pack':'Not enough coins'}</button><div class="pack-odds"><span class="rarity-pill common">Common</span><span class="rarity-pill rare">Rare</span><span class="rarity-pill epic">Epic</span><span class="rarity-pill legendary">Legendary</span></div></div>`;};
-    const collection=REWARD_COSMETICS.slice(0,12).map(c=>`<div class="rarity-card ${rewardRarityClass(c.rarity)}"><div class="collection-icon">${c.icon}</div><div class="collection-name">${esc(c.name)}</div><div class="collection-rarity">${esc(c.rarity)}</div></div>`).join('');
-    body=`<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">Cosmetic Vault</div><div class="pack-showcase-title">Choose your pack.</div><div class="pack-showcase-copy">Earn coins in teacher-hosted Live Games, then open a pack and watch the vertical reel land on your cosmetic. Each rarity has its own visual treatment.</div></div><div class="coin-pill">🪙 ${state.progress.coins||0} coins</div></div><div class="pack-shelf">${packCard('study')}${packCard('focus')}${packCard('mastery')}</div></div></div>
-      <div class="rewards-lower"><div class="panel"><div class="row"><div><h3>Collection gallery</h3><p class="reward-muted">Rarity backgrounds show the tier of each cosmetic.</p></div><button class="btn btn-ghost btn-sm" data-action="reward-tab" data-tab="avatar">Customize avatar</button></div><div class="rarity-collection">${collection}</div></div><div class="panel"><h3>How coins work</h3><p class="reward-muted">Teacher-hosted Live Games award coins when the game ends. Correct answers and placement can increase the reward.</p><div class="stat-row" style="margin-top:12px"><div class="stat"><div class="stat-num">${state.progress.liveGames||0}</div><div class="stat-label">Live games</div></div><div class="stat"><div class="stat-num">${daily.earned}</div><div class="stat-label">Coins earned today</div></div></div><p class="reward-muted" style="margin-top:12px">Daily earning cap: <strong>${DAILY_COIN_CAP} coins</strong>.</p></div></div>`;
-  }
-  root.innerHTML=head+body;
-}
 
 /* ============================== HELPERS ============================== */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -1296,29 +859,9 @@ function computeStreak(){
   return streak;
 }
 function levelInfo(xp){ const level=Math.floor(xp/100)+1; const into=xp%100; return {level, into}; }
-function applyBattlePassRewards(){
-  if(!Array.isArray(state.progress.claimedBPLevels)) state.progress.claimedBPLevels=[];
-  if(!Array.isArray(state.progress.unlockedCosmetics)) state.progress.unlockedCosmetics=[];
-  const lvl=battlePassLevel();
-  for(let level=1; level<=lvl; level++){
-    if(state.progress.claimedBPLevels.includes(level)) continue;
-    const reward=rewardForLevel(level);
-    if(reward?.kind==='coins') state.progress.coins=(state.progress.coins||0)+reward.amount;
-    if(reward?.kind==='cosmetic' && reward.id && !state.progress.unlockedCosmetics.includes(reward.id)) state.progress.unlockedCosmetics.push(reward.id);
-    state.progress.claimedBPLevels.push(level);
-  }
-  persistProgress();
-}
 function addXP(amount){
-  const n=Math.max(0,Math.floor(Number(amount)||0)); if(!n) return;
-  const before=battlePassLevel();
-  state.progress.xp += n; recordActiveToday();
-  applyBattlePassRewards();
-  const after=battlePassLevel();
-  renderSidebarBadge();
-  if(after>before){ showRewardToast(`🏆 Battle Pass Level ${after}! New reward unlocked.`); celebrate(); }
+  state.progress.xp += amount; recordActiveToday(); persistProgress(); renderSidebarBadge();
   if(state.view==='dashboard') renderDashboard();
-  if(state.view==='rewards') renderRewards();
 }
 function ensureCardMeta(set){
   if(set.type!=='flashcards') return;
@@ -1382,7 +925,6 @@ function switchView(view){
   if(view==='studysets') renderStudySets();
   if(view==='games') renderGames();
   if(view==='live') renderLive();
-  if(view==='rewards') renderRewards();
   window.scrollTo(0,0);
 }
 
@@ -1394,15 +936,14 @@ function renderDashboard(){
   const districtChip = document.getElementById('district-chip-text');
   const name = displayName();
   if(greeting) greeting.textContent = name ? `Ready when you are, ${name.split(' ')[0]} 👋` : 'Your study command center';
-  if(subtitle) subtitle.textContent = state.district ? `Personalized for ${state.district}. Build momentum with one focused task.` : 'Choose your county or school district to personalize your experience and see the correct local review information.';
-  if(districtChip) districtChip.textContent = state.district || 'Choose county';
+  if(subtitle) subtitle.textContent = state.district ? `Personalized for ${state.district}. Build momentum with one focused task.` : 'Pick a district to personalize your experience and get smarter study shortcuts.';
+  if(districtChip) districtChip.textContent = state.district || 'Choose school district';
   document.getElementById('progress-banner').innerHTML = `
     <div class="pb-item"><b>Level ${lvl.level}</b>${lvl.into}/100 XP</div>
     <div class="pb-item"><b>🔥 ${streak}</b>day streak</div>
     <div class="pb-item"><b>${state.progress.lessonsLearned.length}</b>lessons learned</div>
     <div class="pb-item"><b>${due}</b>cards due today</div>
-    <div class="pb-item"><b>🪙 ${state.progress.coins||0}</b>coins</div>
-    <button class="btn btn-dark btn-sm" data-action="goto" data-view="rewards">🏆 Rewards</button>`;
+    <button class="btn btn-dark btn-sm" data-action="open-smart-review" ${due===0?'disabled':''}>Review now</button>`;
   document.getElementById('stat-row').innerHTML = `
     <div class="stat"><div class="stat-num">${state.notes.length}</div><div class="stat-label">Notes saved</div></div>
     <div class="stat"><div class="stat-num">${state.studySets.length}</div><div class="stat-label">Study sets built</div></div>
@@ -1421,7 +962,7 @@ function renderDashboard(){
 }
 function renderSidebarBadge(){
   const lvl = levelInfo(state.progress.xp); const streak = computeStreak();
-  document.getElementById('sidebar-foot').innerHTML = `<div class="sidebar-badge"><span>Lv ${lvl.level}</span><span>·</span><span>${state.progress.xp} XP</span><span>·</span><span>🪙 ${state.progress.coins||0}</span></div>${state.aiEnabled?'':'<div style="margin-top:6px;">AI needs WebGPU</div>'}`;
+  document.getElementById('sidebar-foot').innerHTML = `<div class="sidebar-badge"><span>Lv ${lvl.level}</span><span>·</span><span>${state.progress.xp} XP</span><span>·</span><span>🔥 ${streak}</span></div>${state.aiEnabled?'':'<div style="margin-top:6px;">AI needs WebGPU</div>'}`;
 }
 function displayName(){
   if(state.account && state.account.name) return state.account.name;
@@ -1430,11 +971,9 @@ function displayName(){
 }
 function renderProfileSlot(){
   const el = document.getElementById('profile-slot');
-  if(!el) return;
   const name = displayName();
-  const avatarIcon = cosmeticById?.(state.progress?.equipped?.avatar)?.icon || (name ? name[0].toUpperCase() : '👤');
   if(name){
-    el.innerHTML = `<button class="profile-btn" data-action="open-signin"><span class="avatar">${esc(avatarIcon)}</span><span style="font-size:12.5px;font-weight:800;">${esc(name)}</span></button>`;
+    el.innerHTML = `<button class="profile-btn" data-action="open-signin"><span class="avatar">${esc(name[0].toUpperCase())}</span><span style="font-size:12.5px;font-weight:800;">${esc(name)}</span></button>`;
   }else if(state.account){
     el.innerHTML = `<button class="signin-btn" data-action="open-signin">👋 Add your name</button>`;
   }else{
@@ -1637,6 +1176,8 @@ function closeNoteModal(){ document.getElementById('note-modal').classList.add('
 function setNoteSource(source){
   document.querySelectorAll('#note-source-row .note-source-btn').forEach(b=>b.classList.toggle('active', b.dataset.noteSource===source));
   document.getElementById('note-computer-panel').classList.toggle('hidden', source!=='computer');
+  document.getElementById('note-drive-panel').classList.toggle('hidden', source!=='drive');
+  if(source==='drive') loadDriveFiles();
 }
 function chooseNoteFile(){ document.getElementById('note-file-input').click(); }
 function plainTextFromFile(file, text){
@@ -1663,6 +1204,43 @@ function importComputerNote(file){
   reader.onerror=()=>alert('Could not read that file.');
   reader.readAsText(file);
 }
+async function loadDriveStatus(){
+  try{ const r=await fetch('/api/drive/status'); const d=await r.json(); state.driveConnected=!!d.connected; updateDrivePanel(d); }catch(e){ state.driveConnected=false; updateDrivePanel({configured:false,connected:false}); }
+}
+function updateDrivePanel(info){
+  const status=document.getElementById('drive-status'); if(!status) return;
+  const connect=document.getElementById('drive-connect-btn'), refresh=document.getElementById('drive-refresh-btn'), disconnect=document.getElementById('drive-disconnect-btn');
+  if(!info?.configured){ status.textContent='Google Drive import needs Google Drive OAuth configured on the server.'; connect.textContent='Google Drive not configured'; connect.disabled=true; refresh.classList.add('hidden'); disconnect.classList.add('hidden'); return; }
+  connect.classList.toggle('hidden',!!info.connected); refresh.classList.toggle('hidden',!info.connected); disconnect.classList.toggle('hidden',!info.connected);
+  connect.disabled=false; status.textContent=info.connected?'Connected. Choose a file below.':'Connect your Google Drive to import notes.';
+}
+async function connectDrive(){ window.location.href='/api/drive/start'; }
+async function loadDriveFiles(){
+  await loadDriveStatus();
+  const list=document.getElementById('drive-file-list'); if(!list) return;
+  if(!state.driveConnected){ list.innerHTML=''; return; }
+  list.innerHTML='<div style="font-size:12px;color:var(--ink-soft);padding:5px;">Loading your recent files…</div>';
+  try{
+    const r=await fetch('/api/drive/files'); const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Could not load Drive files.');
+    if(!d.files?.length){ list.innerHTML='<div style="font-size:12px;color:var(--ink-soft);padding:5px;">No supported text files or Google Docs were found.</div>'; return; }
+    list.innerHTML=d.files.map(f=>`<div class="drive-file"><div style="min-width:0;"><div class="drive-file-name" title="${esc(f.name)}">${esc(f.name)}</div><div class="drive-file-meta">${f.mimeType==='application/vnd.google-apps.document'?'Google Doc':'Text file'}</div></div><button class="btn btn-primary btn-sm" data-action="import-drive-file" data-file-id="${esc(f.id)}">Import</button></div>`).join('');
+  }catch(e){ list.innerHTML=`<div class="error-note">${esc(e.message||'Could not load Google Drive files.')}</div>`; }
+}
+async function importDriveFile(id){
+  const list=document.getElementById('drive-file-list');
+  try{
+    list.innerHTML='<div style="font-size:12px;color:var(--ink-soft);padding:5px;">Importing…</div>';
+    const r=await fetch('/api/drive/import/'+encodeURIComponent(id)); const d=await r.json();
+    if(!r.ok) throw new Error(d.error||'Could not import that file.');
+    document.getElementById('note-title').value=d.title||'Imported note';
+    document.getElementById('note-content').value=d.content||'';
+    setNoteSource('drive');
+    document.getElementById('drive-status').textContent='Imported successfully. You can edit the text before saving.';
+    await loadDriveFiles();
+  }catch(e){ alert(e.message||'Could not import that Google Drive file.'); await loadDriveFiles(); }
+}
+async function disconnectDrive(){ try{ await fetch('/api/drive/disconnect',{method:'POST'}); }catch(e){} state.driveConnected=false; await loadDriveFiles(); }
 function saveNote(){
   const title = document.getElementById('note-title').value.trim();
   const content = document.getElementById('note-content').value.trim();
@@ -2108,7 +1686,7 @@ function ensureSocket(){
 }
 function liveTeardown(){
   if(state.live.timerInterval){ clearInterval(state.live.timerInterval); }
-  if(socket){ socket.removeAllListeners('room:roster'); socket.removeAllListeners('room:question'); socket.removeAllListeners('room:reveal'); socket.removeAllListeners('room:ended'); socket.removeAllListeners('answer:ack'); socket.removeAllListeners('room:answered-count'); socket.removeAllListeners('chest:result'); socket.removeAllListeners('live:reward'); }
+  if(socket){ socket.removeAllListeners('room:roster'); socket.removeAllListeners('room:question'); socket.removeAllListeners('room:reveal'); socket.removeAllListeners('room:ended'); socket.removeAllListeners('answer:ack'); socket.removeAllListeners('room:answered-count'); socket.removeAllListeners('chest:result'); }
   state.live = { role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia', session:null, players:[], answeredCount:0, myLastAnswer:null, myChest:null, hostSubjectId:null, hostSetId:null, timerInterval:null, config:{questionCount:10,timePerQuestion:20,shuffleQuestions:true,shuffleAnswers:false,showLeaderboard:true,autoAdvance:false,maxPlayers:50,title:''} };
   const btn = document.getElementById('live-exit-btn'); if(btn) btn.classList.add('hidden');
 }
@@ -2457,7 +2035,6 @@ function wirePlayerListeners(){
     renderLive();
   });
   socket.on('room:ended', (d)=>{ state.live.players = d.players; state.live.screen = 'ended'; celebrate(); renderLive(); });
-  socket.on('live:reward', (d)=>{ if(!d || d.playerId!==state.live.playerId) return; addXP(d.xp||0); addCoins(d.coins||0,'Live Game'); state.progress.liveGames=(state.progress.liveGames||0)+1; persistProgress(); showRewardToast(`🏁 Live Game complete · +${d.xp||0} XP · +${d.coins||0} coins`); });
   socket.on('chest:result', (d)=>{ state.live.myChest = d.bonus; renderLive(); });
 }
 function liveAnswerPick(idx){
@@ -2484,68 +2061,6 @@ function startLiveTimer(startedAt, durationMs){
 function stopLiveTimer(){ if(state.live.timerInterval){ clearInterval(state.live.timerInterval); state.live.timerInterval=null; } }
 
 /* ============================== NAME MODAL ============================== */
-/* ============================== COUNTY / LOCAL JURISDICTION PERSONALIZATION ============================== */
-const LOCAL_JURISDICTIONS = [
-  {id:'montgomery-md',name:'Montgomery County, Maryland',district:'Montgomery County Public Schools (MCPS)',site:'https://www.montgomeryschoolsmd.org/',review:'https://www.montgomeryschoolsmd.org/online-digital-tools/',reviewLabel:'MCPS Online Digital Tools',note:'MCPS publishes an Online Digital Tools review process covering instructional alignment, data privacy/security, and accessibility.'},
-  {id:'prince-georges-md',name:"Prince George's County, Maryland",district:"Prince George's County Public Schools (PGCPS)",site:'https://www.pgcps.org/',review:'https://www.pgcps.org/offices/purchasing/digital-tool-vendor-guidelines',reviewLabel:'PGCPS Digital Tool Vendor Guidelines',note:'PGCPS publishes digital-tool vendor review and privacy/security requirements.'},
-  {id:'howard-md',name:'Howard County, Maryland',district:'Howard County Public School System (HCPSS)',site:'https://www.hcpss.org/',review:'https://www.hcpss.org/digital-tools/',reviewLabel:'HCPSS Digital Tools',note:'HCPSS publishes Essential and Supplemental Digital Tool categories and an approved/not-approved master list.'},
-  {id:'anne-arundel-md',name:'Anne Arundel County, Maryland',district:'Anne Arundel County Public Schools (AACPS)',site:'https://www.aacps.org/',review:'https://www.aacps.org/page/apps-tools',reviewLabel:'AACPS Apps & Tools',note:'AACPS publishes its student-facing Apps & Tools resources.'},
-  {id:'baltimore-county-md',name:'Baltimore County, Maryland',district:'Baltimore County Public Schools (BCPS)',site:'https://www.bcps.org/',review:'https://www.bcps.org/',reviewLabel:'BCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'baltimore-city-md',name:'Baltimore City, Maryland',district:'Baltimore City Public Schools (City Schools)',site:'https://www.baltimorecityschools.org/',review:'https://www.baltimorecityschools.org/',reviewLabel:'City Schools official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'frederick-md',name:'Frederick County, Maryland',district:'Frederick County Public Schools (FCPS)',site:'https://www.fcps.org/',review:'https://www.fcps.org/',reviewLabel:'FCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'carroll-md',name:'Carroll County, Maryland',district:'Carroll County Public Schools (CCPS)',site:'https://www.carrollk12.org/',review:'https://www.carrollk12.org/',reviewLabel:'CCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'harford-md',name:'Harford County, Maryland',district:'Harford County Public Schools (HCPS)',site:'https://www.hcps.org/',review:'https://www.hcps.org/',reviewLabel:'HCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'washington-md',name:'Washington County, Maryland',district:'Washington County Public Schools (WCPS)',site:'https://www.wcpsmd.com/',review:'https://www.wcpsmd.com/',reviewLabel:'WCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'allegany-md',name:'Allegany County, Maryland',district:'Allegany County Public Schools (ACPS)',site:'https://www.acpsmd.org/',review:'https://www.acpsmd.org/',reviewLabel:'ACPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'garrett-md',name:'Garrett County, Maryland',district:'Garrett County Public Schools (GCPS)',site:'https://www.garrettcountyschools.org/',review:'https://www.garrettcountyschools.org/',reviewLabel:'GCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'kent-md',name:'Kent County, Maryland',district:'Kent County Public Schools (KCPS)',site:'https://www.kent.k12.md.us/',review:'https://www.kent.k12.md.us/',reviewLabel:'KCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'queen-annes-md',name:"Queen Anne's County, Maryland",district:"Queen Anne's County Public Schools (QACPS)",site:'https://www.qacps.org/',review:'https://www.qacps.org/',reviewLabel:'QACPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'talbot-md',name:'Talbot County, Maryland',district:'Talbot County Public Schools (TCPS)',site:'https://www.tcps.k12.md.us/',review:'https://www.tcps.k12.md.us/',reviewLabel:'TCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'caroline-md',name:'Caroline County, Maryland',district:'Caroline County Public Schools (CCPS)',site:'https://www.carolineschools.org/',review:'https://www.carolineschools.org/',reviewLabel:'CCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'dorchester-md',name:'Dorchester County, Maryland',district:'Dorchester County Public Schools (DCPS)',site:'https://www.dorchester.k12.md.us/',review:'https://www.dorchester.k12.md.us/',reviewLabel:'DCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'somerset-md',name:'Somerset County, Maryland',district:'Somerset County Public Schools (SCPS)',site:'https://www.somerset.k12.md.us/',review:'https://www.somerset.k12.md.us/',reviewLabel:'SCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'wicomico-md',name:'Wicomico County, Maryland',district:'Wicomico County Public Schools (WCPS)',site:'https://www.wcboe.org/',review:'https://www.wcboe.org/',reviewLabel:'WCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'worcester-md',name:'Worcester County, Maryland',district:'Worcester County Public Schools (WCPS)',site:'https://www.worcesterk12.org/',review:'https://www.worcesterk12.org/',reviewLabel:'WCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'cecil-md',name:'Cecil County, Maryland',district:'Cecil County Public Schools (CCPS)',site:'https://www.ccps.org/',review:'https://www.ccps.org/',reviewLabel:'CCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'calvert-md',name:'Calvert County, Maryland',district:'Calvert County Public Schools (CCPS)',site:'https://www.calvertnet.k12.md.us/',review:'https://www.calvertnet.k12.md.us/',reviewLabel:'CCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'charles-md',name:'Charles County, Maryland',district:'Charles County Public Schools (CCPS)',site:'https://www.ccboe.com/',review:'https://www.ccboe.com/',reviewLabel:'CCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'st-marys-md',name:"St. Mary's County, Maryland",district:"St. Mary's County Public Schools (SMCPS)",site:'https://www.smcps.org/',review:'https://www.smcps.org/',reviewLabel:'SMCPS official site',note:'Use the district’s current technology, privacy, and approved-tool guidance for school use.'},
-  {id:'other',name:'Other county / district',district:'Your local school district',site:'',review:'',reviewLabel:'Local school district guidance',note:'Index will show the county or district name you enter, but it does not invent local approval or privacy requirements. Check your district’s current official guidance before school use.'}
-];
-let countyDraft='';
-function getLocalJurisdiction(){ return LOCAL_JURISDICTIONS.find(x=>x.id===state.county) || null; }
-function renderCountyGateOptions(filter=''){
-  const q=String(filter||'').toLowerCase(); const el=document.getElementById('county-gate-options'); if(!el) return;
-  const list=LOCAL_JURISDICTIONS.filter(x=>(x.name+' '+x.district).toLowerCase().includes(q));
-  el.innerHTML=list.map(x=>`<button type="button" class="county-option ${countyDraft===x.id?'selected':''}" data-county-id="${esc(x.id)}"><div>${esc(x.name)}</div><div class="county-meta">${esc(x.district)}</div></button>`).join('') || '<p class="panel-empty">No match. Try another county or choose Other county / district.</p>';
-}
-function showCountyGate(){
-  const gate=document.getElementById('county-gate'); if(!gate) return;
-  countyDraft=state.county||''; document.getElementById('county-gate-search').value=''; renderCountyGateOptions();
-  document.getElementById('county-gate-status').textContent=''; document.getElementById('continue-county').disabled=!countyDraft;
-  gate.classList.remove('hidden'); document.body.style.overflow='hidden';
-}
-function hideCountyGate(){ document.getElementById('county-gate')?.classList.add('hidden'); if(document.getElementById('site-gate')?.classList.contains('hidden')) document.body.style.overflow=''; }
-function selectCounty(id){ countyDraft=id; renderCountyGateOptions(document.getElementById('county-gate-search').value); document.getElementById('continue-county').disabled=false; }
-function saveCounty(){
-  const profile=LOCAL_JURISDICTIONS.find(x=>x.id===countyDraft); if(!profile) return;
-  state.county=profile.id; state.profile.county=profile.id; state.profile.countyName=profile.name; persistProfile(); hideCountyGate(); applyLocalJurisdictionUI(); initializeApp();
-}
-function localPageUrl(path){ return path+'?county='+encodeURIComponent(state.county||'other'); }
-function applyLocalJurisdictionUI(){
-  const p=getLocalJurisdiction(); if(!p) return;
-  const nav=document.getElementById('local-review-nav'); if(nav) nav.textContent=(p.id==='other'?'Local Review':p.name.replace(', Maryland','')+' Review');
-  const foot=document.getElementById('local-review-footer'); if(foot) foot.textContent=(p.id==='other'?'Local Review':p.name.replace(', Maryland','')+' Review');
-  document.querySelectorAll('a[href="/mcps-review.html"]').forEach(a=>a.href=localPageUrl('/mcps-review.html'));
-  document.querySelectorAll('a[href="/privacy.html"]').forEach(a=>a.href=localPageUrl('/privacy.html'));
-  document.querySelectorAll('a[href="/terms.html"]').forEach(a=>a.href=localPageUrl('/terms.html'));
-  document.querySelectorAll('a[href="/contact.html"]').forEach(a=>a.href=localPageUrl('/contact.html'));
-  const gt=document.getElementById('gate-terms-link'); if(gt) gt.href=localPageUrl('/terms.html');
-  const gp=document.getElementById('gate-privacy-link'); if(gp) gp.href=localPageUrl('/privacy.html');
-  const gc=document.getElementById('gate-conduct-link'); if(gc) gc.href=localPageUrl('/mcps-review.html')+'#safety';
-  const chip=document.getElementById('district-chip-text'); if(chip && !state.district) chip.textContent=p.name;
-  const sub=document.getElementById('personal-subtitle'); if(sub) sub.textContent=`Personalized for ${p.name}. Local review and privacy information is shown for this selection.`;
-}
 /* ============================== DISTRICT PERSONALIZATION ============================== */
 const SCHOOL_DISTRICTS = [
   'Montgomery County Public Schools (MD)','Prince George’s County Public Schools (MD)','Howard County Public School System (MD)','Anne Arundel County Public Schools (MD)','Baltimore County Public Schools (MD)','Fairfax County Public Schools (VA)','Loudoun County Public Schools (VA)','Arlington Public Schools (VA)','District of Columbia Public Schools (DC)','New York City Public Schools (NYC)','Los Angeles Unified School District (CA)','Chicago Public Schools (IL)','Houston Independent School District (TX)','Miami-Dade County Public Schools (FL)','Seattle Public Schools (WA)','Boston Public Schools (MA)','Austin Independent School District (TX)','Other / Not listed'
@@ -2561,46 +2076,34 @@ function openDistrict(){ districtDraft=state.district||''; document.getElementBy
 function closeDistrict(){ document.getElementById('district-modal').classList.add('hidden'); }
 function saveDistrict(){ state.district=districtDraft; state.profile.district=districtDraft; persistProfile(); closeDistrict(); renderDashboard(); }
 
-/* ============================== ACCOUNT (email / password) ============================== */
+/* ============================== ACCOUNT (Google / email) ============================== */
 let authMode = 'signup'; // 'signup' | 'login'
-let authRecoveryMode = '';
-let resetToken = '';
+let authMethod = 'email';
 
 async function refreshAuthStatus(){
-  try{ const r = await fetch('/api/auth/me', {cache:'no-store'}); const d = await r.json(); state.account = d.user || null; }catch(e){ state.account = null; }
-  renderProfileSlot();
+  try{ const r = await fetch('/api/auth/status'); const d = await r.json(); state.googleEnabled = !!d.googleEnabled; }catch(e){ state.googleEnabled = false; }
+  try{ const r = await fetch('/api/auth/me'); const d = await r.json(); state.account = d.user || null; }catch(e){ state.account = null; }
 }
-async function openSignin(){
+function openSignin(){
   document.getElementById('signin-name').value = state.profile.name || '';
   document.getElementById('auth-status').innerHTML = '';
-  document.getElementById('recovery-status').innerHTML = '';
-  document.getElementById('reset-status').innerHTML = '';
-  // Render restarts clear in-memory sessions. Verify the live server session
-  // before showing the account panel so stale UI state cannot say signed in.
-  await refreshAuthStatus();
-  showAuthPanel();
+  document.getElementById('google-signin-btn').classList.toggle('hidden', !state.googleEnabled);
+  document.getElementById('signin-divider-or').classList.toggle('hidden', !state.googleEnabled);
   if(state.account){
     document.getElementById('account-panel').classList.remove('hidden');
     document.getElementById('auth-panel').classList.add('hidden');
     document.getElementById('guest-panel').classList.add('hidden');
-    document.getElementById('recovery-panel').classList.add('hidden');
-    document.getElementById('reset-panel').classList.add('hidden');
     document.getElementById('signin-modal-title').textContent = 'Your account';
     document.getElementById('account-first').value = state.account.firstName || '';
-    document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''}`;
-    const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; document.getElementById('account-avatar-preview').textContent=cosmeticById(state.progress?.equipped?.avatar)?.icon || '👤';
+    document.getElementById('account-last').value = state.account.lastName || '';
+    document.getElementById('account-contact').textContent = state.account.method==='google' ? `Signed in with Google${state.account.email?' · '+state.account.email:''}` : state.account.method==='email' ? `Signed in with email${state.account.email?' · '+state.account.email:''}` : 'Signed in with email';
   }else{
     document.getElementById('account-panel').classList.add('hidden');
     document.getElementById('auth-panel').classList.remove('hidden');
     document.getElementById('guest-panel').classList.add('hidden');
-    document.getElementById('recovery-panel').classList.add('hidden');
-    document.getElementById('reset-panel').classList.add('hidden');
     document.getElementById('signin-modal-title').textContent = 'Sign in';
     document.getElementById('auth-complete-banner').classList.add('hidden');
-    const rememberedIdentifier = localStorage.getItem('index.authIdentifier') || '';
-    setAuthMode('login');
-    document.getElementById('auth-identifier').value = rememberedIdentifier;
-    document.getElementById('auth-password').value = '';
+    setAuthMode('signup');
   }
   document.getElementById('signin-modal').classList.remove('hidden');
 }
@@ -2608,137 +2111,46 @@ function closeSignin(){ document.getElementById('signin-modal').classList.add('h
 function showGuestPanel(){
   document.getElementById('account-panel').classList.add('hidden');
   document.getElementById('auth-panel').classList.add('hidden');
-  document.getElementById('recovery-panel').classList.add('hidden');
-  document.getElementById('reset-panel').classList.add('hidden');
   document.getElementById('guest-panel').classList.remove('hidden');
   document.getElementById('signin-modal-title').textContent = 'Your name';
-}
-function showAuthPanel(){
-  document.getElementById('account-panel').classList.add('hidden');
-  document.getElementById('guest-panel').classList.add('hidden');
-  document.getElementById('recovery-panel').classList.add('hidden');
-  document.getElementById('reset-panel').classList.add('hidden');
-  document.getElementById('auth-panel').classList.remove('hidden');
-  document.getElementById('signin-modal-title').textContent = authMode==='signup' ? 'Create your account' : 'Sign in';
 }
 function setAuthMode(mode){
   authMode = mode;
   document.getElementById('auth-submit-btn').textContent = mode==='signup' ? 'Sign up' : 'Log in';
-  document.getElementById('auth-mode-toggle').textContent = mode==='signup' ? 'Have an account? Log in' : 'New here? Sign up';
-  const userField=document.getElementById('auth-username-field');
-  const idLabel=document.getElementById('auth-identifier-label');
-  const idInput=document.getElementById('auth-identifier');
-  userField.classList.toggle('hidden', mode!=='signup');
-  idLabel.textContent = mode==='signup' ? 'Email' : 'Email or username';
-  idInput.placeholder = mode==='signup' ? 'you@example.com' : 'you@example.com or username';
-  idInput.autocomplete = mode==='signup' ? 'email' : 'username';
-  document.getElementById('auth-password').autocomplete = mode==='signup' ? 'new-password' : 'current-password';
+  document.getElementById('auth-mode-toggle').textContent = mode==='signup' ? 'Have an account? Log in' : "New here? Sign up";
 }
+function setAuthMethod(method){ authMethod='email'; document.querySelectorAll('#auth-method-toggle .toggle-btn').forEach(b=>b.classList.toggle('active', b.dataset.method==='email')); document.getElementById('auth-identifier-label').textContent='Email'; document.getElementById('auth-identifier').placeholder='you@school.edu'; }
 async function authSubmit(){
   const identifier = document.getElementById('auth-identifier').value.trim();
-  const username = document.getElementById('auth-username').value.trim();
   const password = document.getElementById('auth-password').value;
   const status = document.getElementById('auth-status');
-  if(!identifier || !password || (authMode==='signup' && !username)){ status.innerHTML = `<div class="error-note">${authMode==='signup'?'Enter an email, username, and password.':'Enter your email or username and password.'}</div>`; return; }
+  if(!identifier || !password){ status.innerHTML = `<div class="error-note">Enter both fields.</div>`; return; }
   status.innerHTML = `<div class="loading-line"><span class="spinner"></span> ${authMode==='signup'?'Creating your account…':'Signing in…'}</div>`;
   try{
-    const body = authMode==='signup' ? { method:'email', identifier, username, password } : { method:'email', identifier, password };
-    const r = await fetch(`/api/auth/${authMode}`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
+    const r = await fetch(`/api/auth/${authMode}`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ method: authMethod, identifier, password }) });
     const d = await r.json();
     if(!r.ok){ status.innerHTML = `<div class="error-note">${esc(d.error||'Something went wrong.')}</div>`; return; }
     state.account = d.user;
-    await loadAccountState();
-    try { localStorage.setItem('index.authIdentifier', (d.user && d.user.email) ? d.user.email : identifier); } catch(e) {}
-    if(window.PasswordCredential && navigator.credentials && navigator.credentials.store){
-      try {
-        const credential = new PasswordCredential({ id: (d.user && d.user.email) ? d.user.email : identifier, password });
-        await navigator.credentials.store(credential);
-      } catch(e) {}
-    }
     status.innerHTML = '';
-    document.getElementById('auth-identifier').value = ''; document.getElementById('auth-username').value = ''; document.getElementById('auth-password').value = '';
+    document.getElementById('auth-identifier').value = ''; document.getElementById('auth-password').value = '';
     renderProfileSlot();
     if(d.isNew || !d.user.firstName){
       document.getElementById('account-panel').classList.remove('hidden');
       document.getElementById('auth-panel').classList.add('hidden');
       document.getElementById('signin-modal-title').textContent = 'Complete your profile';
       document.getElementById('account-first').value=''; document.getElementById('account-last').value='';
-      document.getElementById('account-contact').textContent = `@${d.user.username} · ${d.user.email}`;
+      document.getElementById('account-contact').textContent = `Signed in with ${authMethod}`;
     }else{
       closeSignin();
     }
   }catch(e){ status.innerHTML = `<div class="error-note">Couldn't reach the server. Please try again.</div>`; }
 }
-function openRecovery(mode){
-  authRecoveryMode=mode;
-  document.getElementById('account-panel').classList.add('hidden');
-  document.getElementById('auth-panel').classList.add('hidden');
-  document.getElementById('guest-panel').classList.add('hidden');
-  document.getElementById('reset-panel').classList.add('hidden');
-  document.getElementById('recovery-panel').classList.remove('hidden');
-  document.getElementById('signin-modal-title').textContent = mode==='username' ? 'Recover your username' : 'Reset your password';
-  document.getElementById('recovery-copy').textContent = mode==='username'
-    ? 'Enter the email on your Index account. We will email your username if an account matches.'
-    : 'Enter the email on your Index account. We will email a one-time password reset link if an account matches.';
-  document.getElementById('recovery-submit-btn').textContent = mode==='username' ? 'Email my username' : 'Send reset link';
-  document.getElementById('recovery-email').value='';
-  document.getElementById('recovery-status').innerHTML='';
-  setTimeout(()=>document.getElementById('recovery-email').focus(),50);
-}
-function recoveryBack(){ showAuthPanel(); setAuthMode('login'); document.getElementById('recovery-status').innerHTML=''; }
-async function recoverySubmit(){
-  const email=document.getElementById('recovery-email').value.trim();
-  const status=document.getElementById('recovery-status');
-  if(!email){ status.innerHTML='<div class="error-note">Enter your account email.</div>'; return; }
-  status.innerHTML='<div class="loading-line"><span class="spinner"></span> Sending…</div>';
-  try{
-    const endpoint=authRecoveryMode==='username' ? '/api/auth/forgot-username' : '/api/auth/forgot-password';
-    const r=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email})});
-    const d=await r.json();
-    if(!r.ok){ status.innerHTML=`<div class="error-note">${esc(d.error||'Recovery email could not be sent.')}</div>`; return; }
-    status.innerHTML=`<div class="lesson-result good">${esc(d.message||'Check your email for the next step.')}</div>`;
-  }catch(e){ status.innerHTML='<div class="error-note">Couldn’t reach the server. Please try again.</div>'; }
-}
-function openResetPanel(token){
-  resetToken=token||'';
-  if(!resetToken) return;
-  document.getElementById('account-panel').classList.add('hidden');
-  document.getElementById('auth-panel').classList.add('hidden');
-  document.getElementById('guest-panel').classList.add('hidden');
-  document.getElementById('recovery-panel').classList.add('hidden');
-  document.getElementById('reset-panel').classList.remove('hidden');
-  document.getElementById('signin-modal-title').textContent='Set a new password';
-  document.getElementById('reset-password').value=''; document.getElementById('reset-password-confirm').value=''; document.getElementById('reset-status').innerHTML='';
-  document.getElementById('signin-modal').classList.remove('hidden');
-}
-async function resetPasswordSubmit(){
-  const a=document.getElementById('reset-password').value, b=document.getElementById('reset-password-confirm').value, status=document.getElementById('reset-status');
-  if(a.length<8){ status.innerHTML='<div class="error-note">Password must be at least 8 characters.</div>'; return; }
-  if(a!==b){ status.innerHTML='<div class="error-note">The passwords do not match.</div>'; return; }
-  status.innerHTML='<div class="loading-line"><span class="spinner"></span> Updating password…</div>';
-  try{
-    const r=await fetch('/api/auth/reset-password',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:resetToken,password:a})});
-    const d=await r.json();
-    if(!r.ok){ status.innerHTML=`<div class="error-note">${esc(d.error||'This reset link is invalid or expired.')}</div>`; return; }
-    history.replaceState({},'',window.location.pathname);
-    resetToken='';
-    status.innerHTML='<div class="lesson-result good">Password updated. You can now sign in with your new password.</div>';
-    setTimeout(()=>{ showAuthPanel(); setAuthMode('login'); },700);
-  }catch(e){ status.innerHTML='<div class="error-note">Couldn’t reach the server. Please try again.</div>'; }
-}
+function googleSignin(){ window.location.href = '/api/auth/google/start'; }
 async function accountSaveProfile(){
   const displayName = document.getElementById('account-first').value.trim().slice(0,60);
   try{
     const r = await fetch('/api/auth/profile', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ displayName }) });
     const d = await r.json();
-    if(r.status===401){
-      state.account=null;
-      renderProfileSlot();
-      showAuthPanel();
-      setAuthMode('login');
-      document.getElementById('auth-status').innerHTML = '<div class="error-note">Your session ended because the server restarted. Your saved login identifier is still available. Sign in again to continue.</div>';
-      return;
-    }
     if(!r.ok){ alert(d.error || 'Could not save your profile.'); return; }
     state.account = d.user; renderProfileSlot(); closeSignin();
   }catch(e){ alert('Could not reach the server.'); }
@@ -2777,6 +2189,10 @@ document.addEventListener('click', async (e)=>{
   else if(action==='new-note'){ openNoteModal(null); }
   else if(action==='close-note-modal'){ closeNoteModal(); }
   else if(action==='choose-note-file'){ chooseNoteFile(); }
+  else if(action==='connect-drive'){ connectDrive(); }
+  else if(action==='refresh-drive'){ loadDriveFiles(); }
+  else if(action==='disconnect-drive'){ disconnectDrive(); }
+  else if(action==='import-drive-file'){ importDriveFile(t.dataset.fileId); }
   else if(action==='save-note'){ saveNote(); }
   else if(action==='edit-note'){ openNoteModal(t.dataset.id); }
   else if(action==='delete-note'){ deleteNote(t.dataset.id); }
@@ -2827,7 +2243,7 @@ document.addEventListener('click', async (e)=>{
     const s = state.studySets.find(x=>x.id===state.viewer.setId);
     const correctCount = s.questions.reduce((acc,q,idx)=> acc + (state.viewer.quizAnswers[idx]===q.correct?1:0), 0);
     if(!s.attempts) s.attempts = []; s.attempts.push({score:correctCount, total:s.questions.length, ts:Date.now()});
-    persistSets(); addXP(10 + correctCount*5); if(correctCount===s.questions.length) celebrate();
+    persistSets(); addXP(correctCount*5); if(correctCount===s.questions.length) celebrate();
     renderViewerBody();
   }
   else if(action==='quiz-retry'){
@@ -2890,11 +2306,7 @@ document.addEventListener('click', async (e)=>{
   else if(action==='close-signin'){ closeSignin(); }
   else if(action==='save-name'){ saveName(); }
   else if(action==='clear-name'){ clearName(); }
-  else if(action==='forgot-username'){ openRecovery('username'); }
-  else if(action==='forgot-password'){ openRecovery('password'); }
-  else if(action==='recovery-back'){ recoveryBack(); }
-  else if(action==='recovery-submit'){ recoverySubmit(); }
-  else if(action==='reset-submit'){ resetPasswordSubmit(); }
+  else if(action==='google-signin'){ googleSignin(); }
   else if(action==='account-delete'){ accountDelete(); }
   else if(action==='open-privacy'){ document.getElementById('privacy-modal').classList.remove('hidden'); }
   else if(action==='close-privacy'){ document.getElementById('privacy-modal').classList.add('hidden'); }
@@ -2904,12 +2316,7 @@ document.addEventListener('click', async (e)=>{
   else if(action==='toggle-auth-mode'){ setAuthMode(authMode==='signup'?'login':'signup'); }
   else if(action==='guest-continue'){ showGuestPanel(); }
   else if(action==='account-save-profile'){ accountSaveProfile(); }
-  else if(action==='goto-rewards-from-profile'){ closeSignin(); gotoView('rewards'); }
   else if(action==='account-signout'){ accountSignout(); }
-  else if(action==='reward-tab'){ state.rewardsTab=t.dataset.tab||'battlepass'; renderRewards(); }
-  else if(action==='equip-cosmetic'){ equipCosmetic(t.dataset.id); }
-  else if(action==='open-pack'){ openRewardPack(t.dataset.pack||'study'); }
-  else if(action==='close-pack-modal'){ closePackModal(); }
   else if(action==='live-goto-hub'){ state.live.screen='hub'; renderLive(); }
   else if(action==='live-goto-host-setup'){ state.live.screen='host-setup'; renderLive(); }
   else if(action==='live-goto-join'){ state.live.screen='join-form'; renderLive(); }
@@ -2962,7 +2369,6 @@ document.getElementById('auth-method-toggle').addEventListener('click', (e)=>{
   const b = e.target.closest('.toggle-btn'); if(!b) return; setAuthMethod(b.dataset.method);
 });
 document.getElementById('auth-password').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); authSubmit(); } });
-document.getElementById('reset-password-confirm').addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); resetPasswordSubmit(); } });
 document.getElementById('district-search')?.addEventListener('input', e=>renderDistrictOptions(e.target.value));
 
 document.addEventListener('keydown', (e)=>{
@@ -2982,107 +2388,36 @@ document.addEventListener('keydown', (e)=>{
   }
 });
 
-/* ============================== TERMS / PRIVACY GATE ============================== */
-const SITE_TERMS_VERSION = '2026-09-21-v1';
-const SITE_TERMS_KEY = 'index-site-terms-acceptance';
-const SITE_TERMS_DEVICE_KEY = 'index-site-terms-accepted-device';
-function hasAcceptedSiteTerms(){
-  try{
-    // Acceptance is device/browser-local and survives Render restarts and app redeploys.
-    // Do not require the current policy version: users should not be trapped behind the
-    // gate again just because the server or frontend was restarted/updated.
-    if(localStorage.getItem(SITE_TERMS_DEVICE_KEY) === '1') return true;
-    const saved = JSON.parse(localStorage.getItem(SITE_TERMS_KEY) || 'null');
-    if(saved && saved.acceptedAt){
-      localStorage.setItem(SITE_TERMS_DEVICE_KEY, '1');
-      return true;
-    }
-    // Migrate older Index acceptance keys if they exist on this browser.
-    const legacyKeys = ['index-site-terms-accepted','index-terms-accepted'];
-    if(legacyKeys.some(k=>localStorage.getItem(k) === '1' || localStorage.getItem(k) === 'true')){
-      localStorage.setItem(SITE_TERMS_DEVICE_KEY, '1');
-      return true;
-    }
-    return false;
-  }catch(e){ return false; }
-}
-function updateGateButton(){
-  const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic'];
-  const ok=ids.every(id=>document.getElementById(id)?.checked);
-  const btn=document.getElementById('accept-site-terms');
-  if(btn) btn.disabled=!ok;
-}
-function showSiteGate(){
-  const gate=document.getElementById('site-gate');
-  if(!gate) return;
-  gate.classList.remove('hidden');
-  document.body.style.overflow='hidden';
-  updateGateButton();
-}
-function hideSiteGate(){
-  const gate=document.getElementById('site-gate');
-  if(gate) gate.classList.add('hidden');
-  document.body.style.overflow='';
-}
-function acceptSiteTerms(){
-  const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic'];
-  if(!ids.every(id=>document.getElementById(id)?.checked)) return;
-  localStorage.setItem(SITE_TERMS_KEY, JSON.stringify({version:SITE_TERMS_VERSION,acceptedAt:new Date().toISOString()}));
-  localStorage.setItem(SITE_TERMS_DEVICE_KEY, '1');
-  hideSiteGate();
-  initializeApp();
-}
-async function initializeApp(){
-  // Render the profile control immediately. It must remain available even if an API call is slow or fails.
-  renderProfileSlot();
+/* ============================== INIT ============================== */
+(async function init(){
   populateSubjectSelects();
   updateNoteTopicSuggestions();
   updateLearnTopicSuggestions();
   loadLocalData();
-  if(!state.county){ showCountyGate(); return; }
-  applyLocalJurisdictionUI();
-  applyBattlePassRewards();
   await checkAiStatus();
   await refreshAuthStatus();
-  await loadAccountState();
+  await loadDriveStatus();
   renderDashboard();
   renderSidebarBadge();
   renderProfileSlot();
 
-  // Password-reset links arrive as /?reset=ONE_TIME_TOKEN.
+  // Handle the redirect back from Google sign-in
   const params = new URLSearchParams(window.location.search);
-  if(params.get('reset')) openResetPanel(params.get('reset'));
-}
-
-['gate-terms','gate-privacy','gate-conduct','gate-academic'].forEach(id=>{
-  document.getElementById(id)?.addEventListener('change', updateGateButton);
-});
-document.getElementById('accept-site-terms')?.addEventListener('click', acceptSiteTerms);
-document.getElementById('county-gate-search')?.addEventListener('input', e=>renderCountyGateOptions(e.target.value));
-document.getElementById('county-gate-options')?.addEventListener('click', e=>{ const b=e.target.closest('[data-county-id]'); if(b) selectCounty(b.dataset.countyId); });
-document.getElementById('continue-county')?.addEventListener('click', saveCounty);
-
-if(hasAcceptedSiteTerms()){
-  hideSiteGate();
-  initializeApp();
-}else{
-  showSiteGate();
-}
+  if(params.get('authError')){
+    alert(params.get('authError'));
+    window.history.replaceState({}, '', window.location.pathname);
+  }else if(params.get('driveError')){
+    alert(params.get('driveError'));
+    window.history.replaceState({}, '', window.location.pathname);
+  }else if(params.get('driveConnected')){
+    window.history.replaceState({}, '', window.location.pathname);
+    openNoteModal(null);
+    setNoteSource('drive');
+  }else if(params.get('welcome')){
+    window.history.replaceState({}, '', window.location.pathname);
+    if(params.get('complete')){ openSignin(); }
+  }
+})();
 </script>
-
-<div class="pack-modal hidden" id="pack-modal">
-  <div class="pack-opening">
-    <div class="pack-opening-head">
-      <div><h3>Opening Pack</h3><div class="reward-muted">Watch the reel stop on your reward.</div></div>
-      <button class="modal-close" data-action="close-pack-modal">×</button>
-    </div>
-    <div class="reel-window">
-      <div class="reel-marker"></div>
-      <div class="reel-track" id="pack-reel-track"></div>
-    </div>
-    <div id="pack-result"></div>
-  </div>
-</div>
-
 </body>
 </html>
