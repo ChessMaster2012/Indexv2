@@ -1063,7 +1063,12 @@ function scheduleAccountStateSync(){ if(!state.account) return; clearTimeout(acc
 async function loadAccountState(){
   if(!state.account) return;
   try{
-    const r=await fetch('/api/account/state'); const d=await r.json();
+    const r=await fetch('/api/account/state', {cache:'no-store'}); const d=await r.json();
+    if(r.status===401){
+      state.account=null;
+      renderProfileSlot();
+      return;
+    }
     if(!r.ok || !d.state) { await syncAccountStateNow(); return; }
     const a=d.state;
     if(a.progress) state.progress={...state.progress,...a.progress,equipped:a.progress.equipped||state.progress.equipped};
@@ -2562,13 +2567,17 @@ let authRecoveryMode = '';
 let resetToken = '';
 
 async function refreshAuthStatus(){
-  try{ const r = await fetch('/api/auth/me'); const d = await r.json(); state.account = d.user || null; }catch(e){ state.account = null; }
+  try{ const r = await fetch('/api/auth/me', {cache:'no-store'}); const d = await r.json(); state.account = d.user || null; }catch(e){ state.account = null; }
+  renderProfileSlot();
 }
-function openSignin(){
+async function openSignin(){
   document.getElementById('signin-name').value = state.profile.name || '';
   document.getElementById('auth-status').innerHTML = '';
   document.getElementById('recovery-status').innerHTML = '';
   document.getElementById('reset-status').innerHTML = '';
+  // Render restarts clear in-memory sessions. Verify the live server session
+  // before showing the account panel so stale UI state cannot say signed in.
+  await refreshAuthStatus();
   showAuthPanel();
   if(state.account){
     document.getElementById('account-panel').classList.remove('hidden');
@@ -2722,6 +2731,14 @@ async function accountSaveProfile(){
   try{
     const r = await fetch('/api/auth/profile', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ displayName }) });
     const d = await r.json();
+    if(r.status===401){
+      state.account=null;
+      renderProfileSlot();
+      showAuthPanel();
+      setAuthMode('login');
+      document.getElementById('auth-status').innerHTML = '<div class="error-note">Your session ended because the server restarted. Your saved login identifier is still available. Sign in again to continue.</div>';
+      return;
+    }
     if(!r.ok){ alert(d.error || 'Could not save your profile.'); return; }
     state.account = d.user; renderProfileSlot(); closeSignin();
   }catch(e){ alert('Could not reach the server.'); }
