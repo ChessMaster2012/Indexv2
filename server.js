@@ -13,6 +13,9 @@ const ROOM_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+// Keep the production callback deterministic on Render. Google requires this URI
+// to exactly match an Authorized redirect URI in the OAuth client configuration.
+const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'https://indexv2-x2hw.onrender.com/api/auth/google/callback';
 const SESSION_COOKIE = 'index_session';
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -310,7 +313,7 @@ app.post('/api/auth/delete', (req, res) => {
 
 app.get('/api/auth/google/start', (req, res) => {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return res.status(501).send('Google sign-in is not configured on this server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
-  const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+  const redirectUri = GOOGLE_REDIRECT_URI;
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
   url.searchParams.set('redirect_uri', redirectUri);
@@ -325,7 +328,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.redirect('/?authError=' + encodeURIComponent('Google sign-in was cancelled.'));
   try {
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+    const redirectUri = GOOGLE_REDIRECT_URI;
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
