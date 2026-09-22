@@ -165,7 +165,7 @@ let usersById = new Map();
 let usersByUsername = new Map();
 
 async function supabaseRequest(path, options = {}) {
-  if (!SUPABASE_ENABLED) throw new Error('Persistent account storage is not configured.');
+  if (!SUPABASE_ENABLED) throw new Error('Persistent account storage is not configured. Render needs SUPABASE_URL plus SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY).');
   const headers = {
     apikey: SUPABASE_SERVICE_ROLE_KEY,
     authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
@@ -179,6 +179,17 @@ async function supabaseRequest(path, options = {}) {
   if (!response.ok) throw new Error((data && data.message) || (data && data.error) || `Supabase HTTP ${response.status}`);
   return data;
 }
+async function verifySupabaseAccountStorage() {
+  if (!SUPABASE_ENABLED) return { ready:false, reason:'missing environment variables' };
+  try {
+    await supabaseRequest(`${SUPABASE_TABLE}?select=id&limit=1`);
+    return { ready:true };
+  } catch (e) {
+    console.error('Supabase account storage check failed:', e.message);
+    return { ready:false, reason:String(e.message || e) };
+  }
+}
+
 async function dbFindUserById(id) {
   if (!SUPABASE_ENABLED) return null;
   const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,method,email,username,google_id,password_hash,salt,first_name,last_name,created_at,account_data,account_data_blob&id=eq.${encodeURIComponent(id)}&limit=1`);
@@ -675,7 +686,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
   } catch(e) {
     console.error('Google sign-in error:', e.message);
     const dbProblem = /permission denied|not configured|supabase|relation .* does not exist/i.test(String(e.message || ''));
-    const message = dbProblem ? 'Google connected, but the account database is not ready. Make sure Render uses the Supabase service-role/secret key and that SUPABASE-SETUP.sql has been run.' : 'Could not complete Google sign-in. Please try again.';
+    const message = dbProblem ? 'Google connected, but Index could not save the account. In Render, verify SUPABASE_URL and the Supabase service-role/secret key, then run the current SUPABASE-SETUP.sql in the Supabase SQL Editor.' : 'Could not complete Google sign-in. Please try again.';
     res.redirect('/?authError=' + encodeURIComponent(message));
   }
 });
