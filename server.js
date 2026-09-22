@@ -78,16 +78,17 @@ function aiRateAllowed(ip) {
 // School-network-friendly AI proxy. The browser only talks to this Render server;
 // the server talks to the external text provider, so browser WebGPU/CDN access is not required.
 app.post('/api/ai/chat', async (req, res) => {
+  const fail = (status, message) => res.status(status).json({ error: message });
   try {
     const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
-    if (!aiRateAllowed(ip)) return res.status(429).json({ error: 'Too many AI requests. Please wait a minute and try again.' });
+    if (!aiRateAllowed(ip)) return fail(429, 'Too many AI requests. Please wait a minute and try again.');
     const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
-    if (!messages.length) return res.status(400).json({ error: 'No messages supplied.' });
-    if (messages.length > 12) return res.status(400).json({ error: 'Conversation is too long. Start a new tutor question.' });
-    if (messages.some(m => String(m?.content || '').length > 5000)) return res.status(400).json({ error: 'That message is too long. Please shorten it.' });
+    if (!messages.length) return fail(400, 'No messages supplied.');
+    if (messages.length > 12) return fail(400, 'Conversation is too long. Start a new tutor question.');
+    if (messages.some(m => String(m?.content || '').length > 5000)) return fail(400, 'That message is too long. Please shorten it.');
 
-    const system = messages.filter(m => m && m.role === 'system').map(m => String(m.content || '')).join('\n\n').slice(0, 7000);
-    if (!aiContentIsAllowed(messages)) return res.status(400).json({ error: 'I can help with an academic or safety-focused question, but not with harmful, sexual, or harassing content.' });
+    const system = messages.filter(m => m && m.role === 'system').map(m => String(m.content || '')).join('\\n\\n').slice(0, 7000);
+    if (!aiContentIsAllowed(messages)) return fail(400, 'I can help with an academic or safety-focused question, but not with harmful, sexual, or harassing content.');
 
     const tutorQuality = `You are a high-quality, careful school tutor for middle and high school students. Give correct, useful answers rather than generic filler.
 
@@ -100,11 +101,10 @@ SAFETY AND RESPECT:
 - Never generate bullying, harassment, hate, sexual content, threats, or instructions for harmful or illegal behavior.
 - If a request is unsafe or inappropriate, briefly decline that part and redirect to a safe academic alternative.
 
-
 MATH/SCIENCE FORMATTING RULES:
-- NEVER output LaTeX delimiters such as \[ \], \( \), $$, or raw LaTeX commands such as \sqrt, \frac, \times, \cdot, or \boxed.
+- NEVER output LaTeX delimiters such as \\[ \\], \\( \\), $$, or raw LaTeX commands such as \\sqrt, \\frac, \\times, \\cdot, or \\boxed.
 - Use real Unicode math symbols directly: √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, °.
-- For a square root, write √49 or √(x + 1), not \sqrt{...}.
+- For a square root, write √49 or √(x + 1), not \\sqrt{...}.
 - For fractions, use a/b when a stacked fraction is unnecessary; explain clearly in plain text.
 - Show math one step at a time and make the final answer easy to find.
 
@@ -112,32 +112,91 @@ GENERAL FORMATTING RULES:
 - Use clean plain text and Markdown-style headings/bold only when helpful.
 - Do not output escaped backslashes, code fences, HTML, or instructions about how to type symbols.
 - Do not repeat the student's request unnecessarily.
-- If the student asks for an explanation, actually teach the reasoning.
 - If the question is ambiguous, briefly state the assumption you are making.
 - For schoolwork, prioritize accuracy and explain why the answer is correct.
 - Never invent a source, quotation, statistic, or citation.
 `;
     const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
-    const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
-    const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
+    const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\\n\\n').slice(-14000);
+    const prompt = `${tutorQuality}\\n${system ? system + '\\n\\n' : ''}${transcript}\\n\\nTutor:`.slice(0, 19000);
 
-    const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
-    let upstream;
+    // Prefer the current authenticated Pollinations API. This keeps all AI traffic
+    // server-side, so school computers only need to reach the Index/Render site.
+    const apiKey = String(process.env.POLLINATIONS_API_KEY || '').trim();
+    const model = String(process.env.POLLINATIONS_MODEL || 'openai/gpt-5.6-luna').trim();
+    let lastError = null;
+
+    if (apiKey) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60000);
+        let upstream;
+        try {
+          upstream = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: 'system', content: tutorQuality + (system ? '\\n\\n' + system : '') },
+                ...turns.map(m => ({ role: m.role, content: String(m.content || '') }))
+              ],
+              temperature: 0.3
+            })
+          });
+        } finally { clearTimeout(timeout); }
+        const body = await upstream.text();
+        if (!upstream.ok) throw new Error(`Pollinations API HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+        let data;
+        try { data = JSON.parse(body); } catch { throw new Error('Pollinations API returned invalid JSON.'); }
+        const content = String(data?.choices?.[0]?.message?.content || '').trim();
+        if (!content) throw new Error('Pollinations API returned an empty response.');
+        return res.json({ content });
+      } catch (err) {
+        lastError = err;
+        console.error('Primary AI provider failed:', err);
+      }
+    }
+
+    // Compatibility fallback for older Pollinations deployments. This keeps the
+    // app functional if the legacy endpoint is still available, while the key-based
+    // API above is the preferred path.
     try {
-      upstream = await fetch(url, { signal: controller.signal, headers: { 'accept': 'text/plain' } });
-    } finally { clearTimeout(timeout); }
-    const body = await upstream.text();
-    if (!upstream.ok) throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
-    if (!body.trim()) throw new Error('AI provider returned an empty response.');
-    res.json({ content: body.trim() });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+      let upstream;
+      try {
+        upstream = await fetch('https://text.pollinations.ai/', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain' },
+          body: JSON.stringify({ messages: [
+            { role: 'system', content: tutorQuality + (system ? '\\n\\n' + system : '') },
+            ...turns.map(m => ({ role: m.role, content: String(m.content || '') }))
+          ], model: 'openai' })
+        });
+      } finally { clearTimeout(timeout); }
+      const body = await upstream.text();
+      if (!upstream.ok) throw new Error(`Legacy AI provider HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+      if (!body.trim()) throw new Error('Legacy AI provider returned an empty response.');
+      return res.json({ content: body.trim() });
+    } catch (err) {
+      lastError = err;
+      console.error('Legacy AI provider failed:', err);
+    }
+
+    console.error('AI proxy failed:', lastError);
+    return fail(502, 'AI service is temporarily unavailable. Please try again in a moment.');
   } catch (err) {
-    console.error('AI proxy failed:', err);
-    res.status(502).json({ error: String(err?.message || err || 'AI provider request failed') });
+    console.error('AI proxy failed unexpectedly:', err);
+    return fail(500, 'AI service is temporarily unavailable. Please try again in a moment.');
   }
 });
-
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
