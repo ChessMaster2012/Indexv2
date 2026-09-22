@@ -25,6 +25,14 @@ const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '');
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
+// Baseline security headers for a student-facing web application.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Safety / conduct guardrails for a student-facing study tool.
@@ -116,6 +124,16 @@ GENERAL FORMATTING RULES:
 `;
     const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
     const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
+    // Data-minimization safeguard: reject common direct identifiers before a prompt reaches the external AI provider.
+    const sensitivePatterns = [
+      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+      /\b(?:\+?1[-. ]?)?(?:\(?\d{3}\)?[-. ]?)\d{3}[-. ]?\d{4}\b/,
+      /\b\d{3}-\d{2}-\d{4}\b/,
+      /\b(?:student|school)\s*(?:id|identification)\s*[:#-]?\s*[A-Z0-9-]{4,}\b/i
+    ];
+    if (sensitivePatterns.some(re => re.test(transcript))) {
+      return res.status(400).json({ error: 'For privacy, remove email addresses, phone numbers, Social Security numbers, or student/school ID numbers before using the AI Tutor.' });
+    }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
     const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
@@ -345,6 +363,25 @@ function saveUsers() {
 if (!SUPABASE_ENABLED) loadUsers();
 
 const sessions = new Map(); // token -> { userId, createdAt }
+// Serialize persistent account mutations per user. This prevents an in-flight
+// autosave from recreating an account after the user has deleted it.
+const accountLocks = new Map();
+const deletedAccountIds = new Set();
+async function withAccountLock(userId, fn) {
+  const previous = accountLocks.get(userId) || Promise.resolve();
+  let release;
+  const current = new Promise(resolve => { release = resolve; });
+  const queue = previous.then(() => current);
+  accountLocks.set(userId, queue);
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (accountLocks.get(userId) === queue) accountLocks.delete(userId);
+  }
+}
+function accountWasDeleted(userId) { return deletedAccountIds.has(String(userId || '')); }
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -400,6 +437,7 @@ function normalizeEmail(v) { return String(v || '').trim().toLowerCase(); }
 function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
 app.get('/api/auth/status', async (req, res) => {
+  res.set('Cache-Control','no-store');
   let persistentStorageReady = false;
   if (SUPABASE_ENABLED) {
     try {
@@ -536,6 +574,7 @@ function sanitizeAccountState(input){
 }
 app.get('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  if(accountWasDeleted(req.user.id)) return res.status(410).json({error:'This account has been deleted.'});
   try {
     if (SUPABASE_ENABLED) {
       const row = await dbFindUserById(req.user.id);
@@ -549,81 +588,103 @@ app.get('/api/account/state', async (req,res)=>{
 });
 app.put('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  const userId = req.user.id;
+  if (accountWasDeleted(userId)) return res.status(410).json({error:'This account has been deleted.'});
   try {
-    req.user.accountData = sanitizeAccountState(req.body?.state);
-    if (SUPABASE_ENABLED) await dbSaveUser(req.user);
-    else saveUsers();
+    await withAccountLock(userId, async () => {
+      if (accountWasDeleted(userId)) {
+        const err = new Error('ACCOUNT_DELETED'); err.code = 'ACCOUNT_DELETED'; throw err;
+      }
+      req.user.accountData = sanitizeAccountState(req.body?.state);
+      if (SUPABASE_ENABLED) await dbSaveUser(req.user);
+      else saveUsers();
+    });
     res.json({ok:true, state:req.user.accountData, storage:'supabase', compressed:true});
   } catch(e) {
+    if (e.code === 'ACCOUNT_DELETED') return res.status(410).json({error:'This account has been deleted.'});
     console.error('Account state save error:', e.message);
     res.status(503).json({error:'Could not save your account data right now. Please try again.'});
   }
 });
 
-app.post('/api/rewards/daily-wheel/spin', async (req,res)=>{
-  if(!req.user) return res.status(401).json({error:'Sign in to use the Daily Wheel so your reward can sync to your account.'});
-  try {
-    if (SUPABASE_ENABLED) { const row = await dbFindUserById(req.user.id); if (row) req.user = dbRowToUser(row); }
-    const existing = req.user.accountData && typeof req.user.accountData === 'object' ? req.user.accountData : {};
-    const progress = existing.progress && typeof existing.progress === 'object' ? existing.progress : {};
-    const today = new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-    if (String(progress.dailyWheelDate || '') === today) return res.status(409).json({error:'You already spun today.', reward:Number(progress.dailyWheelReward)||0, state:existing});
-    const rewards=[{amount:10,weight:30},{amount:25,weight:25},{amount:50,weight:20},{amount:75,weight:15},{amount:100,weight:7},{amount:250,weight:2.5},{amount:500,weight:.5}];
-    const total=rewards.reduce((a,r)=>a+r.weight,0); let roll=crypto.randomInt(0,1000000)/1000000*total; let rolled=rewards[rewards.length-1].amount;
-    for(const item of rewards){ if((roll-=item.weight)<0){rolled=item.amount;break;} }
-    const earnedToday=progress.dailyCoinDate===today?Math.max(0,Number(progress.dailyCoinEarned)||0):0;
-    const grant=Math.max(0,Math.min(rolled,DAILY_COIN_CAP-earnedToday));
-    const updated={...existing,progress:{...progress,coins:Math.max(0,Number(progress.coins)||0)+grant,dailyCoinDate:today,dailyCoinEarned:earnedToday+grant,dailyWheelDate:today,dailyWheelLastSpinAt:Date.now(),dailyWheelReward:grant}};
-    req.user.accountData=sanitizeAccountState(updated);
-    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
-    usersById.set(req.user.id,req.user);
-    res.json({ok:true,reward:grant,rolled,state:req.user.accountData});
-  } catch(e){ console.error('Daily wheel error:',e.message); res.status(503).json({error:'Could not save your Daily Wheel reward right now. Please try again.'}); }
-});
-
 app.post('/api/auth/profile', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
+  const userId = req.user.id;
+  if (accountWasDeleted(userId)) return res.status(410).json({error:'This account has been deleted.'});
   try {
-    const displayName = String(req.body?.displayName || '').trim().slice(0, 60);
-    const requestedUsername = normalizeUsername(req.body?.username || req.user.username || '');
-    if (!displayName) return res.status(400).json({ error: 'Enter a display name.' });
-    if (containsConductViolation(displayName)) return res.status(400).json({ error: 'That name is not allowed. Please pick a different name.' });
-    if (!isValidUsername(requestedUsername)) return res.status(400).json({ error: 'Username must be 3–24 characters and use only letters, numbers, periods, underscores, or hyphens.' });
-    if (requestedUsername !== normalizeUsername(req.user.username || '')) {
-      let taken = usersByUsername.get(requestedUsername);
-      if (SUPABASE_ENABLED) {
-        const row = await dbFindUserByUsername(requestedUsername);
-        if (row && row.id !== req.user.id) taken = dbRowToUser(row);
+    let validationError = null;
+    await withAccountLock(userId, async () => {
+      if (accountWasDeleted(userId)) { const err = new Error('ACCOUNT_DELETED'); err.code='ACCOUNT_DELETED'; throw err; }
+      const displayName = String(req.body?.displayName || '').trim().slice(0, 60);
+      const requestedUsername = normalizeUsername(req.body?.username || req.user.username || '');
+      if (!displayName) { validationError = {status:400,error:'Enter a display name.'}; return; }
+      if (containsConductViolation(displayName)) { validationError = {status:400,error:'That name is not allowed. Please pick a different name.'}; return; }
+      if (!isValidUsername(requestedUsername)) { validationError = {status:400,error:'Username must be 3–24 characters and use only letters, numbers, periods, underscores, or hyphens.'}; return; }
+      if (requestedUsername !== normalizeUsername(req.user.username || '')) {
+        let taken = usersByUsername.get(requestedUsername);
+        if (SUPABASE_ENABLED) {
+          const row = await dbFindUserByUsername(requestedUsername);
+          if (row && row.id !== req.user.id) taken = dbRowToUser(row);
+        }
+        if (taken && taken.id !== req.user.id) { validationError = {status:409,error:'That username is already taken. Choose another one.'}; return; }
+        if (req.user.username) usersByUsername.delete(normalizeUsername(req.user.username));
+        req.user.username = requestedUsername;
+        usersByUsername.set(requestedUsername, req.user);
       }
-      if (taken && taken.id !== req.user.id) return res.status(409).json({ error: 'That username is already taken. Choose another one.' });
-      if (req.user.username) usersByUsername.delete(normalizeUsername(req.user.username));
-      req.user.username = requestedUsername;
-      usersByUsername.set(requestedUsername, req.user);
-    }
-    req.user.firstName = displayName;
-    req.user.lastName = '';
-    delete req.user.school;
-    delete req.user.grade;
-    if (SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+      req.user.firstName = displayName;
+      req.user.lastName = '';
+      delete req.user.school;
+      delete req.user.grade;
+      if (SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    });
+    if (validationError) return res.status(validationError.status).json({error:validationError.error});
     res.json({ ok: true, user: publicUser(req.user) });
   } catch (e) {
+    if (e.code === 'ACCOUNT_DELETED') return res.status(410).json({error:'This account has been deleted.'});
     console.error('Profile save error:', e.message);
     res.status(503).json({ error: 'Could not save your profile right now.' });
   }
 });
 
 app.post('/api/auth/delete', async (req, res) => {
+  res.set('Cache-Control','no-store');
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
   const user = req.user;
-  users.delete('email:' + normalizeEmail(user.identifier || user.email));
-  if(user.username) usersByUsername.delete(normalizeUsername(user.username));
-  usersById.delete(user.id);
-  if (req.sessionToken) sessions.delete(req.sessionToken);
-  if (SUPABASE_ENABLED) {
-    try { await supabaseRequest(`${SUPABASE_TABLE}?id=eq.${encodeURIComponent(user.id)}`, {method:'DELETE'}); } catch(e) { return res.status(503).json({error:'Could not delete the account right now.'}); }
-  } else saveUsers();
-  clearSessionCookie(res);
-  res.json({ ok: true });
+  const userId = user.id;
+  try {
+    await withAccountLock(userId, async () => {
+      // Mark the account as deleted before removing the database row. Any queued
+      // autosave/profile request for this account is rejected instead of recreating it.
+      deletedAccountIds.add(userId);
+      try {
+        if (SUPABASE_ENABLED) {
+          await supabaseRequest(`${SUPABASE_TABLE}?id=eq.${encodeURIComponent(userId)}`, {
+            method:'DELETE',
+            headers:{Prefer:'return=minimal'}
+          });
+          const remaining = await supabaseRequest(`${SUPABASE_TABLE}?select=id&id=eq.${encodeURIComponent(userId)}&limit=1`);
+          if (Array.isArray(remaining) && remaining.length) throw new Error('The account still exists in the database after deletion.');
+        } else {
+          users.delete('email:' + normalizeEmail(user.identifier || user.email));
+          if(user.username) usersByUsername.delete(normalizeUsername(user.username));
+          usersById.delete(userId);
+          saveUsers();
+        }
+        users.delete('email:' + normalizeEmail(user.identifier || user.email));
+        if(user.username) usersByUsername.delete(normalizeUsername(user.username));
+        usersById.delete(userId);
+        if (req.sessionToken) sessions.delete(req.sessionToken);
+        clearSessionCookie(res);
+      } catch (err) {
+        deletedAccountIds.delete(userId);
+        throw err;
+      }
+    });
+    res.json({ ok: true, deleted: true });
+  } catch(e) {
+    console.error('Account deletion error:', e.message);
+    res.status(503).json({error:'Could not delete the account right now. No success message was recorded.'});
+  }
 });
 
 
