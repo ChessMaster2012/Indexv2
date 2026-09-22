@@ -503,9 +503,15 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .avatar-preview{position:relative;overflow:hidden}
 .avatar-outfit{position:absolute;right:5px;bottom:5px;font-size:27px}.avatar-accessory{position:absolute;right:8px;top:8px;font-size:24px}.avatar-bg-library{background:radial-gradient(circle at 30% 30%,#fff8dc,#e8d9b7 50%,#b58f55)}.avatar-bg-space{background:radial-gradient(circle at 35% 25%,#8e6cff,#25134f 55%,#0b0820)}.avatar-bg-lab{background:radial-gradient(circle at 25% 25%,#c9fff0,#65c8b2 45%,#277c83)}
 
+
+/* Accessibility baseline: visible keyboard focus, reduced motion, readable controls. */
+:focus-visible{outline:3px solid #111827;outline-offset:3px;border-radius:8px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 </style>
 </head>
 <body>
+<a class="sr-only" href="#main-content">Skip to main content</a>
 
 <div class="site-gate" id="site-gate" aria-modal="true" role="dialog" aria-labelledby="site-gate-title">
   <div class="site-gate-card">
@@ -547,16 +553,17 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
     </div>
 
     <div id="gate-ack-section" class="hidden">
-      <div class="eyebrow" style="margin-bottom:6px;">2. Review and acknowledge</div>
-      <div class="gate-checks">
-        <label class="gate-check"><input type="checkbox" id="gate-terms"> <span>I agree to the <a class="gate-link" id="gate-terms-link" href="/terms.html" target="_blank" rel="noopener">Index Terms of Use</a>.</span></label>
-        <label class="gate-check"><input type="checkbox" id="gate-privacy"> <span>I have reviewed the <a class="gate-link" id="gate-privacy-link" href="/privacy.html" target="_blank" rel="noopener">Index Privacy Policy</a> and understand what information Index processes.</span></label>
-        <label class="gate-check"><input type="checkbox" id="gate-conduct"> <span>I agree to follow the <a class="gate-link" id="gate-conduct-link" href="/mcps-review.html#safety" target="_blank" rel="noopener">student safety and conduct guidance</a>, including respectful behavior in shared games.</span></label>
-        <label class="gate-check"><input type="checkbox" id="gate-academic"> <span>I understand that the AI Tutor is for learning and may be wrong, and I will not use it to cheat on an active graded test, quiz, or exam.</span></label>
-        <label class="gate-check"><input type="checkbox" id="gate-local"> <span>I have reviewed the local school-use guidance shown for my selected county/district and understand that Index is not automatically approved or endorsed by that district.</span></label>
+      <div class="eyebrow" style="margin-bottom:6px;">2. Review before using Index</div>
+      <div class="gate-checks" style="gap:8px;">
+        <div class="gate-check"><span aria-hidden="true">📄</span><span><a class="gate-link" id="gate-terms-link" href="/terms.html" target="_blank" rel="noopener">Read the Index Terms of Use</a>. The Terms describe how the service works and its limits; continuing does not require a student to accept a click-through agreement.</span></div>
+        <div class="gate-check"><span aria-hidden="true">🔒</span><span><a class="gate-link" id="gate-privacy-link" href="/privacy.html" target="_blank" rel="noopener">Read the Index Privacy Policy</a> before entering any information.</span></div>
+        <div class="gate-check"><span aria-hidden="true">🛡️</span><span><a class="gate-link" id="gate-conduct-link" href="/mcps-review.html#safety" target="_blank" rel="noopener">Review the student safety and conduct guidance</a>, including the rule not to enter sensitive personal information.</span></div>
+        <div class="gate-check"><span aria-hidden="true">🎓</span><span>Index's AI Tutor is an educational aid, can make mistakes, and should not be used to obtain answers on an active graded assessment.</span></div>
+        <div class="gate-check"><span aria-hidden="true">🏫</span><span>Local guidance is informational. Index is <strong>not automatically approved, endorsed, or sponsored</strong> by any school district.</span></div>
       </div>
-      <p class="gate-note">Index is an independent project. Local review pages summarize or link to official district guidance; they do not create district approval, a contract, or legal certification. Do not enter passwords, student ID numbers, home addresses, phone numbers, or other sensitive student information into study content or AI messages.</p>
-      <div class="gate-actions"><button class="btn btn-primary btn-lg" id="accept-site-terms" type="button" disabled>I agree &amp; continue</button></div>
+      <p class="gate-note"><strong>No student clickwrap:</strong> Index does not require students to click “I agree” to Terms of Use. Continuing only records the selected local context and that the informational review screen was shown on this device. Formal school use remains subject to the applicable district's review, privacy, security, accessibility, consent, and instructional requirements.</p>
+      <p class="gate-note">For safety and data minimization, do not enter passwords, student ID numbers, home addresses, phone numbers, health information, or other sensitive personal information into study content, live games, profiles, or AI messages.</p>
+      <div class="gate-actions"><button class="btn btn-primary btn-lg" id="accept-site-terms" type="button">Continue to Index</button></div>
     </div>
   </div>
 </div>
@@ -606,7 +613,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
   function profileCounty(){try{return JSON.parse(localStorage.getItem('index-profile')||'{}')?.county||localStorage.getItem('index-county')||''}catch(e){return ''}}
   function complete(){
     const v=parse();
-    return !!(v && v.county && v.terms && v.privacy && v.conduct && v.academic && v.localGuidance && v.policyVersion==='2026-09-22-v2');
+    return !!(v && v.county && v.reviewed && v.policyVersion==='2026-09-22-v3');
   }
   function saveProfileCounty(id){
     try{
@@ -632,28 +639,25 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
     };
     ['gate-terms-link','gate-privacy-link'].forEach(id=>{const a=document.getElementById(id);if(a)a.href=base[id==='gate-terms-link'?'terms':'privacy'];});
     const c=document.getElementById('gate-conduct-link'); if(c)c.href=base.conduct;
-    const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic','gate-local'];
-    const btn=document.getElementById('accept-site-terms'); if(btn)btn.disabled=!(county && ids.every(id=>document.getElementById(id)?.checked));
+    const btn=document.getElementById('accept-site-terms'); if(btn)btn.disabled=!county;
   }
   function hide(){const gate=document.getElementById('site-gate');if(gate)gate.classList.add('hidden');document.body.style.overflow='';}
   function show(){const gate=document.getElementById('site-gate');if(!gate)return;gate.classList.remove('hidden');document.body.style.overflow='hidden';const existing=parse()?.county||profileCounty();if(existing){const s=document.getElementById('gate-county');if(s)s.value=existing}refresh();}
   function finish(){
     const county=document.getElementById('gate-county')?.value||'';
-    const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic','gate-local'];
-    if(!county || !ids.every(id=>document.getElementById(id)?.checked))return;
-    try{localStorage.setItem(KEY,JSON.stringify({county,terms:true,privacy:true,conduct:true,academic:true,localGuidance:true,policyVersion:'2026-09-22-v2',acceptedAt:new Date().toISOString()}));saveProfileCounty(county);}catch(e){}
+    if(!county)return;
+    try{localStorage.setItem(KEY,JSON.stringify({county,reviewed:true,policyVersion:'2026-09-22-v3',reviewedAt:new Date().toISOString()}));saveProfileCounty(county);}catch(e){}
     hide();setTimeout(()=>window.location.reload(),0);
   }
   function init(){
     if(complete()){hide();return}
     // Migrate older users only when an old acceptance and county already exist.
     if(legacyAccepted() && profileCounty()){
-      const county=profileCounty();try{localStorage.setItem(KEY,JSON.stringify({county,terms:true,privacy:true,conduct:true,academic:true,localGuidance:true,policyVersion:'2026-09-22-v2',acceptedAt:new Date().toISOString(),migrated:true}));}catch(e){}
+      const county=profileCounty();try{localStorage.setItem(KEY,JSON.stringify({county,reviewed:true,policyVersion:'2026-09-22-v3',reviewedAt:new Date().toISOString(),migrated:true}));}catch(e){}
       hide();return;
     }
     show();
     document.getElementById('gate-county')?.addEventListener('change',refresh);
-    ['gate-terms','gate-privacy','gate-conduct','gate-academic','gate-local'].forEach(id=>document.getElementById(id)?.addEventListener('change',refresh));
     document.getElementById('accept-site-terms')?.addEventListener('click',finish);
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
@@ -694,7 +698,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
     <div class="sidebar-foot" id="sidebar-foot"></div>
   </aside>
 
-  <main class="main">
+  <main id="main-content" class="main">
     <section class="view active" id="view-dashboard">
       <div class="hero">
         <p class="eyebrow">Every AP course, one desk 🎯</p>
@@ -930,7 +934,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
           <div class="stat"><div class="stat-num" id="account-coins">0</div><div class="stat-label">Coins</div></div>
           <div class="stat"><div class="stat-num" id="account-cosmetics">0</div><div class="stat-label">Cosmetics</div></div>
         </div>
-        <button class="btn btn-ghost btn-sm" data-action="goto-rewards-from-profile">🏆 Open Rewards & Packs</button>
+        <button class="btn btn-ghost btn-sm" data-action="goto-rewards-from-profile">🏆 Open Rewards</button>
       </div>
       <div class="field" style="margin-top:14px;"><label>Username</label><input type="text" id="account-username" maxlength="24" placeholder="3–24 letters, numbers, or . _ -" autocomplete="username"></div>
       <div class="field" style="margin-top:12px;"><label>Display name</label><input type="text" id="account-first" maxlength="60" placeholder="Nickname or first name"></div>
@@ -1484,14 +1488,14 @@ function renderRewards(){
       <span class="inventory-rail-icon">🎒</span><span class="inventory-rail-label">Inventory</span>
     </button>
   </aside>`;
-  const tabHtml=`<div class="reward-tabs"><button class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass">🏆 Battle Pass</button><button class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar">🧑 Avatar</button><button class="reward-tab ${tab==='packs'?'active':''}" data-action="reward-tab" data-tab="packs">📦 Packs</button><button class="reward-tab ${tab==='daily'?'active':''}" data-action="reward-tab" data-tab="daily">🎡 Daily Wheel</button></div>`;
+  const tabHtml=`<div class="reward-tabs"><button class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass">🏆 Battle Pass</button><button class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar">🧑 Avatar</button><button class="reward-tab ${tab==='inventory'?'active':''}" data-action="reward-tab" data-tab="inventory">🎒 Inventory</button></div>`;
   const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Teacher-hosted Live Games are the source of coins for cosmetic packs.</p></div><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
   let body='';
   if(tab==='battlepass'){
     body=`<div class="bp-hero"><div style="display:flex;justify-content:space-between;gap:10px;align-items:end;flex-wrap:wrap;"><div><div style="font-size:12px;font-weight:800;opacity:.9;">INDEX BATTLE PASS</div><div style="font-family:var(--font-display);font-size:30px;font-weight:700;">Level ${lvl} <span style="font-size:14px;font-family:var(--font-ui);font-weight:800;opacity:.85;">/ 50</span></div></div><div style="font-size:13px;font-weight:800;">${into}/100 XP</div></div><div class="bp-track"><div class="bp-fill" style="width:${lvl>=50?100:into}%"></div></div><div style="font-size:11.5px;opacity:.9;">XP comes from learning activities. It never costs money.</div></div><div class="bp-levels">${BP_REWARDS.map(r=>{const unlocked=r.level<=lvl,current=lvl===r.level;return `<div class="bp-level ${unlocked?'unlocked':''} ${current?'current':''}"><div class="bp-num">Level ${r.level} ${unlocked?'✓':''}</div><div class="bp-reward">${esc(r.label)}</div></div>`}).join('')}</div>`;
   } else if(tab==='avatar'){
     const groups=['avatar','outfit','accessory','frame','background'];
-    body=`<div class="reward-shell"><div><div class="avatar-stage">${avatarPreviewHtml()}<div style="margin-top:14px;font-size:11.5px;opacity:.8;">Cosmetics are visual only. They do not affect grades, scores, or access.</div></div>${groups.map(type=>`<div class="panel" style="margin-bottom:14px;"><h3>${type[0].toUpperCase()+type.slice(1)}s</h3><div class="cosmetic-grid">${REWARD_COSMETICS.filter(c=>c.type===type).map(c=>{const ok=unlocked.includes(c.id),eq=state.progress.equipped[type]===c.id;return `<div class="cosmetic-card ${ok?'unlocked':''} ${eq?'equipped':''}"><div class="cosmetic-icon">${c.icon}</div><strong>${esc(c.name)}</strong><div class="reward-muted">${c.rarity} · ${ok?'Unlocked':'Locked'}</div>${ok?`<button class="btn ${eq?'btn-dark':'btn-primary'} btn-sm" style="margin-top:9px;" data-action="equip-cosmetic" data-id="${c.id}">${eq?'Equipped':'Equip'}</button>`:''}</div>`}).join('')}</div></div>`).join('')}</div><div><div class="panel"><h3>Your collection</h3><p class="reward-muted">${unlocked.length} cosmetics unlocked. Packs can add more.</p><button class="btn btn-primary" data-action="reward-tab" data-tab="packs">Open Packs</button><button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="reward-tab" data-tab="inventory">🎒 Open Inventory</button></div></div></div>`;
+    body=`<div class="reward-shell"><div><div class="avatar-stage">${avatarPreviewHtml()}<div style="margin-top:14px;font-size:11.5px;opacity:.8;">Cosmetics are visual only. They do not affect grades, scores, or access.</div></div>${groups.map(type=>`<div class="panel" style="margin-bottom:14px;"><h3>${type[0].toUpperCase()+type.slice(1)}s</h3><div class="cosmetic-grid">${REWARD_COSMETICS.filter(c=>c.type===type).map(c=>{const ok=unlocked.includes(c.id),eq=state.progress.equipped[type]===c.id;return `<div class="cosmetic-card ${ok?'unlocked':''} ${eq?'equipped':''}"><div class="cosmetic-icon">${c.icon}</div><strong>${esc(c.name)}</strong><div class="reward-muted">${c.rarity} · ${ok?'Unlocked':'Locked'}</div>${ok?`<button class="btn ${eq?'btn-dark':'btn-primary'} btn-sm" style="margin-top:9px;" data-action="equip-cosmetic" data-id="${c.id}">${eq?'Equipped':'Equip'}</button>`:''}</div>`}).join('')}</div></div>`).join('')}</div><div><div class="panel"><h3>Your collection</h3><p class="reward-muted">${unlocked.length} cosmetics unlocked. Earn deterministic study rewards and equip what you have unlocked.</p><button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="reward-tab" data-tab="inventory">🎒 Open Inventory</button></div></div></div>`;
   } else if(tab==='inventory'){
     const groups=[['avatar','Avatars'],['outfit','Outfits'],['accessory','Accessories'],['frame','Frames'],['background','Backgrounds']];
     const inventoryGroups=groups.map(([type,label])=>{
@@ -1502,18 +1506,17 @@ function renderRewards(){
           ${ok?'':'<div class="inventory-lock">🔒</div>'}
           <div class="inventory-name">${esc(c.name)}</div>
           <div class="inventory-rarity">${esc(c.rarity)}</div>
-          <div class="${ok?'inventory-owned':'inventory-locked-label'}">${ok?'✓ Unlocked':'Locked · Open packs or reach the required reward'}</div>
+          <div class="${ok?'inventory-owned':'inventory-locked-label'}">${ok?'✓ Unlocked':'Locked · Earn through study rewards or reach the required reward'}</div>
         </div>`;
       }).join('');
       return `<div class="inventory-group"><h3>${label}</h3><div class="inventory-grid">${items}</div></div>`;
     }).join('');
-    body=`<div class="panel"><div class="inventory-summary"><div><h3 style="font-size:20px;">🎒 Inventory</h3><p class="reward-muted">Unlocked cosmetics are shown normally. Locked cosmetics have a greyed-out lock overlay until you earn them.</p></div><div class="inventory-count"><strong>${unlocked.length}</strong> / ${REWARD_COSMETICS.length} unlocked · ${state.progress.openedPacks||0} packs opened</div></div><div>${inventoryGroups}</div></div>`;
+    body=`<div class="panel"><div class="inventory-summary"><div><h3 style="font-size:20px;">🎒 Inventory</h3><p class="reward-muted">Unlocked cosmetics are shown normally. Locked cosmetics have a greyed-out lock overlay until you earn them.</p></div><div class="inventory-count"><strong>${unlocked.length}</strong> / ${REWARD_COSMETICS.length} unlocked · ${state.progress.openedPacks||0} legacy pack records</div></div><div>${inventoryGroups}</div></div>`;
   } else if(tab==='daily') {
-    const wheelToday=String(state.progress.dailyWheelDate||'')===coinDayStr(), lastReward=Number(state.progress.dailyWheelReward)||0;
-    body=`<div class="panel" style="text-align:center;padding:28px 22px;"><div style="font-size:52px;line-height:1;margin-bottom:10px;">🎡</div><div class="rewards-eyebrow">DAILY REWARD</div><h3 style="font-size:27px;margin:6px 0 8px;">Spin the Daily Wheel</h3><p class="reward-muted" style="max-width:600px;margin:0 auto 18px;">One server-side RNG spin every day. Coins go directly into your Index wallet and use the same daily earning cap as the rest of the reward system.</p><div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;"><span class="coin-pill">🪙 10–500 possible coins</span><span class="coin-pill">⏰ Resets at midnight</span></div><div id="daily-wheel-result" style="min-height:34px;font-size:18px;font-weight:900;margin-bottom:10px;">${wheelToday?`You already spun today${lastReward?` · you earned 🪙 ${lastReward}`:''}.`:''}</div><div id="daily-wheel-countdown" class="reward-muted" style="font-size:14px;margin-bottom:16px;">Next spin countdown loading…</div><button class="btn btn-primary" data-action="daily-wheel-spin" ${wheelToday?'disabled':''}>${wheelToday?'✓ Already spun today':'🎡 Spin for coins'}</button><div class="reward-muted" style="margin:18px auto 0;max-width:620px;font-size:11.5px;">Weighted rewards: 10 (30%), 25 (25%), 50 (20%), 75 (15%), 100 (7%), 250 (2.5%), 500 (0.5%). If you have reached the daily coin cap, the wheel reward is reduced to the remaining amount.</div></div>`;
-    setTimeout(updateDailyWheelCountdown,0);
+    body=`<div class="panel" style="text-align:center;padding:28px 22px;"><div style="font-size:52px;line-height:1;margin-bottom:10px;">📚</div><div class="rewards-eyebrow">DAILY STUDY BONUS</div><h3 style="font-size:27px;margin:6px 0 8px;">Daily study rewards</h3><p class="reward-muted" style="max-width:600px;margin:0 auto;">Randomized prize wheels and loot-box mechanics are not used in the school-safe version of Index. Rewards are tied to learning activities instead.</p><div class="coin-pill" style="margin:18px auto;">🪙 Earn coins through teacher-hosted learning activities</div></div>`;
   } else {
-    const packCard=(kind)=>{const c=packConfig(kind),can=(state.progress.coins||0)>=c.cost && !state.rewardPackOpening;const contents=packContents(kind);const contentHtml=contents.map(item=>`<div class="pack-content"><span class="pack-content-icon">${item.icon}</span><span class="pack-content-copy"><div class="pack-content-name">${esc(item.name)}</div><div class="pack-content-rarity ${rewardRarityClass(item.rarity)}">${esc(item.rarity)}</div></span></div>`).join('');const odds=`${c.weights.Common}% Common · ${c.weights.Rare}% Rare · ${c.weights.Epic}% Epic · ${c.weights.Legendary}% Legendary`;return `<div class="pack-option" data-pack="${kind}" style="--pack-accent:${c.accent}"><div class="pack-rarity-line" style="background:linear-gradient(90deg,${c.accent},#fff)"></div><div class="pack-box" style="background:linear-gradient(145deg,${c.accent},#21183f)">${c.icon}</div><div class="pack-name">${c.name}</div><div class="pack-desc">8 possible cosmetics. All packs use the same rarity odds; higher-tier cosmetics are not more likely.</div><div class="pack-contents">${contentHtml}</div><div class="pack-count">8 possible rewards · ${odds}</div><div class="pack-cost"><span class="coin-pill">🪙 ${c.cost}</span></div><button class="btn ${can?'btn-primary':'btn-ghost'}" data-action="open-pack" data-pack="${kind}" ${can?'':'disabled'}>${state.rewardPackOpening?'Opening…':can?'Open pack':'Not enough coins'}</button><div class="pack-odds"><span class="rarity-pill common">Common</span><span class="rarity-pill rare">Rare</span><span class="rarity-pill epic">Epic</span><span class="rarity-pill legendary">Legendary</span></div></div>`;};
+    const packCard=(kind)=>{const c=packConfig(kind),can=false;const contents=packContents(kind);const contentHtml=contents.map(item=>`<div class="pack-content"><span class="pack-content-icon">${item.icon}</span><span class="pack-content-copy"><div class="pack-content-name">${esc(item.name)}</div><div class="pack-content-rarity ${rewardRarityClass(item.rarity)}">${esc(item.rarity)}</div></span></div>`).join('');return `<div class="panel"><h3>Cosmetic packs unavailable</h3><p class="reward-muted">Randomized cosmetic packs are disabled in the school-safe version. Use the Avatar and Inventory tabs for deterministic cosmetic rewards.</p></div>`;};
+
     const collection=REWARD_COSMETICS.slice(0,24).map(c=>{const ok=unlocked.includes(c.id);return `<div class="rarity-card ${rewardRarityClass(c.rarity)}" style="opacity:${ok?1:.62};position:relative;">${ok?'':'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(50,53,61,.3);font-size:26px;z-index:2;">🔒</div>'}<div class="collection-icon" style="${ok?'':'filter:grayscale(1)'}">${c.icon}</div><div class="collection-name">${esc(c.name)}</div><div class="collection-rarity">${esc(c.rarity)} · ${ok?'Unlocked':'Locked'}</div></div>`;}).join('');
     body=`<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">Cosmetic Vault</div><div class="pack-showcase-title">Choose your pack.</div><div class="pack-showcase-copy">Earn coins in teacher-hosted Live Games, then open a cosmetic pack. Each pack has 8 possible cosmetic rewards across different rarities. Buying one opens a full-screen vertical reveal and adds the result to your inventory.</div></div><div class="coin-pill">🪙 <span class="coin-balance">${state.progress.coins||0}</span> coins</div></div><div class="pack-shelf">${PACK_ORDER.map(packCard).join('')}</div></div></div>
       <div class="rewards-lower"><div class="panel"><div class="row"><div><h3>Collection gallery</h3><p class="reward-muted">Locked items are greyed out until they are unlocked.</p></div><button class="btn btn-ghost btn-sm" data-action="reward-tab" data-tab="inventory">🎒 Inventory</button></div><div class="rarity-collection">${collection}</div></div><div class="panel"><h3>How coins work</h3><p class="reward-muted">Teacher-hosted Live Games award coins when the game ends. Correct answers and placement can increase the reward.</p><div class="stat-row" style="margin-top:12px"><div class="stat"><div class="stat-num">${state.progress.liveGames||0}</div><div class="stat-label">Live games</div></div><div class="stat"><div class="stat-num">${daily.earned}</div><div class="stat-label">Coins earned today</div></div></div><p class="reward-muted" style="margin-top:12px">Daily earning cap: <strong>${DAILY_COIN_CAP} coins</strong>.</p></div></div>`;
@@ -1524,7 +1527,7 @@ function renderRewards(){
 let dailyWheelTimer=null;
 function dailyWheelNextMidnightMs(){const n=new Date(),t=new Date(n);t.setHours(24,0,0,0);return t.getTime();}
 function updateDailyWheelCountdown(){const el=document.getElementById('daily-wheel-countdown');if(!el)return;const ms=Math.max(0,dailyWheelNextMidnightMs()-Date.now()),x=Math.floor(ms/1000),hh=Math.floor(x/3600),mm=Math.floor((x%3600)/60),ss=x%60;el.textContent=`Next spin in ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;clearTimeout(dailyWheelTimer);dailyWheelTimer=setTimeout(updateDailyWheelCountdown,1000);}
-async function dailyWheelSpin(){const btn=document.querySelector('[data-action="daily-wheel-spin"]');if(btn)btn.disabled=true;try{if(!state.account){if(typeof openSignin==='function')openSignin();return;}const r=await fetch('/api/rewards/daily-wheel/spin',{method:'POST'}),d=await r.json();if(!r.ok){showRewardToast(d.error||'Daily Wheel is unavailable.');renderRewards();return;}if(d.state)state.progress={...state.progress,...(d.state.progress||{})};persistProgressLocalOnly();renderSidebarBadge();renderRewards();showRewardToast(`🎡 Daily Wheel · +${d.reward||0} coins`);}catch(e){showRewardToast('Could not reach the server. Please try again.');renderRewards();}}
+async function dailyWheelSpin(){showRewardToast('Randomized daily wheels are disabled in the school-safe version of Index.');}
 
 /* ============================== HELPERS ============================== */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -2796,7 +2799,7 @@ function saveCounty(){
   const profile=LOCAL_JURISDICTIONS.find(x=>x.id===countyDraft); if(!profile) return;
   const ack=document.getElementById('county-change-ack'); if(!ack?.checked) return;
   state.county=profile.id; state.profile.county=profile.id; state.profile.countyName=profile.name;
-  try{localStorage.setItem('index-county',profile.id);localStorage.setItem('index-setup-v2',JSON.stringify({county:profile.id,terms:true,privacy:true,conduct:true,academic:true,localGuidance:true,policyVersion:'2026-09-22-v2',acceptedAt:new Date().toISOString(),changedAt:new Date().toISOString()}));}catch(e){}
+  try{localStorage.setItem('index-county',profile.id);localStorage.setItem('index-setup-v2',JSON.stringify({county:profile.id,reviewed:true,policyVersion:'2026-09-22-v3',reviewedAt:new Date().toISOString(),changedAt:new Date().toISOString()}));}catch(e){}
   persistProfile(); hideCountyGate(); applyLocalJurisdictionUI(); renderDashboard(); renderProfileSlot(); updateAccountCountyLabel();
 }
 function localPageUrl(path){ return path+'?county='+encodeURIComponent(state.county||'other'); }
@@ -3190,7 +3193,7 @@ document.addEventListener('click', async (e)=>{
   else if(action==='reward-tab'){ state.rewardsTab=t.dataset.tab||'battlepass'; renderRewards(); }
    else if(action==='daily-wheel-spin'){ dailyWheelSpin(); }
   else if(action==='equip-cosmetic'){ equipCosmetic(t.dataset.id); }
-  else if(action==='open-pack'){ openRewardPack(t.dataset.pack||'study'); }
+  else if(action==='open-pack'){ showRewardToast('Randomized cosmetic packs are disabled in the school-safe version of Index.'); }
   else if(action==='close-pack-modal'){ closePackModal(); }
   else if(action==='live-goto-hub'){ state.live.screen='hub'; renderLive(); }
   else if(action==='live-goto-host-setup'){ state.live.screen='host-setup'; renderLive(); }
@@ -3283,24 +3286,21 @@ document.addEventListener('keydown', (e)=>{
 
 <script>
 /* ============================== TERMS / PRIVACY / COUNTY GATE ============================== */
-const SITE_TERMS_VERSION = '2026-09-22-v2';
+const SITE_TERMS_VERSION = '2026-09-22-v3';
 const SETUP_KEY = 'index-setup-v2';
 function getSetup(){ try{return JSON.parse(localStorage.getItem(SETUP_KEY)||'null')}catch(e){return null;} }
-function hasCompletedSetup(){ const s=getSetup(); return !!(s && s.county && s.terms && s.privacy && s.conduct && s.academic && s.localGuidance && s.policyVersion===SITE_TERMS_VERSION); }
+function hasCompletedSetup(){ const s=getSetup(); return !!(s && s.county && s.reviewed && s.policyVersion===SITE_TERMS_VERSION); }
 function hasAcceptedSiteTerms(){ return hasCompletedSetup(); }
 function updateGateButton(){
   const county=document.getElementById('gate-county')?.value||'';
-  const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic','gate-local'];
-  const ok=county && ids.every(id=>document.getElementById(id)?.checked);
-  const btn=document.getElementById('accept-site-terms'); if(btn)btn.disabled=!ok;
+  const btn=document.getElementById('accept-site-terms'); if(btn)btn.disabled=!county;
 }
 function showSiteGate(){ const gate=document.getElementById('site-gate'); if(gate){gate.classList.remove('hidden');document.body.style.overflow='hidden';} updateGateButton(); }
 function hideSiteGate(){ const gate=document.getElementById('site-gate'); if(gate)gate.classList.add('hidden'); if(document.getElementById('county-gate')?.classList.contains('hidden'))document.body.style.overflow=''; }
 function acceptSiteTerms(){
   const county=document.getElementById('gate-county')?.value||'';
-  const ids=['gate-terms','gate-privacy','gate-conduct','gate-academic','gate-local'];
-  if(!county || !ids.every(id=>document.getElementById(id)?.checked)) return;
-  localStorage.setItem(SETUP_KEY,JSON.stringify({county,terms:true,privacy:true,conduct:true,academic:true,localGuidance:true,policyVersion:SITE_TERMS_VERSION,acceptedAt:new Date().toISOString()}));
+  if(!county) return;
+  localStorage.setItem(SETUP_KEY,JSON.stringify({county,reviewed:true,policyVersion:SITE_TERMS_VERSION,reviewedAt:new Date().toISOString()}));
   localStorage.setItem('index-county',county);
   const p=LOCAL_JURISDICTIONS.find(x=>x.id===county); if(p){ state.profile=state.profile||{}; state.profile.county=p.id; state.profile.countyName=p.name; persistProfile(); }
   hideSiteGate(); initializeApp();
@@ -3362,11 +3362,7 @@ async function initializeApp(){
   if(params.get('reset')) openResetPanel(params.get('reset'));
 }
 
-['gate-terms','gate-privacy','gate-conduct','gate-academic'].forEach(id=>{
-  document.getElementById(id)?.addEventListener('change', updateGateButton);
-});
 document.getElementById('gate-county')?.addEventListener('change', updateGateButton);
-['gate-terms','gate-privacy','gate-conduct','gate-academic','gate-local'].forEach(id=>document.getElementById(id)?.addEventListener('change', updateGateButton));
 document.getElementById('county-gate-search')?.addEventListener('input', e=>renderCountyGateOptions(e.target.value));
 document.getElementById('county-gate-options')?.addEventListener('click', e=>{ const b=e.target.closest('[data-county-id]'); if(b) selectCounty(b.dataset.countyId); });
 document.getElementById('county-change-ack')?.addEventListener('change', ()=>{ const a=document.getElementById('county-change-ack'); document.getElementById('continue-county').disabled=!(countyDraft && a?.checked); });
