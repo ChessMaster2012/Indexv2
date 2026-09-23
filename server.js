@@ -83,7 +83,8 @@ const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8
 const LOCAL_AI_MODELS = {
   'onnx-community/Qwen2.5-0.5B-Instruct': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
-    'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json','onnx/model_q4f16.onnx'
+    'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json',
+    'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx'
   ]),
   'onnx-community/SmolLM2-360M-Instruct-ONNX': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
