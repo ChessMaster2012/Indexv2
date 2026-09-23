@@ -136,52 +136,21 @@ GENERAL FORMATTING RULES:
     }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    // Zero-configuration AI path: keep the same anonymous Pollinations flow that
-    // previously powered Index. No Render AI environment variables are required.
-    // The browser still talks only to this server, so school and home computers
-    // use the same backend route.
+    // Restore the exact no-key Pollinations model/route that was previously confirmed working.
+    // No new Render environment variables are required.
     const wantsJson = req.body?.jsonMode === true;
+    const providerPrompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
+    const url = 'https://text.pollinations.ai/' + encodeURIComponent(providerPrompt) + '?model=openai' + (wantsJson ? '&json=true' : '');
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
     let upstream;
     let body = '';
     try {
-      const currentMessages = [
-        { role: 'system', content: `${tutorQuality}${system ? '\n\n' + system : ''}` },
-        ...turns
-      ];
-
-      // Legacy endpoint is retained because it previously worked without any
-      // account/key setup. JSON mode is requested only for the Learn feature.
-      upstream = await fetch('https://text.pollinations.ai/', {
-        method: 'POST',
+      upstream = await fetch(url, {
         signal: controller.signal,
-        headers: { 'content-type': 'application/json', 'accept': 'text/plain, application/json' },
-        body: JSON.stringify({
-          messages: currentMessages,
-          model: 'openai',
-          ...(wantsJson ? { jsonMode: true } : {}),
-          temperature: wantsJson ? 0.2 : 0.25,
-          max_tokens: wantsJson ? 900 : 900
-        })
+        headers: { 'accept': 'text/plain, application/json' }
       });
       body = await upstream.text();
-
-      // If the legacy POST service is temporarily unhealthy, try its simple GET
-      // route once. This needs no key and often responds faster for short tutor
-      // questions. Do not retry twice after a successful HTTP response.
-      if (!upstream.ok) {
-        const fallbackPrompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 15000);
-        const qs = new URLSearchParams({ model: 'openai' });
-        if (wantsJson) qs.set('json', 'true');
-        qs.set('temperature', wantsJson ? '0.2' : '0.25');
-        qs.set('max_tokens', wantsJson ? '900' : '900');
-        upstream = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fallbackPrompt)}?${qs.toString()}`, {
-          signal: controller.signal,
-          headers: { 'accept': 'text/plain, application/json' }
-        });
-        body = await upstream.text();
-      }
     } finally { clearTimeout(timeout); }
 
     if (!upstream.ok) {
