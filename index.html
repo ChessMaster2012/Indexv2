@@ -459,6 +459,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .rarity-card.legendary{background:linear-gradient(145deg,#d88924,#a83b69 55%,#642c8e)}
 .rarity-card .collection-icon{font-size:42px;text-align:center;margin:10px 0 8px;filter:drop-shadow(0 5px 8px rgba(0,0,0,.2))}
 .rarity-card .collection-name{text-align:center;font-weight:950;font-size:12px}.rarity-card .collection-rarity{text-align:center;font-size:9px;opacity:.78;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+.daily-wheel{position:relative;width:190px;height:190px;margin:20px auto 12px}.daily-wheel-circle{width:190px;height:190px;border-radius:50%;border:10px solid #241f3d;background:conic-gradient(#7c5cfc 0 16.66%,#35a878 16.66% 33.32%,#f2a23a 33.32% 49.98%,#7c5cfc 49.98% 66.64%,#35a878 66.64% 83.3%,#f2a23a 83.3% 100%);display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;place-items:center;color:#fff;font-weight:950;font-size:16px;box-shadow:0 18px 36px rgba(36,31,61,.2)}.daily-wheel-circle span:nth-child(1){grid-column:2;grid-row:1}.daily-wheel-circle span:nth-child(2){grid-column:1;grid-row:2}.daily-wheel-circle span:nth-child(3){grid-column:3;grid-row:2}.daily-wheel-circle span:nth-child(4){grid-column:2;grid-row:3}.daily-wheel-circle span:nth-child(5){grid-column:1;grid-row:1}.daily-wheel-circle span:nth-child(6){grid-column:3;grid-row:3}.daily-wheel-pointer{position:absolute;top:-14px;left:50%;transform:translateX(-50%);z-index:2;color:#241f3d;font-size:25px}.daily-wheel:after{content:'';position:absolute;inset:72px;border-radius:50%;background:#fff;border:5px solid #241f3d;box-shadow:0 4px 12px rgba(0,0,0,.16)}
 .pack-modal{position:fixed;inset:0;z-index:12000;background:rgba(9,6,22,.82);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}
 .pack-modal.hidden{display:none}
 .pack-opening{width:min(620px,96vw);background:#f8f6ff;border-radius:28px;padding:20px;box-shadow:0 30px 90px rgba(0,0,0,.42);text-align:center}
@@ -609,7 +610,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
   function profileCounty(){try{return JSON.parse(localStorage.getItem('index-profile')||'{}')?.county||localStorage.getItem('index-county')||''}catch(e){return ''}}
   function complete(){
     const v=parse();
-    return !!(v && v.county && v.setupComplete && v.policyVersion==='2026-09-22-v4');
+    return !!(v && v.county && v.setupComplete && v.policyVersion==='2026-09-22-v5');
   }
   function saveProfileCounty(id){
     try{
@@ -642,7 +643,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
   function finish(){
     const county=document.getElementById('gate-county')?.value||'';
     if(!county)return;
-    try{localStorage.setItem(KEY,JSON.stringify({county,setupComplete:true,policyVersion:'2026-09-22-v4',completedAt:new Date().toISOString()}));saveProfileCounty(county);}catch(e){}
+    try{localStorage.setItem(KEY,JSON.stringify({county,setupComplete:true,policyVersion:'2026-09-22-v5',completedAt:new Date().toISOString()}));saveProfileCounty(county);}catch(e){}
     hide();setTimeout(()=>window.location.reload(),0);
   }
   function init(){
@@ -1055,7 +1056,7 @@ const GAME_MODES = {
   trivia: { label:'Trivia Dash', icon:'⚡', desc:'Classic speed trivia — fastest correct answers score the most.' },
   rocket: { label:'Rocket Race', icon:'🚀', desc:'Every correct answer launches your rocket further down the track.' },
   tower:  { label:'Tower Climb', icon:'🏗️', desc:'Correct answers stack blocks — build the tallest tower.' },
-  gold:   { label:'Gold Rush', icon:'💰', desc:'Earn gold for correct answers and gamble it on mystery chests.' },
+  gold:   { label:'Gold Rush', icon:'💰', desc:'Earn gold for correct answers and use it to track your in-game progress.' },
   streak: { label:'Streak Surge', icon:'🔥', desc:'Chain correct answers to build a multiplier and climb the leaderboard.' },
   elimination: { label:'Last Stand', icon:'🛡️', desc:'One wrong answer knocks you out. Be the last player standing.' }
 };
@@ -1227,7 +1228,7 @@ function resetAllUserStateAfterAccountDeletion(){
   state.learn={lesson:null,checkpointChosen:null,checkpointSubmitted:false};
   state.games={active:null,setupType:null,selectedSetId:null};
   state.customTopics={}; state.profile={}; state.district=''; state.county='';
-  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,unlockedCosmetics:[],claimedBPLevels:[],equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'},openedPacks:0,liveGames:0};
+  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,unlockedCosmetics:[],claimedBPLevels:[],equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'},openedPacks:0,liveGames:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0};
   state.courseDetail={subjectId:null,expandedTopic:null,topicBusy:null,playPickerTopic:null};
   state.live={role:null,screen:'hub',code:null,hostToken:null,playerId:null,mode:'trivia',session:null,players:[],answeredCount:0,myLastAnswer:null,myChest:null,hostSubjectId:null,hostSetId:null,timerInterval:null,config:{questionCount:10,timePerQuestion:20,shuffleQuestions:true,shuffleAnswers:false,showLeaderboard:true,autoAdvance:false,maxPlayers:50,title:''}};
   accountLastSyncAt=0;
@@ -1248,11 +1249,12 @@ async function loadAccountState(){
     if(Array.isArray(a.studySets)) state.studySets=a.studySets;
     if(a.customTopics && typeof a.customTopics==='object') state.customTopics=a.customTopics;
     if(a.progress) state.progress={...state.progress,...a.progress,equipped:a.progress.equipped||state.progress.equipped};
-    if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; }
+    if(a.profile){ state.profile={...state.profile,...a.profile}; state.county=state.profile.county||state.county||''; const local=getLocalJurisdiction(); state.district=state.profile.district||local?.district||''; state.profile.district=state.district; }
+    if(!state.district && state.county){ const local=getLocalJurisdiction(); if(local){ state.district=local.district||''; state.profile.district=state.district; } }
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
   }catch(e){}
 }
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
@@ -1374,35 +1376,28 @@ function rewardRarityClass(r){ return String(r||'Common').toLowerCase(); }
 // All packs use the same rarity odds. Costs differ, but pack tier does not
 // change the chance of each rarity. Odds are represented in 10,000 units so
 // whole-percentage odds are rolled exactly in 10,000 units.
-const SHARED_PACK_ODDS = {Common:66,Rare:24,Epic:9,Legendary:1};
 const PACK_ORDER = ['study','focus','mastery','scholar','tech','legend'];
 const PACK_DEFS = {
-  study:{name:'Study Pack',cost:20,icon:'📦',accent:'#6f58e8',weights:SHARED_PACK_ODDS,contents:['avatar-scholar','outfit-books','accessory-pencil','frame-purple','bg-library','avatar-scientist','accessory-bookmark','frame-neon']},
-  focus:{name:'Focus Pack',cost:20,icon:'🎯',accent:'#2f91ff',weights:SHARED_PACK_ODDS,contents:['avatar-builder','outfit-hoodie','accessory-lightning','frame-blue','bg-lab','outfit-varsity','accessory-bookmark','frame-neon']},
-  mastery:{name:'Mastery Pack',cost:25,icon:'🧠',accent:'#f2a23a',weights:SHARED_PACK_ODDS,contents:['avatar-scholar','outfit-lab','accessory-crown','bg-space','outfit-formal','accessory-bookmark','frame-mastery','frame-neon']},
-  scholar:{name:'Scholar Pack',cost:25,icon:'🎓',accent:'#35a878',weights:SHARED_PACK_ODDS,contents:['avatar-reader','outfit-scholar','accessory-pen','frame-book','bg-studyhall','outfit-varsity2','accessory-mentor','frame-neon']},
-  tech:{name:'Tech Pack',cost:25,icon:'💻',accent:'#26b4c7',weights:SHARED_PACK_ODDS,contents:['accessory-code','avatar-engineer','outfit-tech','frame-circuit','bg-digital','avatar-coder','outfit-neon','frame-legend']},
-  legend:{name:'Legend Pack',cost:25,icon:'🌟',accent:'#d64fd6',weights:SHARED_PACK_ODDS,contents:['avatar-scholar','avatar-engineer','accessory-crown','avatar-coder','outfit-premium','accessory-starburst','avatar-genius','accessory-diamond']}
+  study:{name:'Study Pack',cost:20,icon:'📦',accent:'#6f58e8',contents:['avatar-scholar','outfit-books','accessory-pencil','frame-purple','bg-library','avatar-scientist','accessory-bookmark','frame-neon'],featured:'avatar-scientist'},
+  focus:{name:'Focus Pack',cost:20,icon:'🎯',accent:'#2f91ff',contents:['avatar-builder','outfit-hoodie','accessory-lightning','frame-blue','bg-lab','outfit-varsity','accessory-bookmark','frame-neon'],featured:'outfit-varsity'},
+  mastery:{name:'Mastery Pack',cost:25,icon:'🧠',accent:'#f2a23a',contents:['avatar-scholar','outfit-lab','accessory-crown','bg-space','outfit-formal','accessory-bookmark','frame-mastery','frame-neon'],featured:'frame-mastery'},
+  scholar:{name:'Scholar Pack',cost:25,icon:'🎓',accent:'#35a878',contents:['avatar-reader','outfit-scholar','accessory-pen','frame-book','bg-studyhall','outfit-varsity2','accessory-mentor','frame-neon'],featured:'avatar-reader'},
+  tech:{name:'Tech Pack',cost:25,icon:'💻',accent:'#26b4c7',contents:['accessory-code','avatar-engineer','outfit-tech','frame-circuit','bg-digital','avatar-coder','outfit-neon','frame-legend'],featured:'avatar-engineer'},
+  legend:{name:'Legend Pack',cost:25,icon:'🌟',accent:'#d64fd6',contents:['avatar-scholar','avatar-engineer','accessory-crown','avatar-coder','outfit-premium','accessory-starburst','avatar-genius','accessory-diamond'],featured:'avatar-genius'}
 };
 function packConfig(kind){ return PACK_DEFS[kind] || PACK_DEFS.study; }
 function packContents(kind){ return packConfig(kind).contents.map(cosmeticById).filter(Boolean); }
-function randomUnit(){
-  try{
-    if(window.crypto?.getRandomValues){
-      const buf=new Uint32Array(1); window.crypto.getRandomValues(buf); return buf[0]/4294967296;
-    }
-  }catch(e){}
-  return Math.random();
+function packReward(kind){
+  const cfg=packConfig(kind);
+  const featured=cosmeticById(cfg.featured);
+  if(featured) return featured;
+  return packContents(kind)[0] || REWARD_COSMETICS[0];
 }
-function rollPack(kind='study'){
-  const cfg=packConfig(kind), contents=packContents(kind), by={};
-  Object.keys(cfg.weights).forEach(r=>by[r]=contents.filter(c=>c.rarity===r));
-  const total=10000;
-  const scaled={Common:6600,Rare:2400,Epic:900,Legendary:100};
-  let n=Math.floor(randomUnit()*total), rarity='Common';
-  for(const [r,w] of Object.entries(scaled)){ n-=w; if(n<0){rarity=r;break;} }
-  const pool=by[rarity]?.length ? by[rarity] : contents;
-  return pool[Math.floor(randomUnit()*pool.length)];
+function buildReelItems(reward, kind='study'){
+  const pool=packContents(kind), items=[];
+  for(let i=0;i<13;i++) items.push(pool[i % Math.max(1,pool.length)]);
+  items[7]=reward;
+  return items;
 }
 function playPackTick(){
   try{
@@ -1452,7 +1447,7 @@ function openRewardPack(kind='study'){
   // Deduct only after the modal exists, so a UI error can never consume coins silently.
   state.rewardPackOpening=true;
   state.progress.coins-=cfg.cost;
-  const reward=rollPack(kind);
+  const reward=packReward(kind);
   const duplicate=state.progress.unlockedCosmetics.includes(reward.id);
   if(!duplicate) state.progress.unlockedCosmetics.push(reward.id);
   state.progress.openedPacks=(state.progress.openedPacks||0)+1;
@@ -1475,7 +1470,7 @@ function openRewardPack(kind='study'){
     clearInterval(timer);
     opening.classList.remove('is-opening');
     playPackReveal(); celebrate();
-    const bonus=duplicate?Math.min(60,Math.floor(cfg.cost*.4)):0;
+    const bonus=duplicate?Math.min(20,Math.floor(cfg.cost*.25)):0;
     if(duplicate){ state.progress.coins+=bonus; persistProgress(); updateCoinDisplays(); }
     result.innerHTML=`<div class="pack-result reveal">
       <div class="result-rarity" style="color:${reward.rarity==='Legendary'?'#b26b00':reward.rarity==='Epic'?'#7540ba':reward.rarity==='Rare'?'#1774c8':'#596273'}">${esc(reward.rarity)} ${duplicate?'· Duplicate':''}</div>
@@ -1521,11 +1516,14 @@ function renderRewards(){
       <span class="inventory-rail-icon">🎒</span><span class="inventory-rail-label">Inventory</span>
     </button>
   </aside>`;
-  const tabHtml=`<div class="reward-tabs"><button class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass">🏆 Battle Pass</button><button class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar">🧑 Avatar</button><button class="reward-tab ${tab==='inventory'?'active':''}" data-action="reward-tab" data-tab="inventory">🎒 Inventory</button></div>`;
-  const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Learning activities and teacher-hosted Live Games can award optional in-app progress coins; coins do not buy randomized rewards.</p></div><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
+  const tabHtml=`<div class="reward-tabs"><button class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass">🏆 Battle Pass</button><button class="reward-tab ${tab==='packs'?'active':''}" data-action="reward-tab" data-tab="packs">📦 Packs</button><button class="reward-tab ${tab==='daily'?'active':''}" data-action="reward-tab" data-tab="daily">🎡 Daily Wheel</button><button class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar">🧑 Avatar</button><button class="reward-tab ${tab==='inventory'?'active':''}" data-action="reward-tab" data-tab="inventory">🎒 Inventory</button></div>`;
+  const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Earn XP and optional in-app coins through learning activities. Packs contain fixed, clearly listed cosmetics, and the Daily Wheel gives a scheduled daily study bonus.</p></div><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
   let body='';
   if(tab==='battlepass'){
     body=`<div class="bp-hero"><div style="display:flex;justify-content:space-between;gap:10px;align-items:end;flex-wrap:wrap;"><div><div style="font-size:12px;font-weight:800;opacity:.9;">INDEX BATTLE PASS</div><div style="font-family:var(--font-display);font-size:30px;font-weight:700;">Level ${lvl} <span style="font-size:14px;font-family:var(--font-ui);font-weight:800;opacity:.85;">/ 50</span></div></div><div style="font-size:13px;font-weight:800;">${into}/100 XP</div></div><div class="bp-track"><div class="bp-fill" style="width:${lvl>=50?100:into}%"></div></div><div style="font-size:11.5px;opacity:.9;">XP comes from learning activities. It never costs money.</div></div><div class="bp-levels">${BP_REWARDS.map(r=>{const unlocked=r.level<=lvl,current=lvl===r.level;return `<div class="bp-level ${unlocked?'unlocked':''} ${current?'current':''}"><div class="bp-num">Level ${r.level} ${unlocked?'✓':''}</div><div class="bp-reward">${esc(r.label)}</div></div>`}).join('')}</div>`;
+  } else if(tab==='packs'){
+    const cards=PACK_ORDER.map(kind=>{const cfg=packConfig(kind);const contents=packContents(kind);const featured=packReward(kind);return `<div class="pack-option" data-pack="${kind}"><div class="pack-rarity-line"></div><div class="pack-box">${cfg.icon}</div><div class="pack-name">${esc(cfg.name)}</div><div class="pack-desc">Fixed cosmetic bundle. The featured item is always included; the full contents are listed below.</div><div class="pack-contents">${contents.map(c=>`<div class="pack-content"><div class="pack-content-icon">${c.icon}</div><div class="pack-content-copy"><div class="pack-content-name">${esc(c.name)}</div><div class="pack-content-rarity ${rewardRarityClass(c.rarity)}">${esc(c.rarity)}</div></div></div>`).join('')}</div><div class="pack-cost"><span class="coin-pill">🪙 ${cfg.cost}</span></div><button class="btn btn-primary" data-action="open-pack" data-pack="${kind}">Open ${esc(cfg.name)}</button><div class="pack-count">Featured: ${esc(featured.name)}</div></div>`;}).join('');
+    body=`<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="pack-showcase-title">📦 Study Packs</div><div class="pack-showcase-copy">Choose a pack, see exactly what it contains, and unlock its featured cosmetic. Packs use fixed contents rather than chance-based rewards.</div></div><div class="coin-pill">🪙 ${state.progress.coins||0} coins</div></div><div class="pack-shelf">${cards}</div></div></div>`;
   } else if(tab==='avatar'){
     const groups=['avatar','outfit','accessory','frame','background'];
     body=`<div class="reward-shell"><div><div class="avatar-stage">${avatarPreviewHtml()}<div style="margin-top:14px;font-size:11.5px;opacity:.8;">Cosmetics are visual only. They do not affect grades, scores, or access.</div></div>${groups.map(type=>`<div class="panel" style="margin-bottom:14px;"><h3>${type[0].toUpperCase()+type.slice(1)}s</h3><div class="cosmetic-grid">${REWARD_COSMETICS.filter(c=>c.type===type).map(c=>{const ok=unlocked.includes(c.id),eq=state.progress.equipped[type]===c.id;return `<div class="cosmetic-card ${ok?'unlocked':''} ${eq?'equipped':''}"><div class="cosmetic-icon">${c.icon}</div><strong>${esc(c.name)}</strong><div class="reward-muted">${c.rarity} · ${ok?'Unlocked':'Locked'}</div>${ok?`<button class="btn ${eq?'btn-dark':'btn-primary'} btn-sm" style="margin-top:9px;" data-action="equip-cosmetic" data-id="${c.id}">${eq?'Equipped':'Equip'}</button>`:''}</div>`}).join('')}</div></div>`).join('')}</div><div><div class="panel"><h3>Your collection</h3><p class="reward-muted">${unlocked.length} cosmetics unlocked. Earn deterministic study rewards and equip what you have unlocked.</p><button class="btn btn-ghost" style="margin-top:8px;width:100%;" data-action="reward-tab" data-tab="inventory">🎒 Open Inventory</button></div></div></div>`;
@@ -1546,7 +1544,10 @@ function renderRewards(){
     }).join('');
     body=`<div class="panel"><div class="inventory-summary"><div><h3 style="font-size:20px;">🎒 Inventory</h3><p class="reward-muted">Unlocked cosmetics are shown normally. Locked cosmetics have a greyed-out lock overlay until you earn them.</p></div><div class="inventory-count"><strong>${unlocked.length}</strong> / ${REWARD_COSMETICS.length} unlocked</div></div><div>${inventoryGroups}</div></div>`;
   } else if(tab==='daily') {
-    body=`<div class="panel" style="text-align:center;padding:28px 22px;"><div style="font-size:52px;line-height:1;margin-bottom:10px;">📚</div><div class="rewards-eyebrow">DAILY STUDY BONUS</div><h3 style="font-size:27px;margin:6px 0 8px;">Daily study rewards</h3><p class="reward-muted" style="max-width:600px;margin:0 auto;">Randomized prize wheels and loot-box mechanics are not used in the school-safe version of Index. Rewards are tied to learning activities instead.</p><div class="coin-pill" style="margin:18px auto;">🪙 Earn coins through teacher-hosted learning activities</div></div>`;
+    const today=new Date().toISOString().slice(0,10); const claimed=state.progress.dailyWheelDate===today;
+    const rewards=['+25 XP','+10 coins','+1 study streak day','+25 XP','+10 coins','+1 study streak day'];
+    const idx=Math.floor((new Date(today+'T00:00:00').getTime()/86400000))%rewards.length; const todayReward=rewards[idx];
+    body=`<div class="panel" style="text-align:center;padding:28px 22px;"><div class="rewards-eyebrow">DAILY STUDY BONUS</div><h3 style="font-size:27px;margin:6px 0 8px;">🎡 Daily Wheel</h3><p class="reward-muted" style="max-width:650px;margin:0 auto;">The wheel is a visual daily bonus. Today’s result is scheduled in advance, so every student can see what the daily reward is and there is no chance-based purchase.</p><div class="daily-wheel" aria-label="Daily reward wheel"><div class="daily-wheel-pointer">▼</div><div class="daily-wheel-circle"><span>XP</span><span>🪙</span><span>🔥</span><span>XP</span><span>🪙</span><span>🔥</span></div></div><h4 style="margin:8px 0 4px;">Today: ${esc(todayReward)}</h4><p id="daily-wheel-countdown" class="reward-muted" style="margin:0 0 14px;"></p><button class="btn btn-primary btn-lg" data-action="daily-wheel-spin" ${claimed?'disabled':''}>${claimed?'✓ Claimed today':'Claim today’s bonus'}</button></div>`;
   } else {
     const collection=REWARD_COSMETICS.slice(0,24).map(c=>{const ok=unlocked.includes(c.id);return `<div class="rarity-card ${rewardRarityClass(c.rarity)}" style="opacity:${ok?1:.62};position:relative;">${ok?'':'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(50,53,61,.3);font-size:26px;z-index:2;">🔒</div>'}<div class="collection-icon" style="${ok?'':'filter:grayscale(1)'}">${c.icon}</div><div class="collection-name">${esc(c.name)}</div><div class="collection-rarity">${esc(c.rarity)} · ${ok?'Unlocked':'Locked'}</div></div>`;}).join('');
     body=`<div class="panel"><div class="rewards-eyebrow">DETERMINISTIC REWARDS</div><h3 style="font-size:27px;margin:6px 0 8px;">Earn rewards through learning</h3><p class="reward-muted" style="max-width:700px;">Index does not use randomized prize wheels or loot boxes in the school-safe version. XP earned from learning activities unlocks the listed Battle Pass rewards at fixed levels, so students can see exactly what each level provides.</p><div class="coin-pill" style="margin:18px 0;">🪙 Coins are optional progress rewards and do not purchase randomized items.</div></div>
@@ -1558,7 +1559,15 @@ function renderRewards(){
 let dailyWheelTimer=null;
 function dailyWheelNextMidnightMs(){const n=new Date(),t=new Date(n);t.setHours(24,0,0,0);return t.getTime();}
 function updateDailyWheelCountdown(){const el=document.getElementById('daily-wheel-countdown');if(!el)return;const ms=Math.max(0,dailyWheelNextMidnightMs()-Date.now()),x=Math.floor(ms/1000),hh=Math.floor(x/3600),mm=Math.floor((x%3600)/60),ss=x%60;el.textContent=`Next spin in ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;clearTimeout(dailyWheelTimer);dailyWheelTimer=setTimeout(updateDailyWheelCountdown,1000);}
-async function dailyWheelSpin(){showRewardToast('Randomized daily rewards are disabled in the school-safe version of Index.');}
+async function dailyWheelSpin(){
+  const today=new Date().toISOString().slice(0,10);
+  if(state.progress.dailyWheelDate===today){ showRewardToast('You already claimed today’s Daily Wheel bonus.'); return; }
+  const idx=Math.floor((new Date(today+'T00:00:00').getTime()/86400000))%3;
+  if(idx===0){ state.progress.xp=(state.progress.xp||0)+25; state.progress.dailyWheelReward=25; showRewardToast('🎡 Daily Wheel: +25 XP'); }
+  else if(idx===1){ addCoins(10,'Daily Wheel'); state.progress.dailyWheelReward=10; showRewardToast('🎡 Daily Wheel: +10 coins'); }
+  else { state.progress.xp=(state.progress.xp||0)+25; state.progress.dailyWheelReward=25; showRewardToast('🎡 Daily Wheel: +25 XP'); }
+  state.progress.dailyWheelDate=today; state.progress.dailyWheelLastSpinAt=Date.now(); persistProgress(); renderRewards(); renderDashboard();
+}
 
 /* ============================== HELPERS ============================== */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -2815,22 +2824,20 @@ function renderCountyGateOptions(filter=''){
 function showCountyGate(){
   const gate=document.getElementById('county-gate'); if(!gate) return;
   countyDraft=state.county||''; document.getElementById('county-gate-search').value=''; renderCountyGateOptions();
-  const ack=document.getElementById('county-change-ack'); const wrap=document.getElementById('county-change-ack-wrap'); if(ack)ack.checked=false; if(wrap)wrap.style.display='block';
-  const status=document.getElementById('county-gate-status'); if(status)status.textContent=countyDraft?'Select a county and review the local-guidance acknowledgment before saving.':'Select your county or school district.';
+  const wrap=document.getElementById('county-change-ack-wrap'); if(wrap)wrap.style.display='none';
+  const status=document.getElementById('county-gate-status'); if(status)status.textContent=countyDraft?'Select a county or school district to save this local context.':'Select your county or school district.';
   document.getElementById('continue-county').disabled=!countyDraft;
   gate.classList.remove('hidden'); document.body.style.overflow='hidden';
 }
 function hideCountyGate(){ document.getElementById('county-gate')?.classList.add('hidden'); if(document.getElementById('site-gate')?.classList.contains('hidden')) document.body.style.overflow=''; }
 function selectCounty(id){
   countyDraft=id; renderCountyGateOptions(document.getElementById('county-gate-search').value);
-  const ack=document.getElementById('county-change-ack'); if(ack)ack.checked=false;
-  document.getElementById('continue-county').disabled=!(countyDraft && ack?.checked);
+  document.getElementById('continue-county').disabled=!countyDraft;
 }
 function saveCounty(){
   const profile=LOCAL_JURISDICTIONS.find(x=>x.id===countyDraft); if(!profile) return;
-  const ack=document.getElementById('county-change-ack'); if(!ack?.checked) return;
-  state.county=profile.id; state.profile.county=profile.id; state.profile.countyName=profile.name;
-  try{localStorage.setItem('index-county',profile.id);localStorage.setItem('index-setup-v2',JSON.stringify({county:profile.id,reviewed:true,policyVersion:'2026-09-22-v4',reviewedAt:new Date().toISOString(),changedAt:new Date().toISOString()}));}catch(e){}
+  state.county=profile.id; state.profile.county=profile.id; state.profile.countyName=profile.name; state.district=profile.district || ''; state.profile.district=state.district;
+  try{localStorage.setItem('index-county',profile.id);localStorage.setItem('index-setup-v2',JSON.stringify({county:profile.id,reviewed:true,policyVersion:'2026-09-22-v5',reviewedAt:new Date().toISOString(),changedAt:new Date().toISOString()}));}catch(e){}
   persistProfile(); hideCountyGate(); applyLocalJurisdictionUI(); renderDashboard(); renderProfileSlot(); updateAccountCountyLabel();
 }
 function localPageUrl(path){ return path+'?county='+encodeURIComponent(state.county||'other'); }
@@ -2846,7 +2853,7 @@ function applyLocalJurisdictionUI(){
   const gp=document.getElementById('gate-privacy-link'); if(gp) gp.href=localPageUrl('/privacy.html');
   const gc=document.getElementById('gate-conduct-link'); if(gc) gc.href=localPageUrl('/mcps-review.html')+'#safety';
   const chip=document.getElementById('district-chip-text'); if(chip && !state.district) chip.textContent=p.name;
-  const sub=document.getElementById('personal-subtitle'); if(sub) sub.textContent=`Personalized for ${p.name}. Local review and privacy information is shown for this selection.`;
+  const sub=document.getElementById('personal-subtitle'); if(sub) sub.textContent=`Personalized for ${state.district || p.district || p.name}. Build momentum with one focused task.`;
 }
 /* ============================== DISTRICT PERSONALIZATION ============================== */
 const SCHOOL_DISTRICTS = [
@@ -2861,7 +2868,7 @@ function renderDistrictOptions(filter=''){
 }
 function openDistrict(){ districtDraft=state.district||''; document.getElementById('district-search').value=''; renderDistrictOptions(); document.getElementById('district-modal').classList.remove('hidden'); setTimeout(()=>document.getElementById('district-search').focus(),50); }
 function closeDistrict(){ document.getElementById('district-modal').classList.add('hidden'); }
-function saveDistrict(){ state.district=districtDraft; state.profile.district=districtDraft; persistProfile(); closeDistrict(); renderDashboard(); }
+function saveDistrict(){ state.district=districtDraft; state.profile.district=districtDraft; const match=LOCAL_JURISDICTIONS.find(x=>x.district===districtDraft); if(match){ state.county=match.id; state.profile.county=match.id; state.profile.countyName=match.name; try{localStorage.setItem('index-county',match.id);localStorage.setItem(SETUP_KEY,JSON.stringify({county:match.id,setupComplete:true,policyVersion:SITE_TERMS_VERSION,changedAt:new Date().toISOString()}));}catch(e){} } persistProfile(); closeDistrict(); applyLocalJurisdictionUI(); renderDashboard(); }
 
 /* ============================== ACCOUNT (email / password) ============================== */
 let authMode = 'signup'; // 'signup' | 'login'
@@ -3236,7 +3243,7 @@ document.addEventListener('click', async (e)=>{
   else if(action==='reward-tab'){ state.rewardsTab=t.dataset.tab||'battlepass'; renderRewards(); }
    else if(action==='daily-wheel-spin'){ dailyWheelSpin(); }
   else if(action==='equip-cosmetic'){ equipCosmetic(t.dataset.id); }
-  else if(action==='open-pack'){ showRewardToast('Randomized cosmetic packs are disabled in the school-safe version of Index.'); }
+  else if(action==='open-pack'){ openRewardPack(t.dataset.pack||'study'); }
   else if(action==='close-pack-modal'){ closePackModal(); }
   else if(action==='live-goto-hub'){ state.live.screen='hub'; renderLive(); }
   else if(action==='live-goto-host-setup'){ state.live.screen='host-setup'; renderLive(); }
@@ -3329,7 +3336,7 @@ document.addEventListener('keydown', (e)=>{
 
 <script>
 /* ============================== TERMS / PRIVACY / COUNTY GATE ============================== */
-const SITE_TERMS_VERSION = '2026-09-22-v4';
+const SITE_TERMS_VERSION = '2026-09-22-v5';
 const SETUP_KEY = 'index-setup-v2';
 function getSetup(){ try{return JSON.parse(localStorage.getItem(SETUP_KEY)||'null')}catch(e){return null;} }
 function hasCompletedSetup(){ const s=getSetup(); return !!(s && s.county && (s.setupComplete || s.reviewed) && s.policyVersion===SITE_TERMS_VERSION); }
@@ -3345,7 +3352,7 @@ function continueFromSiteSetup(){
   if(!county) return;
   localStorage.setItem(SETUP_KEY,JSON.stringify({county,setupComplete:true,policyVersion:SITE_TERMS_VERSION,completedAt:new Date().toISOString()}));
   localStorage.setItem('index-county',county);
-  const p=LOCAL_JURISDICTIONS.find(x=>x.id===county); if(p){ state.profile=state.profile||{}; state.profile.county=p.id; state.profile.countyName=p.name; persistProfile(); }
+  const p=LOCAL_JURISDICTIONS.find(x=>x.id===county); if(p){ state.profile=state.profile||{}; state.profile.county=p.id; state.profile.countyName=p.name; state.profile.district=p.district || ''; state.district=p.district || ''; persistProfile(); }
   hideSiteGate(); initializeApp();
 }
 async function handleAuthRedirectResult(){
@@ -3389,7 +3396,9 @@ async function initializeApp(){
   updateLearnTopicSuggestions();
   loadLocalData();
   if(!hasCompletedSetup()){ showSiteGate(); return; }
-  if(!state.county){ state.county=getSetup()?.county||''; state.profile.county=state.county; persistProfile(); }
+  if(!state.county){ state.county=getSetup()?.county||''; state.profile.county=state.county; }
+  if(state.county){ const local=getLocalJurisdiction(); if(local){ state.district=state.profile.district||local.district||''; state.profile.district=state.district; state.profile.countyName=state.profile.countyName||local.name; } }
+  persistProfile();
   applyLocalJurisdictionUI();
   applyBattlePassRewards();
   await checkAiStatus();
