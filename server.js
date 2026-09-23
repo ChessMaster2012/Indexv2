@@ -17,8 +17,16 @@ const SESSION_COOKIE = 'index_session';
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  maxAge: '1h',
+  setHeaders(res, filePath) {
+    if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 
 // Safety / conduct guardrails for a student-facing study tool.
 const CONDUCT_PATTERNS = [
@@ -76,49 +84,11 @@ function aiRateAllowed(ip) {
 }
 
 
-// School-network-friendly AI proxy. The browser only talks to this Render server.
-// Legacy Pollinations "openai" is kept as the primary model. We try the legacy
-// GET and POST transports separately so one failed transport does not poison the next.
-async function pollinationsLegacyOpenAI(prompt) {
-  const attempts = [
-    async () => {
-      const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
-      return fetch(url, { headers: { accept: 'text/plain' } });
-    },
-    async () => {
-      return fetch('https://text.pollinations.ai/', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'text/plain' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          model: 'openai'
-        })
-      });
-    },
-    async () => {
-      const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai&json=false';
-      return fetch(url, { headers: { accept: 'text/plain' } });
-    }
-  ];
+// Render/browser health check. Same-origin and dependency-free.
+app.get('/healthz', (req, res) => { res.status(200).json({ ok: true }); });
 
-  let lastError = null;
-  for (let i = 0; i < attempts.length; i++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 60000);
-    try {
-      const upstream = await attempts[i]();
-      const body = await upstream.text();
-      if (upstream.ok && body.trim()) return body.trim();
-      lastError = new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 500)}`);
-    } catch (err) {
-      lastError = err;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-  throw lastError || new Error('AI provider request failed.');
-}
-
+// School-network-friendly AI proxy. The browser only talks to this Render server;
+// the server talks to the external text provider, so browser WebGPU/CDN access is not required.
 app.post('/api/ai/chat', async (req, res) => {
   try {
     const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
@@ -128,7 +98,7 @@ app.post('/api/ai/chat', async (req, res) => {
     if (messages.length > 12) return res.status(400).json({ error: 'Conversation is too long. Start a new tutor question.' });
     if (messages.some(m => String(m?.content || '').length > 5000)) return res.status(400).json({ error: 'That message is too long. Please shorten it.' });
 
-    const system = messages.filter(m => m && m.role === 'system').map(m => String(m.content || '')).join('\n\n').slice(0, 5000);
+    const system = messages.filter(m => m && m.role === 'system').map(m => String(m.content || '')).join('\n\n').slice(0, 7000);
     if (!aiContentIsAllowed(messages)) return res.status(400).json({ error: 'I can help with an academic or safety-focused question, but not with harmful, sexual, or harassing content.' });
 
     const tutorQuality = `You are a high-quality, careful school tutor for middle and high school students. Give correct, useful answers rather than generic filler.
@@ -142,29 +112,44 @@ SAFETY AND RESPECT:
 - Never generate bullying, harassment, hate, sexual content, threats, or instructions for harmful or illegal behavior.
 - If a request is unsafe or inappropriate, briefly decline that part and redirect to a safe academic alternative.
 
-MATH/SCIENCE FORMATTING:
-- NEVER use LaTeX delimiters or raw LaTeX commands.
-- Use Unicode symbols directly: √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, °.
-- Use plain-text fractions such as a/b when needed.
-- Show math one step at a time.
 
-GENERAL FORMATTING:
+MATH/SCIENCE FORMATTING RULES:
+- NEVER output LaTeX delimiters such as \[ \], \( \), $$, or raw LaTeX commands such as \sqrt, \frac, \times, \cdot, or \boxed.
+- Use real Unicode math symbols directly: √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, °.
+- For a square root, write √49 or √(x + 1), not \sqrt{...}.
+- For fractions, use a/b when a stacked fraction is unnecessary; explain clearly in plain text.
+- Show math one step at a time and make the final answer easy to find.
+
+GENERAL FORMATTING RULES:
 - Use clean plain text and Markdown-style headings/bold only when helpful.
-- Keep answers focused and concise while still explaining the reasoning.
+- Do not output escaped backslashes, code fences, HTML, or instructions about how to type symbols.
 - Do not repeat the student's request unnecessarily.
-- Never invent a source, quotation, statistic, or citation.`;
+- If the student asks for an explanation, actually teach the reasoning.
+- If the question is ambiguous, briefly state the assumption you are making.
+- For schoolwork, prioritize accuracy and explain why the answer is correct.
+- Never invent a source, quotation, statistic, or citation.
+`;
+    const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
+    const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
+    const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-8);
-    const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-9000);
-    const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`;
-
-    const content = await pollinationsLegacyOpenAI(prompt);
-    res.json({ content });
+    const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let upstream;
+    try {
+      upstream = await fetch(url, { signal: controller.signal, headers: { 'accept': 'text/plain' } });
+    } finally { clearTimeout(timeout); }
+    const body = await upstream.text();
+    if (!upstream.ok) throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+    if (!body.trim()) throw new Error('AI provider returned an empty response.');
+    res.json({ content: body.trim() });
   } catch (err) {
     console.error('AI proxy failed:', err);
     res.status(502).json({ error: String(err?.message || err || 'AI provider request failed') });
   }
 });
+
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
