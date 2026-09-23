@@ -1,6 +1,7 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -11,13 +12,27 @@ const MIN_QUESTION_MS = 5000;
 const MAX_QUESTION_MS = 60000;
 const ROOM_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
 
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
-const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const SESSION_COOKIE = 'index_session';
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const SUPABASE_SERVICE_ROLE_KEY = String(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '');
+const SUPABASE_TABLE = String(process.env.SUPABASE_TABLE || 'index_accounts').replace(/[^a-zA-Z0-9_]/g, '') || 'index_accounts';
+const SUPABASE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
+const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '');
+const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '');
+
 const app = express();
-app.use(express.json({ limit: '1mb' }));
+app.set('trust proxy', 1);
+app.use(express.json({ limit: '2mb' }));
+// Baseline security headers for a student-facing web application.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Safety / conduct guardrails for a student-facing study tool.
@@ -67,21 +82,10 @@ function aiContentIsAllowed(messages) {
   const userText = messages.filter(m => m && m.role === 'user').map(m => String(m.content || '')).join('\n');
   return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
 }
-const aiRate = new Map();
-function aiRateAllowed(ip) {
-  const now = Date.now(), windowMs = 60_000, max = 20;
-  const arr = (aiRate.get(ip) || []).filter(t => now - t < windowMs);
-  if (arr.length >= max) { aiRate.set(ip, arr); return false; }
-  arr.push(now); aiRate.set(ip, arr); return true;
-}
-
-
 // School-network-friendly AI proxy. The browser only talks to this Render server;
 // the server talks to the external text provider, so browser WebGPU/CDN access is not required.
 app.post('/api/ai/chat', async (req, res) => {
   try {
-    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
-    if (!aiRateAllowed(ip)) return res.status(429).json({ error: 'Too many AI requests. Please wait a minute and try again.' });
     const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
     if (!messages.length) return res.status(400).json({ error: 'No messages supplied.' });
     if (messages.length > 12) return res.status(400).json({ error: 'Conversation is too long. Start a new tutor question.' });
@@ -120,19 +124,67 @@ GENERAL FORMATTING RULES:
 `;
     const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
     const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
+    // Data-minimization safeguard: reject common direct identifiers before a prompt reaches the external AI provider.
+    const sensitivePatterns = [
+      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+      /\b(?:\+?1[-. ]?)?(?:\(?\d{3}\)?[-. ]?)\d{3}[-. ]?\d{4}\b/,
+      /\b\d{3}-\d{2}-\d{4}\b/,
+      /\b(?:student|school)\s*(?:id|identification)\s*[:#-]?\s*[A-Z0-9-]{4,}\b/i
+    ];
+    if (sensitivePatterns.some(re => re.test(transcript))) {
+      return res.status(400).json({ error: 'For privacy, remove email addresses, phone numbers, Social Security numbers, or student/school ID numbers before using the AI Tutor.' });
+    }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
+    // Pollinations' legacy text endpoint supports both normal text and JSON-mode
+    // requests without putting an API key in the browser. Learn/study-set builders
+    // depend on strict JSON, so send jsonMode when requested instead of asking the
+    // model to imitate JSON in ordinary text mode. Keep a GET fallback for older
+    // Pollinations deployments.
+    const wantsJson = req.body?.jsonMode === true;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
     let upstream;
+    let body = '';
     try {
-      upstream = await fetch(url, { signal: controller.signal, headers: { 'accept': 'text/plain' } });
+      upstream = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'content-type': 'application/json', 'accept': 'text/plain, application/json' },
+        body: JSON.stringify({ messages, model: 'openai', ...(wantsJson ? { jsonMode: true } : {}) })
+      });
+      body = await upstream.text();
+
+      // Some older/free deployments only expose the GET route. Retry there if the
+      // POST route is unavailable, rather than turning a temporary endpoint mismatch
+      // into the generic "Couldn't build that lesson" message.
+      if (!upstream.ok) {
+        const query = wantsJson ? '&json=true' : '';
+        const fallbackUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai' + query;
+        upstream = await fetch(fallbackUrl, { signal: controller.signal, headers: { 'accept': 'text/plain, application/json' } });
+        body = await upstream.text();
+      }
     } finally { clearTimeout(timeout); }
-    const body = await upstream.text();
-    if (!upstream.ok) throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+
+    if (!upstream.ok) {
+      if ([401,402,403].includes(upstream.status)) throw new Error('The free text AI provider is currently unavailable (HTTP '+upstream.status+').');
+      throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+    }
     if (!body.trim()) throw new Error('AI provider returned an empty response.');
-    res.json({ content: body.trim() });
+
+    // A few providers return an OpenAI-style wrapper even when plain text was
+    // requested. Normalize it so the browser always receives the actual text.
+    let content = body.trim();
+    try {
+      const wrapped = JSON.parse(content);
+      if (wrapped?.choices?.[0]?.message?.content) content = String(wrapped.choices[0].message.content).trim();
+      else if (typeof wrapped?.content === 'string') content = wrapped.content.trim();
+    } catch (_) {}
+    if (!content) throw new Error('AI provider returned an empty response.');
+
+    res.set('Cache-Control','no-store');
+    res.set('X-Index-AI-Limit','no-daily-question-cap');
+    res.json({ content });
   } catch (err) {
     console.error('AI proxy failed:', err);
     res.status(502).json({ error: String(err?.message || err || 'AI provider request failed') });
@@ -151,18 +203,172 @@ const io = new Server(server, { cors: { origin: '*' } });
  * everyone just logs back in if the server restarts.
  *
  * User = {
- *   id, method: 'email'|'phone'|'google', identifier,
- *   passwordHash, salt,              // present for email/phone accounts only
- *   googleId, email,                  // present for google accounts
+ *   id, method: 'email', identifier, username,
+ *   passwordHash, salt,
  *   firstName, lastName,              // optional display name
- *   createdAt
+ *   createdAt, resetTokenHash, resetExpiresAt
  * }
  */
-const DATA_DIR = path.join(__dirname, 'data');
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 let users = new Map(); // key: `${method}:${identifier}` -> user
 let usersById = new Map();
+let usersByUsername = new Map();
 
+async function supabaseRequest(path, options = {}) {
+  if (!SUPABASE_ENABLED) throw new Error('Persistent account storage is not configured. Render needs SUPABASE_URL plus SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SECRET_KEY).');
+  const headers = {
+    apikey: SUPABASE_SERVICE_ROLE_KEY,
+    authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+    'content-type': 'application/json',
+    ...(options.headers || {})
+  };
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...options, headers });
+  const text = await response.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch(e) { data = text; }
+  if (!response.ok) throw new Error((data && data.message) || (data && data.error) || `Supabase HTTP ${response.status}`);
+  return data;
+}
+async function verifySupabaseAccountStorage() {
+  if (!SUPABASE_ENABLED) return { ready:false, reason:'missing environment variables' };
+  try {
+    await supabaseRequest(`${SUPABASE_TABLE}?select=id&limit=1`);
+    return { ready:true };
+  } catch (e) {
+    console.error('Supabase account storage check failed:', e.message);
+    return { ready:false, reason:String(e.message || e) };
+  }
+}
+
+async function dbFindUserById(id) {
+  if (!SUPABASE_ENABLED) return null;
+  const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,method,email,username,google_id,password_hash,salt,first_name,last_name,created_at,account_data,account_data_blob&id=eq.${encodeURIComponent(id)}&limit=1`);
+  return Array.isArray(rows) ? (rows[0] || null) : null;
+}
+async function dbFindUserByEmail(email) {
+  if (!SUPABASE_ENABLED) return null;
+  const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,method,email,username,google_id,password_hash,salt,first_name,last_name,created_at&id=eq.${encodeURIComponent(normalizeEmail(email))}&limit=1`);
+  return Array.isArray(rows) ? (rows[0] || null) : null;
+}
+async function dbFindUserByUsername(username) {
+  if (!SUPABASE_ENABLED) return null;
+  const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,method,email,username,google_id,password_hash,salt,first_name,last_name,created_at&username=eq.${encodeURIComponent(normalizeUsername(username))}&limit=1`);
+  return Array.isArray(rows) ? (rows[0] || null) : null;
+}
+
+async function dbFindUserByGoogleId(googleId) {
+  if (!SUPABASE_ENABLED) return null;
+  const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,method,email,username,google_id,password_hash,salt,first_name,last_name,created_at&google_id=eq.${encodeURIComponent(String(googleId))}&limit=1`);
+  return Array.isArray(rows) ? (rows[0] || null) : null;
+}
+function decodeAccountData(row) {
+  if (!row) return null;
+  if (row.account_data_blob) {
+    try {
+      const raw = zlib.brotliDecompressSync(Buffer.from(String(row.account_data_blob), 'base64')).toString('utf8');
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('Could not decompress account data:', e.message);
+    }
+  }
+  return row.account_data || null;
+}
+function encodeAccountData(data) {
+  const json = JSON.stringify(data ?? null);
+  const compressed = zlib.brotliCompressSync(Buffer.from(json, 'utf8'), { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } });
+  return compressed.toString('base64');
+}
+function dbRowToUser(row) {
+  if (!row) return null;
+  const user = {
+    id: row.id,
+    method: row.method || 'email',
+    identifier: row.email || '',
+    username: row.username || '',
+    passwordHash: row.password_hash || '',
+    salt: row.salt || '',
+    googleId: row.google_id || '',
+    email: row.email || '',
+    firstName: row.first_name || '',
+    lastName: row.last_name || '',
+    createdAt: row.created_at ? Date.parse(row.created_at) || Date.now() : Date.now(),
+  };
+  // Identity-only queries intentionally omit account_data_blob. Don't attach a null
+  // accountData property in that case, or a later metadata save could erase the blob.
+  if (Object.prototype.hasOwnProperty.call(row, 'account_data_blob') || Object.prototype.hasOwnProperty.call(row, 'account_data')) {
+    user.accountData = decodeAccountData(row);
+  }
+  return user;
+}
+async function dbSaveUser(user, extra = {}) {
+  if (!SUPABASE_ENABLED) return;
+  const row = {
+    id: user.id,
+    method: user.method || 'email',
+    email: user.email || (user.method === 'email' ? user.identifier : '') || null,
+    username: user.username || null,
+    google_id: user.googleId || null,
+    password_hash: user.passwordHash || null,
+    salt: user.salt || null,
+    first_name: user.firstName || '',
+    last_name: user.lastName || '',
+    updated_at: new Date().toISOString(),
+    ...extra
+  };
+  // Only touch the account-data columns when accountData was actually loaded or changed.
+  // This prevents a lightweight login/profile lookup from accidentally erasing a user's
+  // larger compressed account blob.
+  if (Object.prototype.hasOwnProperty.call(user, 'accountData') && user.accountData !== undefined) {
+    row.account_data_blob = user.accountData === null ? null : encodeAccountData(user.accountData);
+    row.account_data = null;
+  }
+  if (!row.created_at) row.created_at = new Date(user.createdAt || Date.now()).toISOString();
+  await supabaseRequest(SUPABASE_TABLE, {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify(row)
+  });
+}
+
+async function dbCreateOrUpdateGoogleUser(profile) {
+  const googleId = String(profile?.sub || '');
+  if (!googleId) throw new Error('Google did not return a user id.');
+  let row = await dbFindUserByGoogleId(googleId);
+  if (!row && profile.email) row = await dbFindUserByEmail(profile.email);
+  if (row) {
+    // Identity lookups intentionally omit the compressed payload for efficiency;
+    // fetch it only once we know which account to use.
+    const fullRow = await dbFindUserById(row.id);
+    const user = dbRowToUser(fullRow || row);
+    user.method = 'google';
+    user.googleId = googleId;
+    user.email = normalizeEmail(profile.email || user.email || '');
+    user.identifier = user.email;
+    user.accountData = row.account_data || user.accountData;
+    if (!user.username) user.username = makeUniqueUsername(user.email, user.id);
+    await dbSaveUser(user);
+    return user;
+  }
+  const email = normalizeEmail(profile.email || '');
+  const user = {
+    id: crypto.randomBytes(12).toString('hex'),
+    method: 'google', identifier: email, email, username: makeUniqueUsername(email, crypto.randomBytes(4).toString('hex')),
+    passwordHash: '', salt: '', googleId, firstName: '', lastName: '', createdAt: Date.now(), accountData: null
+  };
+  await dbSaveUser(user);
+  return user;
+}
+
+function normalizeUsername(v) { return String(v || '').trim().toLowerCase(); }
+function isValidUsername(v) { return /^[a-z0-9][a-z0-9._-]{2,23}$/.test(v); }
+function makeUniqueUsername(email, seed, migration=false) {
+  const base = normalizeUsername(String(email || '').split('@')[0]).replace(/[^a-z0-9._-]/g,'').replace(/^[._-]+|[._-]+$/g,'').slice(0,20) || 'student';
+  let candidate = base || 'student';
+  let n = 2;
+  while(usersByUsername.has(candidate)) candidate = (base.slice(0, Math.max(1, 24 - String(n).length)) + n).slice(0,24);
+  return candidate.length >= 3 ? candidate : ('student'+String(seed || '').slice(0,5)).slice(0,24);
+}
 function loadUsers() {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -170,7 +376,12 @@ function loadUsers() {
       const arr = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
       arr.forEach(u => {
         delete u.school; delete u.grade;
-        users.set(u.method + ':' + u.identifier, u); usersById.set(u.id, u);
+        if(u.method !== 'email') return;
+        if(!u.username) u.username = makeUniqueUsername(u.identifier, u.id, true);
+        u.username = normalizeUsername(u.username);
+        users.set(u.method + ':' + u.identifier, u);
+        usersById.set(u.id, u);
+        usersByUsername.set(u.username, u);
       });
       saveUsers();
     }
@@ -182,9 +393,28 @@ function saveUsers() {
     fs.writeFileSync(USERS_FILE, JSON.stringify(Array.from(usersById.values()), null, 2));
   } catch (e) { console.error('Could not save users.json:', e.message); }
 }
-loadUsers();
+if (!SUPABASE_ENABLED) loadUsers();
 
 const sessions = new Map(); // token -> { userId, createdAt }
+// Serialize persistent account mutations per user. This prevents an in-flight
+// autosave from recreating an account after the user has deleted it.
+const accountLocks = new Map();
+const deletedAccountIds = new Set();
+async function withAccountLock(userId, fn) {
+  const previous = accountLocks.get(userId) || Promise.resolve();
+  let release;
+  const current = new Promise(resolve => { release = resolve; });
+  const queue = previous.then(() => current);
+  accountLocks.set(userId, queue);
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (accountLocks.get(userId) === queue) accountLocks.delete(userId);
+  }
+}
+function accountWasDeleted(userId) { return deletedAccountIds.has(String(userId || '')); }
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -199,7 +429,7 @@ function verifyPassword(password, salt, hash) {
 function publicUser(u) {
   if (!u) return null;
   return {
-    id: u.id, method: u.method, email: u.email || (u.method === 'email' ? u.identifier : ''),
+    id: u.id, method: u.method || 'email', email: u.email || u.identifier || '', username: u.username || '',
     firstName: u.firstName || '', lastName: u.lastName || '',
     name: [u.firstName, u.lastName].filter(Boolean).join(' ')
   };
@@ -237,45 +467,88 @@ app.use((req, res, next) => {
 });
 
 function normalizeEmail(v) { return String(v || '').trim().toLowerCase(); }
-function normalizePhone(v) { return String(v || '').replace(/[^0-9+]/g, ''); }
 function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
-function isValidPhone(v) { return /^\+?[0-9]{7,15}$/.test(v); }
 
-app.get('/api/auth/status', (req, res) => {
-  res.json({ googleEnabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) });
+app.get('/api/auth/status', async (req, res) => {
+  res.set('Cache-Control','no-store');
+  let persistentStorageReady = false;
+  if (SUPABASE_ENABLED) {
+    try {
+      await supabaseRequest(`${SUPABASE_TABLE}?select=id&limit=1`);
+      persistentStorageReady = true;
+    } catch (e) {
+      console.error('Supabase account storage health check failed:', e.message);
+    }
+  }
+  res.json({ googleEnabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET), persistentStorageEnabled: SUPABASE_ENABLED, persistentStorageReady });
 });
 
 app.get('/api/auth/me', (req, res) => {
   res.json({ user: publicUser(req.user) });
 });
 
-app.post('/api/auth/signup', (req, res) => {
-  let { method, identifier, password } = req.body || {};
-  if (method !== 'email') return res.status(400).json({ error: 'Only email sign-up is supported.' });
-  if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-  identifier = normalizeEmail(identifier);
-  if (!isValidEmail(identifier)) return res.status(400).json({ error: 'Enter a valid email address.' });
-  const key = method + ':' + identifier;
-  if (users.has(key)) return res.status(409).json({ error: 'An account with that ' + method + ' already exists — try logging in instead.' });
-  const { salt, hash } = hashPassword(password);
-  const user = { id: crypto.randomBytes(12).toString('hex'), method, identifier, passwordHash: hash, salt, firstName: '', lastName: '', createdAt: Date.now() };
-  users.set(key, user); usersById.set(user.id, user); saveUsers();
-  const token = createSession(user.id);
-  setSessionCookie(res, token);
-  res.json({ ok: true, user: publicUser(user), isNew: true });
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    let { method, identifier, username, password } = req.body || {};
+    if (method !== 'email') return res.status(400).json({ error: 'Only email sign-up is supported.' });
+    identifier = normalizeEmail(identifier);
+    username = normalizeUsername(username);
+    if (!isValidEmail(identifier)) return res.status(400).json({ error: 'Enter a valid email address.' });
+    if (!isValidUsername(username)) return res.status(400).json({ error: 'Username must be 3–24 characters and use only letters, numbers, periods, underscores, or hyphens.' });
+    if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    let existing = users.get('email:' + identifier);
+    if (SUPABASE_ENABLED) { const row = await dbFindUserByEmail(identifier); if (row) existing = dbRowToUser(row); }
+    if (existing) return res.status(409).json({ error: 'An account with that email already exists — try logging in instead.' });
+    let existingUsername = usersByUsername.get(username);
+    if (SUPABASE_ENABLED) {
+      const row = await dbFindUserByUsername(username);
+      if (row) existingUsername = dbRowToUser(row);
+    }
+    if (existingUsername) return res.status(409).json({ error: 'That username is already taken. Choose another one.' });
+    const { salt, hash } = hashPassword(password);
+    const user = { id: crypto.randomBytes(12).toString('hex'), method:'email', identifier, email:identifier, username, passwordHash: hash, salt, firstName:'', lastName:'', createdAt:Date.now(), accountData: null };
+    if (SUPABASE_ENABLED) await dbSaveUser(user);
+    users.set('email:' + identifier, user); usersById.set(user.id, user); usersByUsername.set(username, user); if(!SUPABASE_ENABLED) saveUsers();
+    const token = createSession(user.id);
+    setSessionCookie(res, token);
+    res.json({ ok:true, user:publicUser(user), isNew:true });
+  } catch (e) {
+    console.error('Signup error:', e.message);
+    const dbProblem = /permission denied|not configured|supabase|relation .* does not exist/i.test(String(e.message || ''));
+    res.status(500).json({ error: dbProblem ? 'The account database is not ready. Make sure Render uses the Supabase service-role/secret key and that SUPABASE-SETUP.sql has been run.' : 'Could not create the account right now.' });
+  }
 });
 
-app.post('/api/auth/login', (req, res) => {
-  let { method, identifier, password } = req.body || {};
-  if (method !== 'email') return res.status(400).json({ error: 'Only email sign-in is supported.' });
-  identifier = normalizeEmail(identifier);
-  const user = users.get(method + ':' + identifier);
-  if (!user || !user.passwordHash || !verifyPassword(password || '', user.salt, user.passwordHash)) {
-    return res.status(401).json({ error: 'Incorrect ' + method + ' or password.' });
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    let { method, identifier, password } = req.body || {};
+    if (method !== 'email') return res.status(400).json({ error: 'Only email/username sign-in is supported.' });
+    identifier = String(identifier || '').trim();
+    let user = null;
+    if (SUPABASE_ENABLED) {
+      user = await dbFindUserByEmail(identifier);
+      if (!user) user = await dbFindUserByUsername(identifier);
+      user = dbRowToUser(user);
+    }
+    if (!user) {
+      const normalized = normalizeEmail(identifier);
+      user = users.get('email:' + normalized) || usersByUsername.get(normalizeUsername(identifier)) || null;
+    }
+    if (!user || !user.passwordHash || !verifyPassword(password || '', user.salt, user.passwordHash)) {
+      return res.status(401).json({ error: 'Incorrect email/username or password.' });
+    }
+    users.set('email:' + normalizeEmail(user.email || user.identifier), user);
+    if(user.username) usersByUsername.set(normalizeUsername(user.username), user);
+    usersById.set(user.id, user);
+    if (SUPABASE_ENABLED) await dbSaveUser(user);
+    const token = createSession(user.id);
+    setSessionCookie(res, token);
+    res.json({ ok:true, user:publicUser(user), isNew:!user.firstName });
+  } catch (e) {
+    console.error('Login error:', e.message);
+    const dbProblem = /permission denied|not configured|supabase|relation .* does not exist/i.test(String(e.message || ''));
+    res.status(500).json({ error: dbProblem ? 'The account database is not ready. Make sure Render uses the Supabase service-role/secret key and that SUPABASE-SETUP.sql has been run.' : 'Could not sign in right now.' });
   }
-  const token = createSession(user.id);
-  setSessionCookie(res, token);
-  res.json({ ok: true, user: publicUser(user), isNew: !user.firstName });
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -284,221 +557,308 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/auth/profile', (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
-  const displayName = String(req.body?.displayName || '').trim().slice(0, 60);
-  if (containsConductViolation(displayName)) return res.status(400).json({ error: 'That name is not allowed. Please pick a different name.' });
-  req.user.firstName = displayName;
-  req.user.lastName = '';
-  delete req.user.school;
-  delete req.user.grade;
-  saveUsers();
-  res.json({ ok: true, user: publicUser(req.user) });
+
+function sanitizeAccountState(input){
+  const src = input && typeof input === 'object' ? input : {};
+  const p = src.progress && typeof src.progress === 'object' ? src.progress : {};
+  const profile = src.profile && typeof src.profile === 'object' ? src.profile : {};
+  const equipped = p.equipped && typeof p.equipped === 'object' ? p.equipped : {};
+  const cosmeticInventory = p.cosmeticInventory && typeof p.cosmeticInventory === 'object' ? p.cosmeticInventory : {};
+  const notes = Array.isArray(src.notes) ? src.notes.slice(0, 500) : [];
+  const studySets = Array.isArray(src.studySets) ? src.studySets.slice(0, 300) : [];
+  const customTopics = src.customTopics && typeof src.customTopics === 'object' ? src.customTopics : {};
+  const candidate = {
+    version: 2,
+    notes,
+    studySets,
+    customTopics,
+    progress: {
+      xp: Math.max(0, Math.min(100000000, Number(p.xp)||0)),
+      activeDates: Array.isArray(p.activeDates) ? p.activeDates.slice(0, 500) : [],
+      lessonsLearned: Array.isArray(p.lessonsLearned) ? p.lessonsLearned.slice(0, 5000) : [],
+      coins: Math.max(0, Math.min(100000000, Number(p.coins)||0)),
+      unlockedCosmetics: Array.isArray(p.unlockedCosmetics) ? p.unlockedCosmetics.slice(0, 500) : [],
+      cosmeticInventory: Object.fromEntries(Object.entries(cosmeticInventory).slice(0,500).map(([k,v])=>[String(k).slice(0,80),Math.max(0,Math.min(1000,Number(v)||0))])),
+      claimedBPLevels: Array.isArray(p.claimedBPLevels) ? p.claimedBPLevels.slice(0, 100) : [],
+      equipped: {
+        avatar: String(equipped.avatar||'avatar-scholar').slice(0,80),
+        outfit: String(equipped.outfit||'outfit-books').slice(0,80),
+        accessory: String(equipped.accessory||'').slice(0,80),
+        frame: String(equipped.frame||'default').slice(0,80),
+        background: String(equipped.background||'default').slice(0,80)
+      },
+      openedPacks: Math.max(0, Math.min(1000000, Number(p.openedPacks)||0)),
+      liveGames: Math.max(0, Math.min(1000000, Number(p.liveGames)||0)),
+      dailyCoinDate: String(p.dailyCoinDate || '').slice(0, 10),
+      dailyCoinEarned: Math.max(0, Math.min(DAILY_COIN_CAP, Number(p.dailyCoinEarned)||0)),
+      dailyWheelDate: String(p.dailyWheelDate || '').slice(0, 10),
+      dailyWheelLastSpinAt: Math.max(0, Number(p.dailyWheelLastSpinAt)||0),
+      dailyWheelReward: Math.max(0, Math.min(500, Number(p.dailyWheelReward)||0))
+    },
+    profile: {
+      name: String(profile.name||'').slice(0,60),
+      district: String(profile.district||'').slice(0,200),
+      county: String(profile.county||'').slice(0,80),
+      countyName: String(profile.countyName||'').slice(0,200)
+    },
+    savedAt: Date.now()
+  };
+  const serializedSize = Buffer.byteLength(JSON.stringify(candidate), 'utf8');
+  if (serializedSize > 1400000) throw new Error('Account data is too large to save. Keep very large files outside your account notes.');
+  return candidate;
+}
+app.get('/api/account/state', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  if(accountWasDeleted(req.user.id)) return res.status(410).json({error:'This account has been deleted.'});
+  try {
+    if (SUPABASE_ENABLED) {
+      const row = await dbFindUserById(req.user.id);
+      if (row) req.user = dbRowToUser(row);
+      usersById.set(req.user.id, req.user);
+    }
+    res.json({ok:true, state:req.user.accountData || null});
+  } catch(e) {
+    res.status(503).json({error:'Your account database is temporarily unavailable. Try again.'});
+  }
+});
+app.put('/api/account/state', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  const userId = req.user.id;
+  if (accountWasDeleted(userId)) return res.status(410).json({error:'This account has been deleted.'});
+  try {
+    await withAccountLock(userId, async () => {
+      if (accountWasDeleted(userId)) {
+        const err = new Error('ACCOUNT_DELETED'); err.code = 'ACCOUNT_DELETED'; throw err;
+      }
+      req.user.accountData = sanitizeAccountState(req.body?.state);
+      if (SUPABASE_ENABLED) await dbSaveUser(req.user);
+      else saveUsers();
+    });
+    res.json({ok:true, state:req.user.accountData, storage:'supabase', compressed:true});
+  } catch(e) {
+    if (e.code === 'ACCOUNT_DELETED') return res.status(410).json({error:'This account has been deleted.'});
+    console.error('Account state save error:', e.message);
+    res.status(503).json({error:'Could not save your account data right now. Please try again.'});
+  }
 });
 
-app.post('/api/auth/delete', (req, res) => {
+app.post('/api/auth/profile', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
+  const userId = req.user.id;
+  if (accountWasDeleted(userId)) return res.status(410).json({error:'This account has been deleted.'});
+  try {
+    let validationError = null;
+    await withAccountLock(userId, async () => {
+      if (accountWasDeleted(userId)) { const err = new Error('ACCOUNT_DELETED'); err.code='ACCOUNT_DELETED'; throw err; }
+      const displayName = String(req.body?.displayName || '').trim().slice(0, 60);
+      const requestedUsername = normalizeUsername(req.body?.username || req.user.username || '');
+      if (!displayName) { validationError = {status:400,error:'Enter a display name.'}; return; }
+      if (containsConductViolation(displayName)) { validationError = {status:400,error:'That name is not allowed. Please pick a different name.'}; return; }
+      if (!isValidUsername(requestedUsername)) { validationError = {status:400,error:'Username must be 3–24 characters and use only letters, numbers, periods, underscores, or hyphens.'}; return; }
+      if (requestedUsername !== normalizeUsername(req.user.username || '')) {
+        let taken = usersByUsername.get(requestedUsername);
+        if (SUPABASE_ENABLED) {
+          const row = await dbFindUserByUsername(requestedUsername);
+          if (row && row.id !== req.user.id) taken = dbRowToUser(row);
+        }
+        if (taken && taken.id !== req.user.id) { validationError = {status:409,error:'That username is already taken. Choose another one.'}; return; }
+        if (req.user.username) usersByUsername.delete(normalizeUsername(req.user.username));
+        req.user.username = requestedUsername;
+        usersByUsername.set(requestedUsername, req.user);
+      }
+      req.user.firstName = displayName;
+      req.user.lastName = '';
+      delete req.user.school;
+      delete req.user.grade;
+      if (SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    });
+    if (validationError) return res.status(validationError.status).json({error:validationError.error});
+    res.json({ ok: true, user: publicUser(req.user) });
+  } catch (e) {
+    if (e.code === 'ACCOUNT_DELETED') return res.status(410).json({error:'This account has been deleted.'});
+    console.error('Profile save error:', e.message);
+    res.status(503).json({ error: 'Could not save your profile right now.' });
+  }
+});
+
+app.post('/api/auth/delete', async (req, res) => {
+  res.set('Cache-Control','no-store');
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
   const user = req.user;
-  users.delete(user.method + ':' + user.identifier);
-  usersById.delete(user.id);
-  if (req.sessionToken) sessions.delete(req.sessionToken);
-  saveUsers();
-  clearSessionCookie(res);
-  res.json({ ok: true });
+  const userId = user.id;
+  try {
+    await withAccountLock(userId, async () => {
+      // Mark the account as deleted before removing the database row. Any queued
+      // autosave/profile request for this account is rejected instead of recreating it.
+      deletedAccountIds.add(userId);
+      try {
+        if (SUPABASE_ENABLED) {
+          await supabaseRequest(`${SUPABASE_TABLE}?id=eq.${encodeURIComponent(userId)}`, {
+            method:'DELETE',
+            headers:{Prefer:'return=minimal'}
+          });
+          const remaining = await supabaseRequest(`${SUPABASE_TABLE}?select=id&id=eq.${encodeURIComponent(userId)}&limit=1`);
+          if (Array.isArray(remaining) && remaining.length) throw new Error('The account still exists in the database after deletion.');
+        } else {
+          users.delete('email:' + normalizeEmail(user.identifier || user.email));
+          if(user.username) usersByUsername.delete(normalizeUsername(user.username));
+          usersById.delete(userId);
+          saveUsers();
+        }
+        users.delete('email:' + normalizeEmail(user.identifier || user.email));
+        if(user.username) usersByUsername.delete(normalizeUsername(user.username));
+        usersById.delete(userId);
+        if (req.sessionToken) sessions.delete(req.sessionToken);
+        clearSessionCookie(res);
+      } catch (err) {
+        deletedAccountIds.delete(userId);
+        throw err;
+      }
+    });
+    res.json({ ok: true, deleted: true });
+  } catch(e) {
+    console.error('Account deletion error:', e.message);
+    res.status(503).json({error:'Could not delete the account right now. No success message was recorded.'});
+  }
 });
 
+
+
+// Google Sign-In (basic identity only; no Drive scopes).
+const googleOauthStates = new Map();
+function googleRedirectUri(req) { return `${req.protocol}://${req.get('host')}/api/auth/google/callback`; }
 app.get('/api/auth/google/start', (req, res) => {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return res.status(501).send('Google sign-in is not configured on this server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
-  const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return res.status(501).send('Google Sign-In is not configured on this server yet.');
+  const stateToken = crypto.randomBytes(24).toString('hex');
+  googleOauthStates.set(stateToken, { createdAt: Date.now() });
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
-  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('redirect_uri', googleRedirectUri(req));
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', 'openid email');
+  url.searchParams.set('scope', 'openid email profile');
+  url.searchParams.set('state', stateToken);
   url.searchParams.set('prompt', 'select_account');
   res.redirect(url.toString());
 });
-
 app.get('/api/auth/google/callback', async (req, res) => {
-  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return res.status(501).send('Google sign-in is not configured on this server.');
-  const { code } = req.query;
-  if (!code) return res.redirect('/?authError=' + encodeURIComponent('Google sign-in was cancelled.'));
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return res.redirect('/?authError=' + encodeURIComponent('Google Sign-In is not configured on this server.'));
+  const code = String(req.query?.code || '');
+  const stateToken = String(req.query?.state || '');
+  const oauthState = googleOauthStates.get(stateToken);
+  googleOauthStates.delete(stateToken);
+  if (!code || !oauthState || Date.now() - oauthState.createdAt > 10 * 60 * 1000) {
+    return res.redirect('/?authError=' + encodeURIComponent('The Google sign-in request expired or was cancelled.'));
+  }
   try {
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+    const redirectUri = googleRedirectUri(req);
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      headers: {'content-type':'application/x-www-form-urlencoded'},
       body: new URLSearchParams({ code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, redirect_uri: redirectUri, grant_type: 'authorization_code' })
     });
     const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error(tokenData.error_description || 'Google did not return an access token.');
-    const profileRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { authorization: `Bearer ${tokenData.access_token}` } });
+    if (!tokenRes.ok || !tokenData.access_token) throw new Error(tokenData.error_description || 'Google token exchange failed.');
+    const profileRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers:{ authorization:`Bearer ${tokenData.access_token}` } });
     const profile = await profileRes.json();
-    if (!profile.sub) throw new Error('Google did not return a profile.');
-    const key = 'google:' + profile.sub;
-    let user = users.get(key);
-    let isNew = false;
-    if (!user) {
-      isNew = true;
-      user = {
-        id: crypto.randomBytes(12).toString('hex'), method: 'google', identifier: profile.sub, googleId: profile.sub,
-        email: profile.email || '', firstName: '', lastName: '', createdAt: Date.now()
-      };
-      users.set(key, user); usersById.set(user.id, user); saveUsers();
-    }
-    const token = createSession(user.id);
-    setSessionCookie(res, token);
-    res.redirect('/?welcome=1' + (isNew || !user.firstName ? '&complete=1' : ''));
-  } catch (e) {
-    res.redirect('/?authError=' + encodeURIComponent('Could not complete Google sign-in. Please try again.'));
-  }
-});
-
-
-// Google Drive note import. Drive tokens live only in memory and are never written to users.json.
-const driveOauthStates = new Map();
-const driveConnections = new Map();
-const DRIVE_SESSION_COOKIE = 'index_drive_session';
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
-function getDriveSessionId(req, res) {
-  const cookies = parseCookies(req);
-  let id = cookies[DRIVE_SESSION_COOKIE];
-  if (!id || !/^[a-f0-9]{32}$/.test(id)) {
-    id = crypto.randomBytes(16).toString('hex');
-    const secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
-    res.setHeader('Set-Cookie', `${DRIVE_SESSION_COOKIE}=${id}; HttpOnly; Path=/; Max-Age=3600; SameSite=Lax${secure}`);
-  }
-  return id;
-}
-function driveConfigured() { return !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET); }
-function cleanDriveName(name) { return String(name || 'Imported note').replace(/[<>\u0000-\u001F]/g, '').trim().slice(0, 120) || 'Imported note'; }
-function driveRedirectUri(req) { return `${req.protocol}://${req.get('host')}/api/drive/callback`; }
-
-app.get('/api/drive/status', (req, res) => {
-  const id = getDriveSessionId(req, res);
-  const conn = driveConnections.get(id);
-  res.json({ configured: driveConfigured(), connected: !!conn?.accessToken });
-});
-
-app.get('/api/drive/start', (req, res) => {
-  if (!driveConfigured()) return res.status(501).send('Google Drive import is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Render.');
-  const driveSessionId = getDriveSessionId(req, res);
-  const state = crypto.randomBytes(24).toString('hex');
-  driveOauthStates.set(state, { driveSessionId, createdAt: Date.now() });
-  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
-  url.searchParams.set('redirect_uri', driveRedirectUri(req));
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', DRIVE_SCOPE);
-  url.searchParams.set('access_type', 'offline');
-  url.searchParams.set('prompt', 'consent');
-  url.searchParams.set('state', state);
-  res.redirect(url.toString());
-});
-
-app.get('/api/drive/callback', async (req, res) => {
-  if (!driveConfigured()) return res.status(501).send('Google Drive import is not configured on this server.');
-  const { code, state, error } = req.query;
-  const saved = state && driveOauthStates.get(String(state));
-  if (state) driveOauthStates.delete(String(state));
-  if (error || !saved || Date.now() - saved.createdAt > 10 * 60 * 1000) {
-    return res.redirect('/?driveError=' + encodeURIComponent(error ? 'Google Drive connection was cancelled.' : 'Google Drive connection expired.'));
-  }
-  try {
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, redirect_uri: driveRedirectUri(req), grant_type: 'authorization_code' })
-    });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error(tokenData.error_description || 'Google did not return an access token.');
-    driveConnections.set(saved.driveSessionId, {
-      accessToken: tokenData.access_token,
-      refreshToken: tokenData.refresh_token || '',
-      expiresAt: Date.now() + (Number(tokenData.expires_in) || 3600) * 1000 - 60_000
-    });
-    res.redirect('/?driveConnected=1');
-  } catch (e) {
-    res.redirect('/?driveError=' + encodeURIComponent('Could not connect Google Drive. Please try again.'));
-  }
-});
-
-async function getDriveAccessToken(req, res) {
-  const id = getDriveSessionId(req, res);
-  const conn = driveConnections.get(id);
-  if (!conn?.accessToken) return null;
-  if (Date.now() < conn.expiresAt) return conn.accessToken;
-  if (!conn.refreshToken) return null;
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, refresh_token: conn.refreshToken, grant_type: 'refresh_token' })
-  });
-  const tokenData = await tokenRes.json();
-  if (!tokenData.access_token) return null;
-  conn.accessToken = tokenData.access_token;
-  conn.expiresAt = Date.now() + (Number(tokenData.expires_in) || 3600) * 1000 - 60_000;
-  return conn.accessToken;
-}
-
-app.get('/api/drive/files', async (req, res) => {
-  try {
-    const token = await getDriveAccessToken(req, res);
-    if (!token) return res.status(401).json({ error: 'Connect Google Drive first.' });
-    const q = "trashed = false and (mimeType = 'application/vnd.google-apps.document' or mimeType = 'text/plain' or mimeType = 'text/markdown' or mimeType = 'text/csv' or mimeType = 'application/json')";
-    const url = new URL('https://www.googleapis.com/drive/v3/files');
-    url.searchParams.set('q', q);
-    url.searchParams.set('pageSize', '50');
-    url.searchParams.set('orderBy', 'modifiedTime desc');
-    url.searchParams.set('fields', 'files(id,name,mimeType,modifiedTime,size)');
-    const r = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error?.message || 'Google Drive request failed.');
-    res.json({ files: Array.isArray(data.files) ? data.files : [] });
-  } catch (e) {
-    res.status(502).json({ error: String(e?.message || e || 'Could not load Google Drive files.') });
-  }
-});
-
-app.get('/api/drive/import/:fileId', async (req, res) => {
-  try {
-    const token = await getDriveAccessToken(req, res);
-    if (!token) return res.status(401).json({ error: 'Connect Google Drive first.' });
-    const fileId = String(req.params.fileId || '').replace(/[^a-zA-Z0-9_-]/g, '');
-    if (!fileId) return res.status(400).json({ error: 'Invalid Google Drive file.' });
-    const metaRes = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?fields=id,name,mimeType,size`, { headers: { authorization: `Bearer ${token}` } });
-    const meta = await metaRes.json();
-    if (!metaRes.ok) throw new Error(meta.error?.message || 'Could not read the Google Drive file.');
-    let text = '';
-    if (meta.mimeType === 'application/vnd.google-apps.document') {
-      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export?mimeType=text/plain`, { headers: { authorization: `Bearer ${token}` } });
-      if (!r.ok) throw new Error('Could not export this Google Doc as text.');
-      text = await r.text();
-    } else if (/^text\//i.test(meta.mimeType || '') || ['application/json','text/markdown','text/csv'].includes(meta.mimeType)) {
-      const r = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`, { headers: { authorization: `Bearer ${token}` } });
-      if (!r.ok) throw new Error('Could not download this file.');
-      text = await r.text();
+    if (!profileRes.ok || !profile.sub) throw new Error('Google did not return a valid profile.');
+    let user = null;
+    if (SUPABASE_ENABLED) {
+      user = await dbCreateOrUpdateGoogleUser(profile);
     } else {
-      return res.status(415).json({ error: 'That Google Drive file type cannot be imported as text. Use a Google Doc or text/Markdown/CSV file.' });
+      const key='google:'+profile.sub;
+      user = users.get(key) || null;
+      if(!user){
+        user={id:crypto.randomBytes(12).toString('hex'),method:'google',identifier:normalizeEmail(profile.email||''),email:normalizeEmail(profile.email||''),username:makeUniqueUsername(profile.email,'g'+Date.now()),googleId:String(profile.sub),passwordHash:'',salt:'',firstName:'',lastName:'',createdAt:Date.now(),accountData:null};
+        users.set(key,user); usersById.set(user.id,user); usersByUsername.set(user.username,user); saveUsers();
+      }
     }
-    text = String(text || '').replace(/\u0000/g, '').trim().slice(0, 120000);
-    if (!text) return res.status(400).json({ error: 'That file is empty.' });
-    res.json({ title: cleanDriveName(meta.name).replace(/\.[^.]+$/, ''), content: text, source: 'Google Drive' });
-  } catch (e) {
-    res.status(502).json({ error: String(e?.message || e || 'Could not import the Google Drive file.') });
+    if(!usersById.has(user.id)) usersById.set(user.id,user);
+    if(user.email) users.set('email:'+normalizeEmail(user.email),user);
+    if(user.googleId) users.set('google:'+String(user.googleId),user);
+    if(user.username) usersByUsername.set(normalizeUsername(user.username),user);
+    const token=createSession(user.id);
+    setSessionCookie(res, token);
+    res.redirect('/?welcome=1' + ((!user.firstName) ? '&complete=1' : ''));
+  } catch(e) {
+    console.error('Google sign-in error:', e.message);
+    const dbProblem = /permission denied|not configured|supabase|relation .* does not exist/i.test(String(e.message || ''));
+    const message = dbProblem ? 'Google connected, but Index could not save the account. In Render, verify SUPABASE_URL and the Supabase service-role/secret key, then run the current SUPABASE-SETUP.sql in the Supabase SQL Editor.' : 'Could not complete Google sign-in. Please try again.';
+    res.redirect('/?authError=' + encodeURIComponent(message));
   }
 });
 
-app.post('/api/drive/disconnect', (req, res) => {
-  const id = getDriveSessionId(req, res);
-  driveConnections.delete(id);
-  res.json({ ok: true });
+// Email recovery uses the Resend HTTP API. Configure RESEND_API_KEY and EMAIL_FROM in Render.
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://indexv2-x2hw.onrender.com').replace(/\/$/, '');
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const EMAIL_FROM = process.env.EMAIL_FROM || '';
+const recoveryAttempts = new Map();
+function recoveryRateLimited(ip){
+  const now=Date.now(), key=String(ip||'unknown');
+  const arr=(recoveryAttempts.get(key)||[]).filter(t=>now-t<15*60*1000);
+  if(arr.length>=5){ recoveryAttempts.set(key,arr); return true; }
+  arr.push(now); recoveryAttempts.set(key,arr); return false;
+}
+function hashRecoveryToken(token){ return crypto.createHash('sha256').update(token).digest('hex'); }
+async function sendRecoveryEmail(to, subject, html, text){
+  if(!RESEND_API_KEY || !EMAIL_FROM) return false;
+  const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{'Authorization':'Bearer '+RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:EMAIL_FROM,to:[to],subject,html,text})});
+  if(!r.ok){ const detail=await r.text(); throw new Error('Email provider error: '+detail.slice(0,300)); }
+  return true;
+}
+function recoveryConfigured(){ return !!(RESEND_API_KEY && EMAIL_FROM); }
+
+app.post('/api/auth/forgot-username', async (req,res)=>{
+  if(recoveryRateLimited(req.ip)) return res.status(429).json({error:'Too many recovery requests. Please wait and try again.'});
+  const email=normalizeEmail(req.body?.email);
+  if(!isValidEmail(email)) return res.status(400).json({error:'Enter a valid email address.'});
+  if(!recoveryConfigured()) return res.status(503).json({error:'Email recovery is not configured on this server yet.'});
+  const user=users.get('email:'+email);
+  try{
+    if(user){
+      await sendRecoveryEmail(email,'Your Index username',`<p>Your Index username is <strong>@${escapeHtml(user.username)}</strong>.</p><p>If you did not request this, you can ignore this email.</p>`,`Your Index username is @${user.username}. If you did not request this, you can ignore this email.`);
+    }
+    res.json({ok:true,message:'If an account matches that email, we sent the username to it.'});
+  }catch(e){ console.error('Username recovery email failed:',e.message); res.status(502).json({error:'We could not send the recovery email. Please try again later.'}); }
 });
 
-setInterval(() => {
-  const cutoff = Date.now() - 10 * 60 * 1000;
-  for (const [key, value] of driveOauthStates) if (value.createdAt < cutoff) driveOauthStates.delete(key);
-}, 10 * 60 * 1000);
+app.post('/api/auth/forgot-password', async (req,res)=>{
+  if(recoveryRateLimited(req.ip)) return res.status(429).json({error:'Too many recovery requests. Please wait and try again.'});
+  const email=normalizeEmail(req.body?.email);
+  if(!isValidEmail(email)) return res.status(400).json({error:'Enter a valid email address.'});
+  if(!recoveryConfigured()) return res.status(503).json({error:'Email recovery is not configured on this server yet.'});
+  const user=users.get('email:'+email);
+  try{
+    if(user){
+      const raw=crypto.randomBytes(32).toString('hex');
+      user.resetTokenHash=hashRecoveryToken(raw);
+      user.resetExpiresAt=Date.now()+60*60*1000;
+      saveUsers();
+      const link=PUBLIC_BASE_URL+'/?reset='+encodeURIComponent(raw);
+      await sendRecoveryEmail(email,'Reset your Index password',`<p>We received a request to reset your Index password.</p><p><a href="${escapeHtml(link)}">Reset your password</a></p><p>This link expires in one hour and can be used once.</p><p>If you did not request this, you can ignore this email.</p>`,`Reset your Index password: ${link}\n\nThis link expires in one hour and can be used once. If you did not request this, you can ignore this email.`);
+    }
+    res.json({ok:true,message:'If an account matches that email, we sent a password reset link to it.'});
+  }catch(e){ console.error('Password recovery email failed:',e.message); res.status(502).json({error:'We could not send the recovery email. Please try again later.'}); }
+});
+
+app.post('/api/auth/reset-password', (req,res)=>{
+  const token=String(req.body?.token||'');
+  const password=String(req.body?.password||'');
+  if(token.length<20) return res.status(400).json({error:'This reset link is invalid or expired.'});
+  if(password.length<8) return res.status(400).json({error:'Password must be at least 8 characters.'});
+  const tokenHash=hashRecoveryToken(token);
+  let user=null;
+  for(const u of usersById.values()){
+    if(u.resetTokenHash===tokenHash){ user=u; break; }
+  }
+  if(!user || !user.resetExpiresAt || user.resetExpiresAt<Date.now()) return res.status(400).json({error:'This reset link is invalid or expired.'});
+  const {salt,hash}=hashPassword(password);
+  user.salt=salt; user.passwordHash=hash; delete user.resetTokenHash; delete user.resetExpiresAt;
+  saveUsers();
+  for(const [sessionToken,session] of sessions.entries()) if(session.userId===user.id) sessions.delete(sessionToken);
+  res.json({ok:true});
+});
+
+function escapeHtml(v){ return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 /* ============================== GAME ENGINE ============================== */
 /**
@@ -518,6 +878,17 @@ setInterval(() => {
  * }
  */
 const rooms = new Map();
+// Server-side daily coin cap. The playerId is the same identifier used by the browser for live-game participation.
+const dailyCoinAwards = new Map();
+const DAILY_COIN_CAP = 500;
+function dailyKey(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
+function cappedDailyCoins(playerId, requested){
+  const key = `${dailyKey()}:${playerId}`;
+  const used = dailyCoinAwards.get(key) || 0;
+  const grant = Math.max(0, Math.min(requested, DAILY_COIN_CAP-used));
+  dailyCoinAwards.set(key, used + grant);
+  return grant;
+}
 
 function genRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -622,9 +993,20 @@ function revealQuestion(room) {
   }
 }
 function endRoom(room) {
+  if (!room || room.status === 'ended') return;
   clearRevealTimer(room);
   room.status = 'ended';
-  io.to(room.code).emit('room:ended', { players: publicPlayers(room) });
+  const ranked = publicPlayers(room);
+  for (const player of room.players.values()) {
+    const placement = Math.max(1, ranked.findIndex(p => p.id === player.id) + 1);
+    const placementBonus = placement === 1 ? 40 : placement === 2 ? 25 : placement === 3 ? 15 : 5;
+    const xp = Math.min(150, 25 + (player.correctCount || 0) * 5 + placementBonus);
+    const requestedCoins = Math.min(500, (player.correctCount || 0) * 5);
+    const coins = cappedDailyCoins(player.id, requestedCoins);
+    const sock = io.sockets.sockets.get(player.socketId);
+    if (sock) sock.emit('live:reward', { playerId: player.id, xp, coins, correctCount: player.correctCount || 0, placement });
+  }
+  io.to(room.code).emit('room:ended', { players: ranked });
 }
 function requireHost(room, hostToken) {
   return room && room.hostToken === hostToken;
