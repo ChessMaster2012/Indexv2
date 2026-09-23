@@ -82,115 +82,14 @@ function aiContentIsAllowed(messages) {
   const userText = messages.filter(m => m && m.role === 'user').map(m => String(m.content || '')).join('\n');
   return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
 }
-// School-network-friendly AI proxy. The browser only talks to this Render server;
-// the server talks to the external text provider, so browser WebGPU/CDN access is not required.
-app.post('/api/ai/chat', async (req, res) => {
-  try {
-    const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
-    if (!messages.length) return res.status(400).json({ error: 'No messages supplied.' });
-    if (messages.length > 12) return res.status(400).json({ error: 'Conversation is too long. Start a new tutor question.' });
-    if (messages.some(m => String(m?.content || '').length > 5000)) return res.status(400).json({ error: 'That message is too long. Please shorten it.' });
-
-    const system = messages.filter(m => m && m.role === 'system').map(m => String(m.content || '')).join('\n\n').slice(0, 7000);
-    if (!aiContentIsAllowed(messages)) return res.status(400).json({ error: 'I can help with an academic or safety-focused question, but not with harmful, sexual, or harassing content.' });
-
-    const tutorQuality = `You are a high-quality, careful school tutor for middle and high school students. Give correct, useful answers rather than generic filler.
-
-ACADEMIC INTEGRITY:
-- Help students learn and understand their work.
-- If the student says this is a live test, quiz, exam, assessment, or asks for answers to an active graded assessment, do not provide the direct answer. Instead explain the concept, give a similar example, or provide a hint.
-- Never help a student impersonate someone, bypass a school rule, defeat a security control, or conceal misconduct.
-
-SAFETY AND RESPECT:
-- Never generate bullying, harassment, hate, sexual content, threats, or instructions for harmful or illegal behavior.
-- If a request is unsafe or inappropriate, briefly decline that part and redirect to a safe academic alternative.
-
-
-MATH/SCIENCE FORMATTING RULES:
-- NEVER output LaTeX delimiters such as \[ \], \( \), $$, or raw LaTeX commands such as \sqrt, \frac, \times, \cdot, or \boxed.
-- Use real Unicode math symbols directly: √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, °.
-- For a square root, write √49 or √(x + 1), not \sqrt{...}.
-- For fractions, use a/b when a stacked fraction is unnecessary; explain clearly in plain text.
-- Show math one step at a time and make the final answer easy to find.
-
-GENERAL FORMATTING RULES:
-- Use clean plain text and Markdown-style headings/bold only when helpful.
-- Do not output escaped backslashes, code fences, HTML, or instructions about how to type symbols.
-- Do not repeat the student's request unnecessarily.
-- If the student asks for an explanation, actually teach the reasoning.
-- If the question is ambiguous, briefly state the assumption you are making.
-- For schoolwork, prioritize accuracy and explain why the answer is correct.
-- Never invent a source, quotation, statistic, or citation.
-`;
-    const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
-    const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
-    // Data-minimization safeguard: reject common direct identifiers before a prompt reaches the external AI provider.
-    const sensitivePatterns = [
-      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
-      /\b(?:\+?1[-. ]?)?(?:\(?\d{3}\)?[-. ]?)\d{3}[-. ]?\d{4}\b/,
-      /\b\d{3}-\d{2}-\d{4}\b/,
-      /\b(?:student|school)\s*(?:id|identification)\s*[:#-]?\s*[A-Z0-9-]{4,}\b/i
-    ];
-    if (sensitivePatterns.some(re => re.test(transcript))) {
-      return res.status(400).json({ error: 'For privacy, remove email addresses, phone numbers, Social Security numbers, or student/school ID numbers before using the AI Tutor.' });
-    }
-    const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
-
-    // Pollinations' legacy text endpoint supports both normal text and JSON-mode
-    // requests without putting an API key in the browser. Learn/study-set builders
-    // depend on strict JSON, so send jsonMode when requested instead of asking the
-    // model to imitate JSON in ordinary text mode. Keep a GET fallback for older
-    // Pollinations deployments.
-    const wantsJson = req.body?.jsonMode === true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
-    let upstream;
-    let body = '';
-    try {
-      upstream = await fetch('https://text.pollinations.ai/', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'content-type': 'application/json', 'accept': 'text/plain, application/json' },
-        body: JSON.stringify({ messages, model: 'openai', ...(wantsJson ? { jsonMode: true } : {}) })
-      });
-      body = await upstream.text();
-
-      // Some older/free deployments only expose the GET route. Retry there if the
-      // POST route is unavailable, rather than turning a temporary endpoint mismatch
-      // into the generic "Couldn't build that lesson" message.
-      if (!upstream.ok) {
-        const query = wantsJson ? '&json=true' : '';
-        const fallbackUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai' + query;
-        upstream = await fetch(fallbackUrl, { signal: controller.signal, headers: { 'accept': 'text/plain, application/json' } });
-        body = await upstream.text();
-      }
-    } finally { clearTimeout(timeout); }
-
-    if (!upstream.ok) {
-      if ([401,402,403].includes(upstream.status)) throw new Error('The free text AI provider is currently unavailable (HTTP '+upstream.status+').');
-      throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
-    }
-    if (!body.trim()) throw new Error('AI provider returned an empty response.');
-
-    // A few providers return an OpenAI-style wrapper even when plain text was
-    // requested. Normalize it so the browser always receives the actual text.
-    let content = body.trim();
-    try {
-      const wrapped = JSON.parse(content);
-      if (wrapped?.choices?.[0]?.message?.content) content = String(wrapped.choices[0].message.content).trim();
-      else if (typeof wrapped?.content === 'string') content = wrapped.content.trim();
-    } catch (_) {}
-    if (!content) throw new Error('AI provider returned an empty response.');
-
-    res.set('Cache-Control','no-store');
-    res.set('X-Index-AI-Limit','no-daily-question-cap');
-    res.json({ content });
-  } catch (err) {
-    console.error('AI proxy failed:', err);
-    res.status(502).json({ error: String(err?.message || err || 'AI provider request failed') });
-  }
+// AI Tutor compatibility endpoint. The tutor now runs locally in the browser
+// so no external AI account, API key, or third-party text queue is required.
+app.get('/api/ai/status', (req, res) => {
+  res.json({ enabled: true, mode: 'local-webllm', requiresWebGPU: true });
 });
-
+app.post('/api/ai/chat', (req, res) => {
+  res.status(410).json({ error: 'The AI Tutor now runs locally in your browser. Refresh the page to load the local tutor.' });
+});
 
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });

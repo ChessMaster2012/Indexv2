@@ -1,0 +1,16 @@
+{
+  "setupVersion": "2026-09-22-v3",
+  "ai": {
+    "route": "/api/ai/chat",
+    "browserApiKeyRequired": false,
+    "dailyQuestionCap": null,
+    "providerCapacityFinite": true
+  },
+  "countySelection": "localStorage",
+  "localPages": {
+    "terms": "/terms.html?county=",
+    "privacy": "/privacy.html?county=",
+    "review": "/mcps-review.html?county=",
+    "contact": "/contact.html?county="
+  }
+}
