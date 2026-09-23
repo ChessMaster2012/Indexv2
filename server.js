@@ -122,36 +122,16 @@ GENERAL FORMATTING RULES:
     const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    // Keep the browser completely independent of the AI provider. The Render
-    // server makes the provider request, which works from both school and home
-    // networks. The legacy anonymous provider can occasionally return transient
-    // 500/ENOSPC errors, so retry the exact request before failing.
     const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
-    let upstream = null;
-    let body = '';
-    let lastError = '';
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 45000);
-      try {
-        upstream = await fetch(url, {
-          signal: controller.signal,
-          headers: { 'accept': 'text/plain', 'cache-control': 'no-cache' }
-        });
-        body = await upstream.text();
-        if (upstream.ok && body.trim()) break;
-        lastError = `HTTP ${upstream.status}: ${body.slice(0, 300)}`;
-      } catch (e) {
-        lastError = String(e?.message || e || 'request failed');
-      } finally {
-        clearTimeout(timeout);
-      }
-      if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 1200 * (attempt + 1)));
-    }
-    if (!upstream || !upstream.ok) {
-      throw new Error(`AI provider temporarily failed after 3 attempts: ${lastError}`);
-    }
-    if (!body.trim()) throw new Error('AI provider returned an empty response. Please try again.');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    let upstream;
+    try {
+      upstream = await fetch(url, { signal: controller.signal, headers: { 'accept': 'text/plain' } });
+    } finally { clearTimeout(timeout); }
+    const body = await upstream.text();
+    if (!upstream.ok) throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+    if (!body.trim()) throw new Error('AI provider returned an empty response.');
     res.json({ content: body.trim() });
   } catch (err) {
     console.error('AI proxy failed:', err);
