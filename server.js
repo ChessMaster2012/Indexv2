@@ -86,6 +86,8 @@ function aiContentIsAllowed(messages) {
 // the server talks to the external text provider, so browser WebGPU/CDN access is not required.
 app.post('/api/ai/chat', async (req, res) => {
   try {
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+    if (!aiRateAllowed(ip)) return res.status(429).json({ error: 'Too many AI requests. Please wait a minute and try again.' });
     const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
     if (!messages.length) return res.status(400).json({ error: 'No messages supplied.' });
     if (messages.length > 12) return res.status(400).json({ error: 'Conversation is too long. Start a new tutor question.' });
@@ -124,71 +126,19 @@ GENERAL FORMATTING RULES:
 `;
     const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
     const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
-    // Data-minimization safeguard: reject common direct identifiers before a prompt reaches the external AI provider.
-    const sensitivePatterns = [
-      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
-      /\b(?:\+?1[-. ]?)?(?:\(?\d{3}\)?[-. ]?)\d{3}[-. ]?\d{4}\b/,
-      /\b\d{3}-\d{2}-\d{4}\b/,
-      /\b(?:student|school)\s*(?:id|identification)\s*[:#-]?\s*[A-Z0-9-]{4,}\b/i
-    ];
-    if (sensitivePatterns.some(re => re.test(transcript))) {
-      return res.status(400).json({ error: 'For privacy, remove email addresses, phone numbers, Social Security numbers, or student/school ID numbers before using the AI Tutor.' });
-    }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    // Pollinations' legacy text endpoint supports both normal text and JSON-mode
-    // requests without putting an API key in the browser. Learn/study-set builders
-    // depend on strict JSON, so send jsonMode when requested instead of asking the
-    // model to imitate JSON in ordinary text mode. Keep a GET fallback for older
-    // Pollinations deployments.
-    const wantsJson = req.body?.jsonMode === true;
+    const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
     let upstream;
-    let body = '';
-    const fetchWithTimeout = async (url, options, ms = 60000) => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), ms);
-      try {
-        return await fetch(url, { ...options, signal: controller.signal });
-      } finally {
-        clearTimeout(timeout);
-      }
-    };
-
-    upstream = await fetchWithTimeout('https://text.pollinations.ai/', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'accept': 'text/plain, application/json' },
-      body: JSON.stringify({ messages, model: 'openai', ...(wantsJson ? { jsonMode: true } : {}) })
-    });
-    body = await upstream.text();
-
-    // Some older/free deployments only expose the GET route. Give the fallback
-    // its own timeout controller so an aborted POST cannot abort the fallback.
-    if (!upstream.ok) {
-      const query = wantsJson ? '&json=true' : '';
-      const fallbackUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai' + query;
-      upstream = await fetchWithTimeout(fallbackUrl, { headers: { 'accept': 'text/plain, application/json' } });
-      body = await upstream.text();
-    }
-
-    if (!upstream.ok) {
-      if ([401,402,403].includes(upstream.status)) throw new Error('The free text AI provider is currently unavailable (HTTP '+upstream.status+').');
-      throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
-    }
-    if (!body.trim()) throw new Error('AI provider returned an empty response.');
-
-    // A few providers return an OpenAI-style wrapper even when plain text was
-    // requested. Normalize it so the browser always receives the actual text.
-    let content = body.trim();
     try {
-      const wrapped = JSON.parse(content);
-      if (wrapped?.choices?.[0]?.message?.content) content = String(wrapped.choices[0].message.content).trim();
-      else if (typeof wrapped?.content === 'string') content = wrapped.content.trim();
-    } catch (_) {}
-    if (!content) throw new Error('AI provider returned an empty response.');
-
-    res.set('Cache-Control','no-store');
-    res.set('X-Index-AI-Limit','no-daily-question-cap');
-    res.json({ content });
+      upstream = await fetch(url, { signal: controller.signal, headers: { 'accept': 'text/plain' } });
+    } finally { clearTimeout(timeout); }
+    const body = await upstream.text();
+    if (!upstream.ok) throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+    if (!body.trim()) throw new Error('AI provider returned an empty response.');
+    res.json({ content: body.trim() });
   } catch (err) {
     console.error('AI proxy failed:', err);
     res.status(502).json({ error: String(err?.message || err || 'AI provider request failed') });
