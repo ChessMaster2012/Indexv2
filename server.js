@@ -79,7 +79,7 @@ function aiContentIsAllowed(messages) {
 
 // Local browser-AI runtime/model proxy.
 // The browser contacts only Index. Generation itself happens on the student's device.
-const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.0/dist/';
+const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/';
 const LOCAL_AI_MODELS = {
   'onnx-community/Qwen2.5-0.5B-Instruct': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
@@ -106,7 +106,12 @@ app.get('/api/ai/model/*', async (req,res)=>{
   const parts=String(req.params[0]||'').split('/');
   if(parts.length<5) return res.status(404).end();
   const model=`${parts[0]}/${parts[1]}`;
-  const revision=parts[3]; const file=parts.slice(4).join('/');
+  const revision=parts[3];
+  // Compatibility: some Transformers.js builds historically emitted
+  // /resolve/main/{file}/<actual-file>. Normalize that broken-but-valid-looking
+  // request so the school Chromebook can still load the model through Index.
+  let file=parts.slice(4).join('/');
+  if(file.startsWith('{file}/')) file=file.slice('{file}/'.length);
   if(parts[2]!=='resolve' || revision!=='main') return res.status(404).end();
   const allowed=LOCAL_AI_MODELS[model];
   if(!allowed || !allowed.has(file)) return res.status(404).end();
