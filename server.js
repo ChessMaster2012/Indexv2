@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const { Readable } = require('stream');
 
 const PORT = process.env.PORT || 3000;
 const QUESTION_MS = 20000;
@@ -70,12 +71,57 @@ function aiContentIsAllowed(messages) {
 }
 const aiRate = new Map();
 function aiRateAllowed(ip) {
-  const now = Date.now(), windowMs = 60_000, max = 20;
+  const now = Date.now(), windowMs = 60_000, max = 60;
   const arr = (aiRate.get(ip) || []).filter(t => now - t < windowMs);
   if (arr.length >= max) { aiRate.set(ip, arr); return false; }
   arr.push(now); aiRate.set(ip, arr); return true;
 }
 
+
+// Local AI runtime/model proxy.
+// The browser only contacts Index. Large model/runtime files are cached by the browser;
+// text generation happens on the student's device, so there is no AI API meter or provider bill.
+const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/';
+const LOCAL_AI_MODELS = {
+  'onnx-community/Qwen2.5-0.5B-Instruct': new Set([
+    'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json','special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json','onnx/model_q4f16.onnx'
+  ]),
+  'onnx-community/SmolLM2-360M-Instruct-ONNX': new Set([
+    'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json','special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json','onnx/model_quantized.onnx','onnx/model_q4f16.onnx'
+  ])
+};
+
+app.get('/api/ai/assets/:asset', async (req,res)=>{
+  const asset=String(req.params.asset||'');
+  if(!/^(?:transformers(?:\.web)?(?:\.min)?\.js|ort-wasm-[A-Za-z0-9._-]+\.(?:mjs|wasm))$/.test(asset)) return res.status(404).end();
+  try{
+    const r=await fetch(LOCAL_AI_CDN+asset,{headers:{accept:'*/*'}});
+    if(!r.ok) return res.status(r.status).send('AI runtime asset unavailable.');
+    res.setHeader('Content-Type',asset.endsWith('.wasm')?'application/wasm':'text/javascript');
+    res.setHeader('Cache-Control','public,max-age=31536000,immutable');
+    if(r.body) Readable.fromWeb(r.body).pipe(res); else res.end(Buffer.from(await r.arrayBuffer()));
+  }catch(e){ console.error('AI runtime proxy:',e.message); res.status(502).send('AI runtime asset unavailable.'); }
+});
+
+app.get('/api/ai/model/*', async (req,res)=>{
+  const parts=String(req.params[0]||'').split('/');
+  if(parts.length<5) return res.status(404).end();
+  const model=`${parts[0]}/${parts[1]}`;
+  const revision=parts[3]; const file=parts.slice(4).join('/');
+  if(parts[2]!=='resolve' || revision!=='main') return res.status(404).end();
+  const allowed=LOCAL_AI_MODELS[model];
+  if(!allowed || !allowed.has(file)) return res.status(404).end();
+  const target=`https://huggingface.co/${model}/resolve/${revision}/${file}`;
+  try{
+    const r=await fetch(target,{headers:{accept:'*/*'}});
+    if(!r.ok) return res.status(r.status).send('Local AI model file unavailable.');
+    res.setHeader('Content-Type',r.headers.get('content-type')||'application/octet-stream');
+    res.setHeader('Cache-Control','public,max-age=31536000,immutable');
+    res.setHeader('Cross-Origin-Resource-Policy','same-origin');
+    const len=r.headers.get('content-length'); if(len) res.setHeader('Content-Length',len);
+    if(r.body) Readable.fromWeb(r.body).pipe(res); else res.end(Buffer.from(await r.arrayBuffer()));
+  }catch(e){ console.error('AI model proxy:',e.message); res.status(502).send('Local AI model unavailable.'); }
+});
 
 // School-network-friendly AI proxy.
 // The browser talks only to Index. When configured, the server uses the current
@@ -132,12 +178,10 @@ async function pollinationsLegacy(prompt){
   }finally{ clearTimeout(timer); }
 }
 app.get('/api/ai-status',(req,res)=>{
-  res.json({enabled:true, serverProvider:!!process.env.POLLINATIONS_API_KEY, legacyFallback:true});
+  res.json({enabled:true, localFirst:true, serverProvider:!!process.env.POLLINATIONS_API_KEY, legacyFallback:true});
 });
 app.post('/api/ai/chat', async (req,res)=>{
   try{
-    const ip=String(req.headers['x-forwarded-for']||req.socket.remoteAddress||'unknown').split(',')[0].trim();
-    if(!aiRateAllowed(ip)) return res.status(429).json({error:'Too many AI requests from this browser. Please wait a moment and try again.'});
     const incoming=Array.isArray(req.body?.messages)?req.body.messages:[];
     const messages=incoming.filter(m=>m && ['system','user','assistant'].includes(m.role)).map(m=>({role:m.role,content:String(m.content||'').slice(0,7000)})).slice(-18);
     if(!messages.length) return res.status(400).json({error:'No messages supplied.'});
@@ -269,12 +313,25 @@ app.use((req, res, next) => {
 });
 
 function normalizeEmail(v) { return String(v || '').trim().toLowerCase(); }
+function findUserByEmail(email) {
+  const target = normalizeEmail(email);
+  if (!target) return null;
+  for (const u of usersById.values()) {
+    const uemail = normalizeEmail(u.email || (u.method === 'email' ? u.identifier : ''));
+    if (uemail && uemail === target) return u;
+  }
+  return null;
+}
 function normalizePhone(v) { return String(v || '').replace(/[^0-9+]/g, ''); }
 function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 function isValidPhone(v) { return /^\+?[0-9]{7,15}$/.test(v); }
 
 app.get('/api/auth/status', (req, res) => {
   res.json({ googleEnabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) });
+});
+
+app.get('/api/auth/google/redirect-uri', (req, res) => {
+  res.json({ enabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET), redirectUri: googleRedirectUri(req) });
 });
 
 app.get('/api/auth/me', (req, res) => {
@@ -363,26 +420,42 @@ app.get('/api/auth/google/callback', async (req, res) => {
       body: new URLSearchParams({ code, client_id: GOOGLE_CLIENT_ID, client_secret: GOOGLE_CLIENT_SECRET, redirect_uri: redirectUri, grant_type: 'authorization_code' })
     });
     const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) throw new Error(tokenData.error_description || 'Google did not return an access token.');
+    if (!tokenRes.ok || !tokenData.access_token) throw new Error(tokenData.error_description || tokenData.error || 'Google did not return an access token.');
     const profileRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', { headers: { authorization: `Bearer ${tokenData.access_token}` } });
     const profile = await profileRes.json();
     if (!profile.sub) throw new Error('Google did not return a profile.');
     const key = 'google:' + profile.sub;
     let user = users.get(key);
     let isNew = false;
+
+    // Reuse an existing email account when the Google email matches. This prevents
+    // duplicate accounts and makes Google sign-in keep the same profile across devices.
+    if (!user && profile.email) user = findUserByEmail(profile.email);
+
     if (!user) {
       isNew = true;
       user = {
         id: crypto.randomBytes(12).toString('hex'), method: 'google', identifier: profile.sub, googleId: profile.sub,
         email: profile.email || '', firstName: '', lastName: '', createdAt: Date.now()
       };
-      users.set(key, user); usersById.set(user.id, user); saveUsers();
+      usersById.set(user.id, user);
     }
+
+    user.googleId = profile.sub;
+    if (profile.email) user.email = profile.email;
+    if (!user.firstName && profile.given_name) user.firstName = cleanDisplayName(profile.given_name, '');
+    if (!user.firstName && profile.name) user.firstName = cleanDisplayName(profile.name, '');
+    users.set(key, user);
+    if (user.method === 'email') users.set('email:' + normalizeEmail(user.identifier), user);
+    usersById.set(user.id, user);
+    saveUsers();
+
     const token = createSession(user.id);
     setSessionCookie(res, token);
     res.redirect('/?welcome=1' + (isNew || !user.firstName ? '&complete=1' : ''));
   } catch (e) {
-    res.redirect('/?authError=' + encodeURIComponent('Could not complete Google sign-in. Please try again.'));
+    console.error('Google OAuth callback failed:', e);
+    res.redirect('/?authError=' + encodeURIComponent('Google sign-in could not be completed. Check the Google redirect URI in your Google Cloud OAuth client and try again.'));
   }
 });
 
