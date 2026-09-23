@@ -530,6 +530,7 @@ function sanitizeAccountState(input){
   const p = src.progress && typeof src.progress === 'object' ? src.progress : {};
   const profile = src.profile && typeof src.profile === 'object' ? src.profile : {};
   const equipped = p.equipped && typeof p.equipped === 'object' ? p.equipped : {};
+  const cosmeticInventory = p.cosmeticInventory && typeof p.cosmeticInventory === 'object' ? p.cosmeticInventory : {};
   const notes = Array.isArray(src.notes) ? src.notes.slice(0, 500) : [];
   const studySets = Array.isArray(src.studySets) ? src.studySets.slice(0, 300) : [];
   const customTopics = src.customTopics && typeof src.customTopics === 'object' ? src.customTopics : {};
@@ -544,6 +545,7 @@ function sanitizeAccountState(input){
       lessonsLearned: Array.isArray(p.lessonsLearned) ? p.lessonsLearned.slice(0, 5000) : [],
       coins: Math.max(0, Math.min(100000000, Number(p.coins)||0)),
       unlockedCosmetics: Array.isArray(p.unlockedCosmetics) ? p.unlockedCosmetics.slice(0, 500) : [],
+      cosmeticInventory: Object.fromEntries(Object.entries(cosmeticInventory).slice(0,500).map(([k,v])=>[String(k).slice(0,80),Math.max(0,Math.min(1000,Number(v)||0))])),
       claimedBPLevels: Array.isArray(p.claimedBPLevels) ? p.claimedBPLevels.slice(0, 100) : [],
       equipped: {
         avatar: String(equipped.avatar||'avatar-scholar').slice(0,80),
@@ -966,7 +968,7 @@ function endRoom(room) {
     const placement = Math.max(1, ranked.findIndex(p => p.id === player.id) + 1);
     const placementBonus = placement === 1 ? 40 : placement === 2 ? 25 : placement === 3 ? 15 : 5;
     const xp = Math.min(150, 25 + (player.correctCount || 0) * 5 + placementBonus);
-    const requestedCoins = Math.min(120, 30 + (player.correctCount || 0) * 8 + placementBonus);
+    const requestedCoins = Math.min(500, (player.correctCount || 0) * 5);
     const coins = cappedDailyCoins(player.id, requestedCoins);
     const sock = io.sockets.sockets.get(player.socketId);
     if (sock) sock.emit('live:reward', { playerId: player.id, xp, coins, correctCount: player.correctCount || 0, placement });

@@ -1069,7 +1069,7 @@ let state = {
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:[], claimedBPLevels:[], equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:[], claimedBPLevels:[], equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:0, liveGames:0, cosmeticInventory:{} },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:false, account:null,
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
@@ -1138,7 +1138,7 @@ function loadLocalData(){
   state.notes = lsGet('index-notes', []);
   state.studySets = lsGet('index-studysets', []);
   const p = lsGet('index-progress', {});
-  state.progress = { xp:Number(p.xp)||0, activeDates:p.activeDates||[], lessonsLearned:p.lessonsLearned||[], coins:Number(p.coins)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], equipped:p.equipped||{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
+  state.progress = { xp:Number(p.xp)||0, activeDates:p.activeDates||[], lessonsLearned:p.lessonsLearned||[], coins:Number(p.coins)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], equipped:p.equipped||{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0, cosmeticInventory:(p.cosmeticInventory && typeof p.cosmeticInventory==='object')?p.cosmeticInventory:{} };
   state.customTopics = lsGet('index-customtopics', {});
   state.profile = lsGet('index-profile', {});
   state.district = state.profile.district || '';
@@ -1178,7 +1178,7 @@ function accountStatePayload(){
     notes: Array.isArray(state.notes) ? state.notes : [],
     studySets: Array.isArray(state.studySets) ? state.studySets : [],
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
-    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
+    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,cosmeticInventory:state.progress.cosmeticInventory||{},dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||''}
   };
 }
@@ -1385,13 +1385,27 @@ const PACK_DEFS = {
   tech:{name:'Tech Pack',cost:25,icon:'💻',accent:'#26b4c7',contents:['accessory-code','avatar-engineer','outfit-tech','frame-circuit','bg-digital','avatar-coder','outfit-neon','frame-legend'],featured:'avatar-engineer'},
   legend:{name:'Legend Pack',cost:25,icon:'🌟',accent:'#d64fd6',contents:['avatar-scholar','avatar-engineer','accessory-crown','avatar-coder','outfit-premium','accessory-starburst','avatar-genius','accessory-diamond'],featured:'avatar-genius'}
 };
+const DUPLICATE_SELL_VALUES = {Common:10,Uncommon:15,Rare:30,Epic:75,Legendary:250};
+function cosmeticCount(id){ return Math.max(0, Number((state.progress.cosmeticInventory||{})[id])||0); }
+function addCosmeticCopy(id){
+  if(!state.progress.cosmeticInventory || typeof state.progress.cosmeticInventory!=='object') state.progress.cosmeticInventory={};
+  state.progress.cosmeticInventory[id]=cosmeticCount(id)+1;
+  if(!state.progress.unlockedCosmetics.includes(id)) state.progress.unlockedCosmetics.push(id);
+}
+function duplicateSellValue(c){ return DUPLICATE_SELL_VALUES[c?.rarity] || 0; }
+function sellDuplicate(id){
+  const c=cosmeticById(id); const count=cosmeticCount(id); if(!c || count<=1) return;
+  const value=duplicateSellValue(c); if(!value) return;
+  state.progress.cosmeticInventory[id]=count-1;
+  state.progress.coins=(state.progress.coins||0)+value;
+  persistProgress(); updateCoinDisplays(); renderRewards();
+  showRewardToast(`🪙 Sold duplicate ${c.name} · +${value} coins`);
+}
 function packConfig(kind){ return PACK_DEFS[kind] || PACK_DEFS.study; }
 function packContents(kind){ return packConfig(kind).contents.map(cosmeticById).filter(Boolean); }
 function packReward(kind){
-  const cfg=packConfig(kind);
-  const featured=cosmeticById(cfg.featured);
-  if(featured) return featured;
-  return packContents(kind)[0] || REWARD_COSMETICS[0];
+  const pool=packContents(kind);
+  return pool[Math.floor(Math.random()*pool.length)] || REWARD_COSMETICS[0];
 }
 function buildReelItems(reward, kind='study'){
   const pool=packContents(kind), items=[];
@@ -1448,8 +1462,8 @@ function openRewardPack(kind='study'){
   state.rewardPackOpening=true;
   state.progress.coins-=cfg.cost;
   const reward=packReward(kind);
-  const duplicate=state.progress.unlockedCosmetics.includes(reward.id);
-  if(!duplicate) state.progress.unlockedCosmetics.push(reward.id);
+  const duplicate=cosmeticCount(reward.id)>0 || state.progress.unlockedCosmetics.includes(reward.id);
+  addCosmeticCopy(reward.id);
   state.progress.openedPacks=(state.progress.openedPacks||0)+1;
   persistProgress();
   updateCoinDisplays();
@@ -1470,13 +1484,13 @@ function openRewardPack(kind='study'){
     clearInterval(timer);
     opening.classList.remove('is-opening');
     playPackReveal(); celebrate();
-    const bonus=duplicate?Math.min(20,Math.floor(cfg.cost*.25)):0;
-    if(duplicate){ state.progress.coins+=bonus; persistProgress(); updateCoinDisplays(); }
+    persistProgress(); updateCoinDisplays();
+    const sellValue=duplicateSellValue(reward);
     result.innerHTML=`<div class="pack-result reveal">
       <div class="result-rarity" style="color:${reward.rarity==='Legendary'?'#b26b00':reward.rarity==='Epic'?'#7540ba':reward.rarity==='Rare'?'#1774c8':'#596273'}">${esc(reward.rarity)} ${duplicate?'· Duplicate':''}</div>
       <div class="result-name">${reward.icon} ${esc(reward.name)}</div>
-      <div class="result-note">${duplicate?`You already own this cosmetic, so ${bonus} coins were returned.`:'New cosmetic unlocked and added to your inventory.'}</div>
-      <div style="margin-top:12px"><button class="btn btn-primary" data-action="close-pack-modal">Continue</button></div>
+      <div class="result-note">${duplicate?`You now have ${cosmeticCount(reward.id)} copies. You can sell an extra copy for ${sellValue} coins.`:'New cosmetic unlocked and added to your inventory.'}</div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><button class="btn btn-primary" data-action="close-pack-modal">Continue</button>${duplicate&&sellValue?`<button class="btn btn-ghost" data-action="sell-duplicate" data-id="${reward.id}">Sell 1 duplicate · +${sellValue} 🪙</button>`:''}</div>
     </div>`;
     state.rewardPackOpening=false;
     renderRewards();
@@ -1537,7 +1551,7 @@ function renderRewards(){
           ${ok?'':'<div class="inventory-lock">🔒</div>'}
           <div class="inventory-name">${esc(c.name)}</div>
           <div class="inventory-rarity">${esc(c.rarity)}</div>
-          <div class="${ok?'inventory-owned':'inventory-locked-label'}">${ok?'✓ Unlocked':'Locked · Earn through study rewards or reach the required reward'}</div>
+          <div class="${ok?'inventory-owned':'inventory-locked-label'}">${ok?`✓ Unlocked · ${Math.max(1,cosmeticCount(c.id))} ${Math.max(1,cosmeticCount(c.id))===1?'copy':'copies'}`:'Locked · Earn through study rewards or reach the required reward'}</div>${ok&&cosmeticCount(c.id)>1&&duplicateSellValue(c)?`<button class="btn btn-ghost btn-sm" style="margin-top:7px;width:100%;" data-action="sell-duplicate" data-id="${c.id}">Sell duplicate · +${duplicateSellValue(c)} 🪙</button>`:''}
         </div>`;
       }).join('');
       return `<div class="inventory-group"><h3>${label}</h3><div class="inventory-grid">${items}</div></div>`;
@@ -1547,7 +1561,7 @@ function renderRewards(){
     const today=new Date().toISOString().slice(0,10); const claimed=state.progress.dailyWheelDate===today;
     const rewards=['+25 XP','+10 coins','+1 study streak day','+25 XP','+10 coins','+1 study streak day'];
     const idx=Math.floor((new Date(today+'T00:00:00').getTime()/86400000))%rewards.length; const todayReward=rewards[idx];
-    body=`<div class="panel" style="text-align:center;padding:28px 22px;"><div class="rewards-eyebrow">DAILY STUDY BONUS</div><h3 style="font-size:27px;margin:6px 0 8px;">🎡 Daily Wheel</h3><p class="reward-muted" style="max-width:650px;margin:0 auto;">The wheel is a visual daily bonus. Today’s result is scheduled in advance, so every student can see what the daily reward is and there is no chance-based purchase.</p><div class="daily-wheel" aria-label="Daily reward wheel"><div class="daily-wheel-pointer">▼</div><div class="daily-wheel-circle"><span>XP</span><span>🪙</span><span>🔥</span><span>XP</span><span>🪙</span><span>🔥</span></div></div><h4 style="margin:8px 0 4px;">Today: ${esc(todayReward)}</h4><p id="daily-wheel-countdown" class="reward-muted" style="margin:0 0 14px;"></p><button class="btn btn-primary btn-lg" data-action="daily-wheel-spin" ${claimed?'disabled':''}>${claimed?'✓ Claimed today':'Claim today’s bonus'}</button></div>`;
+    body=`<div class="panel" style="text-align:center;padding:28px 22px;"><div class="rewards-eyebrow">DAILY STUDY BONUS</div><h3 style="font-size:27px;margin:6px 0 8px;">🎡 Daily Wheel</h3><p class="reward-muted" style="max-width:650px;margin:0 auto;">The Daily Wheel visibly spins for about 5 seconds and lands on today’s scheduled coin reward. It is a free daily learning bonus and cannot be purchased.</p><div class="daily-wheel" aria-label="Daily reward wheel"><div class="daily-wheel-pointer">▼</div><div class="daily-wheel-circle"><span>10 🪙</span><span>25 🪙</span><span>50 🪙</span><span>100 🪙</span><span>15 🪙</span><span>40 🪙</span></div></div><h4 style="margin:8px 0 4px;">Today: ${esc(todayReward)}</h4><p id="daily-wheel-countdown" class="reward-muted" style="margin:0 0 14px;"></p><button class="btn btn-primary btn-lg" data-action="daily-wheel-spin" ${claimed?'disabled':''}>${claimed?'✓ Claimed today':'Claim today’s bonus'}</button></div>`;
   } else {
     const collection=REWARD_COSMETICS.slice(0,24).map(c=>{const ok=unlocked.includes(c.id);return `<div class="rarity-card ${rewardRarityClass(c.rarity)}" style="opacity:${ok?1:.62};position:relative;">${ok?'':'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(50,53,61,.3);font-size:26px;z-index:2;">🔒</div>'}<div class="collection-icon" style="${ok?'':'filter:grayscale(1)'}">${c.icon}</div><div class="collection-name">${esc(c.name)}</div><div class="collection-rarity">${esc(c.rarity)} · ${ok?'Unlocked':'Locked'}</div></div>`;}).join('');
     body=`<div class="panel"><div class="rewards-eyebrow">DETERMINISTIC REWARDS</div><h3 style="font-size:27px;margin:6px 0 8px;">Earn rewards through learning</h3><p class="reward-muted" style="max-width:700px;">Index does not use randomized prize wheels or loot boxes in the school-safe version. XP earned from learning activities unlocks the listed Battle Pass rewards at fixed levels, so students can see exactly what each level provides.</p><div class="coin-pill" style="margin:18px 0;">🪙 Coins are optional progress rewards and do not purchase randomized items.</div></div>
@@ -1562,13 +1576,26 @@ function updateDailyWheelCountdown(){const el=document.getElementById('daily-whe
 async function dailyWheelSpin(){
   const today=new Date().toISOString().slice(0,10);
   if(state.progress.dailyWheelDate===today){ showRewardToast('You already claimed today’s Daily Wheel bonus.'); return; }
-  const idx=Math.floor((new Date(today+'T00:00:00').getTime()/86400000))%3;
-  if(idx===0){ state.progress.xp=(state.progress.xp||0)+25; state.progress.dailyWheelReward=25; showRewardToast('🎡 Daily Wheel: +25 XP'); }
-  else if(idx===1){ addCoins(10,'Daily Wheel'); state.progress.dailyWheelReward=10; showRewardToast('🎡 Daily Wheel: +10 coins'); }
-  else { state.progress.xp=(state.progress.xp||0)+25; state.progress.dailyWheelReward=25; showRewardToast('🎡 Daily Wheel: +25 XP'); }
-  state.progress.dailyWheelDate=today; state.progress.dailyWheelLastSpinAt=Date.now(); persistProgress(); renderRewards(); renderDashboard();
+  const rewards=[10,25,50,100,15,40];
+  const targetIndex=Math.floor((new Date(today+'T00:00:00').getTime()/86400000))%rewards.length;
+  const wheel=document.querySelector('.daily-wheel-circle');
+  const button=document.querySelector('[data-action=\"daily-wheel-spin\"]');
+  if(!wheel || !button) return;
+  button.disabled=true; button.textContent='Spinning…';
+  const segment=360/rewards.length;
+  const extraSpins=8;
+  const targetRotation=extraSpins*360 + (360-(targetIndex*segment+segment/2));
+  wheel.style.transition='transform 5s cubic-bezier(.12,.75,.16,1)';
+  wheel.style.transform=`rotate(${targetRotation}deg)`;
+  await new Promise(r=>setTimeout(r,5050));
+  const reward=rewards[targetIndex];
+  addCoins(reward,'Daily Wheel');
+  state.progress.dailyWheelReward=reward;
+  state.progress.dailyWheelDate=today;
+  state.progress.dailyWheelLastSpinAt=Date.now();
+  persistProgress(); renderRewards(); renderDashboard();
+  showRewardToast(`🎡 Daily Wheel landed on +${reward} coins`);
 }
-
 /* ============================== HELPERS ============================== */
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function esc(str){ return (str||'').toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
@@ -3160,7 +3187,7 @@ document.addEventListener('click', async (e)=>{
     const s = state.studySets.find(x=>x.id===state.viewer.setId);
     const correctCount = s.questions.reduce((acc,q,idx)=> acc + (state.viewer.quizAnswers[idx]===q.correct?1:0), 0);
     if(!s.attempts) s.attempts = []; s.attempts.push({score:correctCount, total:s.questions.length, ts:Date.now()});
-    persistSets(); addXP(10 + correctCount*5); if(correctCount===s.questions.length) celebrate();
+    persistSets(); addXP(10 + correctCount*5); addCoins(10,'Practice Quiz complete'); if(correctCount===s.questions.length) celebrate();
     renderViewerBody();
   }
   else if(action==='quiz-retry'){
@@ -3242,6 +3269,7 @@ document.addEventListener('click', async (e)=>{
   else if(action==='account-signout'){ accountSignout(); }
   else if(action==='reward-tab'){ state.rewardsTab=t.dataset.tab||'battlepass'; renderRewards(); }
    else if(action==='daily-wheel-spin'){ dailyWheelSpin(); }
+   else if(action==='sell-duplicate'){ sellDuplicate(t.dataset.id); }
   else if(action==='equip-cosmetic'){ equipCosmetic(t.dataset.id); }
   else if(action==='open-pack'){ openRewardPack(t.dataset.pack||'study'); }
   else if(action==='close-pack-modal'){ closePackModal(); }
