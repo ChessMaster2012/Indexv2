@@ -13,6 +13,7 @@ const ROOM_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/$/, '');
 const SESSION_COOKIE = 'index_session';
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -67,215 +68,108 @@ function aiContentIsAllowed(messages) {
   const userText = messages.filter(m => m && m.role === 'user').map(m => String(m.content || '')).join('\n');
   return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
 }
+const aiRate = new Map();
+function aiRateAllowed(ip) {
+  const now = Date.now(), windowMs = 60_000, max = 20;
+  const arr = (aiRate.get(ip) || []).filter(t => now - t < windowMs);
+  if (arr.length >= max) { aiRate.set(ip, arr); return false; }
+  arr.push(now); aiRate.set(ip, arr); return true;
+}
+
+
 // School-network-friendly AI proxy.
-// The browser talks only to Render. Render talks to Pollinations.
-// This keeps the API key server-side and avoids browser-side AI/WebGPU requirements.
-const POLLINATIONS_API_KEY = process.env.POLLINATIONS_API_KEY || process.env.POLLINATIONS_KEY || '';
-const POLLINATIONS_MODELS = [
-  process.env.POLLINATIONS_MODEL || 'openai/gpt-5.4-mini',
+// The browser talks only to Index. When configured, the server uses the current
+// Pollinations OpenAI-compatible API. Without a key, it makes a single best-effort
+// legacy request as a compatibility fallback rather than retrying aggressively.
+const AI_MODEL_CHAIN = [
+  'google/gemini-3.8-flash',
   'deepseek/deepseek-v4-flash',
   'openai/gpt-5.4-nano'
-].filter((v, i, a) => v && a.indexOf(v) === i);
-const AI_TIMEOUT_MS = 28000;
-const AI_RETRY_DELAY_MS = 650;
-const aiRate = new Map();
-
-function aiClientKey(req, res) {
-  // Keep the limiter per signed-in session/browser rather than by IP so a
-  // whole school behind one NAT does not share the same bucket.
-  const cookies = parseCookies(req);
-  let key = cookies[SESSION_COOKIE] || cookies['index_ai_client'];
-  if (!key) {
-    key = crypto.randomBytes(12).toString('hex');
-    res.append('Set-Cookie', `index_ai_client=${key}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`);
-  }
-  return key;
+];
+function aiErrorMessage(status, body){
+  const raw=String(body||'').slice(0,500);
+  if(status===401) return 'Pollinations rejected the server key. Check POLLINATIONS_API_KEY on Render.';
+  if(status===402) return 'Pollinations has no available Pollen for the configured account/key.';
+  if(status===429) return 'The AI provider is busy right now. Please try again in a moment.';
+  if(status>=500) return 'The AI provider had a temporary server error. Please try again.';
+  return raw || `AI provider returned HTTP ${status}.`;
 }
-
-function aiRateAllowed(key) {
-  const now = Date.now(), windowMs = 60_000, max = 18;
-  const arr = (aiRate.get(key) || []).filter(t => now - t < windowMs);
-  if (arr.length >= max) { aiRate.set(key, arr); return false; }
-  arr.push(now);
-  aiRate.set(key, arr);
-  return true;
-}
-
-const TUTOR_SYSTEM = `You are Index Tutor, a strong, accurate, friendly school tutor for middle and high school students.
-
-CONVERSATION:
-- Treat the supplied messages as one continuous conversation.
-- Follow-up questions such as "why?", "how?", "what about the other case?", or "can you explain that part?" refer to the immediately preceding discussion unless the student clearly changes topics.
-- Do not restart the lesson unnecessarily. Continue from the exact point the student is asking about.
-- Remember facts the student already gave you in this conversation.
-- If you made a mistake earlier, explicitly correct it and continue.
-
-KNOWLEDGE AND ACCURACY:
-- Prefer concrete, specific explanations over generic filler.
-- Explain the reasoning, not just the conclusion.
-- For history/civics/literature, distinguish established facts from interpretation.
-- For math/science, show the important calculation or logic steps.
-- Never invent facts, quotations, citations, or sources. When uncertain about a detail, say so.
-
-ACADEMIC INTEGRITY:
-- Help the student learn and understand.
-- If the student says this is a live test, quiz, exam, assessment, or asks for the direct answer to an active graded assessment, do not provide the direct answer. Give a concept explanation, similar example, or hint instead.
-- Never help impersonate someone, bypass school security/rules, or conceal misconduct.
-
-SAFETY AND RESPECT:
-- Do not generate bullying, harassment, hate, sexual content, threats, or instructions for harmful or illegal behavior.
-- For unsafe or inappropriate requests, briefly decline that part and redirect to a safe academic alternative.
-
-MATH/SCIENCE FORMATTING:
-- Never use LaTeX delimiters or raw LaTeX commands.
-- Use Unicode symbols directly: √ × ÷ ± ≤ ≥ ≠ ≈ → ∑ π °.
-- Use plain-text fractions such as a/b when needed.
-- Keep equations readable and show steps one at a time.
-
-STYLE:
-- Concise but substantive. Do not pad the response.
-- Use short headings or bullets only when they improve clarity.
-- Do not repeat the student's entire question.
-- When there is one clear result, put it on a final line beginning with "Answer:".`;
-
-function sanitizeAiMessages(messages) {
-  return messages
-    .filter(m => m && (m.role === 'system' || m.role === 'user' || m.role === 'assistant'))
-    .map(m => ({
-      role: m.role,
-      content: String(m.content || '').slice(0, 7000)
-    }))
-    .filter(m => m.content.trim());
-}
-
-function extractAiError(status, raw) {
-  const text = String(raw || '').trim();
-  try {
-    const data = JSON.parse(text);
-    const message = data?.error?.message || data?.error || data?.message;
-    if (message) return String(message).slice(0, 500);
-  } catch (_) {}
-  return text.replace(/\s+/g, ' ').slice(0, 500) || `HTTP ${status}`;
-}
-
-function isRetryableAiStatus(status) {
-  return [408, 425, 429, 500, 502, 503, 504].includes(status);
-}
-
-async function fetchWithTimeout(url, options, timeoutMs = AI_TIMEOUT_MS) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try { return await fetch(url, { ...options, signal: controller.signal }); }
-  finally { clearTimeout(timer); }
-}
-
-async function callPollinationsChat(messages) {
-  if (!POLLINATIONS_API_KEY) {
-    throw new Error('Pollinations AI is not configured on the server. Add POLLINATIONS_API_KEY in Render Environment Variables.');
-  }
-
-  const upstreamMessages = [
-    { role: 'system', content: TUTOR_SYSTEM },
-    ...messages.filter(m => m.role !== 'system'),
-  ].slice(-18);
-
-  let lastError = null;
-  for (let pass = 0; pass < 2; pass++) {
-    for (const model of POLLINATIONS_MODELS) {
-      try {
-        const upstream = await fetchWithTimeout('https://gen.pollinations.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            'authorization': `Bearer ${POLLINATIONS_API_KEY}`,
-            'accept': 'application/json'
-          },
-          body: JSON.stringify({
-            model,
-            messages: upstreamMessages,
-            temperature: 0.2,
-            max_tokens: 1100,
-            stream: false
-          })
-        });
-
-        const raw = await upstream.text();
-        if (!upstream.ok) {
-          const reason = extractAiError(upstream.status, raw);
-          lastError = new Error(`Pollinations ${model}: ${reason}`);
-          // Bad auth/budget/model errors will not be fixed by hammering the API.
-          if (!isRetryableAiStatus(upstream.status)) break;
-          continue;
-        }
-
-        let data;
-        try { data = JSON.parse(raw); }
-        catch (_) { throw new Error(`Pollinations ${model} returned invalid JSON.`); }
-
-        let content = data?.choices?.[0]?.message?.content;
-        if (Array.isArray(content)) {
-          content = content.map(part => typeof part === 'string' ? part : (part?.text || '')).join(' ');
-        }
-        content = String(content || '').trim();
-        if (!content) throw new Error(`Pollinations ${model} returned an empty response.`);
-        return { content, model };
-      } catch (err) {
-        lastError = err;
+async function pollinationsChat(messages){
+  const key=String(process.env.POLLINATIONS_API_KEY || '').trim();
+  if(!key) return null;
+  let lastErr=null;
+  for(const model of AI_MODEL_CHAIN){
+    const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(), 24000);
+    try{
+      const upstream=await fetch('https://gen.pollinations.ai/v1/chat/completions',{
+        method:'POST',
+        signal:controller.signal,
+        headers:{'content-type':'application/json','authorization':`Bearer ${key}`,'accept':'application/json'},
+        body:JSON.stringify({model,messages,temperature:0.2,max_tokens:900,stream:false})
+      });
+      const body=await upstream.text();
+      if(upstream.ok){
+        const data=JSON.parse(body); const content=data?.choices?.[0]?.message?.content;
+        if(content && String(content).trim()) return String(content).trim();
+        lastErr=new Error('Pollinations returned no text.');
+      }else{
+        lastErr=new Error(aiErrorMessage(upstream.status,body));
+        if(![408,429,500,502,503,504].includes(upstream.status)) break;
       }
-    }
-    if (pass === 0) await new Promise(resolve => setTimeout(resolve, AI_RETRY_DELAY_MS));
+    }catch(e){ lastErr=e; } finally{ clearTimeout(timer); }
   }
-
-  throw lastError || new Error('Pollinations did not return a usable response.');
+  throw lastErr || new Error('Pollinations AI request failed.');
 }
-
-app.get('/api/ai-status', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({
-    enabled: !!POLLINATIONS_API_KEY,
-    provider: 'pollinations',
-    models: POLLINATIONS_MODELS
-  });
+async function pollinationsLegacy(prompt){
+  const url='https://text.pollinations.ai/'+encodeURIComponent(prompt)+'?model=openai';
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),18000);
+  try{
+    const r=await fetch(url,{signal:controller.signal,headers:{accept:'text/plain'}});
+    const body=await r.text();
+    if(!r.ok) throw new Error(aiErrorMessage(r.status,body));
+    if(!body.trim()) throw new Error('The AI provider returned an empty response.');
+    return body.trim();
+  }finally{ clearTimeout(timer); }
+}
+app.get('/api/ai-status',(req,res)=>{
+  res.json({enabled:true, serverProvider:!!process.env.POLLINATIONS_API_KEY, legacyFallback:true});
 });
-
-app.post('/api/ai/chat', async (req, res) => {
-  try {
-    const key = aiClientKey(req, res);
-    if (!aiRateAllowed(key)) {
-      return res.status(429).json({ error: 'You have reached the tutor request limit. Please wait about a minute and try again.' });
+app.post('/api/ai/chat', async (req,res)=>{
+  try{
+    const ip=String(req.headers['x-forwarded-for']||req.socket.remoteAddress||'unknown').split(',')[0].trim();
+    if(!aiRateAllowed(ip)) return res.status(429).json({error:'Too many AI requests from this browser. Please wait a moment and try again.'});
+    const incoming=Array.isArray(req.body?.messages)?req.body.messages:[];
+    const messages=incoming.filter(m=>m && ['system','user','assistant'].includes(m.role)).map(m=>({role:m.role,content:String(m.content||'').slice(0,7000)})).slice(-18);
+    if(!messages.length) return res.status(400).json({error:'No messages supplied.'});
+    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:'I can help with academic or safety-focused questions, but not harmful, sexual, or harassing content.'});
+    const tutorQuality=`You are a strong, careful school tutor for middle and high school students. Teach the reasoning and remember the conversation. Directly answer follow-up questions using previous turns. Be concise but specific.
+ACADEMIC INTEGRITY: if the student says this is an active graded test, quiz, exam, or assessment, do not provide the direct answer; teach the concept or a similar example.
+MATH/SCIENCE: use Unicode symbols such as √ × ÷ ± ≤ ≥ ≠ ≈ → ∑ π ° and never output LaTeX delimiters or raw commands.
+NEVER invent sources, quotations, statistics, or citations.`;
+    const systemIndex=messages.findIndex(m=>m.role==='system');
+    if(systemIndex>=0) messages[systemIndex].content=`${tutorQuality}\n\n${messages[systemIndex].content}`; else messages.unshift({role:'system',content:tutorQuality});
+    try{
+      const content=await pollinationsChat(messages);
+      if(content) return res.json({content,provider:'pollinations'});
+    }catch(primary){
+      console.warn('Current Pollinations API failed:',primary.message);
     }
-
-    const incoming = Array.isArray(req.body?.messages) ? req.body.messages : [];
-    if (!incoming.length) return res.status(400).json({ error: 'No messages supplied.' });
-    if (incoming.length > 20) return res.status(400).json({ error: 'Conversation is too long. Start a new tutor chat.' });
-    if (incoming.some(m => String(m?.content || '').length > 7000)) {
-      return res.status(400).json({ error: 'That message is too long. Please shorten it.' });
-    }
-    if (!POLLINATIONS_API_KEY) {
-      return res.status(503).json({ error: 'Pollinations AI is not configured yet. Add POLLINATIONS_API_KEY in Render Environment Variables.' });
-    }
-    if (!aiContentIsAllowed(incoming)) {
-      return res.status(400).json({ error: 'I can help with an academic or safety-focused question, but not with harmful, sexual, or harassing content.' });
-    }
-
-    const messages = sanitizeAiMessages(incoming);
-    const suppliedSystem = messages.filter(m => m.role === 'system').map(m => m.content).join('\n\n').slice(0, 7000);
-    const nonSystem = messages.filter(m => m.role !== 'system').slice(-16);
-    const mergedMessages = [
-      ...(suppliedSystem ? [{ role: 'system', content: suppliedSystem }] : []),
-      ...nonSystem
-    ];
-
-    const result = await callPollinationsChat(mergedMessages);
-    res.setHeader('Cache-Control', 'no-store');
-    res.json({ content: result.content, model: result.model, upgraded: true });
-  } catch (err) {
-    console.error('AI proxy failed:', err);
-    const msg = String(err?.message || err || 'AI provider request failed');
-    const status = /not configured/i.test(msg) ? 503 : 502;
-    res.status(status).json({ error: msg });
+    const prompt=messages.map(m=>`${m.role==='system'?'System':m.role==='assistant'?'Tutor':'Student'}: ${m.content}`).join('\n\n').slice(0,18000);
+    const legacy=await pollinationsLegacy(`${prompt}\n\nTutor:`);
+    return res.json({content:legacy,provider:'pollinations-legacy'});
+  }catch(err){
+    console.error('AI proxy failed:',err);
+    res.status(502).json({error:String(err?.message||err||'AI provider request failed')});
   }
 });
+
+function publicOrigin(req){
+  if(PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
+  const proto=String(req.headers['x-forwarded-proto']||req.protocol||'https').split(',')[0].trim();
+  const host=String(req.headers['x-forwarded-host']||req.get('host')||'').split(',')[0].trim();
+  return `${proto}://${host}`;
+}
+function googleRedirectUri(req){ return `${publicOrigin(req)}/api/auth/google/callback`; }
 
 
 const server = http.createServer(app);
@@ -447,7 +341,7 @@ app.post('/api/auth/delete', (req, res) => {
 
 app.get('/api/auth/google/start', (req, res) => {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return res.status(501).send('Google sign-in is not configured on this server. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.');
-  const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+  const redirectUri = googleRedirectUri(req);
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
   url.searchParams.set('client_id', GOOGLE_CLIENT_ID);
   url.searchParams.set('redirect_uri', redirectUri);
@@ -462,7 +356,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
   const { code } = req.query;
   if (!code) return res.redirect('/?authError=' + encodeURIComponent('Google sign-in was cancelled.'));
   try {
-    const redirectUri = `${req.protocol}://${req.get('host')}/api/auth/google/callback`;
+    const redirectUri = googleRedirectUri(req);
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
