@@ -136,39 +136,64 @@ GENERAL FORMATTING RULES:
     }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    // Pollinations' legacy text endpoint supports both normal text and JSON-mode
-    // requests without putting an API key in the browser. Learn/study-set builders
-    // depend on strict JSON, so send jsonMode when requested instead of asking the
-    // model to imitate JSON in ordinary text mode. Keep a GET fallback for older
-    // Pollinations deployments.
+    // Zero-configuration AI path: keep the same anonymous Pollinations flow that
+    // previously powered Index. No Render AI environment variables are required.
+    // The browser still talks only to this server, so school and home computers
+    // use the same backend route.
     const wantsJson = req.body?.jsonMode === true;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     let upstream;
     let body = '';
     try {
+      const currentMessages = [
+        { role: 'system', content: `${tutorQuality}${system ? '\n\n' + system : ''}` },
+        ...turns
+      ];
+
+      // Legacy endpoint is retained because it previously worked without any
+      // account/key setup. JSON mode is requested only for the Learn feature.
       upstream = await fetch('https://text.pollinations.ai/', {
         method: 'POST',
         signal: controller.signal,
         headers: { 'content-type': 'application/json', 'accept': 'text/plain, application/json' },
-        body: JSON.stringify({ messages, model: 'openai', ...(wantsJson ? { jsonMode: true } : {}) })
+        body: JSON.stringify({
+          messages: currentMessages,
+          model: 'openai',
+          ...(wantsJson ? { jsonMode: true } : {}),
+          temperature: wantsJson ? 0.2 : 0.25,
+          max_tokens: wantsJson ? 900 : 900
+        })
       });
       body = await upstream.text();
 
-      // Some older/free deployments only expose the GET route. Retry there if the
-      // POST route is unavailable, rather than turning a temporary endpoint mismatch
-      // into the generic "Couldn't build that lesson" message.
+      // If the legacy POST service is temporarily unhealthy, try its simple GET
+      // route once. This needs no key and often responds faster for short tutor
+      // questions. Do not retry twice after a successful HTTP response.
       if (!upstream.ok) {
-        const query = wantsJson ? '&json=true' : '';
-        const fallbackUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai' + query;
-        upstream = await fetch(fallbackUrl, { signal: controller.signal, headers: { 'accept': 'text/plain, application/json' } });
+        const fallbackPrompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 15000);
+        const qs = new URLSearchParams({ model: 'openai' });
+        if (wantsJson) qs.set('json', 'true');
+        qs.set('temperature', wantsJson ? '0.2' : '0.25');
+        qs.set('max_tokens', wantsJson ? '900' : '900');
+        upstream = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fallbackPrompt)}?${qs.toString()}`, {
+          signal: controller.signal,
+          headers: { 'accept': 'text/plain, application/json' }
+        });
         body = await upstream.text();
       }
     } finally { clearTimeout(timeout); }
 
     if (!upstream.ok) {
-      if ([401,402,403].includes(upstream.status)) throw new Error('The free text AI provider is currently unavailable (HTTP '+upstream.status+').');
-      throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
+      let providerMessage = body.slice(0, 500);
+      try {
+        const errObj = JSON.parse(body);
+        providerMessage = String(errObj?.error?.message || errObj?.error || errObj?.message || providerMessage);
+      } catch (_) {}
+      if ([401,402,403].includes(upstream.status)) {
+        throw new Error('The free AI service is temporarily unavailable. Please try the question again in a moment.');
+      }
+      throw new Error(`AI provider returned HTTP ${upstream.status}: ${providerMessage}`);
     }
     if (!body.trim()) throw new Error('AI provider returned an empty response.');
 
@@ -180,6 +205,7 @@ GENERAL FORMATTING RULES:
       try {
         const wrapped = JSON.parse(content);
         if (typeof wrapped === 'string') { content = wrapped.trim(); continue; }
+        if (wrapped?.candidates?.[0]?.content?.parts) { content = wrapped.candidates[0].content.parts.map(p => String(p?.text || '')).join('').trim(); continue; }
         if (wrapped?.choices?.[0]?.message?.content != null) { content = String(wrapped.choices[0].message.content).trim(); continue; }
         if (wrapped?.choices?.[0]?.text != null) { content = String(wrapped.choices[0].text).trim(); continue; }
         if (typeof wrapped?.content === 'string') { content = wrapped.content.trim(); continue; }
