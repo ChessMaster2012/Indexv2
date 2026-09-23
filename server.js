@@ -136,22 +136,63 @@ GENERAL FORMATTING RULES:
     }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
+    // Pollinations' legacy text endpoint supports both normal text and JSON-mode
+    // requests without putting an API key in the browser. Learn/study-set builders
+    // depend on strict JSON, so send jsonMode when requested instead of asking the
+    // model to imitate JSON in ordinary text mode. Keep a GET fallback for older
+    // Pollinations deployments.
+    const wantsJson = req.body?.jsonMode === true;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
     let upstream;
+    let body = '';
     try {
-      upstream = await fetch(url, { signal: controller.signal, headers: { 'accept': 'text/plain' } });
+      upstream = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'content-type': 'application/json', 'accept': 'text/plain, application/json' },
+        body: JSON.stringify({ messages, model: 'openai', ...(wantsJson ? { jsonMode: true } : {}) })
+      });
+      body = await upstream.text();
+
+      // Some older/free deployments only expose the GET route. Retry there if the
+      // POST route is unavailable, rather than turning a temporary endpoint mismatch
+      // into the generic "Couldn't build that lesson" message.
+      if (!upstream.ok) {
+        const query = wantsJson ? '&json=true' : '';
+        const fallbackUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai' + query;
+        upstream = await fetch(fallbackUrl, { signal: controller.signal, headers: { 'accept': 'text/plain, application/json' } });
+        body = await upstream.text();
+      }
     } finally { clearTimeout(timeout); }
-    const body = await upstream.text();
+
     if (!upstream.ok) {
-      if ([402, 403].includes(upstream.status)) throw new Error('The free text AI provider declined the request (HTTP '+upstream.status+'). Index does not use an owner-paid API key on this route.');
+      if ([401,402,403].includes(upstream.status)) throw new Error('The free text AI provider is currently unavailable (HTTP '+upstream.status+').');
       throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
     }
     if (!body.trim()) throw new Error('AI provider returned an empty response.');
+
+    // Pollinations may return plain text, an OpenAI-style wrapper, a {content}
+    // wrapper, or (with json=true) a JSON-encoded string/object. Normalize all of
+    // those shapes before returning to the browser.
+    let content = body.trim();
+    for (let pass = 0; pass < 3; pass++) {
+      try {
+        const wrapped = JSON.parse(content);
+        if (typeof wrapped === 'string') { content = wrapped.trim(); continue; }
+        if (wrapped?.choices?.[0]?.message?.content != null) { content = String(wrapped.choices[0].message.content).trim(); continue; }
+        if (wrapped?.choices?.[0]?.text != null) { content = String(wrapped.choices[0].text).trim(); continue; }
+        if (typeof wrapped?.content === 'string') { content = wrapped.content.trim(); continue; }
+        if (typeof wrapped?.text === 'string') { content = wrapped.text.trim(); continue; }
+        if (wrapped?.response?.content != null) { content = typeof wrapped.response.content === 'string' ? wrapped.response.content.trim() : JSON.stringify(wrapped.response.content); continue; }
+        break;
+      } catch (_) { break; }
+    }
+    if (!content) throw new Error('AI provider returned an empty response.');
+
     res.set('Cache-Control','no-store');
     res.set('X-Index-AI-Limit','no-daily-question-cap');
-    res.json({ content: body.trim() });
+    res.json({ content });
   } catch (err) {
     console.error('AI proxy failed:', err);
     res.status(502).json({ error: String(err?.message || err || 'AI provider request failed') });
