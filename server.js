@@ -79,17 +79,17 @@ function aiContentIsAllowed(messages) {
 
 // Local browser-AI runtime/model proxy.
 // The browser contacts only Index. Generation itself happens on the student's device.
-const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/';
+const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/';
 const LOCAL_AI_MODELS = {
+  'onnx-community/Qwen3-0.6B-ONNX': new Set([
+    'added_tokens.json','config.json','generation_config.json','merges.txt','special_tokens_map.json',
+    'tokenizer.json','tokenizer_config.json','vocab.json','chat_template.jinja',
+    'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_q4.onnx'
+  ]),
   'onnx-community/Qwen2.5-0.5B-Instruct': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
     'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json',
     'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx'
-  ]),
-  'onnx-community/SmolLM2-360M-Instruct-ONNX': new Set([
-    'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
-    'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json','tokenizer_config.json',
-    'onnx/model_quantized.onnx','onnx/model_q4f16.onnx'
   ])
 };
 app.get('/api/ai/assets/:asset', async (req,res)=>{
@@ -104,18 +104,16 @@ app.get('/api/ai/assets/:asset', async (req,res)=>{
   }catch(e){ console.error('Local AI runtime proxy:',e.message); res.status(502).send('AI runtime asset unavailable.'); }
 });
 app.get('/api/ai/model/*', async (req,res)=>{
-  const parts=String(req.params[0]||'').split('/');
+  const parts=String(req.params[0]||'').split('/').map(x=>{ try{return decodeURIComponent(x);}catch{return x;} });
   if(parts.length<5) return res.status(404).end();
   const model=`${parts[0]}/${parts[1]}`;
   const revision=parts[3];
-  // Compatibility: some Transformers.js builds historically emitted
-  // /resolve/main/{file}/<actual-file>. Normalize that broken-but-valid-looking
-  // request so the school Chromebook can still load the model through Index.
   let file=parts.slice(4).join('/');
   if(file.startsWith('{file}/')) file=file.slice('{file}/'.length);
+  file=file.replace(/^\/+/, '');
   if(parts[2]!=='resolve' || revision!=='main') return res.status(404).end();
   const allowed=LOCAL_AI_MODELS[model];
-  if(!allowed || !allowed.has(file)) return res.status(404).end();
+  if(!allowed || !allowed.has(file) || file.includes('..')) return res.status(404).end();
   try{
     const upstream=await fetch(`https://huggingface.co/${model}/resolve/${revision}/${file}`,{headers:{accept:'*/*'}});
     if(!upstream.ok) return res.status(upstream.status).send('Local AI model file unavailable.');
