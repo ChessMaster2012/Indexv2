@@ -136,53 +136,50 @@ GENERAL FORMATTING RULES:
     }
     const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
 
-    // Restore the exact no-key Pollinations model/route that was previously confirmed working.
-    // No new Render environment variables are required.
+    // Pollinations' legacy text endpoint supports both normal text and JSON-mode
+    // requests without putting an API key in the browser. Learn/study-set builders
+    // depend on strict JSON, so send jsonMode when requested instead of asking the
+    // model to imitate JSON in ordinary text mode. Keep a GET fallback for older
+    // Pollinations deployments.
     const wantsJson = req.body?.jsonMode === true;
-    const providerPrompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
-    const url = 'https://text.pollinations.ai/' + encodeURIComponent(providerPrompt) + '?model=openai' + (wantsJson ? '&json=true' : '');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
     let upstream;
     let body = '';
     try {
-      upstream = await fetch(url, {
+      upstream = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
         signal: controller.signal,
-        headers: { 'accept': 'text/plain, application/json' }
+        headers: { 'content-type': 'application/json', 'accept': 'text/plain, application/json' },
+        body: JSON.stringify({ messages, model: 'openai', ...(wantsJson ? { jsonMode: true } : {}) })
       });
       body = await upstream.text();
+
+      // Some older/free deployments only expose the GET route. Retry there if the
+      // POST route is unavailable, rather than turning a temporary endpoint mismatch
+      // into the generic "Couldn't build that lesson" message.
+      if (!upstream.ok) {
+        const query = wantsJson ? '&json=true' : '';
+        const fallbackUrl = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai' + query;
+        upstream = await fetch(fallbackUrl, { signal: controller.signal, headers: { 'accept': 'text/plain, application/json' } });
+        body = await upstream.text();
+      }
     } finally { clearTimeout(timeout); }
 
     if (!upstream.ok) {
-      let providerMessage = body.slice(0, 500);
-      try {
-        const errObj = JSON.parse(body);
-        providerMessage = String(errObj?.error?.message || errObj?.error || errObj?.message || providerMessage);
-      } catch (_) {}
-      if ([401,402,403].includes(upstream.status)) {
-        throw new Error('The free AI service is temporarily unavailable. Please try the question again in a moment.');
-      }
-      throw new Error(`AI provider returned HTTP ${upstream.status}: ${providerMessage}`);
+      if ([401,402,403].includes(upstream.status)) throw new Error('The free text AI provider is currently unavailable (HTTP '+upstream.status+').');
+      throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
     }
     if (!body.trim()) throw new Error('AI provider returned an empty response.');
 
-    // Pollinations may return plain text, an OpenAI-style wrapper, a {content}
-    // wrapper, or (with json=true) a JSON-encoded string/object. Normalize all of
-    // those shapes before returning to the browser.
+    // A few providers return an OpenAI-style wrapper even when plain text was
+    // requested. Normalize it so the browser always receives the actual text.
     let content = body.trim();
-    for (let pass = 0; pass < 3; pass++) {
-      try {
-        const wrapped = JSON.parse(content);
-        if (typeof wrapped === 'string') { content = wrapped.trim(); continue; }
-        if (wrapped?.candidates?.[0]?.content?.parts) { content = wrapped.candidates[0].content.parts.map(p => String(p?.text || '')).join('').trim(); continue; }
-        if (wrapped?.choices?.[0]?.message?.content != null) { content = String(wrapped.choices[0].message.content).trim(); continue; }
-        if (wrapped?.choices?.[0]?.text != null) { content = String(wrapped.choices[0].text).trim(); continue; }
-        if (typeof wrapped?.content === 'string') { content = wrapped.content.trim(); continue; }
-        if (typeof wrapped?.text === 'string') { content = wrapped.text.trim(); continue; }
-        if (wrapped?.response?.content != null) { content = typeof wrapped.response.content === 'string' ? wrapped.response.content.trim() : JSON.stringify(wrapped.response.content); continue; }
-        break;
-      } catch (_) { break; }
-    }
+    try {
+      const wrapped = JSON.parse(content);
+      if (wrapped?.choices?.[0]?.message?.content) content = String(wrapped.choices[0].message.content).trim();
+      else if (typeof wrapped?.content === 'string') content = wrapped.content.trim();
+    } catch (_) {}
     if (!content) throw new Error('AI provider returned an empty response.');
 
     res.set('Cache-Control','no-store');
