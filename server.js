@@ -79,7 +79,7 @@ function aiContentIsAllowed(messages) {
 
 // Local browser-AI runtime/model proxy.
 // The browser contacts only Index. Generation itself happens on the student's device.
-const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/';
+const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/';
 const LOCAL_AI_MODELS = {
   'onnx-community/Qwen3-0.6B-ONNX': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','special_tokens_map.json',
@@ -94,7 +94,7 @@ const LOCAL_AI_MODELS = {
 };
 app.get('/api/ai/assets/:asset', async (req,res)=>{
   const asset=String(req.params.asset||'');
-  if(!/^(?:transformers\.min\.js|transformers\.js|ort-wasm-[A-Za-z0-9._-]+\.(?:mjs|wasm))$/.test(asset)) return res.status(404).end();
+  if(!/^(?:transformers\.min\.js|transformers\.js|transformers\.web\.min\.js|transformers\.web\.js|ort-wasm-[A-Za-z0-9._-]+\.(?:mjs|wasm))$/.test(asset)) return res.status(404).end();
   try{
     const upstream=await fetch(LOCAL_AI_CDN+asset,{headers:{accept:'*/*'}});
     if(!upstream.ok) return res.status(upstream.status).send('AI runtime asset unavailable.');
