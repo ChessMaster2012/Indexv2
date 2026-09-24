@@ -78,9 +78,14 @@ function aiContentIsAllowed(messages) {
 }
 
 // Local browser-AI runtime/model proxy.
-// The browser contacts only Index. Generation itself happens on the student's device.
-const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/';
-const LOCAL_ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
+// The browser contacts only Index for the runtime and model files. Generation itself happens on the student's device.
+// Transformers.js and ONNX Runtime are installed as normal npm dependencies and served from node_modules so
+// the browser never has to import a bare npm specifier or depend on a CDN for the AI runtime.
+const LOCAL_AI_PACKAGE_DIR = path.join(__dirname, 'node_modules', '@huggingface', 'transformers', 'dist');
+const LOCAL_ORT_PACKAGE_DIRS = [
+  path.join(__dirname, 'node_modules', 'onnxruntime-web', 'dist'),
+  path.join(__dirname, 'node_modules', '@huggingface', 'transformers', 'node_modules', 'onnxruntime-web', 'dist')
+];
 const LOCAL_AI_MODELS = {
   'onnx-community/Qwen3-0.6B-ONNX': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','special_tokens_map.json',
@@ -98,20 +103,47 @@ const LOCAL_AI_MODELS = {
     'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_q4.onnx'
   ])
 };
-app.get('/api/ai/assets/:asset', async (req,res)=>{
+const LOCAL_AI_ASSET_FILES = {
+  'transformers.min.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.min.js'),
+  'transformers.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.js'),
+  'transformers.web.min.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.web.min.js'),
+  'transformers.web.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.web.js')
+};
+function findLocalOrtAsset(name){
+  for(const dir of LOCAL_ORT_PACKAGE_DIRS){
+    const file=path.join(dir,name);
+    if(fs.existsSync(file)) return file;
+  }
+  return null;
+}
+app.get('/api/ai/assets/:asset', (req,res)=>{
   const asset=String(req.params.asset||'');
-  if(!/^(?:transformers\.min\.js|transformers\.js|transformers\.web\.min\.js|transformers\.web\.js|ort-wasm-[A-Za-z0-9._-]+\.(?:mjs|wasm))$/.test(asset)) return res.status(404).end();
+  if(!/^(?:transformers\.min\.js|transformers\.js|transformers\.web\.min\.js|transformers\.web\.js|ort\.bundle\.min\.mjs|ort-wasm-[A-Za-z0-9._-]+\.(?:mjs|wasm))$/.test(asset)) return res.status(404).end();
   try{
-    const assetBase=asset.startsWith('ort-') ? LOCAL_ORT_CDN : LOCAL_AI_CDN;
-    let upstream=await fetch(assetBase+asset,{headers:{accept:'*/*'}});
-    if(!upstream.ok && asset.startsWith('ort-')) {
-      upstream=await fetch(LOCAL_AI_CDN+asset,{headers:{accept:'*/*'}});
+    const file = asset.startsWith('ort')
+      ? findLocalOrtAsset(asset)
+      : LOCAL_AI_ASSET_FILES[asset]?.();
+    if(!file || !fs.existsSync(file)){
+      console.error('Local AI asset missing:', asset, file || '(no matching file)');
+      return res.status(503).send('AI runtime asset is not installed. Render should run npm install after updating package.json.');
     }
-    if(!upstream.ok) return res.status(upstream.status).send('AI runtime asset unavailable.');
     res.setHeader('Content-Type',asset.endsWith('.wasm')?'application/wasm':'text/javascript');
     res.setHeader('Cache-Control','public,max-age=31536000,immutable');
-    if(upstream.body) Readable.fromWeb(upstream.body).pipe(res); else res.end(Buffer.from(await upstream.arrayBuffer()));
-  }catch(e){ console.error('Local AI runtime proxy:',e.message); res.status(502).send('AI runtime asset unavailable.'); }
+    res.setHeader('Cross-Origin-Resource-Policy','same-origin');
+    res.sendFile(path.resolve(file));
+  }catch(e){
+    console.error('Local AI runtime asset error:',e.message);
+    res.status(500).send('AI runtime asset unavailable.');
+  }
+});
+app.get('/api/ai/runtime-status', (req,res)=>{
+  const required=['transformers.min.js','ort.bundle.min.mjs','ort-wasm-simd-threaded.jsep.mjs','ort-wasm-simd-threaded.jsep.wasm'];
+  const files={};
+  for(const name of required){
+    const file=name.startsWith('transformers')?LOCAL_AI_ASSET_FILES[name]?.():findLocalOrtAsset(name);
+    files[name]=Boolean(file && fs.existsSync(file));
+  }
+  res.json({ok:Object.values(files).every(Boolean),files});
 });
 app.get('/api/ai/model/*', async (req,res)=>{
   const parts=String(req.params[0]||'').split('/').map(x=>{ try{return decodeURIComponent(x);}catch{return x;} });

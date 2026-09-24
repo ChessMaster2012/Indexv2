@@ -2,16 +2,13 @@
   "name": "index-study-app",
   "version": "1.0.0",
   "private": true,
-  "description": "Index study app with free-first client AI and school-friendly fallbacks",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.22.3",
-    "socket.io": "^4.8.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "@huggingface/transformers": "3.8.1"
   }
 }
