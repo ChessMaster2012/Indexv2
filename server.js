@@ -87,20 +87,15 @@ const LOCAL_ORT_PACKAGE_DIRS = [
   path.join(__dirname, 'node_modules', '@huggingface', 'transformers', 'node_modules', 'onnxruntime-web', 'dist')
 ];
 const LOCAL_AI_MODELS = {
-  'onnx-community/Qwen3-0.6B-ONNX': new Set([
-    'added_tokens.json','config.json','generation_config.json','merges.txt','special_tokens_map.json',
-    'tokenizer.json','tokenizer_config.json','vocab.json','chat_template.jinja',
-    'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_q4.onnx'
+  'onnx-community/Qwen2.5-1.5B-Instruct': new Set([
+    'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
+    'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json',
+    'onnx/model_q4f16.onnx','onnx/model_q4.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_bnb4.onnx'
   ]),
   'onnx-community/Qwen2.5-0.5B-Instruct': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
     'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json',
-    'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx'
-  ]),
-  'onnx-community/Qwen3-0.6B-Instruct-ONNX': new Set([
-    'added_tokens.json','config.json','generation_config.json','merges.txt','special_tokens_map.json',
-    'tokenizer.json','tokenizer_config.json','vocab.json','chat_template.jinja',
-    'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_q4.onnx'
+    'onnx/model_q4f16.onnx','onnx/model_q4.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_bnb4.onnx'
   ])
 };
 const LOCAL_AI_ASSET_FILES = {
