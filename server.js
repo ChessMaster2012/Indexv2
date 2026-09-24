@@ -80,6 +80,7 @@ function aiContentIsAllowed(messages) {
 // Local browser-AI runtime/model proxy.
 // The browser contacts only Index. Generation itself happens on the student's device.
 const LOCAL_AI_CDN = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/';
+const LOCAL_ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/';
 const LOCAL_AI_MODELS = {
   'onnx-community/Qwen3-0.6B-ONNX': new Set([
     'added_tokens.json','config.json','generation_config.json','merges.txt','special_tokens_map.json',
@@ -90,13 +91,22 @@ const LOCAL_AI_MODELS = {
     'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
     'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json',
     'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx'
+  ]),
+  'onnx-community/Qwen3-0.6B-Instruct-ONNX': new Set([
+    'added_tokens.json','config.json','generation_config.json','merges.txt','special_tokens_map.json',
+    'tokenizer.json','tokenizer_config.json','vocab.json','chat_template.jinja',
+    'onnx/model_q4f16.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_q4.onnx'
   ])
 };
 app.get('/api/ai/assets/:asset', async (req,res)=>{
   const asset=String(req.params.asset||'');
   if(!/^(?:transformers\.min\.js|transformers\.js|transformers\.web\.min\.js|transformers\.web\.js|ort-wasm-[A-Za-z0-9._-]+\.(?:mjs|wasm))$/.test(asset)) return res.status(404).end();
   try{
-    const upstream=await fetch(LOCAL_AI_CDN+asset,{headers:{accept:'*/*'}});
+    const assetBase=asset.startsWith('ort-') ? LOCAL_ORT_CDN : LOCAL_AI_CDN;
+    let upstream=await fetch(assetBase+asset,{headers:{accept:'*/*'}});
+    if(!upstream.ok && asset.startsWith('ort-')) {
+      upstream=await fetch(LOCAL_AI_CDN+asset,{headers:{accept:'*/*'}});
+    }
     if(!upstream.ok) return res.status(upstream.status).send('AI runtime asset unavailable.');
     res.setHeader('Content-Type',asset.endsWith('.wasm')?'application/wasm':'text/javascript');
     res.setHeader('Cache-Control','public,max-age=31536000,immutable');
@@ -125,82 +135,17 @@ app.get('/api/ai/model/*', async (req,res)=>{
   }catch(e){ console.error('Local AI model proxy:',e.message); res.status(502).send('Local AI model unavailable.'); }
 });
 
-// School-network-friendly AI proxy. The browser only talks to this Render server;
-// the server talks to the external text provider, so browser WebGPU/CDN access is not required.
-app.post('/api/ai/chat', async (req, res) => {
-  try {
-    const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
-    if (!messages.length) return res.status(400).json({ error: 'No messages supplied.' });
-    if (messages.length > 12) return res.status(400).json({ error: 'Conversation is too long. Start a new tutor question.' });
-    if (messages.some(m => String(m?.content || '').length > 5000)) return res.status(400).json({ error: 'That message is too long. Please shorten it.' });
-
-    const system = messages.filter(m => m && m.role === 'system').map(m => String(m.content || '')).join('\n\n').slice(0, 7000);
-    if (!aiContentIsAllowed(messages)) return res.status(400).json({ error: 'I can help with an academic or safety-focused question, but not with harmful, sexual, or harassing content.' });
-
-    const tutorQuality = `You are a high-quality, careful school tutor for middle and high school students. Give correct, useful answers rather than generic filler.
-
-ACADEMIC INTEGRITY:
-- Help students learn and understand their work.
-- If the student says this is a live test, quiz, exam, assessment, or asks for answers to an active graded assessment, do not provide the direct answer. Instead explain the concept, give a similar example, or provide a hint.
-- Never help a student impersonate someone, bypass a school rule, defeat a security control, or conceal misconduct.
-
-SAFETY AND RESPECT:
-- Never generate bullying, harassment, hate, sexual content, threats, or instructions for harmful or illegal behavior.
-- If a request is unsafe or inappropriate, briefly decline that part and redirect to a safe academic alternative.
-
-
-MATH/SCIENCE FORMATTING RULES:
-- NEVER output LaTeX delimiters such as \[ \], \( \), $$, or raw LaTeX commands such as \sqrt, \frac, \times, \cdot, or \boxed.
-- Use real Unicode math symbols directly: √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, °.
-- For a square root, write √49 or √(x + 1), not \sqrt{...}.
-- For fractions, use a/b when a stacked fraction is unnecessary; explain clearly in plain text.
-- Show math one step at a time and make the final answer easy to find.
-
-GENERAL FORMATTING RULES:
-- Use clean plain text and Markdown-style headings/bold only when helpful.
-- Do not output escaped backslashes, code fences, HTML, or instructions about how to type symbols.
-- Do not repeat the student's request unnecessarily.
-- If the student asks for an explanation, actually teach the reasoning.
-- If the question is ambiguous, briefly state the assumption you are making.
-- For schoolwork, prioritize accuracy and explain why the answer is correct.
-- Never invent a source, quotation, statistic, or citation.
-`;
-    const turns = messages.filter(m => m && (m.role === 'user' || m.role === 'assistant')).slice(-10);
-    const transcript = turns.map(m => `${m.role === 'assistant' ? 'Tutor' : 'Student'}: ${String(m.content || '')}`).join('\n\n').slice(-14000);
-    const prompt = `${tutorQuality}\n${system ? system + '\n\n' : ''}${transcript}\n\nTutor:`.slice(0, 19000);
-
-    const url = 'https://text.pollinations.ai/' + encodeURIComponent(prompt) + '?model=openai';
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
-    let upstream;
-    try {
-      upstream = await fetch(url, { signal: controller.signal, headers: { 'accept': 'text/plain' } });
-    } finally { clearTimeout(timeout); }
-    const body = await upstream.text();
-    if (!upstream.ok) {
-      if ([402, 403].includes(upstream.status)) throw new Error('The free text AI provider declined the request (HTTP '+upstream.status+'). Index does not use an owner-paid API key on this route.');
-      throw new Error(`AI provider returned HTTP ${upstream.status}: ${body.slice(0, 300)}`);
-    }
-    if (!body.trim()) throw new Error('AI provider returned an empty response.');
-    res.set('Cache-Control','no-store');
-    res.set('X-Index-AI-Limit','no-daily-question-cap');
-    res.json({ content: body.trim() });
-  } catch (err) {
-    console.error('AI proxy failed:', err);
-    res.status(502).json({ error: String(err?.message || err || 'AI provider request failed') });
-  }
-});
-
-
+// AI chat generation is local-only in the browser. No remote text-generation provider is used.
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 /* ============================== ACCOUNTS ============================== */
 /**
- * Users are stored in a flat JSON file — no database needed, consistent with
- * the rest of this app's "runs anywhere with zero infra" philosophy. Fine for
- * a classroom-scale number of accounts. Sessions are kept in memory only, so
- * everyone just logs back in if the server restarts.
+ * Accounts use Supabase when SUPABASE_URL plus a server-side service-role/secret
+ * key are configured. Without Supabase, the app falls back to data/users.json.
+ * Browser study data is always cached locally; account state is synced to the
+ * configured account store so signed-in progress can persist across devices.
+ * Sessions remain in memory, so users log in again after a server restart.
  *
  * User = {
  *   id, method: 'email', identifier, username,
@@ -604,7 +549,7 @@ app.put('/api/account/state', async (req,res)=>{
     req.user.accountData = sanitizeAccountState(req.body?.state);
     if (SUPABASE_ENABLED) await dbSaveUser(req.user);
     else saveUsers();
-    res.json({ok:true, state:req.user.accountData, storage:'supabase', compressed:true});
+    res.json({ok:true, state:req.user.accountData, storage:SUPABASE_ENABLED?'supabase':'server-file', compressed:true});
   } catch(e) {
     console.error('Account state save error:', e.message);
     res.status(503).json({error:'Could not save your account data right now. Please try again.'});
