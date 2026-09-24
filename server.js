@@ -159,19 +159,41 @@ async function fetchVireonix(messages){
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),AI_REQUEST_TIMEOUT_MS);
     try{
+      // Use the normal JSON completion response here instead of forwarding the
+      // provider's raw SSE stream. The browser gets one small, predictable SSE
+      // event from our server, which avoids parsing mismatches between providers.
       const upstream=await fetch(VIREONIX_CHAT_URL,{
         method:'POST',
-        headers:{'Content-Type':'application/json',accept:'text/event-stream'},
-        body:JSON.stringify({model:VIREONIX_MODEL,messages,stream:true,temperature:0.3,max_tokens:350}),
+        headers:{'Content-Type':'application/json',accept:'application/json'},
+        body:JSON.stringify({model:VIREONIX_MODEL,messages,stream:false,temperature:0.3,max_tokens:350}),
         signal:controller.signal
       });
       clearTimeout(timeout);
-      if(upstream.ok) return upstream;
+      const rawText=await upstream.text();
+      if(upstream.ok){
+        let payload=null;
+        try{ payload=JSON.parse(rawText); }catch{}
+        const answer =
+          payload?.choices?.[0]?.message?.content ??
+          payload?.choices?.[0]?.delta?.content ??
+          payload?.choices?.[0]?.text ??
+          payload?.output_text ??
+          payload?.content ??
+          '';
+        const text=typeof answer==='string' ? answer.trim() : String(answer||'').trim();
+        if(text) return text;
+        lastError=new Error('The AI provider returned a successful response without answer text.');
+      }else{
+        const details=rawText.slice(0,800);
+        lastError=new Error(`Upstream AI error ${upstream.status}${details?`: ${details}`:''}`);
+      }
+
       const status=upstream.status;
-      const details=(await upstream.text()).slice(0,600);
-      lastError=new Error(`Upstream AI error ${status}${details?`: ${details}`:''}`);
       if(status===429 || status===500 || status===502 || status===503 || status===504){
-        if(attempt<2){ await sleep(retryAfterMs(upstream,900*(attempt+1))); continue; }
+        if(attempt<2){ await sleep(800*(attempt+1)); continue; }
+      }else if(lastError?.message?.includes('without answer text') && attempt<2){
+        await sleep(500*(attempt+1));
+        continue;
       }
       break;
     }catch(e){
@@ -198,28 +220,15 @@ app.post('/api/ai/chat', async (req,res)=>{
   const messages=buildVireonixMessages(req.body?.messages);
   if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
   try{
-    const upstream=await fetchVireonix(messages);
+    const answer=await fetchVireonix(messages);
     res.status(200);
-    res.setHeader('Content-Type',upstream.headers.get('content-type')||'text/event-stream; charset=utf-8');
+    res.setHeader('Content-Type','text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control','no-cache, no-transform');
     res.setHeader('Connection','keep-alive');
     res.setHeader('X-Accel-Buffering','no');
     res.flushHeaders?.();
-
-    if(upstream.body){
-      for await (const chunk of upstream.body){
-        if(res.writableEnded) break;
-        res.write(Buffer.from(chunk));
-      }
-      if(!res.writableEnded) res.end();
-      return;
-    }
-
-    const body=await upstream.text();
-    let payload=null;
-    try{ payload=JSON.parse(body); }catch{}
-    const answer=payload?.choices?.[0]?.message?.content || body;
-    if(answer) res.write(`data: ${JSON.stringify({text:String(answer)})}\n\ndata: ${JSON.stringify({done:true,model:VIREONIX_MODEL})}\n\n`);
+    res.write(`data: ${JSON.stringify({text:answer})}\n\n`);
+    res.write(`data: ${JSON.stringify({done:true,model:VIREONIX_MODEL})}\n\n`);
     res.end();
   }catch(e){
     console.error('Vireonix AI request failed:',e?.message||e);
@@ -227,6 +236,7 @@ app.post('/api/ai/chat', async (req,res)=>{
     let msg='The AI service is temporarily unavailable. Please try again.';
     if(/429|rate_limit_exceeded/i.test(raw)) msg='The free AI service is busy right now. Please try again in a moment.';
     if(/AbortError|timed out|timeout/i.test(raw)) msg='The AI took too long to respond. Please try again.';
+    if(/without answer text/i.test(raw)) msg='The AI service returned no answer text. Please try again.';
     if(!res.headersSent) return res.status(502).json({error:msg});
     try{ res.write(`data: ${JSON.stringify({error:msg})}\n\n`); res.end(); }catch{}
   }
