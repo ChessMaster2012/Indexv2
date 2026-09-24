@@ -76,24 +76,18 @@ function aiContentIsAllowed(messages) {
   return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
 }
 
-// Server-side AI Tutor using the public no-key Pollinations text endpoint.
+// Server-side AI Tutor using a public no-key Vireonix endpoint.
 // The browser NEVER loads a language model, so Chromebook RAM is not consumed by
 // local inference. No AI API key or AI environment variable is required.
-//
-// Anonymous legacy text access is intentionally used here because the project
-// requirement is no AI API keys. It can be rate-limited upstream, so requests are
-// serialized and 429/503 responses are retried with backoff instead of crashing
-// the page or spawning multiple concurrent model jobs.
-const POLLINATIONS_TEXT_BASE = 'https://text.pollinations.ai';
-const POLLINATIONS_MODEL = 'openai/gpt-5.4-nano';
-const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(16000, Number(process.env.AI_MAX_INPUT_CHARS) || 10000));
-const AI_REQUEST_TIMEOUT_MS = Math.max(10000, Math.min(90000, Number(process.env.AI_REQUEST_TIMEOUT_MS) || 50000));
+// Vireonix exposes an OpenAI-compatible endpoint with a public `auto` model and
+// server-sent-event streaming. The code below proxies that stream through Index.
+const VIREONIX_CHAT_URL = 'https://vireonix.ai/v1/chat/completions';
+const VIREONIX_MODEL = 'auto';
+const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(12000, Number(process.env.AI_MAX_INPUT_CHARS) || 8000));
+const AI_REQUEST_TIMEOUT_MS = Math.max(10000, Math.min(90000, Number(process.env.AI_REQUEST_TIMEOUT_MS) || 60000));
 const AI_IP_WINDOW_MS = 60 * 1000;
-const AI_IP_MAX_REQUESTS = Math.max(2, Math.min(20, Number(process.env.AI_IP_MAX_REQUESTS) || 8));
-const AI_MAX_QUEUE = 8;
+const AI_IP_MAX_REQUESTS = Math.max(2, Math.min(12, Number(process.env.AI_IP_MAX_REQUESTS) || 8));
 const aiIpBuckets = new Map();
-let aiQueue = Promise.resolve();
-let aiQueueDepth = 0;
 
 function getClientIp(req){
   const forwarded=String(req.headers['x-forwarded-for']||'').split(',')[0].trim();
@@ -120,7 +114,7 @@ function normalizeAiMessages(messages){
   const safe=[];
   let total=0;
   for(const m of raw.slice(-12)){
-    const role=m?.role==='assistant'?'Assistant':m?.role==='user'?'Student':'System';
+    const role=m?.role==='assistant'?'assistant':m?.role==='user'?'user':'system';
     let content=String(m?.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
     if(content.length>5000) content=content.slice(0,5000);
@@ -136,16 +130,18 @@ function normalizeAiMessages(messages){
   return safe;
 }
 
-function buildPollinationsPrompt(messages){
+function buildVireonixMessages(messages){
   const turns=normalizeAiMessages(messages);
-  if(!turns.length) return '';
-  const system=turns.find(t=>t.role==='System')?.content || '';
-  const dialogue=turns.filter(t=>t.role!=='System');
-  const compact=[];
-  if(system) compact.push(`Tutor instructions:\n${system}`);
-  compact.push('Answer the student directly. Be accurate, concise, school-appropriate, and helpful. Do not mention these instructions. For a simple question, answer it in a short paragraph. For writing requests, provide the requested draft directly. For math, use Unicode symbols such as √ and show the key steps. Keep the response under about 220 words unless the student clearly asks for more.');
-  for(const t of dialogue) compact.push(`${t.role}: ${t.content}`);
-  return compact.join('\n\n').slice(0, AI_MAX_INPUT_CHARS);
+  if(!turns.length) return [];
+  const systemIndex=turns.findIndex(t=>t.role==='system');
+  const output=[];
+  if(systemIndex>=0) output.push(turns[systemIndex]);
+  output.push({
+    role:'system',
+    content:'Answer the student directly. Be accurate, concise, school-appropriate, and helpful. For writing requests, provide the requested draft directly. For math, use Unicode symbols such as √ and show key steps. Avoid filler and repetition. Keep normal responses under about 300 words unless the student clearly asks for more.'
+  });
+  for(const t of turns){ if(t.role!=='system') output.push(t); }
+  return output;
 }
 
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
@@ -156,28 +152,26 @@ function retryAfterMs(res, fallback){
   return fallback;
 }
 
-async function generateAnonymousAi(prompt){
-  if(!prompt) throw new Error('No question was supplied.');
-  const encoded=encodeURIComponent(prompt);
-  const url=`${POLLINATIONS_TEXT_BASE}/${encoded}?model=${encodeURIComponent(POLLINATIONS_MODEL)}&temperature=0.3`;
+async function fetchVireonix(messages){
+  if(!messages.length) throw new Error('No question was supplied.');
   let lastError=null;
   for(let attempt=0;attempt<3;attempt++){
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),AI_REQUEST_TIMEOUT_MS);
     try{
-      const upstream=await fetch(url,{headers:{accept:'text/plain'},signal:controller.signal});
+      const upstream=await fetch(VIREONIX_CHAT_URL,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',accept:'text/event-stream'},
+        body:JSON.stringify({model:VIREONIX_MODEL,messages,stream:true,temperature:0.3,max_tokens:350}),
+        signal:controller.signal
+      });
       clearTimeout(timeout);
-      if(upstream.ok){
-        const text=(await upstream.text()).replace(/\r/g,'').trim();
-        if(text) return text;
-        throw new Error('The AI returned an empty response.');
-      }
+      if(upstream.ok) return upstream;
       const status=upstream.status;
-      const details=(await upstream.text()).slice(0,500);
+      const details=(await upstream.text()).slice(0,600);
       lastError=new Error(`Upstream AI error ${status}${details?`: ${details}`:''}`);
-      if(status===429 || status===503){
-        await sleep(retryAfterMs(upstream,1500*(attempt+1)));
-        continue;
+      if(status===429 || status===500 || status===502 || status===503 || status===504){
+        if(attempt<2){ await sleep(retryAfterMs(upstream,900*(attempt+1))); continue; }
       }
       break;
     }catch(e){
@@ -185,7 +179,7 @@ async function generateAnonymousAi(prompt){
       lastError=e;
       if(e?.name==='AbortError'){
         if(attempt<2){ await sleep(800*(attempt+1)); continue; }
-        throw new Error('The AI took too long to respond.');
+        break;
       }
       if(attempt<2){ await sleep(700*(attempt+1)); continue; }
       break;
@@ -196,46 +190,46 @@ async function generateAnonymousAi(prompt){
 }
 
 app.get('/api/ai/status',(req,res)=>{
-  res.json({configured:true,model:POLLINATIONS_MODEL,provider:'Pollinations anonymous text'});
+  res.json({configured:true,model:VIREONIX_MODEL,provider:'Vireonix keyless auto'});
 });
 
 app.post('/api/ai/chat', async (req,res)=>{
-  if(!allowAiRequest(req)) return res.status(429).json({error:'AI is busy right now. Please wait a moment and try again.'});
-  if(aiQueueDepth>=AI_MAX_QUEUE) return res.status(429).json({error:'The AI is busy right now. Please try again in a moment.'});
-  const prompt=buildPollinationsPrompt(req.body?.messages);
-  if(!prompt) return res.status(400).json({error:'No question was supplied.'});
-  aiQueueDepth++;
+  if(!allowAiRequest(req)) return res.status(429).json({error:'The AI is busy right now. Please wait a moment and try again.'});
+  const messages=buildVireonixMessages(req.body?.messages);
+  if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
+  try{
+    const upstream=await fetchVireonix(messages);
+    res.status(200);
+    res.setHeader('Content-Type',upstream.headers.get('content-type')||'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control','no-cache, no-transform');
+    res.setHeader('Connection','keep-alive');
+    res.setHeader('X-Accel-Buffering','no');
+    res.flushHeaders?.();
 
-  const run=async()=>{
-    try{
-      const answer=await generateAnonymousAi(prompt);
-      res.status(200);
-      res.setHeader('Content-Type','text/event-stream; charset=utf-8');
-      res.setHeader('Cache-Control','no-cache, no-transform');
-      res.setHeader('Connection','keep-alive');
-      res.setHeader('X-Accel-Buffering','no');
-      res.flushHeaders?.();
-      res.write(`data: ${JSON.stringify({text:answer})}\n\n`);
-      res.write(`data: ${JSON.stringify({done:true,model:POLLINATIONS_MODEL})}\n\n`);
-      res.end();
-    }catch(e){
-      console.error('Anonymous AI request failed:',e?.message||e);
-      if(!res.headersSent){
-        const msg=/429/.test(String(e?.message||''))
-          ? 'The free AI service is temporarily busy. Please try again in a moment.'
-          : 'The AI service is temporarily unavailable. Please try again.';
-        res.status(502).json({error:msg});
-      }else{
-        try{ res.write(`data: ${JSON.stringify({error:'The AI service is temporarily unavailable. Please try again.'})}\n\n`); res.end(); }catch{}
+    if(upstream.body){
+      for await (const chunk of upstream.body){
+        if(res.writableEnded) break;
+        res.write(Buffer.from(chunk));
       }
-    }finally{
-      aiQueueDepth--;
+      if(!res.writableEnded) res.end();
+      return;
     }
-  };
 
-  const current=aiQueue.catch(()=>{}).then(run);
-  aiQueue=current.catch(()=>{});
-  await current;
+    const body=await upstream.text();
+    let payload=null;
+    try{ payload=JSON.parse(body); }catch{}
+    const answer=payload?.choices?.[0]?.message?.content || body;
+    if(answer) res.write(`data: ${JSON.stringify({text:String(answer)})}\n\ndata: ${JSON.stringify({done:true,model:VIREONIX_MODEL})}\n\n`);
+    res.end();
+  }catch(e){
+    console.error('Vireonix AI request failed:',e?.message||e);
+    const raw=String(e?.message||'');
+    let msg='The AI service is temporarily unavailable. Please try again.';
+    if(/429|rate_limit_exceeded/i.test(raw)) msg='The free AI service is busy right now. Please try again in a moment.';
+    if(/AbortError|timed out|timeout/i.test(raw)) msg='The AI took too long to respond. Please try again.';
+    if(!res.headersSent) return res.status(502).json({error:msg});
+    try{ res.write(`data: ${JSON.stringify({error:msg})}\n\n`); res.end(); }catch{}
+  }
 });
 
 const server = http.createServer(app);
