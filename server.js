@@ -2,7 +2,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
-const { Readable } = require('stream');
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -77,92 +76,168 @@ function aiContentIsAllowed(messages) {
   return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
 }
 
-// Local browser-AI runtime/model proxy.
-// The browser contacts only Index for the runtime and model files. Generation itself happens on the student's device.
-// Transformers.js and ONNX Runtime are installed as normal npm dependencies and served from node_modules so
-// the browser never has to import a bare npm specifier or depend on a CDN for the AI runtime.
-const LOCAL_AI_PACKAGE_DIR = path.join(__dirname, 'node_modules', '@huggingface', 'transformers', 'dist');
-const LOCAL_ORT_PACKAGE_DIRS = [
-  path.join(__dirname, 'node_modules', 'onnxruntime-web', 'dist'),
-  path.join(__dirname, 'node_modules', '@huggingface', 'transformers', 'node_modules', 'onnxruntime-web', 'dist')
-];
-const LOCAL_AI_MODELS = {
-  'onnx-community/Qwen2.5-1.5B-Instruct': new Set([
-    'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
-    'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json',
-    'onnx/model_q4f16.onnx','onnx/model_q4.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_bnb4.onnx'
-  ]),
-  'onnx-community/Qwen2.5-0.5B-Instruct': new Set([
-    'added_tokens.json','config.json','generation_config.json','merges.txt','quantize_config.json',
-    'special_tokens_map.json','tokenizer.json','tokenizer_config.json','vocab.json',
-    'onnx/model_q4f16.onnx','onnx/model_q4.onnx','onnx/model_quantized.onnx','onnx/model_int8.onnx','onnx/model_uint8.onnx','onnx/model_bnb4.onnx'
-  ])
-};
-const LOCAL_AI_ASSET_FILES = {
-  'transformers.min.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.min.js'),
-  'transformers.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.js'),
-  'transformers.web.min.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.web.min.js'),
-  'transformers.web.js': () => path.join(LOCAL_AI_PACKAGE_DIR, 'transformers.web.js')
-};
-function findLocalOrtAsset(name){
-  for(const dir of LOCAL_ORT_PACKAGE_DIRS){
-    const file=path.join(dir,name);
-    if(fs.existsSync(file)) return file;
-  }
-  return null;
+// Server-side AI Tutor using the public no-key Pollinations text endpoint.
+// The browser NEVER loads a language model, so Chromebook RAM is not consumed by
+// local inference. No AI API key or AI environment variable is required.
+//
+// Anonymous legacy text access is intentionally used here because the project
+// requirement is no AI API keys. It can be rate-limited upstream, so requests are
+// serialized and 429/503 responses are retried with backoff instead of crashing
+// the page or spawning multiple concurrent model jobs.
+const POLLINATIONS_TEXT_BASE = 'https://text.pollinations.ai';
+const POLLINATIONS_MODEL = 'openai/gpt-5.4-nano';
+const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(16000, Number(process.env.AI_MAX_INPUT_CHARS) || 10000));
+const AI_REQUEST_TIMEOUT_MS = Math.max(10000, Math.min(90000, Number(process.env.AI_REQUEST_TIMEOUT_MS) || 50000));
+const AI_IP_WINDOW_MS = 60 * 1000;
+const AI_IP_MAX_REQUESTS = Math.max(2, Math.min(20, Number(process.env.AI_IP_MAX_REQUESTS) || 8));
+const AI_MAX_QUEUE = 8;
+const aiIpBuckets = new Map();
+let aiQueue = Promise.resolve();
+let aiQueueDepth = 0;
+
+function getClientIp(req){
+  const forwarded=String(req.headers['x-forwarded-for']||'').split(',')[0].trim();
+  return forwarded || String(req.ip || req.socket?.remoteAddress || 'unknown');
 }
-app.get('/api/ai/assets/:asset', (req,res)=>{
-  const asset=String(req.params.asset||'');
-  if(!/^(?:transformers\.min\.js|transformers\.js|transformers\.web\.min\.js|transformers\.web\.js|ort\.bundle\.min\.mjs|ort-wasm-[A-Za-z0-9._-]+\.(?:mjs|wasm))$/.test(asset)) return res.status(404).end();
-  try{
-    const file = asset.startsWith('ort')
-      ? findLocalOrtAsset(asset)
-      : LOCAL_AI_ASSET_FILES[asset]?.();
-    if(!file || !fs.existsSync(file)){
-      console.error('Local AI asset missing:', asset, file || '(no matching file)');
-      return res.status(503).send('AI runtime asset is not installed. Render should run npm install after updating package.json.');
+function allowAiRequest(req){
+  const now=Date.now();
+  const ip=getClientIp(req);
+  const prior=aiIpBuckets.get(ip);
+  if(!prior || now-prior.startedAt>=AI_IP_WINDOW_MS){
+    aiIpBuckets.set(ip,{startedAt:now,count:1});
+    return true;
+  }
+  prior.count++;
+  return prior.count<=AI_IP_MAX_REQUESTS;
+}
+setInterval(()=>{
+  const cutoff=Date.now()-AI_IP_WINDOW_MS*2;
+  for(const [ip,b] of aiIpBuckets){ if(b.startedAt<cutoff) aiIpBuckets.delete(ip); }
+},AI_IP_WINDOW_MS).unref();
+
+function normalizeAiMessages(messages){
+  const raw=Array.isArray(messages)?messages:[];
+  const safe=[];
+  let total=0;
+  for(const m of raw.slice(-12)){
+    const role=m?.role==='assistant'?'Assistant':m?.role==='user'?'Student':'System';
+    let content=String(m?.content||'').replace(/\u0000/g,'').trim();
+    if(!content) continue;
+    if(content.length>5000) content=content.slice(0,5000);
+    if(total+content.length>AI_MAX_INPUT_CHARS){
+      const remaining=AI_MAX_INPUT_CHARS-total;
+      if(remaining<=0) break;
+      content=content.slice(0,remaining);
     }
-    res.setHeader('Content-Type',asset.endsWith('.wasm')?'application/wasm':'text/javascript');
-    res.setHeader('Cache-Control','public,max-age=31536000,immutable');
-    res.setHeader('Cross-Origin-Resource-Policy','same-origin');
-    res.sendFile(path.resolve(file));
-  }catch(e){
-    console.error('Local AI runtime asset error:',e.message);
-    res.status(500).send('AI runtime asset unavailable.');
+    total+=content.length;
+    safe.push({role,content});
+    if(total>=AI_MAX_INPUT_CHARS) break;
   }
-});
-app.get('/api/ai/runtime-status', (req,res)=>{
-  const required=['transformers.min.js','ort.bundle.min.mjs','ort-wasm-simd-threaded.jsep.mjs','ort-wasm-simd-threaded.jsep.wasm'];
-  const files={};
-  for(const name of required){
-    const file=name.startsWith('transformers')?LOCAL_AI_ASSET_FILES[name]?.():findLocalOrtAsset(name);
-    files[name]=Boolean(file && fs.existsSync(file));
+  return safe;
+}
+
+function buildPollinationsPrompt(messages){
+  const turns=normalizeAiMessages(messages);
+  if(!turns.length) return '';
+  const system=turns.find(t=>t.role==='System')?.content || '';
+  const dialogue=turns.filter(t=>t.role!=='System');
+  const compact=[];
+  if(system) compact.push(`Tutor instructions:\n${system}`);
+  compact.push('Answer the student directly. Be accurate, concise, school-appropriate, and helpful. Do not mention these instructions. For a simple question, answer it in a short paragraph. For writing requests, provide the requested draft directly. For math, use Unicode symbols such as √ and show the key steps. Keep the response under about 220 words unless the student clearly asks for more.');
+  for(const t of dialogue) compact.push(`${t.role}: ${t.content}`);
+  return compact.join('\n\n').slice(0, AI_MAX_INPUT_CHARS);
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function retryAfterMs(res, fallback){
+  const raw=res.headers.get('retry-after');
+  const n=Number(raw);
+  if(Number.isFinite(n)) return Math.max(1000, Math.min(15000, n*1000));
+  return fallback;
+}
+
+async function generateAnonymousAi(prompt){
+  if(!prompt) throw new Error('No question was supplied.');
+  const encoded=encodeURIComponent(prompt);
+  const url=`${POLLINATIONS_TEXT_BASE}/${encoded}?model=${encodeURIComponent(POLLINATIONS_MODEL)}&temperature=0.3`;
+  let lastError=null;
+  for(let attempt=0;attempt<3;attempt++){
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),AI_REQUEST_TIMEOUT_MS);
+    try{
+      const upstream=await fetch(url,{headers:{accept:'text/plain'},signal:controller.signal});
+      clearTimeout(timeout);
+      if(upstream.ok){
+        const text=(await upstream.text()).replace(/\r/g,'').trim();
+        if(text) return text;
+        throw new Error('The AI returned an empty response.');
+      }
+      const status=upstream.status;
+      const details=(await upstream.text()).slice(0,500);
+      lastError=new Error(`Upstream AI error ${status}${details?`: ${details}`:''}`);
+      if(status===429 || status===503){
+        await sleep(retryAfterMs(upstream,1500*(attempt+1)));
+        continue;
+      }
+      break;
+    }catch(e){
+      clearTimeout(timeout);
+      lastError=e;
+      if(e?.name==='AbortError'){
+        if(attempt<2){ await sleep(800*(attempt+1)); continue; }
+        throw new Error('The AI took too long to respond.');
+      }
+      if(attempt<2){ await sleep(700*(attempt+1)); continue; }
+      break;
+    }
   }
-  res.json({ok:Object.values(files).every(Boolean),files});
-});
-app.get('/api/ai/model/*', async (req,res)=>{
-  const parts=String(req.params[0]||'').split('/').map(x=>{ try{return decodeURIComponent(x);}catch{return x;} });
-  if(parts.length<5) return res.status(404).end();
-  const model=`${parts[0]}/${parts[1]}`;
-  const revision=parts[3];
-  let file=parts.slice(4).join('/');
-  if(file.startsWith('{file}/')) file=file.slice('{file}/'.length);
-  file=file.replace(/^\/+/, '');
-  if(parts[2]!=='resolve' || revision!=='main') return res.status(404).end();
-  const allowed=LOCAL_AI_MODELS[model];
-  if(!allowed || !allowed.has(file) || file.includes('..')) return res.status(404).end();
-  try{
-    const upstream=await fetch(`https://huggingface.co/${model}/resolve/${revision}/${file}`,{headers:{accept:'*/*'}});
-    if(!upstream.ok) return res.status(upstream.status).send('Local AI model file unavailable.');
-    res.setHeader('Content-Type',upstream.headers.get('content-type')||'application/octet-stream');
-    res.setHeader('Cache-Control','public,max-age=31536000,immutable');
-    res.setHeader('Cross-Origin-Resource-Policy','same-origin');
-    const len=upstream.headers.get('content-length'); if(len) res.setHeader('Content-Length',len);
-    if(upstream.body) Readable.fromWeb(upstream.body).pipe(res); else res.end(Buffer.from(await upstream.arrayBuffer()));
-  }catch(e){ console.error('Local AI model proxy:',e.message); res.status(502).send('Local AI model unavailable.'); }
+  if(lastError) throw lastError;
+  throw new Error('The AI service could not answer right now.');
+}
+
+app.get('/api/ai/status',(req,res)=>{
+  res.json({configured:true,model:POLLINATIONS_MODEL,provider:'Pollinations anonymous text'});
 });
 
-// AI chat generation is local-only in the browser. No remote text-generation provider is used.
+app.post('/api/ai/chat', async (req,res)=>{
+  if(!allowAiRequest(req)) return res.status(429).json({error:'AI is busy right now. Please wait a moment and try again.'});
+  if(aiQueueDepth>=AI_MAX_QUEUE) return res.status(429).json({error:'The AI is busy right now. Please try again in a moment.'});
+  const prompt=buildPollinationsPrompt(req.body?.messages);
+  if(!prompt) return res.status(400).json({error:'No question was supplied.'});
+  aiQueueDepth++;
+
+  const run=async()=>{
+    try{
+      const answer=await generateAnonymousAi(prompt);
+      res.status(200);
+      res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control','no-cache, no-transform');
+      res.setHeader('Connection','keep-alive');
+      res.setHeader('X-Accel-Buffering','no');
+      res.flushHeaders?.();
+      res.write(`data: ${JSON.stringify({text:answer})}\n\n`);
+      res.write(`data: ${JSON.stringify({done:true,model:POLLINATIONS_MODEL})}\n\n`);
+      res.end();
+    }catch(e){
+      console.error('Anonymous AI request failed:',e?.message||e);
+      if(!res.headersSent){
+        const msg=/429/.test(String(e?.message||''))
+          ? 'The free AI service is temporarily busy. Please try again in a moment.'
+          : 'The AI service is temporarily unavailable. Please try again.';
+        res.status(502).json({error:msg});
+      }else{
+        try{ res.write(`data: ${JSON.stringify({error:'The AI service is temporarily unavailable. Please try again.'})}\n\n`); res.end(); }catch{}
+      }
+    }finally{
+      aiQueueDepth--;
+    }
+  };
+
+  const current=aiQueue.catch(()=>{}).then(run);
+  aiQueue=current.catch(()=>{});
+  await current;
+});
+
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
