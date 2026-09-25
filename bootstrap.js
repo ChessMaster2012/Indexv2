@@ -14,10 +14,10 @@ try {
   html = html.split(legacyTag).join('');
   html = html.split(questTag).join('');
   if (!html.includes(marker)) {
-    const patch = `\\n${marker}\\n${questTag}\\n`;
+    const patch = `\n${marker}\n${questTag}\n`;
     html = html.replace('</body>', patch + '</body>');
   } else if (!html.includes(questTag)) {
-    html = html.replace(marker, marker + `\\n${questTag}`);
+    html = html.replace(marker, marker + `\n${questTag}`);
   }
   fs.writeFileSync(htmlPath, html, 'utf8');
 } catch (err) {
