@@ -560,6 +560,65 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .indexling-locked-card{background:#eceae4!important;border-color:#d2cec4!important;color:#8b8a86!important;filter:grayscale(.45)}.indexling-locked-card .cosmetic-icon{background:#dedbd3!important}.indexling-mystery{width:44px;height:44px;border-radius:14px;background:#aaa69d;color:#f7f5ef;display:grid;place-items:center;font:900 26px var(--font-display);box-shadow:inset 0 -6px 0 rgba(0,0,0,.08)}
 .quest-popup-backdrop{position:fixed;inset:0;background:rgba(23,32,51,.28);backdrop-filter:blur(3px);z-index:19000}.quest-popup-card{position:fixed;z-index:19001;top:50%;left:50%;transform:translate(-50%,-50%) scale(.94);width:min(430px,90vw);background:#fffdf8;border:2px solid #ff5c4d;border-radius:22px;padding:28px;box-shadow:0 28px 80px rgba(23,32,51,.28);text-align:center;opacity:0}.quest-popup-card h3{font-family:var(--font-display);font-size:28px;margin:5px 0}.quest-popup-card p{color:#667085;line-height:1.5;font-size:13px}.quest-popup-icon{width:58px;height:58px;border-radius:18px;margin:0 auto 10px;display:grid;place-items:center;background:#dff7e9;color:#2f805e;font:900 30px var(--font-display)}.quest-popup-eyebrow{font-size:10px;font-weight:950;letter-spacing:.15em;color:#d9473a}.quest-popup-card .btn{margin-top:8px}
 #index-quest-popup.show .quest-popup-card{animation:questPopIn .22s ease forwards}@keyframes questPopIn{to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+</style><style id="indexling-unique-visuals">
+.indexling-pack-heading{background:#172033!important;color:#fff!important}.indexling-pack-heading h3{color:#fff!important;font-size:19px!important;font-weight:800!important;opacity:1!important}.indexling-pack-heading p{color:rgba(255,255,255,.68)!important}
+.avatar-indexling{overflow:visible!important;background:#f4f1e9!important;display:grid!important;place-items:center!important}
+.avatar-indexling .indexling-art{transform:scale(.48);transform-origin:center}
+.indexling-art{width:88px;height:88px;position:relative;display:grid;place-items:center;filter:drop-shadow(0 9px 12px rgba(0,0,0,.14))}
+.indexling-art.mini,.indexling-mini{width:58px;height:58px}
+.indexling-art:before{content:'';position:absolute;inset:8px;border-radius:28px;background:var(--ling-main);border:4px solid var(--ling-dark);box-shadow:inset 0 -8px 0 rgba(0,0,0,.08),inset 0 3px 0 rgba(255,255,255,.15);z-index:1}
+.indexling-art.ix-body-drop:before{border-radius:52% 52% 58% 58%/42% 42% 65% 65%;transform:rotate(-5deg)}
+.indexling-art.ix-body-bean:before{border-radius:44% 56% 48% 52%/58% 45% 55% 42%}
+.indexling-art.ix-body-cube:before{border-radius:15px;transform:rotate(-3deg)}
+.indexling-art.ix-body-shell:before{border-radius:46% 46% 30% 30%;transform:scale(.92,1.02)}
+.indexling-art.ix-body-spiky:before{clip-path:polygon(50% 0,61% 18%,79% 8%,80% 29%,100% 35%,84% 50%,96% 66%,75% 70%,69% 94%,52% 80%,33% 97%,28% 75%,4% 72%,18% 53%,0 37%,22% 29%,21% 8%,40% 19%)}
+.indexling-art.ix-body-tank:before{border-radius:18px 18px 24px 24px;transform:scaleX(1.05)}
+.indexling-art.ix-body-bubble:before{border-radius:50%}
+.indexling-art.ix-body-crown:before{border-radius:32% 32% 45% 45%}
+.indexling-art.ix-body-dragon:before{border-radius:45% 55% 42% 58%}
+.indexling-art.ix-body-flask:before{border-radius:18px 18px 35px 35px}
+.indexling-art.ix-body-diver:before{border-radius:45% 45% 40% 40%}
+.indexling-art.ix-body-tentacle:before{border-radius:46% 46% 35% 35%}
+.indexling-art.ix-body-abyss:before{border-radius:50% 50% 38% 38%}
+.indexling-art.ix-body-coin:before{border-radius:50%;transform:scale(.95) rotate(8deg)}
+.indexling-art.ix-body-pixel:before{border-radius:12px;image-rendering:pixelated}
+.indexling-art.ix-body-glitch:before{border-radius:9px;transform:skewX(-5deg)}
+.indexling-art.ix-body-racer:before{border-radius:28px 28px 18px 18px;transform:scaleX(1.06)}
+.indexling-art.ix-body-arcade:before{border-radius:20px 20px 34px 34px}
+.indexling-art.ix-body-planet:before{border-radius:50%}
+.indexling-art.ix-body-moon:before{border-radius:50%;box-shadow:inset -10px 3px 0 rgba(0,0,0,.10)}
+.indexling-art.ix-body-star:before{clip-path:polygon(50% 0,61% 33%,95% 35%,69% 56%,78% 91%,50% 70%,22% 91%,31% 56%,5% 35%,39% 33%)}
+.indexling-art.ix-body-nebula:before{border-radius:50% 44% 56% 46%;transform:rotate(-10deg)}
+.indexling-art.ix-body-eclipse:before{border-radius:50%;box-shadow:inset 9px 0 0 rgba(0,0,0,.16)}
+.indexling-art.ix-body-quasar:before{border-radius:50%;transform:scale(.94)}
+.indexling-art.ix-body-void:before{border-radius:26px;box-shadow:inset 0 -12px 0 rgba(0,0,0,.2)}
+.indexling-art.ix-body-supernova:before{clip-path:polygon(50% 0,60% 20%,77% 8%,78% 29%,100% 50%,77% 61%,85% 86%,61% 79%,50% 100%,39% 79%,15% 86%,23% 61%,0 50%,22% 29%,23% 8%,40% 20%);filter:saturate(1.15)}
+.indexling-art .ix-face{position:absolute;z-index:4;width:8px;height:8px;border-radius:50%;background:#172033;left:31%;top:48%;box-shadow:28px 0 0 #172033}
+.indexling-art.ix-face-cyclops .ix-face{left:41%;width:18px;height:18px;top:44%;box-shadow:none;background:var(--ling-accent);border:4px solid #172033}
+.indexling-art.ix-face-sleepy .ix-face{height:3px;width:13px;border-radius:9px;top:49%;left:29%;box-shadow:28px 0 0 #172033}
+.indexling-art.ix-face-wink .ix-face{left:31%;top:48%;box-shadow:29px 0 0 #172033}.indexling-art.ix-face-wink .ix-face:after{content:'';position:absolute;right:-29px;top:1px;width:12px;height:4px;border-top:3px solid #172033;transform:rotate(8deg)}
+.indexling-art.ix-face-fierce .ix-face{width:10px;height:4px;border-radius:6px;transform:rotate(15deg);top:45%;box-shadow:27px 7px 0 #172033}.indexling-art.ix-face-bright .ix-face{width:7px;height:7px;background:#fff;border:2px solid #172033;box-shadow:27px 0 0 #fff,27px 0 0 2px #172033}
+.indexling-art.ix-face-visor .ix-face{left:22%;top:43%;width:54%;height:18px;border-radius:8px;background:#172033;border:3px solid var(--ling-accent);box-shadow:none}.indexling-art.ix-face-neon .ix-face{left:24%;top:44%;width:52%;height:12px;background:#172033;border:2px solid var(--ling-accent);box-shadow:none}
+.indexling-art.ix-face-static .ix-face:before{content:'';position:absolute;width:18px;height:4px;left:6px;top:-8px;background:var(--ling-accent);transform:rotate(12deg);box-shadow:18px 12px 0 var(--ling-accent)}
+.indexling-art.ix-face-star .ix-face{background:var(--ling-accent);box-shadow:28px 0 0 var(--ling-accent)}
+.indexling-art.ix-face-mystic .ix-face{background:#fff;box-shadow:28px 0 0 #fff}.indexling-art.ix-face-mystic .ix-face:after{content:'';position:absolute;left:6px;top:10px;width:22px;height:10px;border-bottom:3px solid #172033;border-radius:50%}
+.indexling-art.ix-face-happy .ix-face:after,.indexling-art.ix-face-smile .ix-face:after,.indexling-art.ix-face-glow .ix-face:after,.indexling-art.ix-face-radiant .ix-face:after{content:'';position:absolute;left:8px;top:10px;width:12px;height:6px;border-bottom:3px solid #172033;border-radius:0 0 12px 12px;box-shadow:none}
+.indexling-art .ix-topper{position:absolute;z-index:5;left:50%;top:1px;transform:translateX(-50%);font-size:25px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,.18))}
+.indexling-art.ix-top-lollipop .ix-topper:before{content:'🍭'}.indexling-art.ix-top-sprinkle .ix-topper:before{content:'✦'}.indexling-art.ix-top-bow .ix-topper:before{content:'🎀'}.indexling-art.ix-top-candyhorn .ix-topper:before{content:'🍬'}.indexling-art.ix-top-sugarcap .ix-topper:before{content:'🧁'}.indexling-art.ix-top-taffyloop .ix-topper:before{content:'〰️'}.indexling-art.ix-top-sprinkles .ix-topper:before{content:'✨'}.indexling-art.ix-top-candyburst .ix-topper:before{content:'💥'}
+.indexling-art.ix-top-plume .ix-topper:before{content:'🪶'}.indexling-art.ix-top-lyre .ix-topper:before{content:'🎼'}.indexling-art.ix-top-hammer .ix-topper:before{content:'⚒️'}.indexling-art.ix-top-crest .ix-topper:before{content:'🛡️'}.indexling-art.ix-top-goggles .ix-topper:before{content:'🥽'}.indexling-art.ix-top-wings .ix-topper:before{content:'🪽'}.indexling-art.ix-top-wizardhat .ix-topper:before{content:'🧙'}.indexling-art.ix-top-royalplume .ix-topper:before{content:'👑'}
+.indexling-art.ix-top-antenna .ix-topper:before{content:'📡'}.indexling-art.ix-top-coil .ix-topper:before{content:'🌀'}.indexling-art.ix-top-bolts .ix-topper:before{content:'🔩'}.indexling-art.ix-top-propeller .ix-topper:before{content:'✥'}.indexling-art.ix-top-shoulderpad .ix-topper:before{content:'🦾'}.indexling-art.ix-top-energycoil .ix-topper:before{content:'⚡'}.indexling-art.ix-top-holoears .ix-topper:before{content:'◈'}.indexling-art.ix-top-laserhorn .ix-topper:before{content:'🔻'}
+.indexling-art.ix-top-fin .ix-topper:before{content:'🐟'}.indexling-art.ix-top-coralbranch .ix-topper:before{content:'🪸'}.indexling-art.ix-top-pearlcap .ix-topper:before{content:'🫧'}.indexling-art.ix-top-bubblehelmet .ix-topper:before{content:'🤿'}.indexling-art.ix-top-kelpcrest .ix-topper:before{content:'🌿'}.indexling-art.ix-top-inkspot .ix-topper:before{content:'🫧'}.indexling-art.ix-top-deepfin .ix-topper:before{content:'🌑'}.indexling-art.ix-top-trident .ix-topper:before{content:'🔱'}
+.indexling-art.ix-top-joystick .ix-topper:before{content:'🕹️'}.indexling-art.ix-top-dpad .ix-topper:before{content:'🎮'}.indexling-art.ix-top-pixelcrown .ix-topper:before{content:'▦'}.indexling-art.ix-top-glitchantenna .ix-topper:before{content:'✚'}.indexling-art.ix-top-headphones .ix-topper:before{content:'🎧'}.indexling-art.ix-top-spoiler .ix-topper:before{content:'🏁'}.indexling-art.ix-top-arcadebutton .ix-topper:before{content:'★'}.indexling-art.ix-top-highscore .ix-topper:before{content:'🏆'}
+.indexling-art.ix-top-orbit .ix-topper:before{content:'🪐'}.indexling-art.ix-top-crater .ix-topper:before{content:'🌙'}.indexling-art.ix-top-starpin .ix-topper:before{content:'⭐'}.indexling-art.ix-top-cosmicring .ix-topper:before{content:'💫'}.indexling-art.ix-top-halo .ix-topper:before{content:'◐'}.indexling-art.ix-top-energyflare .ix-topper:before{content:'✦'}.indexling-art.ix-top-voidcrown .ix-topper:before{content:'◼'}.indexling-art.ix-top-flare .ix-topper:before{content:'☀️'}
+.indexling-art .ix-badge{position:absolute;right:-2px;bottom:3px;z-index:6;width:25px;height:25px;border-radius:9px;background:var(--ling-accent);border:3px solid #fffdf8;color:#172033;display:grid;place-items:center;font-size:12px;font-weight:900}
+.indexling-art.mini .ix-badge,.indexling-mini .ix-badge{width:18px;height:18px;border-width:2px;font-size:8px}.indexling-art.mini .ix-topper,.indexling-mini .ix-topper{font-size:17px}
+.indexling-art.ix-body-tank .ix-side:before{content:'';position:absolute;bottom:14px;width:18px;height:7px;border-radius:4px;background:var(--ling-dark)}.indexling-art.ix-body-tank .ix-left:before{left:4px}.indexling-art.ix-body-tank .ix-right:before{right:4px}
+.indexling-art.ix-body-tentacle .ix-side:before{content:'〰️';position:absolute;bottom:2px;font-size:20px}.indexling-art.ix-body-tentacle .ix-left:before{left:5px}.indexling-art.ix-body-tentacle .ix-right:before{right:5px}
+.indexling-art.ix-body-planet .ix-side:before{content:'';position:absolute;left:0;right:0;top:38px;height:12px;border:3px solid var(--ling-accent);border-left-color:transparent;border-right-color:transparent;border-radius:50%;transform:rotate(-12deg);z-index:3}
+.indexling-art.ix-body-racer .ix-side:before{content:'';position:absolute;bottom:13px;width:15px;height:9px;border-radius:50%;background:#172033;box-shadow:46px 0 0 #172033}.indexling-art.ix-body-racer .ix-left:before{left:10px}
+.indexling-art.ix-body-glitch .ix-side:before{content:'▰';position:absolute;left:6px;bottom:10px;color:var(--ling-accent);font-size:17px}.indexling-art.ix-body-glitch .ix-right:before{right:4px;top:21px;color:var(--ling-accent);font-size:13px}
+.indexling-art.ix-body-moon .ix-side:before{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.12);left:23px;top:23px;z-index:2;box-shadow:12px 16px 0 rgba(0,0,0,.08)}
+.indexling-art.ix-body-eclipse .ix-side:before{content:'';position:absolute;width:86px;height:86px;border-radius:50%;border:2px solid var(--ling-accent);box-shadow:0 0 15px var(--ling-accent);z-index:0}
 </style></head>
 <body>
 
@@ -1616,50 +1675,76 @@ async function equipCosmetic(id){
     showRewardToast('Saved on this device; account sync will retry.');
   }
 }
-function indexlingArtHtml(c, mini=false){
-  const main=esc(c?.main||'#9bb6d8'), dark=esc(c?.dark||'#526d8e'), accent=esc(c?.accent||'#e5eef9');
-  const cls=mini?' indexling-mini':'';
-  const horns=c?.shape==='horns'?'<span class="indexling-horns"></span>':'';
-  return '<div class="indexling-art'+cls+'" style="--ling-main:'+main+';--ling-dark:'+dark+';--ling-accent:'+accent+';">'+horns+'<div class="indexling-body"><span class="indexling-mouth"></span></div><span class="indexling-mark">'+esc(c?.mark||c?.icon||'')+'</span></div>';
+const INDEXLING_VISUALS={
+  'ling-sugarbug':{body:'bean',top:'lollipop',face:'smile',icon:'🍬'},
+  'ling-gumdrop':{body:'drop',top:'sprinkle',face:'wide',icon:'🍭'},
+  'ling-taffy':{body:'orb',top:'bow',face:'happy',icon:'🍡'},
+  'ling-choco':{body:'cube',top:'candyhorn',face:'wink',icon:'🍫'},
+  'ling-jellybean':{body:'bean',top:'sugarcap',face:'sleepy',icon:'🫧'},
+  'ling-caramel':{body:'drop',top:'taffyloop',face:'smile',icon:'🍯'},
+  'ling-sprinkle':{body:'orb',top:'sprinkles',face:'star',icon:'✨'},
+  'ling-lolliking':{body:'crown',top:'candyburst',face:'smile',icon:'👑'},
+  'ling-squire':{body:'shield',top:'plume',face:'bright',icon:'🛡️'},
+  'ling-bard':{body:'bean',top:'lyre',face:'happy',icon:'🎵'},
+  'ling-blacksmith':{body:'cube',top:'hammer',face:'focused',icon:'⚒️'},
+  'ling-knight':{body:'helmet',top:'crest',face:'guard',icon:'⚔️'},
+  'ling-alchemist':{body:'flask',top:'goggles',face:'spark',icon:'🧪'},
+  'ling-dragonling':{body:'dragon',top:'wings',face:'fierce',icon:'🔥'},
+  'ling-royalmage':{body:'orb',top:'wizardhat',face:'mystic',icon:'🔮'},
+  'ling-crownling':{body:'crown',top:'royalplume',face:'regal',icon:'👑'},
+  'ling-botlet':{body:'cube',top:'antenna',face:'visor',icon:'⚙️'},
+  'ling-circuit':{body:'orb',top:'coil',face:'glow',icon:'ϟ'},
+  'ling-servo':{body:'bean',top:'bolts',face:'sleepy',icon:'🔩'},
+  'ling-drone':{body:'drone',top:'propeller',face:'visor',icon:'◈'},
+  'ling-mecha':{body:'tank',top:'shoulderpad',face:'focused',icon:'▣'},
+  'ling-reactor':{body:'reactor',top:'energycoil',face:'cyclops',icon:'⚡'},
+  'ling-cyber':{body:'cube',top:'holoears',face:'neon',icon:'✦'},
+  'ling-overclock':{body:'spiky',top:'laserhorn',face:'fierce',icon:'◉'},
+  'ling-guppy':{body:'bubble',top:'fin',face:'happy',icon:'🐚'},
+  'ling-coral':{body:'coral',top:'coralbranch',face:'smile',icon:'🪸'},
+  'ling-pearl':{body:'shell',top:'pearlcap',face:'sleepy',icon:'🫧'},
+  'ling-diver':{body:'diver',top:'bubblehelmet',face:'bright',icon:'🤿'},
+  'ling-kelp':{body:'bean',top:'kelpcrest',face:'happy',icon:'🌿'},
+  'ling-kraken':{body:'tentacle',top:'inkspot',face:'fierce',icon:'🐙'},
+  'ling-abyssal':{body:'abyss',top:'deepfin',face:'cyclops',icon:'🌑'},
+  'ling-tideking':{body:'crown',top:'trident',face:'regal',icon:'🔱'},
+  'ling-token':{body:'coin',top:'joystick',face:'wink',icon:'🕹️'},
+  'ling-joystick':{body:'orb',top:'dpad',face:'focused',icon:'🎮'},
+  'ling-pixel':{body:'pixel',top:'pixelcrown',face:'happy',icon:'▦'},
+  'ling-glitch':{body:'glitch',top:'glitchantenna',face:'static',icon:'✚'},
+  'ling-synth':{body:'cube',top:'headphones',face:'beat',icon:'🎧'},
+  'ling-racer':{body:'racer',top:'spoiler',face:'speed',icon:'🏁'},
+  'ling-arcadeboss':{body:'arcade',top:'arcadebutton',face:'boss',icon:'★'},
+  'ling-highscore':{body:'crown',top:'highscore',face:'star',icon:'🏆'},
+  'ling-comet':{body:'planet',top:'orbit',face:'happy',icon:'🪐'},
+  'ling-moonlet':{body:'moon',top:'crater',face:'sleepy',icon:'🌙'},
+  'ling-starling':{body:'star',top:'starpin',face:'bright',icon:'⭐'},
+  'ling-nebula':{body:'nebula',top:'cosmicring',face:'mystic',icon:'☄️'},
+  'ling-eclipse':{body:'eclipse',top:'halo',face:'cyclops',icon:'◐'},
+  'ling-quasar':{body:'quasar',top:'energyflare',face:'glow',icon:'✦'},
+  'ling-voidling':{body:'void',top:'voidcrown',face:'fierce',icon:'◼'},
+  'ling-supernova':{body:'supernova',top:'flare',face:'radiant',icon:'☀️'}
+};
+function indexlingFrameStyle(frameId){
+  const id=String(frameId||'default').toLowerCase();
+  if(id==='default') return 'border:3px solid #d8d2c5;box-shadow:0 0 0 5px rgba(255,255,255,.8),0 8px 18px rgba(23,32,51,.12);';
+  if(id.includes('neon')) return 'border:3px solid #77e8d0;box-shadow:0 0 0 5px rgba(119,232,208,.16),0 0 18px rgba(119,232,208,.35);';
+  if(id.includes('blue')) return 'border:3px solid #72a7ff;box-shadow:0 0 0 5px rgba(114,167,255,.16),0 0 18px rgba(114,167,255,.35);';
+  if(id.includes('mastery')) return 'border:3px solid #f3b65c;box-shadow:0 0 0 5px rgba(243,182,92,.16),0 0 18px rgba(243,182,92,.32);';
+  if(id.includes('legend')) return 'border:3px solid #cf8cff;box-shadow:0 0 0 5px rgba(207,140,255,.16),0 0 22px rgba(207,140,255,.35);';
+  if(id.includes('purple')) return 'border:3px solid #a98cff;box-shadow:0 0 0 5px rgba(169,140,255,.16),0 0 18px rgba(169,140,255,.3);';
+  if(id.includes('book')) return 'border:3px solid #d8b578;box-shadow:0 0 0 5px rgba(216,181,120,.18),0 0 15px rgba(216,181,120,.24);';
+  return 'border:3px solid #d8d2c5;box-shadow:0 0 0 5px rgba(255,255,255,.8),0 8px 18px rgba(23,32,51,.12);';
 }
-function indexPackArt(c){
-  return '<div class="pack-glyph" style="--pack-accent:'+esc(c.accent)+'"><span class="pack-glyph-mark">'+esc(c.icon)+'</span></div>';
-}
-function skinById(id){ return INDEXLING_SKINS.find(s=>s.id===id); }
-function openSkinCrate(){
-  if(!state.account){showRewardToast('👤 Sign in to save Skin Crates.');return;}
-  if((state.progress.skinCrates||0)<=0){showRewardToast('No Skin Crates available yet. Reach the next 5-level Battle Pass milestone.');return;}
-  state.progress.skinCrates--;
-  const roll=Math.random()*100;
-  const rarity=roll<70?'Common':roll<92?'Rare':roll<99?'Epic':'Legendary';
-  const pool=INDEXLING_SKINS.filter(x=>x.rarity===rarity);
-  const skin=pool[Math.floor(Math.random()*pool.length)]||INDEXLING_SKINS[0];
-  if(!Array.isArray(state.progress.unlockedSkins)) state.progress.unlockedSkins=[];
-  const duplicate=state.progress.unlockedSkins.includes(skin.id);
-  if(!duplicate) state.progress.unlockedSkins.push(skin.id); else state.progress.coins=(state.progress.coins||0)+20;
-  persistProgress(); syncAccountStateNow(); renderRewards();
-  showRewardToast(duplicate?'🧰 Duplicate skin · +20 coins':'✨ New Indexling skin · '+skin.name);
-}
-async function equipIndexlingSkin(id){
-  if(!state.account){showRewardToast('👤 Sign in to save Indexling skins.');return;}
-  const skin=skinById(id); if(!skin || !(state.progress.unlockedSkins||[]).includes(id)) return;
-  if(!state.progress.equipped) state.progress.equipped={indexling:'ling-sugarbug',indexlingSkin:''};
-  state.progress.equipped.indexlingSkin=id;
-  persistProgressLocalOnly(); renderRewards(); renderProfileSlot();
-  try{
-    const r=await fetch('/api/account/equipped',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({equipped:state.progress.equipped})});
-    if(!r.ok) throw new Error('sync');
-    const d=await r.json();
-    if(d.equipped) state.progress.equipped={...state.progress.equipped,...d.equipped};
-    persistProgressLocalOnly(); renderRewards(); renderProfileSlot();
-  }catch(e){scheduleAccountStateSync();showRewardToast('Saved locally; skin sync will retry.');}
-}
-function indexlingArtHtml(c, mini=false, skin=null){
+function indexlingArtHtml(c, mini=false, skin=null, frameId=null){
   const sk=skin||skinById(state.progress?.equipped?.indexlingSkin);
   const main=esc(sk?.main||c?.main||'#9bb6d8'), dark=esc(sk?.dark||c?.dark||'#526d8e'), accent=esc(sk?.accent||c?.accent||'#e5eef9');
+  const v=INDEXLING_VISUALS[c?.id]||{body:'orb',top:'spark',face:'happy',icon:'✦'};
   const cls=mini?' indexling-mini':'';
-  const horns=c?.shape==='horns'?'<span class="indexling-horns"></span>':'';
-  return '<div class="indexling-art'+cls+'" style="--ling-main:'+main+';--ling-dark:'+dark+';--ling-accent:'+accent+';">'+horns+'<div class="indexling-body"><span class="indexling-mouth"></span></div><span class="indexling-mark">'+esc(c?.mark||c?.icon||'')+'</span></div>';
+  const scale=mini?' mini':'';
+  const frame=frameId?indexlingFrameStyle(frameId):'';
+  const icon=esc(v.icon||'✦');
+  return '<div class="indexling-art'+cls+' ix-body-'+v.body+' ix-top-'+v.top+' ix-face-'+v.face+'" style="--ling-main:'+main+';--ling-dark:'+dark+';--ling-accent:'+accent+';'+frame+'"><span class="ix-topper"></span><span class="ix-side ix-left"></span><span class="ix-side ix-right"></span><span class="ix-face"></span><span class="ix-badge">'+icon+'</span></div>';
 }
 function avatarPreviewHtml(){
   ensureRewardUnlocks();
@@ -1693,7 +1778,7 @@ function renderRewards(){
   } else if(tab==='avatar'){
     const rarityOrder=['Common','Rare','Epic','Legendary'];
     const packOrder=PACK_ORDER;
-    const packLabels={candy:'🍬 Candy Carnival',medieval:'🏰 Medieval Keep',robo:'🤖 Robo Works',ocean:'🌊 Deep Sea',arcade:'🎮 Arcade Afterdark',cosmic:'🚀 Cosmic Odyssey'};
+    const packLabels={candy:'🍬 Candy Carnival',medieval:'🏰 Medieval Keep',robo:'🤖 Robo Works',ocean:'🌊 Deep Sea',arcade:'🎮 Arcade Afterdark',cosmic:'🚀 Cosmic Odyssey',study:'🍬 Candy Carnival',focus:'🏰 Medieval Keep',mastery:'🤖 Robo Works',scholar:'🌊 Deep Sea',tech:'🎮 Arcade Afterdark',legend:'🚀 Cosmic Odyssey'};
     const grouped=packOrder.map(pack=>{
       const packItems=REWARD_COSMETICS.filter(c=>c.pack===pack);
       return '<section class="indexling-pack-group"><div class="indexling-pack-heading"><div><h3>'+esc(packLabels[pack]||pack)+'</h3><p class="reward-muted">Collectibles from this world</p></div><span class="pack-group-count">'+packItems.filter(c=>unlocked.includes(c.id)).length+' / '+packItems.length+'</span></div>'+rarityOrder.map(rarity=>{
@@ -1970,7 +2055,7 @@ function renderProfileSlot(){
     const ling=cosmeticById?.(eq.indexling);
     const skin=skinById?.(eq.indexlingSkin);
     const art=ling && typeof indexlingArtHtml==='function'
-      ? indexlingArtHtml(ling,true,skin)
+      ? indexlingArtHtml(ling,true,skin,eq.frame||'default')
       : '<span style="font-size:22px;">👤</span>';
     el.innerHTML = `<button class="profile-btn" data-action="open-signin"><span class="avatar avatar-indexling">${art}</span><span style="font-size:12.5px;font-weight:800;">${esc(name||'Your account')}</span></button>`;
   }else{
