@@ -591,7 +591,8 @@ function sanitizeAccountState(input){
         outfit: String(equipped.outfit||'outfit-books').slice(0,80),
         accessory: String(equipped.accessory||'').slice(0,80),
         frame: String(equipped.frame||'default').slice(0,80),
-        background: String(equipped.background||'default').slice(0,80)
+        background: String(equipped.background||'default').slice(0,80),
+        indexling: String(equipped.indexling||'ling-orbit').slice(0,80)
       },
       openedPacks: Math.max(0, Math.min(1000000, Number(p.openedPacks)||0)),
       liveGames: Math.max(0, Math.min(1000000, Number(p.liveGames)||0)),
@@ -636,6 +637,36 @@ app.put('/api/account/state', async (req,res)=>{
   } catch(e) {
     console.error('Account state save error:', e.message);
     res.status(503).json({error:'Could not save your account data right now. Please try again.'});
+  }
+});
+
+app.put('/api/account/equipped', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    if (SUPABASE_ENABLED) {
+      const row = await dbFindUserById(req.user.id);
+      if (row) req.user = dbRowToUser(row);
+    }
+    const existing = req.user.accountData && typeof req.user.accountData==='object' ? req.user.accountData : {};
+    const existingProgress = existing.progress && typeof existing.progress==='object' ? existing.progress : {};
+    const incoming = req.body && typeof req.body==='object' && req.body.equipped && typeof req.body.equipped==='object' ? req.body.equipped : {};
+    const equipped = {
+      ...existingProgress.equipped,
+      avatar: String(incoming.avatar || existingProgress.equipped?.avatar || 'avatar-scholar').slice(0,80),
+      outfit: String(incoming.outfit || existingProgress.equipped?.outfit || 'outfit-books').slice(0,80),
+      accessory: String(incoming.accessory || existingProgress.equipped?.accessory || '').slice(0,80),
+      frame: String(incoming.frame || existingProgress.equipped?.frame || 'default').slice(0,80),
+      background: String(incoming.background || existingProgress.equipped?.background || 'default').slice(0,80),
+      indexling: String(incoming.indexling || existingProgress.equipped?.indexling || 'ling-orbit').slice(0,80)
+    };
+    const updated = sanitizeAccountState({...existing,progress:{...existingProgress,equipped}});
+    req.user.accountData = updated;
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    usersById.set(req.user.id,req.user);
+    res.json({ok:true,equipped:updated.progress.equipped});
+  }catch(e){
+    console.error('Equipped state save error:',e.message);
+    res.status(503).json({error:'Could not sync your equipped items right now. Please try again.'});
   }
 });
 
