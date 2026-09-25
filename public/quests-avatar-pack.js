@@ -23,11 +23,10 @@ function avatarFix(){
 }
 
 let questAccountKey='';
-const QUEST_VERSION='v5';
+const QUEST_VERSION='v6';
 
 function dayKey(){
-  const d=new Date();
-  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 }
 function accountKey(){
   const a=state.account;
@@ -112,9 +111,11 @@ function ensureQuestDay(){
   if(!state.account)return false;
   const k=accountKey(),d=dayKey(),data=loadQuestData();
   if(questAccountKey!==k||data.day!==d||!data.baseline){
-    saveQuestData({day:d,baseline:appSnapshot(),progress:{},claimed:data.claimed||{},announced:data.announced||{}});
+    // A new Index day starts a completely new set of daily quests.
+    // Never carry yesterday's claim/completion flags into today.
+    saveQuestData({day:d,baseline:appSnapshot(),progress:{},claimed:{},announced:{}});
     questAccountKey=k;
-    scheduleQuestServerSave();
+    scheduleQuestServerSave(true);
   }
   return true;
 }
@@ -132,11 +133,11 @@ function snap(){
 function quests(){
   const s=snap(),p=loadQuestData();
   return [
-    {id:'ai',icon:'💬',title:'Ask the Tutor',desc:'Ask the AI Tutor 3 times today.',goal:3,value:s.ai,reward:15},
-    {id:'set',icon:'🗂️',title:'Build Your Deck',desc:'Create 1 study set today.',goal:1,value:s.sets,reward:10},
-    {id:'lessons',icon:'🎓',title:'Topic Explorer',desc:'Finish 2 topic lessons today.',goal:2,value:s.lessons,reward:20},
-    {id:'xp',icon:'⚡',title:'Momentum',desc:'Earn 50 XP today.',goal:50,value:s.xp,reward:25},
-    {id:'packs',icon:'✦',title:'Open a Pack',desc:'Open 1 Indexling pack today.',goal:1,value:s.packs,reward:15}
+    {id:'ai',icon:'💬',title:'Ask the Tutor',desc:'Ask the AI Tutor 3 times today.',goal:3,value:s.ai,rewardXP:15},
+    {id:'set',icon:'🗂️',title:'Build Your Deck',desc:'Create 1 study set today.',goal:1,value:s.sets,rewardXP:10},
+    {id:'lessons',icon:'🎓',title:'Topic Explorer',desc:'Finish 2 topic lessons today.',goal:2,value:s.lessons,rewardXP:20},
+    {id:'xp',icon:'⚡',title:'Momentum',desc:'Earn 50 XP today.',goal:50,value:s.xp,rewardXP:25},
+    {id:'packs',icon:'✦',title:'Open a Pack',desc:'Open 1 Indexling pack today.',goal:1,value:s.packs,rewardXP:15}
   ].map(function(q){
     q.value=Math.min(q.goal,Math.max(0,Number(q.value)||0));
     q.claimed=!!(p.claimed&&p.claimed[q.id]);
@@ -151,7 +152,7 @@ function showQuestCompletion(q){
     el.id='index-quest-popup';
     document.body.appendChild(el);
   }
-  el.innerHTML='<div class="quest-popup-backdrop"></div><div class="quest-popup-card"><div class="quest-popup-icon">✓</div><div class="quest-popup-eyebrow">QUEST COMPLETE</div><h3>'+q.title+'</h3><p>You completed this quest. Claim <strong>+'+q.reward+' coins</strong> in the Quests tab.</p><button class="btn btn-primary" data-quest-popup-close>Continue</button></div>';
+  el.innerHTML='<div class="quest-popup-backdrop"></div><div class="quest-popup-card"><div class="quest-popup-icon">✓</div><div class="quest-popup-eyebrow">QUEST COMPLETE</div><h3>'+q.title+'</h3><p>You completed this quest. Claim <strong>+'+q.rewardXP+' XP</strong> in the Quests tab.</p><button class="btn btn-primary" data-quest-popup-close>Continue</button></div>';
   el.classList.add('show');
   const close=el.querySelector('[data-quest-popup-close]');
   if(close)close.onclick=function(){el.classList.remove('show');};
@@ -177,7 +178,7 @@ function renderQuests(){
   if(!root||!state.account)return;
   const qs=quests();
   root.innerHTML='<div class="quest-page"><div class="quest-hero"><div class="eyebrow" style="color:#ffd8ef">DAILY STUDY MISSIONS</div><h2>Quests</h2><p>Complete actions in Index today to fill these missions. Nothing is marked complete from your existing progress when a new day starts.</p></div><div class="quest-grid">'+qs.map(function(q){
-    return '<div class="quest-card '+(q.done?'done':'')+'"><div class="quest-top"><div class="quest-icon">'+q.icon+'</div><div><h3>'+q.title+'</h3><p>'+q.desc+'</p></div></div><div class="quest-bar"><div class="quest-fill" style="width:'+Math.round(q.value/q.goal*100)+'%"></div></div><div class="quest-bottom"><span>'+q.value+' / '+q.goal+(q.claimed?' · Claimed':'')+'</span>'+(q.claimed?'<span class="quest-complete">✓ Claimed</span>':q.done?'<button class="btn btn-green btn-sm" data-action="claim-quest" data-quest="'+q.id+'">Claim +'+q.reward+' 🪙</button>':'<span class="quest-reward">+'+q.reward+' 🪙</span>')+'</div></div>';
+    return '<div class="quest-card '+(q.done?'done':'')+'"><div class="quest-top"><div class="quest-icon">'+q.icon+'</div><div><h3>'+q.title+'</h3><p>'+q.desc+'</p></div></div><div class="quest-bar"><div class="quest-fill" style="width:'+Math.round(q.value/q.goal*100)+'%"></div></div><div class="quest-bottom"><span>'+q.value+' / '+q.goal+(q.claimed?' · Claimed':'')+'</span>'+(q.claimed?'<span class="quest-complete">✓ Claimed</span>':q.done?'<button class="btn btn-green btn-sm" data-action="claim-quest" data-quest="'+q.id+'">Claim +'+q.rewardXP+' XP</button>':'<span class="quest-reward">+'+q.rewardXP+' XP</span>')+'</div></div>';
   }).join('')+'</div></div>';
 }
 function ensureView(){
@@ -223,10 +224,10 @@ function wire(){
         data.claimed=data.claimed||{};
         data.claimed[id]=Date.now();
         saveQuestData(data); scheduleQuestServerSave(true);
-        state.progress.coins=(state.progress.coins||0)+q.reward;
+        state.progress.xp=(state.progress.xp||0)+q.rewardXP; syncQuestToServer(true);
         if(typeof persistProgress==='function')persistProgress();
         if(typeof renderSidebarBadge==='function')renderSidebarBadge();
-        if(typeof updateCoinDisplays==='function')updateCoinDisplays();
+        if(typeof updateCoinDisplays==='function')updateCoinDisplays(); if(typeof renderXP==='function')renderXP();
         renderQuests();
       }
     }
