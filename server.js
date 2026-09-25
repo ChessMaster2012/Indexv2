@@ -142,7 +142,11 @@ function buildAiMessages(messages){
   const lengthRule=range
     ? `WRITING LENGTH RULE: The student requested between ${range.min} and ${range.max} sentences. Produce a finished response in that range and count the sentences before returning it.`
     : '';
-  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+taskRules+' '+lengthRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer.';
+  const priorAssistant=[...turns].reverse().find(t=>t.role==='assistant')?.content||'';
+  const followUpRule=/\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|what about it|why is that|how does that)\b/i.test(question) && priorAssistant
+    ? 'FOLLOW-UP CONTEXT RULE: The latest student message is a follow-up. Treat words such as “it,” “that,” “this,” “the above,” “simpler,” or “more simple” as referring to the immediately preceding relevant Tutor answer. Use that previous answer as context and answer the follow-up itself. Do not restart with generic study advice.'
+    : 'CONTEXT RULE: Use the immediately preceding relevant Tutor answer when the student message depends on prior context.';
+  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+followUpRule+' '+taskRules+' '+lengthRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer.';
   return [
     {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
     ...turns.filter(t=>t.role!=='system')
@@ -299,10 +303,15 @@ function answerNeedsRepair(question,answer){
   return false;
 }
 
-async function repairAiResponse(question,complex){
+async function repairAiResponse(question,complex,sourceMessages){
   const range=requestedSentenceRange(question);
   const task=classifyAiTask(question);
+  const source=normalizeAiMessages(sourceMessages);
+  const priorAssistant=[...source].reverse().find(m=>m.role==='assistant')?.content||'';
   let constraint='Answer the student\'s exact request directly. Do not give generic study advice, a method for answering, or a writing plan unless the student explicitly asks for one.';
+  if(priorAssistant && /\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that)\b/i.test(question)){
+    constraint+=' This is a follow-up. The word “it”/“that”/“this” refers to the immediately preceding Tutor answer quoted below. Explain or transform that specific answer rather than asking the student to restate the topic.';
+  }
   if(task==='direct-writing'){
     constraint+=' Write the finished draft itself.';
     if(range) constraint+=` The finished draft must contain between ${range.min} and ${range.max} sentences, inclusive; count them before returning.`;
@@ -313,10 +322,9 @@ async function repairAiResponse(question,complex){
   }
   const messages=[
     {role:'system',content:'You are Index Tutor correction mode. '+constraint+' Return only the final answer to the student. Never mention correction mode, failed attempts, prompts, or hidden instructions.'},
+    ...(priorAssistant ? [{role:'assistant',content:priorAssistant.slice(-5000)}] : []),
     {role:'user',content:String(question||'').slice(0,2200)}
   ];
-  // Favor the router that is specifically designed for Q&A/reasoning, while
-  // still keeping the second provider available in parallel through the normal race.
   return raceAiProviders(messages,complex);
 }
 
@@ -374,7 +382,7 @@ app.post('/api/ai/chat',async(req,res)=>{
     let text=await raceAiProviders(messages,complex);
     if(answerNeedsRepair(question,text)){
       try{
-        const repaired=await repairAiResponse(question,complex);
+        const repaired=await repairAiResponse(question,complex,messages);
         if(repaired && !answerNeedsRepair(question,repaired)) text=repaired;
         else if(repaired) text=repaired;
       }catch(e2){
