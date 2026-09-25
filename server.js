@@ -154,16 +154,25 @@ async function tryPollinationsModel(messages,model,timeoutMs){
     return text;
   }finally{clearTimeout(timer);}
 }
+async function tryPollinationsModel(messages,model,timeoutMs){
+  const prompt=messages.map(m=>(m.role==='system'?'INSTRUCTIONS: ':m.role==='assistant'?'TUTOR: ':'STUDENT: ')+m.content).join('\n\n');
+  const url='https://text.pollinations.ai/'+encodeURIComponent(prompt)+'?model='+encodeURIComponent(model)+'&seed='+Date.now();
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const r=await fetch(url,{headers:{Accept:'text/plain'},signal:controller.signal});
+    const text=(await r.text()).trim();
+    if(!r.ok||!text) throw new Error('Pollinations returned no text');
+    return text;
+  }finally{clearTimeout(timer);}
+}
 async function tryPollinations(messages){
   const question=latestUserQuestion(messages);
   const complex=/\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step)\b/i.test(question)||question.length>220;
-  // Pollinations' live monitor currently shows Gemini 2.5 Flash Lite as much faster
-  // than GPT-OSS 20B, with Mistral Small 4 as a secondary fast model.
   const primary=complex?'mistralai/mistral-small-4':'google/gemini-2.5-flash-lite';
+  const secondary=complex?'google/gemini-2.5-flash-lite':'mistralai/mistral-small-4';
   try{
     return await tryPollinationsModel(messages,primary,complex?9000:5500);
   }catch(first){
-    const secondary=complex?'google/gemini-2.5-flash-lite':'mistralai/mistral-small-4';
     return await tryPollinationsModel(messages,secondary,complex?7000:5500);
   }
 }
