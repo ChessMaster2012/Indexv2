@@ -461,18 +461,65 @@ function setSessionCookie(res, token) {
 function clearSessionCookie(res) {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
 }
+function sessionSigningSecret() {
+  // Reuse the existing server-only Supabase secret when persistent storage is enabled.
+  // No new Render variable is required, and the secret is never sent to the browser.
+  return crypto.createHash('sha256')
+    .update('index-session-v1:')
+    .update(SUPABASE_SERVICE_ROLE_KEY || 'index-session-local-fallback')
+    .digest();
+}
 function createSession(userId) {
+  if (SUPABASE_ENABLED) {
+    const exp = Date.now() + SESSION_MAX_AGE_MS;
+    const payload = Buffer.from(String(userId),'utf8').toString('base64url') + '.' + String(exp);
+    const sig = crypto.createHmac('sha256',sessionSigningSecret()).update(payload).digest('base64url');
+    return 'p.' + payload + '.' + sig;
+  }
   const token = crypto.randomBytes(32).toString('hex');
   sessions.set(token, { userId, createdAt: Date.now() });
   return token;
 }
-app.use((req, res, next) => {
-  const cookies = parseCookies(req);
-  const token = cookies[SESSION_COOKIE];
-  const session = token && sessions.get(token);
-  req.user = session ? usersById.get(session.userId) || null : null;
-  req.sessionToken = token || null;
-  next();
+function readPersistentSession(token) {
+  if (!SUPABASE_ENABLED || typeof token !== 'string' || !token.startsWith('p.')) return null;
+  const parts = token.split('.');
+  if (parts.length !== 4) return null;
+  const payload = parts[1]+'.'+parts[2];
+  const sig = parts[3];
+  const expected = crypto.createHmac('sha256',sessionSigningSecret()).update(payload).digest('base64url');
+  const a=Buffer.from(sig), b=Buffer.from(expected);
+  if(a.length!==b.length || !crypto.timingSafeEqual(a,b)) return null;
+  const exp=Number(parts[2]);
+  if(!Number.isFinite(exp) || exp<Date.now()) return null;
+  let userId;
+  try{ userId=Buffer.from(parts[1],'base64url').toString('utf8'); }catch(e){ return null; }
+  return {userId,exp};
+}
+app.use(async (req, res, next) => {
+  try{
+    const cookies = parseCookies(req);
+    const token = cookies[SESSION_COOKIE];
+    const session = token && sessions.get(token);
+    req.user = session ? usersById.get(session.userId) || null : null;
+    req.sessionToken = token || null;
+
+    const persistent = !req.user && readPersistentSession(token);
+    if(persistent && SUPABASE_ENABLED){
+      const row = await dbFindUserById(persistent.userId);
+      if(row){
+        req.user = dbRowToUser(row);
+        usersById.set(req.user.id,req.user);
+        if(req.user.email) users.set('email:'+normalizeEmail(req.user.email),req.user);
+        if(req.user.username) usersByUsername.set(normalizeUsername(req.user.username),req.user);
+      }
+    }
+    next();
+  }catch(e){
+    console.error('Session lookup error:',e.message);
+    req.user=null;
+    req.sessionToken=null;
+    next();
+  }
 });
 
 function normalizeEmail(v) { return String(v || '').trim().toLowerCase(); }
