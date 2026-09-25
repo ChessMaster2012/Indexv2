@@ -50,7 +50,25 @@ app.use((req,res,next)=>{
   next();
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+// Browser caching for static files: this reduces repeat downloads without caching
+// API responses or changing any application behavior. HTML/JS are kept short-lived
+// so deployments and feature updates become visible quickly; images can stay cached
+// longer because they are immutable-looking public assets.
+const PUBLIC_DIR = path.join(__dirname, 'public');
+app.use(express.static(PUBLIC_DIR, {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    if (ext === '.html' || ext === '.js' || ext === '.json') {
+      res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
+    } else if (['.jpg', '.jpeg', '.png', '.webp', '.gif', '.ico', '.svg'].includes(ext)) {
+      res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+    }
+  }
+}));
 
 // Safety / conduct guardrails for a student-facing study tool.
 const CONDUCT_PATTERNS = [
