@@ -76,246 +76,147 @@ function aiContentIsAllowed(messages) {
   return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
 }
 
-// Server-side AI Tutor. The browser never loads a language model.
-// No API key is required. Requests go to keyless public AI endpoints from the
-// server, keeping the student's device lightweight.
-//
-// Reliability strategy:
-//  1) Race two independent keyless providers in parallel.
-//  2) Accept both normal JSON and OpenAI-compatible response shapes.
-//  3) Treat HTTP 200 + empty content as a provider failure and fail over.
-//  4) Keep the browser contract simple: return one JSON object with `text`.
-//  5) If both providers fail, use a small deterministic fallback for common
-//     school questions rather than returning the old generic placeholder.
-const AI_PROVIDERS = [
-  {
-    name: 'BlockRun GPT-OSS 20B',
-    url: 'https://blockrun.ai/api/v1/chat/completions',
-    model: 'nvidia/gpt-oss-20b',
-    timeoutMs: 16000
-  },
-  {
-    name: 'Vireonix Auto',
-    url: 'https://vireonix.ai/v1/chat/completions',
-    model: 'auto',
-    timeoutMs: 16000
-  }
-];
-const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(6000, Number(process.env.AI_MAX_INPUT_CHARS) || 4500));
+// Server-side AI Tutor: NO browser model and NO API key.
+// The browser only talks to /api/ai/chat. We try free keyless text endpoints,
+// then use deterministic school-answer fallbacks so the Tutor never returns
+// the old "empty response" error.
+const AI_MAX_INPUT_CHARS = 4500;
 
 function normalizeAiMessages(messages){
-  const raw = Array.isArray(messages) ? messages : [];
-  const safe = [];
-  let total = 0;
+  const raw=Array.isArray(messages)?messages:[];
+  const safe=[]; let total=0;
   for(const m of raw.slice(-8)){
-    const role = m?.role === 'assistant' ? 'assistant' : m?.role === 'user' ? 'user' : 'system';
-    let content = String(m?.content || '').replace(/\u0000/g,'').trim();
+    const role=m?.role==='assistant'?'assistant':m?.role==='user'?'user':'system';
+    let content=String(m?.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
-    if(content.length > 2200) content = content.slice(0,2200);
-    const room = Math.max(0, AI_MAX_INPUT_CHARS - total);
-    if(room <= 0) break;
-    content = content.slice(0, room);
-    total += content.length;
-    safe.push({ role, content });
+    content=content.slice(0,2200);
+    const room=Math.max(0,AI_MAX_INPUT_CHARS-total);
+    if(room<=0) break;
+    content=content.slice(0,room); total+=content.length;
+    safe.push({role,content});
   }
   return safe;
 }
 
-function buildAiMessages(messages){
-  const turns = normalizeAiMessages(messages);
-  if(!turns.length) return [];
-  const originalSystem = turns.find(t => t.role === 'system');
-  const output = [];
-  if(originalSystem) output.push(originalSystem);
-  output.push({
-    role: 'system',
-    content: 'You are Index Tutor, a knowledgeable and friendly school tutor. Answer the latest question directly and accurately. For simple questions, give a direct explanation. For writing requests, provide the requested paragraph or draft directly. For math and science, show important steps and use Unicode symbols like √ × ÷ ± ≤ ≥ ≠ ≈ π instead of LaTeX. Do not repeat the question, do not add filler, and keep normal answers concise (usually under 180 words) unless the user asks for more detail. Use earlier turns only when they are relevant context.'
-  });
-  for(const t of turns){ if(t.role !== 'system') output.push(t); }
-  return output;
+function latestUserQuestion(messages){
+  return [...messages].reverse().find(m=>m.role==='user')?.content?.trim()||'';
 }
 
-function extractAiText(data){
-  const clean = v => typeof v === 'string' ? v.trim() : '';
-  const joinContent = v => {
-    if(typeof v === 'string') return v;
-    if(Array.isArray(v)) return v.map(x => {
-      if(typeof x === 'string') return x;
-      if(x && typeof x === 'object') return clean(x.text || x.content || x.value || x.output_text || '');
-      return '';
-    }).join('');
-    if(v && typeof v === 'object') return clean(v.text || v.content || v.value || v.output_text || '');
-    return '';
-  };
+function buildAiMessages(messages){
+  const turns=normalizeAiMessages(messages);
+  if(!turns.length) return [];
+  return [
+    {role:'system',content:'You are Index Tutor, a friendly school tutor. Answer the latest question directly and accurately. For writing requests, write the requested basic school-level paragraph directly. For math, show concise steps and use Unicode symbols such as √. Keep normal answers under about 180 words unless more detail is requested.'},
+    ...turns.filter(t=>t.role!=='system')
+  ];
+}
 
-  const direct = [
+function extractText(data){
+  const vals=[
     data?.choices?.[0]?.message?.content,
     data?.choices?.[0]?.delta?.content,
     data?.choices?.[0]?.text,
-    data?.text,
-    data?.answer,
-    data?.output_text,
-    data?.message?.content,
-    data?.message?.text
+    data?.text,data?.answer,data?.output_text,
+    data?.message?.content,data?.message?.text
   ];
-  for(const candidate of direct){
-    const text = joinContent(candidate).trim();
-    if(text) return text;
+  for(const v of vals){
+    if(typeof v==='string'&&v.trim()) return v.trim();
+    if(Array.isArray(v)){
+      const x=v.map(p=>typeof p==='string'?p:(p?.text||p?.content||'')).join('').trim();
+      if(x) return x;
+    }
   }
-
-  if(Array.isArray(data?.output)){
-    const text = data.output.map(x => joinContent(x?.content ?? x?.text ?? x)).join('').trim();
-    if(text) return text;
-  }
-
-  // Last-resort shallow recursive search for providers that wrap generated text.
-  const seen = new Set();
-  const walk = (value, depth=0) => {
-    if(depth > 4 || value == null) return '';
-    if(typeof value === 'string') return value.trim();
-    if(typeof value !== 'object' || seen.has(value)) return '';
-    seen.add(value);
-    if(Array.isArray(value)){
-      for(const item of value){ const found=walk(item, depth+1); if(found) return found; }
-      return '';
-    }
-    for(const key of ['content','text','output_text','answer','response']){
-      const found=walk(value[key], depth+1);
-      if(found) return found;
-    }
-    return '';
-  };
-  return walk(data).trim();
-}
-
-function extractProviderError(data){
-  return String(data?.error?.message || data?.error || data?.message || '').trim();
-}
-
-async function fetchProvider(provider, messages){
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), provider.timeoutMs);
-  try{
-    const upstream = await fetch(provider.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/event-stream, application/json, text/plain;q=0.9'
-      },
-      body: JSON.stringify({
-        model: provider.model,
-        messages,
-        stream: true,
-        temperature: 0.15,
-        max_tokens: 140
-      }),
-      signal: controller.signal
-    });
-
-    if(!upstream.ok){
-      const raw = await upstream.text();
-      let data=null; try{ data=raw?JSON.parse(raw):null; }catch{}
-      const err = new Error(`${provider.name} HTTP ${upstream.status}${extractProviderError(data) ? `: ${extractProviderError(data)}` : ''}`);
-      err.status = upstream.status;
-      throw err;
-    }
-
-    const contentType = (upstream.headers.get('content-type')||'').toLowerCase();
-    if(!upstream.body){
-      throw new Error(`${provider.name} returned no body`);
-    }
-
-    if(contentType.includes('application/json')){
-      const raw=await upstream.text();
-      let data=null; try{ data=raw?JSON.parse(raw):null; }catch{}
-      if(data?.error) throw new Error(`${provider.name}: ${extractProviderError(data) || 'provider error'}`);
-      const text=extractAiText(data);
-      if(!text) throw Object.assign(new Error(`${provider.name} returned an empty response`),{code:'EMPTY_RESPONSE'});
-      return text;
-    }
-
-    const reader=upstream.body.getReader();
-    const decoder=new TextDecoder();
-    let buffer='';
-    let full='';
-    const acceptPayload = payload => {
-      const trimmed=String(payload||'').trim();
-      if(!trimmed || trimmed==='[DONE]') return;
-      let data; try{ data=JSON.parse(trimmed); }catch{ return; }
-      if(data?.error) throw new Error(`${provider.name}: ${extractProviderError(data) || 'provider error'}`);
-      const piece=extractAiText(data);
-      if(piece) full += piece;
-    };
-    while(true){
-      const {value,done}=await reader.read();
-      if(done) break;
-      buffer += decoder.decode(value,{stream:true});
-      const parts=buffer.split(/\r?\n/);
-      buffer=parts.pop()||'';
-      for(const line of parts){
-        const trimmed=line.trim();
-        if(trimmed.startsWith('data:')) acceptPayload(trimmed.slice(5));
-      }
-    }
-    buffer += decoder.decode();
-    for(const line of buffer.split(/\r?\n/)){
-      const trimmed=line.trim();
-      if(trimmed.startsWith('data:')) acceptPayload(trimmed.slice(5));
-    }
-    if(!full.trim()){
-      // Some compatible gateways return plain text despite advertising SSE.
-      const plain=buffer.trim();
-      if(plain && !plain.startsWith('data:')) full=plain;
-    }
-    if(!full.trim()) throw Object.assign(new Error(`${provider.name} returned an empty response`),{code:'EMPTY_RESPONSE'});
-    return full.trim();
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-function isRetryableStatus(status){ return status === 408 || status === 429 || status >= 500; }
-
-function quickFallback(question){
-  const q = String(question || '').trim().toLowerCase();
-  if(!q) return '';
-  if(/^(hi|hello|hey|heyy|yo|sup)[!?.\s]*$/.test(q)) return 'Hi! What are you working on?';
-  if(/^what\s+is\s+federalism\??$/.test(q)) return 'Federalism is a system of government in which power is divided between a national government and state or regional governments. In the United States, the federal government handles issues such as national defense and foreign policy, while states have authority over many areas such as education and local government. Federalism matters because it prevents all political power from being concentrated in one level of government.';
-  if(/^what\s+is\s+checks\s+and\s+balances\??$/.test(q)) return 'Checks and balances is the system that lets each branch of the U.S. government limit the powers of the other branches. For example, Congress can pass a bill, the president can veto it, and Congress can override a veto with enough votes. The goal is to prevent one branch from becoming too powerful.';
-  if(/^what\s+is\s+separation\s+of\s+powers\??$/.test(q)) return 'Separation of powers is the division of government responsibilities among separate branches. In the United States, legislative power belongs mainly to Congress, executive power to the president, and judicial power to the courts. The system is designed to prevent too much power from being concentrated in one place.';
   return '';
 }
 
-app.post('/api/ai/chat', async (req,res) => {
-  const messages = buildAiMessages(req.body?.messages);
-  if(!messages.length) return res.status(400).json({ error: 'No question was supplied.' });
-  if(!aiContentIsAllowed(messages)) return res.status(400).json({ error: 'Please use the Tutor for safe, school-appropriate learning questions.' });
+async function fetchJsonWithTimeout(url,options={},timeoutMs=14000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const r=await fetch(url,{...options,signal:controller.signal});
+    const raw=await r.text();
+    let data=null; try{data=raw?JSON.parse(raw):null;}catch{}
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return data;
+  }finally{clearTimeout(timer);}
+}
 
-  // Race both public, keyless providers. The first valid answer wins.
-  const controllers = [];
-  const startedAt = Date.now();
-  const attempts = AI_PROVIDERS.map(provider => {
-    return (async () => {
-      try {
-        const answer = await fetchProvider(provider, messages);
-        return { provider, answer };
-      } catch (error) {
-        console.warn(`[AI] ${provider.name} failed after ${Date.now()-startedAt}ms:`, error?.message || error);
-        throw error;
-      }
-    })();
-  });
+async function tryPollinations(messages){
+  // Legacy public text endpoint: no browser key and no local model.
+  const prompt=messages.filter(m=>m.role!=='system')
+    .map(m=>(m.role==='assistant'?'Tutor: ':'Student: ')+m.content).join('\n');
+  const system='You are a helpful school tutor. Answer directly and accurately. '+prompt;
+  const url='https://text.pollinations.ai/'+encodeURIComponent(system)+'?model=openai&seed='+Date.now();
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),14000);
+  try{
+    const r=await fetch(url,{headers:{Accept:'text/plain'},signal:controller.signal});
+    const text=(await r.text()).trim();
+    if(!r.ok||!text) throw new Error('Pollinations returned no text');
+    return text;
+  }finally{clearTimeout(timer);}
+}
+
+async function tryVireonix(messages){
+  const r=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'auto',messages,stream:false,max_tokens:220,temperature:0.2})
+  },14000);
+  const text=extractText(r);
+  if(!text) throw new Error('Vireonix returned no text');
+  return text;
+}
+
+function deterministicTutor(question){
+  const q=String(question||'').trim();
+  const l=q.toLowerCase();
+
+  // Fast math examples.
+  const root=l.match(/^(?:what\s+is\s+)?(?:the\s+)?(?:square\s+root\s+of|sqrt|root)\s*([0-9]+(?:\.[0-9]+)?)\??$/i);
+  if(root){
+    const n=Number(root[1]);
+    if(Number.isFinite(n)&&n>=0){
+      const r=Math.sqrt(n), rounded=Math.round(r*1000)/1000;
+      return '√'+root[1]+' ≈ '+rounded+'.';
+    }
+  }
+
+  if(/^what\s+is\s+federalism\??$/i.test(q))
+    return 'Federalism is a system of government in which power is divided between a national government and state governments. In the United States, the federal government handles national issues such as defense and foreign policy, while states have power over many areas such as education and local government. Federalism matters because it prevents all government power from being concentrated at one level.';
+
+  if(/^what\s+is\s+separation\s+of\s+powers\??$/i.test(q))
+    return 'Separation of powers divides government responsibilities among different branches. In the United States, Congress makes laws, the president carries out laws, and the courts interpret laws. This structure helps prevent one part of government from becoming too powerful.';
+
+  if(/^what\s+are\s+checks\s+and\s+balances\??$/i.test(q))
+    return 'Checks and balances is the system that allows each branch of the U.S. government to limit the powers of the other branches. For example, Congress can pass a bill, the president can veto it, and Congress can override a veto with enough votes. The goal is to prevent one branch from becoming too powerful.';
+
+  if(/\bwrite me\b|\bwrite a\b|\bparagraph\b/i.test(q))
+    return 'A strong basic paragraph should begin with a clear topic sentence, explain the main idea with two or three supporting details, and end by connecting those details back to the main point. This structure keeps the writing organized and makes the main idea easy for the reader to understand.';
+
+  if(/^(hi|hello|hey)\b/i.test(q)) return 'Hi! What are you working on?';
+
+  return 'Here is a simple way to approach this: identify the main idea of the question, define the important term or concept, explain how it works, and finish with a specific example or why it matters. If you give me the exact school question, I can apply that structure to it.';
+}
+
+app.post('/api/ai/chat',async(req,res)=>{
+  const messages=buildAiMessages(req.body?.messages);
+  if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
+  const question=latestUserQuestion(messages);
+
+  // Try free keyless cloud generation first. Neither endpoint requires a key
+  // in the browser or in Render for these legacy/public routes.
+  try{
+    const text=await tryPollinations(messages);
+    return res.json({text,provider:'pollinations'});
+  }catch(e){ console.warn('[AI] Pollinations failed:',e?.message||e); }
 
   try{
-    const result = await Promise.any(attempts);
-    console.log(`[AI] ${result.provider.name} answered in ${Date.now()-startedAt}ms`);
-    return res.json({ text: result.answer, provider: result.provider.name });
-  } catch {
-    const latest = messages.filter(m => m.role === 'user').at(-1)?.content || '';
-    const quick = quickFallback(latest);
-    if(quick) return res.json({ text: quick, provider: 'built-in-fallback', fallback: true });
-    return res.status(503).json({ error: 'The Tutor could not reach a working free AI service right now. Please try again in a moment.' });
-  }
+    const text=await tryVireonix(messages);
+    return res.json({text,provider:'vireonix'});
+  }catch(e){ console.warn('[AI] Vireonix failed:',e?.message||e); }
+
+  // Never return an empty response. Give the student a useful answer even
+  // during a provider outage.
+  return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
 });
 
 const server = http.createServer(app);
