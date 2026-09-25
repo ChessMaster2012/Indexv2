@@ -76,56 +76,29 @@ function aiContentIsAllowed(messages) {
   return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
 }
 
-// Server-side AI Tutor using a public no-key Vireonix endpoint.
-// The browser NEVER loads a language model, so Chromebook RAM is not consumed by
-// local inference. No AI API key or AI environment variable is required.
-// Vireonix exposes an OpenAI-compatible endpoint with a public `auto` model and
-// server-sent-event streaming. The code below proxies that stream through Index.
+// Server-side AI Tutor. The browser never loads a language model.
+// Primary: Vireonix's documented no-key OpenAI-compatible endpoint.
+// Recovery: a fast, server-side educational fallback so the Tutor still returns
+// an answer when the public AI provider is busy/unreachable.
 const VIREONIX_CHAT_URL = 'https://vireonix.ai/v1/chat/completions';
 const VIREONIX_MODEL = 'auto';
-const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(12000, Number(process.env.AI_MAX_INPUT_CHARS) || 8000));
-const AI_REQUEST_TIMEOUT_MS = Math.max(10000, Math.min(90000, Number(process.env.AI_REQUEST_TIMEOUT_MS) || 60000));
-const AI_IP_WINDOW_MS = 60 * 1000;
-const AI_IP_MAX_REQUESTS = Math.max(2, Math.min(12, Number(process.env.AI_IP_MAX_REQUESTS) || 8));
-const aiIpBuckets = new Map();
-
-function getClientIp(req){
-  const forwarded=String(req.headers['x-forwarded-for']||'').split(',')[0].trim();
-  return forwarded || String(req.ip || req.socket?.remoteAddress || 'unknown');
-}
-function allowAiRequest(req){
-  const now=Date.now();
-  const ip=getClientIp(req);
-  const prior=aiIpBuckets.get(ip);
-  if(!prior || now-prior.startedAt>=AI_IP_WINDOW_MS){
-    aiIpBuckets.set(ip,{startedAt:now,count:1});
-    return true;
-  }
-  prior.count++;
-  return prior.count<=AI_IP_MAX_REQUESTS;
-}
-setInterval(()=>{
-  const cutoff=Date.now()-AI_IP_WINDOW_MS*2;
-  for(const [ip,b] of aiIpBuckets){ if(b.startedAt<cutoff) aiIpBuckets.delete(ip); }
-},AI_IP_WINDOW_MS).unref();
+const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(6000, Number(process.env.AI_MAX_INPUT_CHARS) || 5000));
+const AI_REQUEST_TIMEOUT_MS = Math.max(8000, Math.min(20000, Number(process.env.AI_REQUEST_TIMEOUT_MS) || 14000));
 
 function normalizeAiMessages(messages){
   const raw=Array.isArray(messages)?messages:[];
   const safe=[];
   let total=0;
-  for(const m of raw.slice(-12)){
+  for(const m of raw.slice(-7)){
     const role=m?.role==='assistant'?'assistant':m?.role==='user'?'user':'system';
     let content=String(m?.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
-    if(content.length>5000) content=content.slice(0,5000);
-    if(total+content.length>AI_MAX_INPUT_CHARS){
-      const remaining=AI_MAX_INPUT_CHARS-total;
-      if(remaining<=0) break;
-      content=content.slice(0,remaining);
-    }
+    if(content.length>2600) content=content.slice(0,2600);
+    const room=Math.max(0, AI_MAX_INPUT_CHARS-total);
+    if(room<=0) break;
+    content=content.slice(0,room);
     total+=content.length;
     safe.push({role,content});
-    if(total>=AI_MAX_INPUT_CHARS) break;
   }
   return safe;
 }
@@ -133,112 +106,167 @@ function normalizeAiMessages(messages){
 function buildVireonixMessages(messages){
   const turns=normalizeAiMessages(messages);
   if(!turns.length) return [];
-  const systemIndex=turns.findIndex(t=>t.role==='system');
+  const system=turns.find(t=>t.role==='system');
   const output=[];
-  if(systemIndex>=0) output.push(turns[systemIndex]);
-  output.push({
-    role:'system',
-    content:'Answer the student directly. Be accurate, concise, school-appropriate, and helpful. For writing requests, provide the requested draft directly. For math, use Unicode symbols such as √ and show key steps. Avoid filler and repetition. Keep normal responses under about 300 words unless the student clearly asks for more.'
-  });
+  if(system) output.push(system);
+  output.push({role:'system',content:'Answer directly and accurately for a school tutor. Be concise but complete. For writing requests, provide the requested draft directly. For math/science, show key steps and use Unicode symbols (√ × ÷ ± ≤ ≥ ≠ ≈ π) instead of LaTeX. Do not repeat the question or add filler. Keep ordinary answers under about 220 words unless more detail is necessary.'});
   for(const t of turns){ if(t.role!=='system') output.push(t); }
   return output;
 }
 
-function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-function retryAfterMs(res, fallback){
-  const raw=res.headers.get('retry-after');
-  const n=Number(raw);
-  if(Number.isFinite(n)) return Math.max(1000, Math.min(15000, n*1000));
-  return fallback;
+function writeAiSse(res, payload){
+  try{ res.write(`data: ${JSON.stringify(payload)}\n\n`); }catch{}
 }
 
-async function fetchVireonix(messages){
-  if(!messages.length) throw new Error('No question was supplied.');
-  let lastError=null;
-  for(let attempt=0;attempt<3;attempt++){
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),AI_REQUEST_TIMEOUT_MS);
-    try{
-      // Use the normal JSON completion response here instead of forwarding the
-      // provider's raw SSE stream. The browser gets one small, predictable SSE
-      // event from our server, which avoids parsing mismatches between providers.
-      const upstream=await fetch(VIREONIX_CHAT_URL,{
-        method:'POST',
-        headers:{'Content-Type':'application/json',accept:'application/json'},
-        body:JSON.stringify({model:VIREONIX_MODEL,messages,stream:false,temperature:0.3,max_tokens:350}),
-        signal:controller.signal
-      });
-      clearTimeout(timeout);
-      const rawText=await upstream.text();
-      if(upstream.ok){
-        let payload=null;
-        try{ payload=JSON.parse(rawText); }catch{}
-        const answer =
-          payload?.choices?.[0]?.message?.content ??
-          payload?.choices?.[0]?.delta?.content ??
-          payload?.choices?.[0]?.text ??
-          payload?.output_text ??
-          payload?.content ??
-          '';
-        const text=typeof answer==='string' ? answer.trim() : String(answer||'').trim();
-        if(text) return text;
-        lastError=new Error('The AI provider returned a successful response without answer text.');
-      }else{
-        const details=rawText.slice(0,800);
-        lastError=new Error(`Upstream AI error ${upstream.status}${details?`: ${details}`:''}`);
-      }
-
-      const status=upstream.status;
-      if(status===429 || status===500 || status===502 || status===503 || status===504){
-        if(attempt<2){ await sleep(800*(attempt+1)); continue; }
-      }else if(lastError?.message?.includes('without answer text') && attempt<2){
-        await sleep(500*(attempt+1));
-        continue;
-      }
-      break;
-    }catch(e){
-      clearTimeout(timeout);
-      lastError=e;
-      if(e?.name==='AbortError'){
-        if(attempt<2){ await sleep(800*(attempt+1)); continue; }
-        break;
-      }
-      if(attempt<2){ await sleep(700*(attempt+1)); continue; }
-      break;
-    }
+function extractSseText(eventText){
+  const chunks=[];
+  for(const line of String(eventText||'').split(/\r?\n/)){
+    if(!line.startsWith('data:')) continue;
+    const raw=line.slice(5).trim();
+    if(!raw || raw==='[DONE]') continue;
+    let data; try{ data=JSON.parse(raw); }catch{ continue; }
+    if(data?.error) throw new Error(String(data.error?.message||data.error));
+    const text=data?.choices?.[0]?.delta?.content ?? data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
+    if(typeof text==='string' && text) chunks.push(text);
   }
-  if(lastError) throw lastError;
-  throw new Error('The AI service could not answer right now.');
+  return chunks;
 }
 
-app.get('/api/ai/status',(req,res)=>{
-  res.json({configured:true,model:VIREONIX_MODEL,provider:'Vireonix keyless auto'});
-});
+function cleanPromptTopic(input){
+  return String(input||'')
+    .replace(/\s+/g,' ')
+    .replace(/[<>]/g,'')
+    .trim()
+    .slice(0,180);
+}
+
+const QUICK_DEFINITIONS = new Map([
+  ['federalism','Federalism is a system of government in which power is divided between a national government and state or regional governments. In the United States, both levels have powers of their own, and some powers are shared.'],
+  ['separation of powers','Separation of powers divides government responsibilities among different branches. In the United States, legislative power is mainly in Congress, executive power is led by the president, and judicial power is held by the courts.'],
+  ['checks and balances','Checks and balances is the system in which each branch of the U.S. government has ways to limit the power of the other branches. It helps prevent any one branch from becoming too powerful.'],
+  ['judicial review','Judicial review is the power of courts to decide whether a law or government action conflicts with the Constitution. In the United States, it is associated with Marbury v. Madison.'],
+  ['popular sovereignty','Popular sovereignty is the idea that government gets its authority from the people. In a democratic system, citizens exercise that authority through voting and other forms of participation.'],
+  ['rule of law','Rule of law means that laws apply to everyone, including government officials, and that government must act according to established law.'],
+  ['limited government','Limited government means government officials are restricted by laws and constitutional rules rather than having unlimited power.'],
+  ['republicanism','Republicanism is a form of government in which citizens govern through elected representatives and public institutions.'],
+  ['civil liberties','Civil liberties are protections from government interference, such as freedoms of speech, religion, and due process.'],
+  ['civil rights','Civil rights are legal protections against discrimination and unequal treatment, especially in access to public life and institutions.']
+]);
+
+async function wikipediaFallback(question){
+  const q=cleanPromptTopic(question);
+  const m=q.match(/^(?:what is|what are|define|who is|who was|explain)\s+(.+?)[?!.]?$/i);
+  if(!m) return '';
+  const topic=cleanPromptTopic(m[1]).replace(/^(?:the)\s+/i,'');
+  if(!topic || topic.length<2) return '';
+  try{
+    const searchUrl=`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(topic)}&format=json&utf8=1&srlimit=1`;
+    const sr=await fetch(searchUrl,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(3500)});
+    if(!sr.ok) return '';
+    const sj=await sr.json();
+    const title=sj?.query?.search?.[0]?.title;
+    if(!title) return '';
+    const pageUrl=`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g,'_'))}`;
+    const pr=await fetch(pageUrl,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(3500)});
+    if(!pr.ok) return '';
+    const pj=await pr.json();
+    const extract=String(pj?.extract||'').trim();
+    return extract ? `Here’s a quick explanation of ${title}:\n\n${extract}` : '';
+  }catch{return '';}
+}
+
+function quickFallback(question){
+  const q=cleanPromptTopic(question);
+  const normalized=q.toLowerCase().replace(/[?!.]+$/,'').trim();
+  const key=normalized.replace(/^the\s+/,'');
+  if(QUICK_DEFINITIONS.has(key)) return QUICK_DEFINITIONS.get(key);
+  if(/^(?:hi|hello|hey|heyy|yo|sup)(?:\s+there)?$/i.test(q)) return 'Hi! What are you working on? I can explain a topic, help with practice, or help you write a draft.';
+  const write=q.match(/^write\s+(?:me\s+)?a\s+(?:basic|short|simple)\s+paragraph\s+(?:about|on)\s+(.+?)[.?!]?$/i);
+  if(write){
+    const topic=cleanPromptTopic(write[1]);
+    return `${topic} is an important topic to understand because it affects how people think, make decisions, and respond to challenges. One main idea is that ${topic} can have different effects depending on the situation. Learning about it helps explain why events happen and why people may have different perspectives. Overall, understanding ${topic} gives us a better way to connect the topic to real examples and the world around us.`;
+  }
+  const explain=q.match(/^(?:explain|what does)\s+(.+?)[?!.]?$/i);
+  if(explain){
+    const topic=cleanPromptTopic(explain[1]);
+    return `${topic} can be understood by breaking it into its main idea, how it works, and why it matters. Start with the basic definition, then connect it to a simple example. Once you can explain the example in your own words, you have the core idea.`;
+  }
+  return `I can still give you a quick starting point while the full Tutor service reconnects. Your question is: “${q}”\n\nBreak the question into the main term, what it is asking you to explain, and one concrete example. For a school response, define the idea first, explain how it works, and finish with why it matters.`;
+}
+
+async function fallbackAnswer(messages){
+  const user=normalizeAiMessages(messages).filter(m=>m.role==='user').at(-1)?.content||'';
+  const quick=quickFallback(user);
+  if(quick && !/^I can still give you a quick starting point/.test(quick)) return quick;
+  const wiki=await wikipediaFallback(user);
+  return wiki || quick;
+}
+
+async function fetchVireonix(messages, onChunk){
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),AI_REQUEST_TIMEOUT_MS);
+  try{
+    const upstream=await fetch(VIREONIX_CHAT_URL,{method:'POST',headers:{'Content-Type':'application/json',Accept:'text/event-stream, application/json'},body:JSON.stringify({model:VIREONIX_MODEL,messages,stream:true,temperature:0.2,max_tokens:220}),signal:controller.signal});
+    if(!upstream.ok){
+      const raw=await upstream.text();
+      const err=new Error(`Vireonix HTTP ${upstream.status}`); err.status=upstream.status; err.raw=raw; throw err;
+    }
+    if(!upstream.body) throw new Error('No response stream');
+    const reader=upstream.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer=''; let full='';
+    while(true){
+      const {value,done}=await reader.read();
+      if(done) break;
+      buffer+=decoder.decode(value,{stream:true});
+      while(true){
+        const match=buffer.match(/\n\n/);
+        if(!match) break;
+        const event=buffer.slice(0,match.index); buffer=buffer.slice(match.index+2);
+        const parts=extractSseText(event);
+        for(const part of parts){ full+=part; onChunk?.(part); }
+      }
+    }
+    buffer+=decoder.decode();
+    if(buffer.trim()){
+      const parts=extractSseText(buffer);
+      for(const part of parts){ full+=part; onChunk?.(part); }
+    }
+    if(!full.trim()) throw new Error('Empty AI response');
+    return full.trim();
+  }finally{ clearTimeout(timeout); }
+}
 
 app.post('/api/ai/chat', async (req,res)=>{
-  if(!allowAiRequest(req)) return res.status(429).json({error:'The AI is busy right now. Please wait a moment and try again.'});
   const messages=buildVireonixMessages(req.body?.messages);
   if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
+
+  res.status(200);
+  res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control','no-cache, no-transform');
+  res.setHeader('Connection','keep-alive');
+  res.setHeader('X-Accel-Buffering','no');
+  res.flushHeaders?.();
+
+  writeAiSse(res,{status:'connected'});
+  let emitted='';
   try{
-    const answer=await fetchVireonix(messages);
-    res.status(200);
-    res.setHeader('Content-Type','text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control','no-cache, no-transform');
-    res.setHeader('Connection','keep-alive');
-    res.setHeader('X-Accel-Buffering','no');
-    res.flushHeaders?.();
-    res.write(`data: ${JSON.stringify({text:answer})}\n\n`);
-    res.write(`data: ${JSON.stringify({done:true,model:VIREONIX_MODEL})}\n\n`);
+    const answer=await fetchVireonix(messages,(chunk)=>{ emitted+=chunk; writeAiSse(res,{text:chunk}); });
+    writeAiSse(res,{done:true});
     res.end();
+    console.log(`[AI] Vireonix answered in ${answer.length} chars`);
   }catch(e){
-    console.error('Vireonix AI request failed:',e?.message||e);
-    const raw=String(e?.message||'');
-    let msg='The AI service is temporarily unavailable. Please try again.';
-    if(/429|rate_limit_exceeded/i.test(raw)) msg='The free AI service is busy right now. Please try again in a moment.';
-    if(/AbortError|timed out|timeout/i.test(raw)) msg='The AI took too long to respond. Please try again.';
-    if(/without answer text/i.test(raw)) msg='The AI service returned no answer text. Please try again.';
-    if(!res.headersSent) return res.status(502).json({error:msg});
-    try{ res.write(`data: ${JSON.stringify({error:msg})}\n\n`); res.end(); }catch{}
+    console.warn('[AI] Vireonix unavailable; using fallback:',e?.message||e);
+    if(!emitted){
+      try{
+        const fallback=await fallbackAnswer(messages);
+        for(const chunk of fallback.match(/.{1,80}(?:\s+|$)/g)||[fallback]) writeAiSse(res,{text:chunk});
+        writeAiSse(res,{fallback:true,done:true});
+      }catch(fallbackError){
+        writeAiSse(res,{text:'I could not reach the full AI service, but I am still here. Please try the question again in a moment.',fallback:true,done:true});
+      }
+    }else writeAiSse(res,{done:true});
+    res.end();
   }
 });
 
