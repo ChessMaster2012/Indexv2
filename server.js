@@ -325,33 +325,10 @@ function fuzzyQuestionCoverage(question,answer){
 function answerAddressesQuestion(question,answer,sourceMessages){
   const a=String(answer||'').trim();
   if(responseLooksLikeGenericAdvice(a)) return false;
-  const latest=String(question||'').trim();
 
-  // A full natural-language prompt is allowed to be answered with synonyms,
-  // examples, equations, names, or other wording that does not literally repeat
-  // the student's words. Only very short fragment/topic prompts need a lexical
-  // relevance check.
-  const words=topicKeywords(latest);
-  if(words.length>=3) return a.length>=20;
-
-  // One- or two-word topic prompts should still be answered directly. Fuzzy
-  // matching handles normal student typos such as "therum" -> "theorem".
-  if(words.length){
-    const coverage=fuzzyQuestionCoverage(latest,a);
-    if(coverage>=0.5) return true;
-  }
-
-  // Follow-ups can be correctly answered without repeating the topic noun.
-  const source=normalizeAiMessages(sourceMessages||[]);
-  const prior=[...source].reverse().find(m=>m.role==='assistant')?.content||'';
-  if(prior && /\b(it|that|this|these|those|above|previous|simpler|simple|clarify|explain that|what about it|why is that|how does that)\b/i.test(latest)){
-    const priorWords=topicKeywords(prior).slice(0,16);
-    if(priorWords.length===0) return a.length>=12;
-    return priorWords.some(w=>aWordsContainFuzzy(a,w));
-  }
-
-  // Very short but non-empty commands still deserve a real answer rather than
-  // being rejected for not repeating a noun.
+  // Do not require the answer to repeat exact keywords from the question.
+  // Good answers commonly use synonyms, definitions, examples, equations, or
+  // different terminology. The AI is responsible for interpreting the request.
   return a.length>=12;
 }
 
