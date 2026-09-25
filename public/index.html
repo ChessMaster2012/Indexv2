@@ -1684,6 +1684,7 @@ function renderRewards(){
     const packCard=(kind)=>{const c=packConfig(kind),can=(state.progress.coins||0)>=c.cost&&!state.rewardPackOpening;const contents=packContents(kind);return '<div class="pack-option" data-pack="'+kind+'" style="--pack-accent:'+c.accent+'"><div class="pack-rarity-line" style="background:linear-gradient(90deg,'+c.accent+',#fff)"></div><div class="pack-box">'+indexPackArt(c)+'</div><div class="pack-name">'+esc(c.name)+'</div><div class="pack-desc">8 original Indexlings from the '+esc(c.theme||c.name)+' collection.</div><div class="pack-theme-line">'+contents.map(item=>'<span class="mini-ling">'+indexlingArtHtml(item,true)+'</span>').join('')+'</div><div class="pack-count">8 collectibles · '+c.weights.Common+'% Common · '+c.weights.Rare+'% Rare · '+c.weights.Epic+'% Epic · '+c.weights.Legendary+'% Legendary</div><div class="pack-cost"><span class="coin-pill">🪙 '+c.cost+'</span></div><button class="btn '+(can?'btn-primary':'btn-ghost')+'" data-action="open-pack" data-pack="'+kind+'" '+(can?'':'disabled')+'>'+(can?'Open pack':'Not enough coins')+'</button></div>';};
     body='<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">INDEXLING VAULT</div><div class="pack-showcase-title">Pick a world.</div><div class="pack-showcase-copy">Candy, medieval, robo, ocean, arcade, and cosmic packs each have a different collectible set.</div></div><div class="coin-pill">🪙 <span class="coin-balance">'+(state.progress.coins||0)+'</span></div></div><div class="pack-shelf">'+PACK_ORDER.map(packCard).join('')+'</div></div></div><div class="panel"><h3>Collection</h3><p class="reward-muted">48 original Indexlings across six themed worlds.</p><div class="rarity-collection">'+REWARD_COSMETICS.map(c=>'<div class="rarity-card '+rewardRarityClass(c.rarity)+'"><div class="collection-icon">'+indexlingArtHtml(c,true)+'</div><div class="collection-name">'+esc(c.name)+'</div><div class="collection-rarity">'+esc(c.rarity)+' · '+esc(c.pack)+'</div></div>').join('')+'</div></div>';
 
+  }
   root.innerHTML=`<div class="rewards-page"><div class="rewards-layout">${rail}<div class="rewards-main">${head}${body}</div></div></div>`;
 }
 
@@ -1724,7 +1725,7 @@ async function dailyWheelSpin(){
     renderRewards();
   }finally{
     const b=document.querySelector('[data-action="daily-wheel-spin"]');
-    if(b && String(state.progress.dailyWheelDate||'')!==coinDayStr()) b.disabled=false;
+    if(b && String(state.progress.dailyWheelDate||'')!==coinDayStr())b.disabled=false;
   }
 }
 
