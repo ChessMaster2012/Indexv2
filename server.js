@@ -77,177 +77,245 @@ function aiContentIsAllowed(messages) {
 }
 
 // Server-side AI Tutor. The browser never loads a language model.
-// No AI API key is required. We use keyless public inference services from the
-// server so the student's device never downloads model weights or runs inference.
-// Primary: BlockRun's currently documented free GPT-OSS 20B route.
-// Recovery: Vireonix's currently documented free Auto router.
+// No API key is required. Requests go to keyless public AI endpoints from the
+// server, keeping the student's device lightweight.
+//
+// Reliability strategy:
+//  1) Race two independent keyless providers in parallel.
+//  2) Accept both normal JSON and OpenAI-compatible response shapes.
+//  3) Treat HTTP 200 + empty content as a provider failure and fail over.
+//  4) Keep the browser contract simple: return one JSON object with `text`.
+//  5) If both providers fail, use a small deterministic fallback for common
+//     school questions rather than returning the old generic placeholder.
 const AI_PROVIDERS = [
   {
     name: 'BlockRun GPT-OSS 20B',
     url: 'https://blockrun.ai/api/v1/chat/completions',
     model: 'nvidia/gpt-oss-20b',
-    timeoutMs: 13000,
-    retryOnFailure: true
+    timeoutMs: 16000
   },
   {
     name: 'Vireonix Auto',
     url: 'https://vireonix.ai/v1/chat/completions',
     model: 'auto',
-    timeoutMs: 11000,
-    retryOnFailure: false
+    timeoutMs: 16000
   }
 ];
-const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(6000, Number(process.env.AI_MAX_INPUT_CHARS) || 5000));
+const AI_MAX_INPUT_CHARS = Math.max(1200, Math.min(6000, Number(process.env.AI_MAX_INPUT_CHARS) || 4500));
 
 function normalizeAiMessages(messages){
-  const raw=Array.isArray(messages)?messages:[];
-  const safe=[];
-  let total=0;
-  for(const m of raw.slice(-7)){
-    const role=m?.role==='assistant'?'assistant':m?.role==='user'?'user':'system';
-    let content=String(m?.content||'').replace(/\u0000/g,'').trim();
+  const raw = Array.isArray(messages) ? messages : [];
+  const safe = [];
+  let total = 0;
+  for(const m of raw.slice(-8)){
+    const role = m?.role === 'assistant' ? 'assistant' : m?.role === 'user' ? 'user' : 'system';
+    let content = String(m?.content || '').replace(/\u0000/g,'').trim();
     if(!content) continue;
-    if(content.length>2400) content=content.slice(0,2400);
-    const room=Math.max(0,AI_MAX_INPUT_CHARS-total);
-    if(room<=0) break;
-    content=content.slice(0,room);
-    total+=content.length;
-    safe.push({role,content});
+    if(content.length > 2200) content = content.slice(0,2200);
+    const room = Math.max(0, AI_MAX_INPUT_CHARS - total);
+    if(room <= 0) break;
+    content = content.slice(0, room);
+    total += content.length;
+    safe.push({ role, content });
   }
   return safe;
 }
 
 function buildAiMessages(messages){
-  const turns=normalizeAiMessages(messages);
+  const turns = normalizeAiMessages(messages);
   if(!turns.length) return [];
-  const originalSystem=turns.find(t=>t.role==='system');
-  const output=[];
+  const originalSystem = turns.find(t => t.role === 'system');
+  const output = [];
   if(originalSystem) output.push(originalSystem);
   output.push({
-    role:'system',
-    content:'You are Index Tutor, a knowledgeable and friendly school tutor. Answer the latest question directly and accurately. For simple questions, give a direct explanation. For writing requests, provide the requested paragraph or draft directly. For math and science, show important steps and use Unicode symbols like √ × ÷ ± ≤ ≥ ≠ ≈ π instead of LaTeX. Do not repeat the question, do not add filler, and keep normal answers concise (usually under 180 words) unless the user asks for more detail. Use earlier turns only when they are relevant context.'
+    role: 'system',
+    content: 'You are Index Tutor, a knowledgeable and friendly school tutor. Answer the latest question directly and accurately. For simple questions, give a direct explanation. For writing requests, provide the requested paragraph or draft directly. For math and science, show important steps and use Unicode symbols like √ × ÷ ± ≤ ≥ ≠ ≈ π instead of LaTeX. Do not repeat the question, do not add filler, and keep normal answers concise (usually under 180 words) unless the user asks for more detail. Use earlier turns only when they are relevant context.'
   });
-  for(const t of turns){ if(t.role!=='system') output.push(t); }
+  for(const t of turns){ if(t.role !== 'system') output.push(t); }
   return output;
 }
 
-function writeAiSse(res,payload){
-  try{res.write(`data: ${JSON.stringify(payload)}\n\n`);}catch{}
-}
+function extractAiText(data){
+  const clean = v => typeof v === 'string' ? v.trim() : '';
+  const joinContent = v => {
+    if(typeof v === 'string') return v;
+    if(Array.isArray(v)) return v.map(x => {
+      if(typeof x === 'string') return x;
+      if(x && typeof x === 'object') return clean(x.text || x.content || x.value || x.output_text || '');
+      return '';
+    }).join('');
+    if(v && typeof v === 'object') return clean(v.text || v.content || v.value || v.output_text || '');
+    return '';
+  };
 
-function parseOpenAiSseEvent(eventText){
-  let text='';
-  for(const line of String(eventText||'').split(/\r?\n/)){
-    if(!line.startsWith('data:')) continue;
-    const raw=line.slice(5).trim();
-    if(!raw || raw==='[DONE]') continue;
-    let data; try{data=JSON.parse(raw);}catch{continue;}
-    if(data?.error) throw new Error(String(data.error?.message||data.error));
-    const piece=data?.choices?.[0]?.delta?.content ?? data?.choices?.[0]?.message?.content ?? data?.choices?.[0]?.text ?? '';
-    if(typeof piece==='string' && piece) text+=piece;
+  const direct = [
+    data?.choices?.[0]?.message?.content,
+    data?.choices?.[0]?.delta?.content,
+    data?.choices?.[0]?.text,
+    data?.text,
+    data?.answer,
+    data?.output_text,
+    data?.message?.content,
+    data?.message?.text
+  ];
+  for(const candidate of direct){
+    const text = joinContent(candidate).trim();
+    if(text) return text;
   }
-  return text;
+
+  if(Array.isArray(data?.output)){
+    const text = data.output.map(x => joinContent(x?.content ?? x?.text ?? x)).join('').trim();
+    if(text) return text;
+  }
+
+  // Last-resort shallow recursive search for providers that wrap generated text.
+  const seen = new Set();
+  const walk = (value, depth=0) => {
+    if(depth > 4 || value == null) return '';
+    if(typeof value === 'string') return value.trim();
+    if(typeof value !== 'object' || seen.has(value)) return '';
+    seen.add(value);
+    if(Array.isArray(value)){
+      for(const item of value){ const found=walk(item, depth+1); if(found) return found; }
+      return '';
+    }
+    for(const key of ['content','text','output_text','answer','response']){
+      const found=walk(value[key], depth+1);
+      if(found) return found;
+    }
+    return '';
+  };
+  return walk(data).trim();
 }
 
-async function fetchProvider(provider,messages,onChunk){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),provider.timeoutMs);
+function extractProviderError(data){
+  return String(data?.error?.message || data?.error || data?.message || '').trim();
+}
+
+async function fetchProvider(provider, messages){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), provider.timeoutMs);
   try{
-    const upstream=await fetch(provider.url,{
-      method:'POST',
-      headers:{'Content-Type':'application/json',Accept:'text/event-stream, application/json'},
-      body:JSON.stringify({model:provider.model,messages,stream:true,temperature:0.2,max_tokens:220}),
-      signal:controller.signal
+    const upstream = await fetch(provider.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream, application/json, text/plain;q=0.9'
+      },
+      body: JSON.stringify({
+        model: provider.model,
+        messages,
+        stream: true,
+        temperature: 0.15,
+        max_tokens: 140
+      }),
+      signal: controller.signal
     });
-    const contentType=(upstream.headers.get('content-type')||'').toLowerCase();
+
     if(!upstream.ok){
-      const raw=await upstream.text();
-      const err=new Error(`${provider.name} HTTP ${upstream.status}`); err.status=upstream.status; err.raw=raw; throw err;
+      const raw = await upstream.text();
+      let data=null; try{ data=raw?JSON.parse(raw):null; }catch{}
+      const err = new Error(`${provider.name} HTTP ${upstream.status}${extractProviderError(data) ? `: ${extractProviderError(data)}` : ''}`);
+      err.status = upstream.status;
+      throw err;
     }
+
+    const contentType = (upstream.headers.get('content-type')||'').toLowerCase();
+    if(!upstream.body){
+      throw new Error(`${provider.name} returned no body`);
+    }
+
     if(contentType.includes('application/json')){
-      const data=await upstream.json();
-      const text=String(data?.choices?.[0]?.message?.content||data?.choices?.[0]?.text||data?.text||'').trim();
-      if(!text) throw new Error(`${provider.name} returned an empty response`);
-      onChunk?.(text);
+      const raw=await upstream.text();
+      let data=null; try{ data=raw?JSON.parse(raw):null; }catch{}
+      if(data?.error) throw new Error(`${provider.name}: ${extractProviderError(data) || 'provider error'}`);
+      const text=extractAiText(data);
+      if(!text) throw Object.assign(new Error(`${provider.name} returned an empty response`),{code:'EMPTY_RESPONSE'});
       return text;
     }
-    if(!upstream.body) throw new Error(`${provider.name} returned no response body`);
+
     const reader=upstream.body.getReader();
     const decoder=new TextDecoder();
-    let buffer='', full='';
-    const consume=(event)=>{const piece=parseOpenAiSseEvent(event); if(piece){full+=piece; onChunk?.(piece);}};
+    let buffer='';
+    let full='';
+    const acceptPayload = payload => {
+      const trimmed=String(payload||'').trim();
+      if(!trimmed || trimmed==='[DONE]') return;
+      let data; try{ data=JSON.parse(trimmed); }catch{ return; }
+      if(data?.error) throw new Error(`${provider.name}: ${extractProviderError(data) || 'provider error'}`);
+      const piece=extractAiText(data);
+      if(piece) full += piece;
+    };
     while(true){
       const {value,done}=await reader.read();
       if(done) break;
-      buffer+=decoder.decode(value,{stream:true});
-      let match;
-      while((match=buffer.match(/\r?\n\r?\n/))){ const idx=match.index; consume(buffer.slice(0,idx)); buffer=buffer.slice(idx+match[0].length); }
+      buffer += decoder.decode(value,{stream:true});
+      const parts=buffer.split(/\r?\n/);
+      buffer=parts.pop()||'';
+      for(const line of parts){
+        const trimmed=line.trim();
+        if(trimmed.startsWith('data:')) acceptPayload(trimmed.slice(5));
+      }
     }
-    buffer+=decoder.decode();
-    if(buffer.trim()) consume(buffer);
-    if(!full.trim()) throw new Error(`${provider.name} returned an empty response`);
+    buffer += decoder.decode();
+    for(const line of buffer.split(/\r?\n/)){
+      const trimmed=line.trim();
+      if(trimmed.startsWith('data:')) acceptPayload(trimmed.slice(5));
+    }
+    if(!full.trim()){
+      // Some compatible gateways return plain text despite advertising SSE.
+      const plain=buffer.trim();
+      if(plain && !plain.startsWith('data:')) full=plain;
+    }
+    if(!full.trim()) throw Object.assign(new Error(`${provider.name} returned an empty response`),{code:'EMPTY_RESPONSE'});
     return full.trim();
-  }finally{clearTimeout(timer);}
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-async function sleep(ms){return new Promise(resolve=>setTimeout(resolve,ms));}
+function isRetryableStatus(status){ return status === 408 || status === 429 || status >= 500; }
 
-function isRetryableStatus(status){return status===408 || status===429 || status>=500;}
+function quickFallback(question){
+  const q = String(question || '').trim().toLowerCase();
+  if(!q) return '';
+  if(/^(hi|hello|hey|heyy|yo|sup)[!?.\s]*$/.test(q)) return 'Hi! What are you working on?';
+  if(/^what\s+is\s+federalism\??$/.test(q)) return 'Federalism is a system of government in which power is divided between a national government and state or regional governments. In the United States, the federal government handles issues such as national defense and foreign policy, while states have authority over many areas such as education and local government. Federalism matters because it prevents all political power from being concentrated in one level of government.';
+  if(/^what\s+is\s+checks\s+and\s+balances\??$/.test(q)) return 'Checks and balances is the system that lets each branch of the U.S. government limit the powers of the other branches. For example, Congress can pass a bill, the president can veto it, and Congress can override a veto with enough votes. The goal is to prevent one branch from becoming too powerful.';
+  if(/^what\s+is\s+separation\s+of\s+powers\??$/.test(q)) return 'Separation of powers is the division of government responsibilities among separate branches. In the United States, legislative power belongs mainly to Congress, executive power to the president, and judicial power to the courts. The system is designed to prevent too much power from being concentrated in one place.';
+  return '';
+}
 
-app.post('/api/ai/chat',async(req,res)=>{
-  const messages=buildAiMessages(req.body?.messages);
-  if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
+app.post('/api/ai/chat', async (req,res) => {
+  const messages = buildAiMessages(req.body?.messages);
+  if(!messages.length) return res.status(400).json({ error: 'No question was supplied.' });
+  if(!aiContentIsAllowed(messages)) return res.status(400).json({ error: 'Please use the Tutor for safe, school-appropriate learning questions.' });
 
-  res.status(200);
-  res.setHeader('Content-Type','text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control','no-cache, no-transform');
-  res.setHeader('Connection','keep-alive');
-  res.setHeader('X-Accel-Buffering','no');
-  res.flushHeaders?.();
-  writeAiSse(res,{status:'connected'});
-
-  let emitted='';
-  for(let pi=0;pi<AI_PROVIDERS.length;pi++){
-    const provider=AI_PROVIDERS[pi];
-    try{
-      writeAiSse(res,{provider:provider.name});
-      const answer=await fetchProvider(provider,messages,piece=>{emitted+=piece;writeAiSse(res,{text:piece});});
-      writeAiSse(res,{done:true});
-      res.end();
-      console.log(`[AI] ${provider.name} answered in ${answer.length} chars`);
-      return;
-    }catch(e){
-      console.warn(`[AI] ${provider.name} failed:`,e?.message||e);
-      // BlockRun currently documents retrying a cold-start failure. Retry once,
-      // then move to the second provider rather than making the student wait.
-      if(provider.retryOnFailure && isRetryableStatus(e?.status) && !emitted){
-        try{
-          await sleep(300);
-          const answer=await fetchProvider(provider,messages,piece=>{emitted+=piece;writeAiSse(res,{text:piece});});
-          writeAiSse(res,{done:true});
-          res.end();
-          console.log(`[AI] ${provider.name} retry answered in ${answer.length} chars`);
-          return;
-        }catch(retryError){
-          console.warn(`[AI] ${provider.name} retry failed:`,retryError?.message||retryError);
-        }
+  // Race both public, keyless providers. The first valid answer wins.
+  const controllers = [];
+  const startedAt = Date.now();
+  const attempts = AI_PROVIDERS.map(provider => {
+    return (async () => {
+      try {
+        const answer = await fetchProvider(provider, messages);
+        return { provider, answer };
+      } catch (error) {
+        console.warn(`[AI] ${provider.name} failed after ${Date.now()-startedAt}ms:`, error?.message || error);
+        throw error;
       }
-      // If the provider emitted a partial answer, don't mix another provider's
-      // response into it. Finish the current stream cleanly.
-      if(emitted){writeAiSse(res,{done:true});res.end();return;}
-    }
+    })();
+  });
+
+  try{
+    const result = await Promise.any(attempts);
+    console.log(`[AI] ${result.provider.name} answered in ${Date.now()-startedAt}ms`);
+    return res.json({ text: result.answer, provider: result.provider.name });
+  } catch {
+    const latest = messages.filter(m => m.role === 'user').at(-1)?.content || '';
+    const quick = quickFallback(latest);
+    if(quick) return res.json({ text: quick, provider: 'built-in-fallback', fallback: true });
+    return res.status(503).json({ error: 'The Tutor could not reach a working free AI service right now. Please try again in a moment.' });
   }
-
-  // Only use a deterministic answer when it is genuinely specific. This avoids
-  // the old generic "starting point" paragraph that did not answer the question.
-  const latest=messages.filter(m=>m.role==='user').at(-1)?.content||'';
-  const quick=quickFallback(latest);
-  if(quick){writeAiSse(res,{text:quick,done:true,fallback:true});res.end();return;}
-  const wiki=await wikipediaFallback(latest);
-  if(wiki){writeAiSse(res,{text:wiki,done:true,fallback:true});res.end();return;}
-
-  writeAiSse(res,{error:'The free AI service is busy right now. Please try again in a moment.',done:true});
-  res.end();
 });
 
 const server = http.createServer(app);
