@@ -660,7 +660,13 @@ app.post('/api/ai/chat',async(req,res)=>{
 });
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: { origin: '*' },
+  // Keep live-game behavior unchanged while compressing larger Socket.IO
+  // messages. Small real-time messages stay uncompressed to avoid CPU overhead.
+  perMessageDeflate: { threshold: 1024 },
+  httpCompression: true
+});
 
 /* ============================== ACCOUNTS ============================== */
 /**
