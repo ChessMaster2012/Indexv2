@@ -26,6 +26,30 @@ const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
 const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
+
+// Compress JSON API responses before sending them to browsers. This is
+// especially useful for Tutor responses and account payloads, and reduces
+// Render outbound bandwidth without changing the API shape for clients.
+app.use((req,res,next)=>{
+  const originalJson=res.json.bind(res);
+  res.json=(body)=>{
+    const accept=String(req.headers['accept-encoding']||'').toLowerCase();
+    if(!accept.includes('gzip')) return originalJson(body);
+    const json=JSON.stringify(body);
+    if(Buffer.byteLength(json,'utf8')<512) return originalJson(body);
+    zlib.gzip(Buffer.from(json,'utf8'),(err,compressed)=>{
+      if(err) return originalJson(body);
+      res.set('Content-Encoding','gzip');
+      res.set('Content-Type','application/json; charset=utf-8');
+      res.set('Vary','Accept-Encoding');
+      res.set('Content-Length',String(compressed.length));
+      res.send(compressed);
+    });
+    return res;
+  };
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Safety / conduct guardrails for a student-facing study tool.
@@ -367,45 +391,36 @@ function aWordsContainFuzzy(answer,word){
 }
 
 async function raceAiProviders(messages,complex){
-  // Run both providers concurrently, but do NOT blindly return whichever
-  // responds first. A fast generic/meta answer is worse than waiting a moment
-  // for the other provider to actually answer the student's question.
-  const attempts=[
-    {name:'vireonix', promise:tryVireonix(messages,complex)},
-    {name:'pollinations', promise:tryPollinations(messages,complex)}
-  ];
-  return await new Promise((resolve,reject)=>{
-    let pending=attempts.length;
-    const results=[];
-    let settled=false;
-    for(const attempt of attempts){
-      attempt.promise.then(text=>{
-        results.push({name:attempt.name,text:String(text||'').trim()});
-        // Prefer the first answer that is not obviously generic/meta.
-        const usable=results.find(x=>x.text && !responseLooksLikeGenericAdvice(x.text));
-        if(usable && !settled){
-          settled=true;
-          resolve(usable.text);
-          return;
-        }
-        pending--;
-        if(pending===0 && !settled){
-          settled=true;
-          const fallback=results.find(x=>x.text);
-          if(fallback) resolve(fallback.text);
-          else reject(new Error('Free AI providers did not respond in time.'));
-        }
-      }).catch(()=>{
-        pending--;
-        if(pending===0 && !settled){
-          settled=true;
-          const fallback=results.find(x=>x.text);
-          if(fallback) resolve(fallback.text);
-          else reject(new Error('Free AI providers did not respond in time.'));
-        }
-      });
-    }
-  });
+  // Bandwidth-safe provider routing: do NOT call both free AI providers for
+  // every question. The old concurrent race could make one student question
+  // trigger multiple large outbound responses from Render. Use one provider
+  // first, then call the backup only when the first provider fails or returns
+  // an obviously unusable answer. This keeps the normal path fast and greatly
+  // reduces Render outbound bandwidth without removing the backup.
+  const primary = complex ? 'vireonix' : 'pollinations';
+  const secondary = primary === 'vireonix' ? 'pollinations' : 'vireonix';
+  const run = name => name === 'vireonix'
+    ? tryVireonix(messages,complex)
+    : tryPollinations(messages,complex);
+
+  let firstText = '';
+  try {
+    firstText = String(await run(primary) || '').trim();
+    if(firstText && !responseLooksLikeGenericAdvice(firstText)) return firstText;
+  } catch(e) {
+    console.warn('[AI] primary provider failed:', primary, e?.message || e);
+  }
+
+  try {
+    const backupText = String(await run(secondary) || '').trim();
+    if(backupText && !responseLooksLikeGenericAdvice(backupText)) return backupText;
+    if(firstText) return firstText;
+  } catch(e) {
+    console.warn('[AI] backup provider failed:', secondary, e?.message || e);
+  }
+
+  if(firstText) return firstText;
+  throw new Error('Free AI providers did not respond in time.');
 }
 
 function countAiSentences(text){
