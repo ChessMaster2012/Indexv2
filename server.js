@@ -649,6 +649,13 @@ function sanitizeAccountState(input){
       dailyWheelLastSpinAt: Math.max(0, Number(p.dailyWheelLastSpinAt)||0),
       dailyWheelReward: Math.max(0, Math.min(500, Number(p.dailyWheelReward)||0))
     },
+      quests: src.quests && typeof src.quests==='object' ? {
+        day: String(src.quests.day||'').slice(0,10),
+        baseline: src.quests.baseline && typeof src.quests.baseline==='object' ? src.quests.baseline : {},
+        progress: src.quests.progress && typeof src.quests.progress==='object' ? src.quests.progress : {},
+        claimed: src.quests.claimed && typeof src.quests.claimed==='object' ? src.quests.claimed : {},
+        announced: src.quests.announced && typeof src.quests.announced==='object' ? src.quests.announced : {}
+      } : null,
     profile: {
       name: String(profile.name||'').slice(0,60),
       district: String(profile.district||'').slice(0,200),
@@ -687,6 +694,39 @@ app.put('/api/account/state', async (req,res)=>{
   }
 });
 
+app.get('/api/account/quests', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    if(SUPABASE_ENABLED){ const row=await dbFindUserById(req.user.id); if(row) req.user=dbRowToUser(row); }
+    const accountData=req.user.accountData||{};
+    res.json({ok:true,quests:accountData.quests||null});
+  }catch(e){
+    console.error('Quest state load error:',e.message);
+    res.status(503).json({error:'Could not load quest progress right now.'});
+  }
+});
+app.put('/api/account/quests', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    if(SUPABASE_ENABLED){ const row=await dbFindUserById(req.user.id); if(row) req.user=dbRowToUser(row); }
+    const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const raw=req.body?.quests&&typeof req.body.quests==='object'?req.body.quests:{};
+    const clean={
+      day:String(raw.day||'').slice(0,10),
+      baseline:raw.baseline&&typeof raw.baseline==='object'?raw.baseline:{},
+      progress:raw.progress&&typeof raw.progress==='object'?raw.progress:{},
+      claimed:raw.claimed&&typeof raw.claimed==='object'?raw.claimed:{},
+      announced:raw.announced&&typeof raw.announced==='object'?raw.announced:{}
+    };
+    req.user.accountData=sanitizeAccountState({...existing,quests:clean});
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    usersById.set(req.user.id,req.user);
+    res.json({ok:true,quests:req.user.accountData.quests});
+  }catch(e){
+    console.error('Quest state save error:',e.message);
+    res.status(503).json({error:'Could not save quest progress right now. Please try again.'});
+  }
+});
 app.put('/api/account/equipped', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
