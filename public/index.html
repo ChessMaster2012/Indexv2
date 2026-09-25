@@ -1087,7 +1087,7 @@ let state = {
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:[], claimedBPLevels:[], equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default',indexling:'ling-orbit'}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:0, liveGames:0 },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
@@ -1211,7 +1211,7 @@ function loadLocalData(){
   state.notes = lsGet('index-notes', []);
   state.studySets = lsGet('index-studysets', []);
   const p = lsGet('index-progress', {});
-  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], equipped:p.equipped||{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
+  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0)), unlockedSkins:Array.isArray(p.unlockedSkins)?p.unlockedSkins:[], equipped:p.equipped||{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
   state.customTopics = lsGet('index-customtopics', {});
   state.profile = lsGet('index-profile', {});
   state.district = state.profile.district || '';
@@ -1249,7 +1249,7 @@ function accountStatePayload(){
     notes: Array.isArray(state.notes) ? state.notes : [],
     studySets: Array.isArray(state.studySets) ? state.studySets : [],
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
-    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
+    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||''}
   };
 }
@@ -1291,84 +1291,66 @@ async function loadAccountState(){
     if(Array.isArray(a.notes)) state.notes=a.notes;
     if(Array.isArray(a.studySets)) state.studySets=a.studySets;
     if(a.customTopics && typeof a.customTopics==='object') state.customTopics=a.customTopics;
-    if(a.progress) state.progress={...state.progress,...a.progress,equipped:{...state.progress.equipped,...(a.progress.equipped||{})}};
+    if(a.progress) state.progress={...state.progress,...a.progress,equipped:{...state.progress.equipped,...(a.progress.equipped||{})}}; state.progress.unlockedCosmetics=(state.progress.unlockedCosmetics||[]).filter(id=>!!cosmeticById(id)); state.progress.unlockedCosmetics=Array.from(new Set(['ling-sugarbug',...state.progress.unlockedCosmetics]));
     if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; }
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
   }catch(e){}
 }
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
 /* ============================== REWARDS / BATTLE PASS ============================== */
 const REWARD_COSMETICS = [
-  {id:'avatar-scholar',type:'avatar',name:'Scholar',icon:'🧑‍🎓',rarity:'Common'},
-  {id:'avatar-scientist',type:'avatar',name:'Scientist',icon:'🧑‍🔬',rarity:'Rare'},
-  {id:'avatar-astronaut',type:'avatar',name:'Astronaut',icon:'🧑‍🚀',rarity:'Epic'},
-  {id:'avatar-artist',type:'avatar',name:'Artist',icon:'🧑‍🎨',rarity:'Rare'},
-  {id:'avatar-builder',type:'avatar',name:'Builder',icon:'🧑‍🔧',rarity:'Common'},
-  {id:'avatar-mentor',type:'avatar',name:'Mentor',icon:'🧑‍🏫',rarity:'Epic'},
-  {id:'avatar-reader',type:'avatar',name:'Reader',icon:'📚',rarity:'Common'},
-  {id:'avatar-engineer',type:'avatar',name:'Engineer',icon:'👷',rarity:'Rare'},
-  {id:'avatar-coder',type:'avatar',name:'Coder',icon:'🧑‍💻',rarity:'Epic'},
-  {id:'avatar-champion',type:'avatar',name:'Champion',icon:'🏆',rarity:'Legendary'},
-  {id:'avatar-genius',type:'avatar',name:'Genius',icon:'🧠',rarity:'Legendary'},
-  {id:'outfit-books',type:'outfit',name:'Book Stack',icon:'📚',rarity:'Common'},
-  {id:'outfit-lab',type:'outfit',name:'Lab Coat',icon:'🥼',rarity:'Rare'},
-  {id:'outfit-varsity',type:'outfit',name:'Varsity',icon:'🎽',rarity:'Rare'},
-  {id:'outfit-hoodie',type:'outfit',name:'Study Hoodie',icon:'🧥',rarity:'Common'},
-  {id:'outfit-formal',type:'outfit',name:'Honor Formal',icon:'🕴️',rarity:'Epic'},
-  {id:'outfit-scholar',type:'outfit',name:'Scholar Jacket',icon:'🧥',rarity:'Rare'},
-  {id:'outfit-varsity2',type:'outfit',name:'Campus Varsity',icon:'🧢',rarity:'Epic'},
-  {id:'outfit-tech',type:'outfit',name:'Tech Study',icon:'🎧',rarity:'Rare'},
-  {id:'outfit-neon',type:'outfit',name:'Neon Study',icon:'🟪',rarity:'Epic'},
-  {id:'outfit-premium',type:'outfit',name:'Premium Scholar',icon:'✨',rarity:'Legendary'},
-  {id:'outfit-gold',type:'outfit',name:'Golden Scholar',icon:'🥇',rarity:'Legendary'},
-  {id:'accessory-star',type:'accessory',name:'Star Badge',icon:'⭐',rarity:'Common'},
-  {id:'accessory-crown',type:'accessory',name:'Crown',icon:'👑',rarity:'Epic'},
-  {id:'accessory-lightning',type:'accessory',name:'Lightning Pin',icon:'⚡',rarity:'Rare'},
-  {id:'accessory-pencil',type:'accessory',name:'Pencil Pin',icon:'✏️',rarity:'Common'},
-  {id:'accessory-hourglass',type:'accessory',name:'Focus Hourglass',icon:'⌛',rarity:'Rare'},
-  {id:'accessory-bookmark',type:'accessory',name:'Master Bookmark',icon:'🔖',rarity:'Epic'},
-  {id:'accessory-mentor',type:'accessory',name:'Mentor Medal',icon:'🎖️',rarity:'Epic'},
-  {id:'accessory-pen',type:'accessory',name:'Fountain Pen',icon:'🖋️',rarity:'Rare'},
-  {id:'accessory-code',type:'accessory',name:'Code Badge',icon:'💻',rarity:'Common'},
-  {id:'accessory-robot',type:'accessory',name:'Robot Pin',icon:'🤖',rarity:'Rare'},
-  {id:'accessory-starburst',type:'accessory',name:'Starburst Badge',icon:'🌟',rarity:'Legendary'},
-  {id:'accessory-diamond',type:'accessory',name:'Diamond Pin',icon:'💎',rarity:'Legendary'},
-  {id:'frame-purple',type:'frame',name:'Purple Frame',icon:'🟣',rarity:'Common'},
-  {id:'frame-gold',type:'frame',name:'Gold Frame',icon:'🟡',rarity:'Epic'},
-  {id:'frame-neon',type:'frame',name:'Neon Frame',icon:'💠',rarity:'Legendary'},
-  {id:'frame-blue',type:'frame',name:'Focus Blue Frame',icon:'🔵',rarity:'Rare'},
-  {id:'frame-focus',type:'frame',name:'Focus Glow Frame',icon:'🔷',rarity:'Rare'},
-  {id:'frame-mastery',type:'frame',name:'Mastery Frame',icon:'🟨',rarity:'Epic'},
-  {id:'frame-book',type:'frame',name:'Book Frame',icon:'🟫',rarity:'Common'},
-  {id:'frame-circuit',type:'frame',name:'Circuit Frame',icon:'🔲',rarity:'Epic'},
-  {id:'frame-legend',type:'frame',name:'Legend Frame',icon:'💜',rarity:'Legendary'},
-  {id:'bg-library',type:'background',name:'Library',icon:'📖',rarity:'Common'},
-  {id:'bg-space',type:'background',name:'Space',icon:'🌌',rarity:'Epic'},
-  {id:'bg-lab',type:'background',name:'Science Lab',icon:'🧪',rarity:'Rare'},
-  {id:'bg-studyhall',type:'background',name:'Study Hall',icon:'🏫',rarity:'Common'},
-  {id:'bg-archive',type:'background',name:'Archive',icon:'🗄️',rarity:'Rare'},
-  {id:'bg-digital',type:'background',name:'Digital Grid',icon:'🖥️',rarity:'Epic'},
-  {id:'bg-galaxy',type:'background',name:'Galaxy',icon:'🌠',rarity:'Legendary'},
-  {id:'ling-quill',type:'indexling',name:'Quillbit',icon:'✦',shape:'horns',mark:'Q',main:'#f7c948',dark:'#8c6b1f',accent:'#fff3b0',rarity:'Common'},
-  {id:'ling-orbit',type:'indexling',name:'Orbit',icon:'◌',shape:'horns',mark:'O',main:'#7bb6ff',dark:'#355b9a',accent:'#dcecff',rarity:'Common'},
-  {id:'ling-volt',type:'indexling',name:'Volt',icon:'ϟ',shape:'horns',mark:'V',main:'#8be3b0',dark:'#3a7c61',accent:'#d9fff0',rarity:'Common'},
-  {id:'ling-lexi',type:'indexling',name:'Lexi',icon:'L',shape:'plain',mark:'L',main:'#ff9f8f',dark:'#a4483d',accent:'#ffe0da',rarity:'Rare'},
-  {id:'ling-pixel',type:'indexling',name:'Pixel',icon:'P',shape:'plain',mark:'P',main:'#bca7ff',dark:'#674fa4',accent:'#eee8ff',rarity:'Rare'},
-  {id:'ling-nova',type:'indexling',name:'Nova',icon:'✦',shape:'horns',mark:'N',main:'#ffcf70',dark:'#976b1d',accent:'#fff0c5',rarity:'Rare'},
-  {id:'ling-axiom',type:'indexling',name:'Axiom',icon:'A',shape:'plain',mark:'A',main:'#79d7d3',dark:'#2f7775',accent:'#d9fffd',rarity:'Rare'},
-  {id:'ling-vertex',type:'indexling',name:'Vertex',icon:'V',shape:'horns',mark:'V',main:'#9bb6d8',dark:'#526d8e',accent:'#e5eef9',rarity:'Rare'},
-  {id:'ling-cipher',type:'indexling',name:'Cipher',icon:'C',shape:'plain',mark:'C',main:'#8f9df5',dark:'#4b56a0',accent:'#e7e9ff',rarity:'Epic'},
-  {id:'ling-proton',type:'indexling',name:'Proton',icon:'+',shape:'plain',mark:'P',main:'#ff8f6b',dark:'#a64732',accent:'#ffe0d6',rarity:'Epic'},
-  {id:'ling-cosmos',type:'indexling',name:'Cosmos',icon:'✧',shape:'horns',mark:'C',main:'#8f8cff',dark:'#504da0',accent:'#e9e8ff',rarity:'Epic'},
-  {id:'ling-ink',type:'indexling',name:'Inkling',icon:'I',shape:'plain',mark:'I',main:'#455a7c',dark:'#172033',accent:'#cbd6e8',rarity:'Epic'},
-  {id:'ling-rune',type:'indexling',name:'Rune',icon:'R',shape:'horns',mark:'R',main:'#d28cff',dark:'#754b97',accent:'#f5e6ff',rarity:'Epic'},
-  {id:'ling-helix',type:'indexling',name:'Helix',icon:'H',shape:'plain',mark:'H',main:'#69d4a3',dark:'#32765b',accent:'#daf7e9',rarity:'Legendary'},
-  {id:'ling-prism',type:'indexling',name:'Prism',icon:'◇',shape:'horns',mark:'P',main:'#ff769f',dark:'#973f5d',accent:'#ffe1ea',rarity:'Legendary'},
-  {id:'ling-crown',type:'indexling',name:'Crownbit',icon:'♛',shape:'horns',mark:'C',main:'#e9bf54',dark:'#8c681c',accent:'#fff0b8',rarity:'Legendary'}
-];
+  {id:'ling-sugarbug',type:'indexling',name:'Sugarbug',icon:'🍭',shape:'horns',mark:'S',main:'#ff9fc7',dark:'#a54872',accent:'#ffe5ef',rarity:'Common',pack:'candy'},
+  {id:'ling-gumdrop',type:'indexling',name:'Gumdrop',icon:'◆',shape:'plain',mark:'G',main:'#8ed8ff',dark:'#3c6c9d',accent:'#e5f6ff',rarity:'Common',pack:'candy'},
+  {id:'ling-taffy',type:'indexling',name:'Taffy',icon:'T',shape:'plain',mark:'T',main:'#b7f08a',dark:'#4d8c36',accent:'#eaffd6',rarity:'Common',pack:'candy'},
+  {id:'ling-choco',type:'indexling',name:'Chocochip',icon:'•',shape:'horns',mark:'C',main:'#b98b6a',dark:'#6d4935',accent:'#f0dfd1',rarity:'Common',pack:'candy'},
+  {id:'ling-jellybean',type:'indexling',name:'Jellybean',icon:'J',shape:'plain',mark:'J',main:'#8f9cff',dark:'#4b55a4',accent:'#e6e8ff',rarity:'Rare',pack:'candy'},
+  {id:'ling-caramel',type:'indexling',name:'Caramel',icon:'C',shape:'horns',mark:'C',main:'#d89b57',dark:'#805526',accent:'#ffecd2',rarity:'Rare',pack:'candy'},
+  {id:'ling-sprinkle',type:'indexling',name:'Sprinkle',icon:'✦',shape:'plain',mark:'S',main:'#ff82e7',dark:'#8b3d7f',accent:'#ffe2f8',rarity:'Rare',pack:'candy'},
+  {id:'ling-lolliking',type:'indexling',name:'Lolli King',icon:'♛',shape:'horns',mark:'L',main:'#ff6a82',dark:'#8e3044',accent:'#ffdfe5',rarity:'Legendary',pack:'candy'},
+  {id:'ling-squire',type:'indexling',name:'Squire',icon:'S',shape:'horns',mark:'S',main:'#9fb7c9',dark:'#506779',accent:'#e8f0f5',rarity:'Common',pack:'medieval'},
+  {id:'ling-bard',type:'indexling',name:'Bard',icon:'♪',shape:'plain',mark:'B',main:'#d7a2e8',dark:'#754b87',accent:'#f6e3fc',rarity:'Common',pack:'medieval'},
+  {id:'ling-blacksmith',type:'indexling',name:'Blacksmith',icon:'⚒',shape:'horns',mark:'B',main:'#a9a9ad',dark:'#56565c',accent:'#eeeeef',rarity:'Common',pack:'medieval'},
+  {id:'ling-knight',type:'indexling',name:'Knight',icon:'K',shape:'plain',mark:'K',main:'#8ea4c4',dark:'#405776',accent:'#e3ebf6',rarity:'Rare',pack:'medieval'},
+  {id:'ling-alchemist',type:'indexling',name:'Alchemist',icon:'A',shape:'horns',mark:'A',main:'#87d3b0',dark:'#39735d',accent:'#e0fff2',rarity:'Rare',pack:'medieval'},
+  {id:'ling-dragonling',type:'indexling',name:'Dragonling',icon:'D',shape:'horns',mark:'D',main:'#ef8f6f',dark:'#8c4330',accent:'#ffe6dd',rarity:'Rare',pack:'medieval'},
+  {id:'ling-royalmage',type:'indexling',name:'Royal Mage',icon:'✧',shape:'plain',mark:'R',main:'#9f88f0',dark:'#58459b',accent:'#eee9ff',rarity:'Epic',pack:'medieval'},
+  {id:'ling-crownling',type:'indexling',name:'Crownling',icon:'♛',shape:'horns',mark:'C',main:'#e5bc5e',dark:'#806119',accent:'#fff0bc',rarity:'Legendary',pack:'medieval'},
+  {id:'ling-botlet',type:'indexling',name:'Botlet',icon:'B',shape:'plain',mark:'B',main:'#aab7c9',dark:'#4f5a6b',accent:'#edf2f7',rarity:'Common',pack:'robo'},
+  {id:'ling-circuit',type:'indexling',name:'Circuit',icon:'ϟ',shape:'horns',mark:'C',main:'#7bd7d4',dark:'#367875',accent:'#dcfffe',rarity:'Common',pack:'robo'},
+  {id:'ling-servo',type:'indexling',name:'Servo',icon:'S',shape:'plain',mark:'S',main:'#96a3b4',dark:'#4d5867',accent:'#e9eef3',rarity:'Common',pack:'robo'},
+  {id:'ling-drone',type:'indexling',name:'Drone',icon:'D',shape:'horns',mark:'D',main:'#8db4ef',dark:'#3d5f96',accent:'#e3efff',rarity:'Rare',pack:'robo'},
+  {id:'ling-mecha',type:'indexling',name:'Mecha',icon:'M',shape:'plain',mark:'M',main:'#a6e09f',dark:'#4e7b47',accent:'#eaffdf',rarity:'Rare',pack:'robo'},
+  {id:'ling-reactor',type:'indexling',name:'Reactor',icon:'R',shape:'horns',mark:'R',main:'#ffd16e',dark:'#91651b',accent:'#fff0c8',rarity:'Rare',pack:'robo'},
+  {id:'ling-cyber',type:'indexling',name:'Cyber',icon:'C',shape:'plain',mark:'C',main:'#a78cff',dark:'#5b48a0',accent:'#eee8ff',rarity:'Epic',pack:'robo'},
+  {id:'ling-overclock',type:'indexling',name:'Overclock',icon:'O',shape:'horns',mark:'O',main:'#ff6d84',dark:'#8e3141',accent:'#ffe0e5',rarity:'Legendary',pack:'robo'},
+  {id:'ling-guppy',type:'indexling',name:'Guppy',icon:'G',shape:'plain',mark:'G',main:'#8fd7ec',dark:'#3b7182',accent:'#e1f7fc',rarity:'Common',pack:'ocean'},
+  {id:'ling-coral',type:'indexling',name:'Coral',icon:'C',shape:'horns',mark:'C',main:'#ff9a91',dark:'#964c46',accent:'#ffe6e3',rarity:'Common',pack:'ocean'},
+  {id:'ling-pearl',type:'indexling',name:'Pearl',icon:'P',shape:'plain',mark:'P',main:'#d8d2fa',dark:'#69639d',accent:'#f2efff',rarity:'Common',pack:'ocean'},
+  {id:'ling-diver',type:'indexling',name:'Diver',icon:'D',shape:'horns',mark:'D',main:'#6da8db',dark:'#315e87',accent:'#deefff',rarity:'Rare',pack:'ocean'},
+  {id:'ling-kelp',type:'indexling',name:'Kelp',icon:'K',shape:'plain',mark:'K',main:'#75c48a',dark:'#33704a',accent:'#ddf6e5',rarity:'Rare',pack:'ocean'},
+  {id:'ling-kraken',type:'indexling',name:'Kraken',icon:'K',shape:'horns',mark:'K',main:'#8e9cf5',dark:'#4c579b',accent:'#e7eaff',rarity:'Rare',pack:'ocean'},
+  {id:'ling-abyssal',type:'indexling',name:'Abyssal',icon:'A',shape:'plain',mark:'A',main:'#6579a9',dark:'#27354f',accent:'#dce4f4',rarity:'Epic',pack:'ocean'},
+  {id:'ling-tideking',type:'indexling',name:'Tide King',icon:'♛',shape:'horns',mark:'T',main:'#5ad8df',dark:'#277478',accent:'#dfffff',rarity:'Legendary',pack:'ocean'},
+  {id:'ling-token',type:'indexling',name:'Token',icon:'T',shape:'plain',mark:'T',main:'#f1cb5d',dark:'#8b6d1b',accent:'#fff0b4',rarity:'Common',pack:'arcade'},
+  {id:'ling-joystick',type:'indexling',name:'Joystick',icon:'J',shape:'horns',mark:'J',main:'#93e2c0',dark:'#3c7960',accent:'#e5fff3',rarity:'Common',pack:'arcade'},
+  {id:'ling-pixel',type:'indexling',name:'Pixel',icon:'P',shape:'plain',mark:'P',main:'#a99bf8',dark:'#5c4fa0',accent:'#eeeaff',rarity:'Common',pack:'arcade'},
+  {id:'ling-glitch',type:'indexling',name:'Glitch',icon:'G',shape:'horns',mark:'G',main:'#ff8ba5',dark:'#8f3d52',accent:'#ffe2e8',rarity:'Rare',pack:'arcade'},
+  {id:'ling-synth',type:'indexling',name:'Synth',icon:'S',shape:'plain',mark:'S',main:'#8dd2f8',dark:'#416d91',accent:'#e2f4ff',rarity:'Rare',pack:'arcade'},
+  {id:'ling-racer',type:'indexling',name:'Racer',icon:'R',shape:'horns',mark:'R',main:'#f39b65',dark:'#875026',accent:'#ffe7d8',rarity:'Rare',pack:'arcade'},
+  {id:'ling-arcadeboss',type:'indexling',name:'Arcade Boss',icon:'B',shape:'plain',mark:'B',main:'#d09af0',dark:'#714b84',accent:'#f5e4ff',rarity:'Epic',pack:'arcade'},
+  {id:'ling-highscore',type:'indexling',name:'Highscore',icon:'★',shape:'horns',mark:'H',main:'#ffe16c',dark:'#8c711d',accent:'#fff4c2',rarity:'Legendary',pack:'arcade'},
+  {id:'ling-comet',type:'indexling',name:'Comet',icon:'C',shape:'plain',mark:'C',main:'#9ed5ff',dark:'#416f9a',accent:'#e5f4ff',rarity:'Common',pack:'cosmic'},
+  {id:'ling-moonlet',type:'indexling',name:'Moonlet',icon:'M',shape:'horns',mark:'M',main:'#d6d4ef',dark:'#68678b',accent:'#f2f2ff',rarity:'Common',pack:'cosmic'},
+  {id:'ling-starling',type:'indexling',name:'Starling',icon:'S',shape:'plain',mark:'S',main:'#ffd76c',dark:'#8f701d',accent:'#fff2bd',rarity:'Common',pack:'cosmic'},
+  {id:'ling-nebula',type:'indexling',name:'Nebula',icon:'N',shape:'horns',mark:'N',main:'#c59bf4',dark:'#654d91',accent:'#f1e5ff',rarity:'Rare',pack:'cosmic'},
+  {id:'ling-eclipse',type:'indexling',name:'Eclipse',icon:'E',shape:'plain',mark:'E',main:'#6f7fc6',dark:'#3c4b82',accent:'#dee3ff',rarity:'Rare',pack:'cosmic'},
+  {id:'ling-quasar',type:'indexling',name:'Quasar',icon:'Q',shape:'horns',mark:'Q',main:'#81e0d3',dark:'#34776e',accent:'#dcfffa',rarity:'Rare',pack:'cosmic'},
+  {id:'ling-voidling',type:'indexling',name:'Voidling',icon:'V',shape:'plain',mark:'V',main:'#555d84',dark:'#202538',accent:'#d4d7e7',rarity:'Epic',pack:'cosmic'},
+  {id:'ling-supernova',type:'indexling',name:'Supernova',icon:'✦',shape:'horns',mark:'S',main:'#ff8796',dark:'#8d3947',accent:'#ffe1e5',rarity:'Legendary',pack:'cosmic'}
+]
 const BP_REWARDS = Array.from({length:50},(_,i)=>{
   const level=i+1;
   if(level===1) return {level,kind:'coins',amount:100,label:'100 coins'};
