@@ -560,7 +560,7 @@ function deterministicTutor(question){
 
   if(/^(hi|hello|hey)\b/i.test(q)) return 'Hi! What are you working on?';
 
-  return 'I want to answer the exact question, but I need a little more detail. Please include the full question or the topic and what you want to know about it.';
+  return 'I could not reach the AI service for this request right now. Please try the same question again.';
 }
 
 app.post('/api/ai/chat',async(req,res)=>{
