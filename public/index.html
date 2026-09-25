@@ -619,6 +619,8 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .indexling-art.ix-body-glitch .ix-side:before{content:'▰';position:absolute;left:6px;bottom:10px;color:var(--ling-accent);font-size:17px}.indexling-art.ix-body-glitch .ix-right:before{right:4px;top:21px;color:var(--ling-accent);font-size:13px}
 .indexling-art.ix-body-moon .ix-side:before{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.12);left:23px;top:23px;z-index:2;box-shadow:12px 16px 0 rgba(0,0,0,.08)}
 .indexling-art.ix-body-eclipse .ix-side:before{content:'';position:absolute;width:86px;height:86px;border-radius:50%;border:2px solid var(--ling-accent);box-shadow:0 0 15px var(--ling-accent);z-index:0}
+</style><style id="index-auth-resilience">
+#account-profile-status{min-height:20px;font-size:12px;margin:0 0 10px}.success-note{color:#177a57;font-weight:800}.loading-line{font-size:12px}
 </style></head>
 <body>
 
@@ -3420,30 +3422,52 @@ async function resetPasswordSubmit(){
 async function accountSaveProfile(){
   const displayName = document.getElementById('account-first').value.trim().slice(0,60);
   const username = document.getElementById('account-username').value.trim().toLowerCase();
+  const status=document.getElementById('account-profile-status');
+  if(status) status.innerHTML='<div class="loading-line"><span class="spinner"></span> Saving your profile…</div>';
+  async function request(){
+    return fetch('/api/auth/profile',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({displayName,username})});
+  }
   try{
-    const r = await fetch('/api/auth/profile', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ displayName, username }) });
-    const d = await r.json();
+    let r;
+    try{ r=await request(); }
+    catch(first){
+      await new Promise(resolve=>setTimeout(resolve,1200));
+      r=await request();
+    }
+    const d=await r.json().catch(()=>({}));
     if(r.status===401){
       state.account=null;
       renderProfileSlot();
       showAuthPanel();
       setAuthMode('login');
-      document.getElementById('auth-status').innerHTML = '<div class="error-note">Your session ended because the server restarted. Your saved login identifier is still available. Sign in again to continue.</div>';
+      document.getElementById('auth-status').innerHTML='<div class="error-note">Your sign-in session expired. Please sign in again to save profile changes.</div>';
+      if(status) status.innerHTML='';
       return;
     }
-    if(!r.ok){ alert(d.error || 'Could not save your profile.'); return; }
-    state.account = d.user; renderProfileSlot(); closeSignin();
-  }catch(e){ alert('Could not reach the server.'); }
+    if(!r.ok){
+      if(status) status.innerHTML='<div class="error-note">'+esc(d.error||'Could not save your profile right now.')+'</div>';
+      return;
+    }
+    state.account=d.user;
+    renderProfileSlot();
+    if(status) status.innerHTML='<div class="success-note">Profile saved.</div>';
+    setTimeout(closeSignin,350);
+  }catch(e){
+    console.error('Profile save request failed:',e);
+    if(status) status.innerHTML='<div class="error-note">The server did not respond. Your changes are still on this device. Try Save again in a moment.</div>';
+  }
 }
 async function accountDelete(){
   if(!confirm('Delete your Index account and its saved sign-in data? This cannot be undone.')) return;
   try{
-    const r = await fetch('/api/auth/delete', { method:'POST' });
-    const d = await r.json();
-    if(!r.ok){ alert(d.error || 'Could not delete the account.'); return; }
-    state.account = null; clearAccountScopedLocalCache(); renderProfileSlot(); closeSignin();
-    alert('Your Index account was deleted.');
-  }catch(e){ alert('Could not reach the server.'); }
+    const r=await fetch('/api/auth/delete',{method:'POST',credentials:'same-origin',cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ const el=document.getElementById('account-profile-status'); if(el) el.innerHTML='<div class="error-note">'+esc(d.error||'Could not delete the account.')+'</div>'; return; }
+    state.account=null; clearAccountScopedLocalCache(); renderProfileSlot(); closeSignin();
+  }catch(e){
+    const el=document.getElementById('account-profile-status');
+    if(el) el.innerHTML='<div class="error-note">The server did not respond. Your account was not deleted.</div>';
+  }
 }
 async function accountSignout(){
   try{ await syncAccountStateNow(); }catch(e){}
