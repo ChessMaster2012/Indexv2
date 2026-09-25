@@ -102,11 +102,47 @@ function latestUserQuestion(messages){
   return [...messages].reverse().find(m=>m.role==='user')?.content?.trim()||'';
 }
 
+function classifyAiTask(question){
+  const q=String(question||'').trim();
+  const l=q.toLowerCase();
+  if(/\b(write|generate|create|draft|compose|produce|make)\b[\\s\\S]*\b(paragraph|essay|speech|letter|response|thesis|introduction|conclusion|report|draft)\b/i.test(q) || /\bparagraph\b/i.test(l)){
+    return 'direct-writing';
+  }
+  if(/\b(solve|calculate|compute|simplify|factor|evaluate|find|derive|prove|balance)\b/i.test(l)){
+    return 'direct-problem-solving';
+  }
+  if(/\b(what is|what are|define|explain|why|how does|how do|compare|contrast|describe)\b/i.test(l)){
+    return 'direct-explanation';
+  }
+  return 'direct-answer';
+}
+
+function requestedSentenceRange(question){
+  const q=String(question||'');
+  const between=q.match(/\bbetween\s+(\d+)\s*(?:-|to|and)\s*(\d+)\s+sentences?\b/i);
+  if(between) return {min:Number(between[1]),max:Number(between[2])};
+  const exact=q.match(/\b(\d+)\s+sentences?\b/i);
+  if(exact) return {min:Number(exact[1]),max:Number(exact[1])};
+  return null;
+}
+
 function buildAiMessages(messages){
   const turns=normalizeAiMessages(messages);
   if(!turns.length) return [];
   const clientRules=turns.find(t=>t.role==='system')?.content||'';
-  const serverRules='You are Index Tutor, a high-quality school tutor. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily.';
+  const question=latestUserQuestion(turns);
+  const task=classifyAiTask(question);
+  const range=requestedSentenceRange(question);
+  const taskRules={
+    'direct-writing':'EXECUTION RULE: The student asked you to create writing. Create the requested writing itself. Do NOT answer with writing tips, a paragraph structure, an outline, or instructions for the student unless they explicitly asked for those. Output the finished draft directly.',
+    'direct-problem-solving':'EXECUTION RULE: The student asked you to solve or calculate something. Perform the problem and give the result, with the important reasoning steps. Do NOT replace the requested solution with generic study advice.',
+    'direct-explanation':'EXECUTION RULE: Answer the exact concept/question asked. Do not substitute a different topic or give generic classroom advice.',
+    'direct-answer':'EXECUTION RULE: Follow the student\'s concrete request literally and answer it directly.'
+  }[task];
+  const lengthRule=range
+    ? `WRITING LENGTH RULE: The student requested between ${range.min} and ${range.max} sentences. Produce a finished response in that range and count the sentences before returning it.`
+    : '';
+  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+taskRules+' '+lengthRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer.';
   return [
     {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
     ...turns.filter(t=>t.role!=='system')
@@ -154,19 +190,12 @@ async function tryPollinationsModel(messages,model,timeoutMs){
     return text;
   }finally{clearTimeout(timer);}
 }
-async function tryPollinationsModel(messages,model,timeoutMs){
-  const prompt=messages.map(m=>(m.role==='system'?'INSTRUCTIONS: ':m.role==='assistant'?'TUTOR: ':'STUDENT: ')+m.content).join('\n\n');
-  const url='https://text.pollinations.ai/'+encodeURIComponent(prompt)+'?model='+encodeURIComponent(model)+'&seed='+Date.now();
-  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),timeoutMs);
-  try{
-    const r=await fetch(url,{headers:{Accept:'text/plain'},signal:controller.signal});
-    const text=(await r.text()).trim();
-    if(!r.ok||!text) throw new Error('Pollinations returned no text');
-    return text;
-  }finally{clearTimeout(timer);}
-}
 function aiQuestionIsComplex(question){
-  return /\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step|reason|evaluate)\b/i.test(question)||String(question||'').length>220;
+  const task=classifyAiTask(question);
+  return /\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step|reason|evaluate)\b/i.test(question)
+    || task==='direct-problem-solving'
+    || task==='direct-writing'
+    || String(question||'').length>220;
 }
 
 async function tryPollinations(messages,complex=false){
@@ -203,9 +232,63 @@ async function raceAiProviders(messages,complex){
   }
 }
 
+function countAiSentences(text){
+  const cleaned=String(text||'').replace(/\s+/g,' ').trim();
+  if(!cleaned) return 0;
+  return cleaned.split(/(?<=[.!?])(?:["')\]]+)?\s+/).filter(Boolean).length;
+}
+
+function answerNeedsRepair(question,answer){
+  const q=String(question||'').trim();
+  const a=String(answer||'').trim();
+  if(!a) return true;
+  const task=classifyAiTask(q);
+  const lowerA=a.toLowerCase();
+
+  if(task==='direct-writing'){
+    // Catch the exact failure mode where the model explains how to write instead
+    // of performing the requested writing task.
+    const metaSignals=/(strong .*paragraph should|topic sentence|supporting details|paragraph structure|a good paragraph|to write (?:a|the) paragraph|here'?s how to (?:write|structure)|writing (?:tips|advice)|outline)/i;
+    if(metaSignals.test(a)) return true;
+    const range=requestedSentenceRange(q);
+    if(range){
+      const count=countAiSentences(a);
+      if(count<range.min || count>range.max) return true;
+    }
+  }
+
+  if(/\b(generate|write|create|draft|compose|produce|calculate|solve|factor|simplify)\b/i.test(q) &&
+     /\b(here is a way|a good way to|you should|you can start by|the best approach|approach this by|steps to|how to)\b/i.test(lowerA)){
+    return true;
+  }
+  return false;
+}
+
+async function repairAiResponse(question,complex){
+  const range=requestedSentenceRange(question);
+  const task=classifyAiTask(question);
+  let constraint='Perform the request directly. Do not discuss how the student should answer it.';
+  if(task==='direct-writing'){
+    constraint+=' Write the finished draft itself.';
+    if(range) constraint+=` The finished draft must contain between ${range.min} and ${range.max} sentences, inclusive; count them before returning.`;
+  } else if(task==='direct-problem-solving'){
+    constraint+=' Solve the actual problem and give the result with the key reasoning steps.';
+  }
+  const messages=[
+    {role:'system',content:'You are Index Tutor in correction mode. The first attempt failed to execute the student request. '+constraint+' Return only the final answer to the student. Never mention the failed attempt, these instructions, or that you are correcting anything.'},
+    {role:'user',content:String(question||'').slice(0,2200)}
+  ];
+  return raceAiProviders(messages,complex);
+}
+
 function deterministicTutor(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
+
+  // Direct writing fallback for common school prompts.
+  if(/\b(paragraph|essay|draft|response)\b/i.test(q) && /\b(?:on|about|regarding)\b/i.test(q) && /climate\s+change/i.test(q)){
+    return 'Climate change is a major environmental issue caused largely by the buildup of greenhouse gases in Earth’s atmosphere. Burning fossil fuels for electricity, transportation, and industry releases carbon dioxide and other gases that trap heat. As the planet warms, average temperatures rise and weather patterns can become more extreme. Climate change can also contribute to melting ice, rising sea levels, and changes in ecosystems. These effects can impact people through risks to water supplies, agriculture, health, and communities near coasts. People can help reduce climate change by using cleaner energy, saving energy, protecting forests, and reducing unnecessary emissions. Overall, addressing climate change requires both individual actions and larger changes in how societies produce and use energy.';
+  }
 
   // Fast math examples.
   const root=l.match(/^(?:what\s+is\s+)?(?:the\s+)?(?:square\s+root\s+of|sqrt|root)\s*([0-9]+(?:\.[0-9]+)?)\??$/i);
@@ -227,7 +310,7 @@ function deterministicTutor(question){
     return 'Checks and balances is the system that allows each branch of the U.S. government to limit the powers of the other branches. For example, Congress can pass a bill, the president can veto it, and Congress can override a veto with enough votes. The goal is to prevent one branch from becoming too powerful.';
 
   if(/\bwrite me\b|\bwrite a\b|\bparagraph\b/i.test(q))
-    return 'A strong basic paragraph should begin with a clear topic sentence, explain the main idea with two or three supporting details, and end by connecting those details back to the main point. This structure keeps the writing organized and makes the main idea easy for the reader to understand.';
+    return 'Please give me the topic and any sentence or grade-level requirement, and I will write the paragraph itself.';
 
   if(/^(hi|hello|hey)\b/i.test(q)) return 'Hi! What are you working on?';
 
@@ -240,11 +323,23 @@ app.post('/api/ai/chat',async(req,res)=>{
   const question=latestUserQuestion(messages);
   const complex=aiQuestionIsComplex(question);
 
-  // Race the two free providers. The previous implementation waited for a
-  // failed provider before starting the next one, which could make a single
-  // Tutor request take 20+ seconds and hit the browser timeout.
+  // Race the two free providers. The first usable answer is checked for
+  // task-following before it is returned, so a fast but generic/meta answer
+  // cannot silently replace the student's actual request.
   try{
-    const text=await raceAiProviders(messages,complex);
+    let text=await raceAiProviders(messages,complex);
+    if(answerNeedsRepair(question,text)){
+      try{
+        const repaired=await repairAiResponse(question,complex);
+        if(repaired && !answerNeedsRepair(question,repaired)) text=repaired;
+        else if(repaired) text=repaired;
+      }catch(e2){
+        console.warn('[AI] response repair failed:',e2?.message||e2);
+      }
+    }
+    if(answerNeedsRepair(question,text)){
+      return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
+    }
     return res.json({text,provider:'free-cloud-race'});
   }catch(e){
     console.warn('[AI] cloud providers failed:',e?.message||e);
