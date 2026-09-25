@@ -3153,9 +3153,15 @@ function clearName(){ state.profile = {}; persistProfile(); renderProfileSlot();
 
 /* ============================== EVENT DELEGATION ============================== */
 document.addEventListener('click', async (e)=>{
-  const t = e.target.closest('[data-action]'); if(!t) return;
-  const action = t.dataset.action;
+  const t = e.target.closest('[data-action],[data-view]'); if(!t) return;
 
+  // Sidebar navigation uses data-view directly instead of data-action.
+  if(t.dataset.view && !t.dataset.action){
+    switchView(t.dataset.view);
+    return;
+  }
+
+  const action = t.dataset.action;
   if(action==='goto'){ switchView(t.dataset.view); }
   else if(action==='open-district'){ openDistrict(); }
   else if(action==='open-county-settings'){ showCountyGate(); }
@@ -3450,13 +3456,18 @@ async function initializeApp(){
   updateNoteTopicSuggestions();
   updateLearnTopicSuggestions();
   loadLocalData();
+  // Account-owned rewards must never be shown from guest local storage.
+  // Start the UI in a signed-out-safe state, then replace it with the
+  // server account state once authentication is confirmed.
+  resetSignedOutAccountState();
   if(!hasCompletedSetup()){ showSiteGate(); return; }
   if(!state.county){ state.county=getSetup()?.county||''; state.profile.county=state.county; persistProfile(); }
   applyLocalJurisdictionUI();
   applyBattlePassRewards();
   await checkAiStatus();
   await refreshAuthStatus();
-  await loadAccountState();
+  if(state.account) await loadAccountState();
+  else resetSignedOutAccountState();
   await handleAuthRedirectResult();
   renderDashboard();
   renderSidebarBadge();
