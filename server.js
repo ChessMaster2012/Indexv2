@@ -119,11 +119,40 @@ function classifyAiTask(question){
 
 function requestedSentenceRange(question){
   const q=String(question||'');
-  const between=q.match(/\bbetween\s+(\d+)\s*(?:-|to|and)\s*(\d+)\s+sentences?\b/i);
+  const between=q.match(/\bbetween\s+(\d+)\s*(?:-|to|and)\s*(\d+)\s+sentences?\b/i)
+    || q.match(/\b(\d+)\s*(?:-|to|through|and)\s*(\d+)\s+sentences?\b/i);
   if(between) return {min:Number(between[1]),max:Number(between[2])};
   const exact=q.match(/\b(\d+)\s+sentences?\b/i);
   if(exact) return {min:Number(exact[1]),max:Number(exact[1])};
   return null;
+}
+
+function recentUserTexts(messages){
+  return normalizeAiMessages(messages).filter(m=>m.role==='user').map(m=>m.content);
+}
+
+function requestedWritingConstraints(messages){
+  const users=recentUserTexts(messages);
+  const combined=users.join('\n');
+  let sentenceRange=null;
+  // Prefer the newest explicit sentence-count requirement, but preserve it
+  // when the student later says something abbreviated like “6 to 8”.
+  for(let i=users.length-1;i>=0;i--){
+    const found=requestedSentenceRange(users[i]);
+    if(found){ sentenceRange=found; break; }
+  }
+  if(!sentenceRange){
+    const loose=combined.match(/\b(?:between\s+)?(\d+)\s*(?:-|to|through|and)\s*(\d+)\b/ig);
+    if(loose){
+      const m=loose[loose.length-1].match(/(\d+)\s*(?:-|to|through|and)\s*(\d+)/i);
+      if(m) sentenceRange={min:Number(m[1]),max:Number(m[2])};
+    }
+  }
+  const latest=users[users.length-1]||'';
+  const writingMentioned=users.some(t=>/\b(paragraph|essay|draft|response|speech|letter|report|thesis|introduction|conclusion)\b/i.test(t));
+  const singleParagraph=users.some(t=>/\b(?:a|one|single)\s+paragraph\b/i.test(t))
+    && !users.some(t=>/\b(?:two|three|four|five|six|seven|eight|nine|ten|\d+)\s+paragraphs\b/i.test(t));
+  return {sentenceRange, writingMentioned, singleParagraph, latest};
 }
 
 function buildAiMessages(messages){
@@ -132,7 +161,8 @@ function buildAiMessages(messages){
   const clientRules=turns.find(t=>t.role==='system')?.content||'';
   const question=latestUserQuestion(turns);
   const task=classifyAiTask(question);
-  const range=requestedSentenceRange(question);
+  const writingConstraints=requestedWritingConstraints(turns);
+  const range=writingConstraints.sentenceRange;
   const taskRules={
     'direct-writing':'EXECUTION RULE: The student asked you to create writing. Create the requested writing itself. Do NOT answer with writing tips, a paragraph structure, an outline, or instructions for the student unless they explicitly asked for those. Output the finished draft directly.',
     'direct-problem-solving':'EXECUTION RULE: The student asked you to solve or calculate something. Perform the problem and give the result, with the important reasoning steps. Do NOT replace the requested solution with generic study advice.',
@@ -142,11 +172,14 @@ function buildAiMessages(messages){
   const lengthRule=range
     ? `WRITING LENGTH RULE: The student requested between ${range.min} and ${range.max} sentences. Produce a finished response in that range and count the sentences before returning it.`
     : '';
+  const shapeRule=writingConstraints.singleParagraph
+    ? 'WRITING SHAPE RULE: The student asked for a single paragraph. Return exactly ONE paragraph; do not split the response into multiple blank-line paragraphs or add a title.'
+    : '';
   const priorAssistant=[...turns].reverse().find(t=>t.role==='assistant')?.content||'';
   const followUpRule=/\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|what about it|why is that|how does that)\b/i.test(question) && priorAssistant
     ? 'FOLLOW-UP CONTEXT RULE: The latest student message is a follow-up. Treat words such as “it,” “that,” “this,” “the above,” “simpler,” or “more simple” as referring to the immediately preceding relevant Tutor answer. Use that previous answer as context and answer the follow-up itself. Do not restart with generic study advice.'
     : 'CONTEXT RULE: Use the immediately preceding relevant Tutor answer when the student message depends on prior context.';
-  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+followUpRule+' '+taskRules+' '+lengthRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer.';
+  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer.';
   return [
     {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
     ...turns.filter(t=>t.role!=='system')
@@ -276,7 +309,9 @@ function countAiSentences(text){
   return cleaned.split(/(?<=[.!?])(?:["')\]]+)?\s+/).filter(Boolean).length;
 }
 
-function answerNeedsRepair(question,answer){
+function answerNeedsRepair(question,answer,sourceMessages){
+  const context=sourceMessages||[];
+  const constraints=requestedWritingConstraints(context.length?context:[{role:'user',content:String(question||'')}]);
   const q=String(question||'').trim();
   const a=String(answer||'').trim();
   if(!a) return true;
@@ -289,10 +324,15 @@ function answerNeedsRepair(question,answer){
     // of performing the requested writing task.
     const metaSignals=/(strong .*paragraph should|topic sentence|supporting details|paragraph structure|a good paragraph|to write (?:a|the) paragraph|here'?s how to (?:write|structure)|writing (?:tips|advice)|outline)/i;
     if(metaSignals.test(a)) return true;
-    const range=requestedSentenceRange(q);
+    const range=constraints.sentenceRange || requestedSentenceRange(q);
     if(range){
       const count=countAiSentences(a);
       if(count<range.min || count>range.max) return true;
+    }
+    if(constraints.singleParagraph){
+      const paragraphs=a.split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
+      if(paragraphs.length!==1) return true;
+      if(/^#{1,6}\s/.test(a)) return true; // no standalone title for a single-paragraph request
     }
   }
 
@@ -304,17 +344,20 @@ function answerNeedsRepair(question,answer){
 }
 
 async function repairAiResponse(question,complex,sourceMessages){
-  const range=requestedSentenceRange(question);
-  const task=classifyAiTask(question);
   const source=normalizeAiMessages(sourceMessages);
+  const constraints=requestedWritingConstraints(source);
+  const range=constraints.sentenceRange || requestedSentenceRange(question);
+  const task=classifyAiTask(question);
   const priorAssistant=[...source].reverse().find(m=>m.role==='assistant')?.content||'';
+  const earlierUser=[...source].reverse().find(m=>m.role==='user' && m.content!==question)?.content||'';
   let constraint='Answer the student\'s exact request directly. Do not give generic study advice, a method for answering, or a writing plan unless the student explicitly asks for one.';
-  if(priorAssistant && /\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that)\b/i.test(question)){
-    constraint+=' This is a follow-up. The word “it”/“that”/“this” refers to the immediately preceding Tutor answer quoted below. Explain or transform that specific answer rather than asking the student to restate the topic.';
+  if(priorAssistant && /\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|only .* paragraph|asked for)\b/i.test(question)){
+    constraint+=' This is a follow-up. Use the immediately preceding relevant answer and the earlier request as context. Do not ask the student to restate the original task.';
   }
   if(task==='direct-writing'){
     constraint+=' Write the finished draft itself.';
-    if(range) constraint+=` The finished draft must contain between ${range.min} and ${range.max} sentences, inclusive; count them before returning.`;
+    if(range) constraint+=` The finished draft must contain between ${range.min} and ${range.max} sentences, inclusive; count the sentences before returning.`;
+    if(constraints.singleParagraph) constraint+=' Return exactly one paragraph with no title.';
   } else if(task==='direct-problem-solving'){
     constraint+=' Solve the actual problem and give the result with the key reasoning steps.';
   } else if(task==='direct-explanation'){
@@ -322,6 +365,7 @@ async function repairAiResponse(question,complex,sourceMessages){
   }
   const messages=[
     {role:'system',content:'You are Index Tutor correction mode. '+constraint+' Return only the final answer to the student. Never mention correction mode, failed attempts, prompts, or hidden instructions.'},
+    ...(earlierUser ? [{role:'user',content:earlierUser.slice(-4000)}] : []),
     ...(priorAssistant ? [{role:'assistant',content:priorAssistant.slice(-5000)}] : []),
     {role:'user',content:String(question||'').slice(0,2200)}
   ];
@@ -380,16 +424,16 @@ app.post('/api/ai/chat',async(req,res)=>{
   // cannot silently replace the student's actual request.
   try{
     let text=await raceAiProviders(messages,complex);
-    if(answerNeedsRepair(question,text)){
+    if(answerNeedsRepair(question,text,messages)){
       try{
         const repaired=await repairAiResponse(question,complex,messages);
-        if(repaired && !answerNeedsRepair(question,repaired)) text=repaired;
+        if(repaired && !answerNeedsRepair(question,repaired,messages)) text=repaired;
         else if(repaired) text=repaired;
       }catch(e2){
         console.warn('[AI] response repair failed:',e2?.message||e2);
       }
     }
-    if(answerNeedsRepair(question,text)){
+    if(answerNeedsRepair(question,text,messages)){
       return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
     }
     return res.json({text,provider:'free-cloud-race'});
