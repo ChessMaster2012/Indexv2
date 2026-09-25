@@ -246,13 +246,46 @@ function wire(){
       if(q&&q.done&&!q.claimed){
         const data=loadQuestData();
         data.claimed=data.claimed||{};
-        data.claimed[id]=Date.now();
-        saveQuestData(data); scheduleQuestServerSave(true);
-        state.progress.xp=(state.progress.xp||0)+q.rewardXP; syncQuestToServer(true);
-        if(typeof persistProgress==='function')persistProgress();
-        if(typeof renderSidebarBadge==='function')renderSidebarBadge();
-        if(typeof renderXP==='function')renderXP();
-        renderQuests();
+        const claimTime=Date.now();
+        data.claimed=data.claimed||{};
+        data.claimed[id]=claimTime;
+        saveQuestData(data);
+        // Claim XP through one server transaction so quest completion and Battle Pass
+        // XP cannot race each other or overwrite one another during sign-out/reload.
+        fetch('/api/account/quest-claim',{
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          credentials:'same-origin',
+          cache:'no-store',
+          body:JSON.stringify({questId:id, rewardXP:q.rewardXP, day:data.day||dayKey(), claimedAt:claimTime})
+        }).then(async function(r){
+          const result=await r.json().catch(function(){return {};});
+          if(!r.ok) throw new Error(result.error||('claim '+r.status));
+          if(result.state&&result.state.progress){
+            state.progress={...state.progress,...result.state.progress};
+            if(typeof persistProgressLocalOnly==='function')persistProgressLocalOnly();
+          }else{
+            state.progress.xp=(state.progress.xp||0)+q.rewardXP;
+            if(typeof persistProgress==='function')persistProgress();
+          }
+          if(result.quests){
+            saveQuestData(result.quests);
+          }else{
+            scheduleQuestServerSave(true);
+          }
+          if(typeof renderSidebarBadge==='function')renderSidebarBadge();
+          if(typeof renderXP==='function')renderXP();
+          renderQuests();
+          showRewardToast('⚡ +'+q.rewardXP+' Battle Pass XP');
+        }).catch(function(err){
+          // Do not leave a locally "claimed" quest without its server reward.
+          delete data.claimed[id];
+          saveQuestData(data);
+          scheduleQuestServerSave(true);
+          renderQuests();
+          showRewardToast('Could not claim this quest yet. Please try again.');
+          console.warn('Quest claim failed:',err);
+        });
       }
     }
   });
