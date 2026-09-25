@@ -105,7 +105,7 @@ function latestUserQuestion(messages){
 function classifyAiTask(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
-  if(/\b(write|generate|create|draft|compose|produce|make)\b[\\s\\S]*\b(paragraph|essay|speech|letter|response|thesis|introduction|conclusion|report|draft)\b/i.test(q) || /\bparagraph\b/i.test(l)){
+  if(/\b(write|generate|create|draft|compose|produce|make)\b[\\s\\S]*\b(paragraph|essay|speech|letter|response|thesis|introduction|conclusion|report|draft)\b/i.test(q)){
     return 'direct-writing';
   }
   if(/\b(solve|calculate|compute|simplify|factor|evaluate|find|derive|prove|balance)\b/i.test(l)){
@@ -191,10 +191,9 @@ async function tryPollinationsModel(messages,model,timeoutMs){
   }finally{clearTimeout(timer);}
 }
 function aiQuestionIsComplex(question){
-  const task=classifyAiTask(question);
+  // Keep ordinary requests on the fast path. Only genuinely multi-step,
+  // long-form, or technical prompts get the longer provider budget.
   return /\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step|reason|evaluate)\b/i.test(question)
-    || task==='direct-problem-solving'
-    || task==='direct-writing'
     || String(question||'').length>220;
 }
 
