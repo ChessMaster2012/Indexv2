@@ -1417,6 +1417,9 @@ const DAILY_COIN_CAP = 500;
 function coinDayStr(){ return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()); }
 function getDailyCoinState(){
   const today=coinDayStr();
+  if(state.account && String(state.progress.dailyCoinDate||'')===today){
+    return {date:today,earned:Math.max(0,Number(state.progress.dailyCoinEarned)||0)};
+  }
   const saved=lsGet('index-daily-coins',{date:today,earned:0});
   return saved.date===today ? {date:today,earned:Math.max(0,Number(saved.earned)||0)} : {date:today,earned:0};
 }
@@ -1715,8 +1718,9 @@ async function dailyWheelSpin(){
     const r=await fetch('/api/rewards/daily-wheel/spin',{method:'POST'});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){ showRewardToast(d.error||'Daily Wheel is unavailable.'); renderRewards(); return; }
-    const reward=Number(d.reward)||5;
-    const index=Math.max(0,DAILY_WHEEL_VALUES.indexOf(reward));
+    const reward=Number(d.reward)||0;
+    const rolled=Number(d.rolled)||reward;
+    const index=Math.max(0,DAILY_WHEEL_VALUES.indexOf(rolled));
     if(wheel){
       const seg=360/DAILY_WHEEL_VALUES.length;
       const targetCenter=index*seg+seg/2;
@@ -1731,6 +1735,7 @@ async function dailyWheelSpin(){
     }
     if(d.state) state.progress={...state.progress,...(d.state.progress||{}),equipped:{...state.progress.equipped,...((d.state.progress&&d.state.progress.equipped)||{})}};
     persistProgressLocalOnly();
+    saveDailyCoinState(Number(state.progress.dailyCoinEarned)||0);
     renderSidebarBadge();
     showRewardToast('🎡 Daily Wheel · +'+reward+' coins');
     renderRewards();
