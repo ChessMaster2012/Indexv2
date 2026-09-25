@@ -1337,6 +1337,48 @@ function requestLocalAiCapabilities(){
   const note=document.getElementById('ai-hardware-note');
   if(note) note.textContent='Free cloud AI • no model is loaded on this device';
 }
+async function runPuterAi(messages, options={}){
+  if(typeof window==='undefined' || !window.puter || !window.puter.ai || typeof window.puter.ai.chat!=='function'){
+    throw new Error('Backup AI is not available in this browser.');
+  }
+  const timeoutMs=options.timeoutMs||18000;
+  const modelOrder=['gpt-5.6-luna','google/gemini-3.8-flash'];
+  let lastError=null;
+  for(const model of modelOrder){
+    try{
+      const request=window.puter.ai.chat(messages,{model});
+      const response=await Promise.race([
+        request,
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error('Backup AI timed out.')),timeoutMs))
+      ]);
+      const values=[
+        typeof response==='string'?response:'',
+        response?.message?.content,
+        response?.content,
+        response?.text,
+        response?.output_text,
+        response?.output?.text,
+        response?.choices?.[0]?.message?.content,
+        response?.choices?.[0]?.text
+      ];
+      let answer='';
+      for(const value of values){
+        if(typeof value==='string' && value.trim()){ answer=value.trim(); break; }
+        if(Array.isArray(value)){
+          const joined=value.map(x=>typeof x==='string'?x:(x?.text||x?.content||'')).join('').trim();
+          if(joined){ answer=joined; break; }
+        }
+      }
+      if(!answer) throw new Error('Backup AI returned an empty response.');
+      options.onChunk?.(answer);
+      return answer;
+    }catch(e){
+      lastError=e;
+    }
+  }
+  throw lastError||new Error('Backup AI could not answer.');
+}
+
 async function runLocalAi(messages, options={}){
   const timeoutMs=options.timeoutMs||30000;
   const controller=new AbortController();
@@ -1351,14 +1393,35 @@ async function runLocalAi(messages, options={}){
     const contentType=response.headers.get('content-type')||'';
     if(!response.ok){
       let message='The AI service could not answer right now.';
-      try{ const data=await response.json(); if(data?.error) message=String(data.error); }catch{}
-      throw new Error(message);
+      let data=null;
+      try{ data=await response.json(); if(data?.error) message=String(data.error); }catch{}
+      // Do not bypass server-side safety/moderation errors. Only network/server
+      // failures are eligible for the browser backup.
+      if(response.status>=400 && response.status<500) throw new Error(message);
+      throw new Error('SERVER_AI_BACKUP:'+message);
     }
-    if(!response.body) throw new Error('The AI service returned no response.');
+    if(!response.body) throw new Error('SERVER_AI_BACKUP:The AI service returned no response.');
     if(contentType.includes('application/json')){
       const data=await response.json();
       const answer=String(data?.choices?.[0]?.message?.content||data?.choices?.[0]?.delta?.content||data?.choices?.[0]?.text||data?.output_text||data?.text||data?.answer||data?.message?.content||'').trim();
-      if(!answer) throw new Error('The AI returned an empty response.');
+      if(!answer) throw new Error('SERVER_AI_BACKUP:The AI returned an empty response.');
+      // The deterministic fast fallback is intentionally trusted. If the server
+      // had to use its generic fallback, try a second independent AI path instead
+      // of showing the old “I could not reach the AI service” message.
+      const provider=String(data?.provider||'');
+      if(data?.fallback && provider==='built-in-fallback'){
+        clearTimeout(timer);
+        state.aiWork.stage='Connecting to backup AI…';
+        updateAiWorkStatus();
+        try{
+          return await runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||18000,onChunk:options.onChunk});
+        }catch(backupError){
+          // Preserve the server's useful topic-specific fallback if the backup
+          // service is unavailable or the user is not signed in to it yet.
+          options.onChunk?.(answer);
+          return answer;
+        }
+      }
       options.onChunk?.(answer);
       return answer;
     }
@@ -1381,14 +1444,33 @@ async function runLocalAi(messages, options={}){
       if(done) break;
       buffer+=decoder.decode(value,{stream:true});
       let idx;
-      while((idx=buffer.indexOf('\n\n'))>=0){ const evt=buffer.slice(0,idx); buffer=buffer.slice(idx+2); handleEvent(evt); }
+      while((idx=buffer.indexOf('\\n\\n'))>=0){ const evt=buffer.slice(0,idx); buffer=buffer.slice(idx+2); handleEvent(evt); }
     }
     buffer+=decoder.decode();
     if(buffer.trim()) handleEvent(buffer);
-    if(!full.trim()) throw new Error('The AI returned an empty response.');
+    if(!full.trim()) throw new Error('SERVER_AI_BACKUP:The AI returned an empty response.');
     return full.trim();
   }catch(e){
-    if(e?.name==='AbortError') throw new Error('The Tutor is still working. Please try again in a moment.');
+    if(e?.name==='AbortError'){
+      clearTimeout(timer);
+      state.aiWork.stage='Connecting to backup AI…';
+      updateAiWorkStatus();
+      try{
+        return await runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||18000,onChunk:options.onChunk});
+      }catch(backupError){
+        throw new Error('The AI service could not answer right now.');
+      }
+    }
+    if(String(e?.message||'').startsWith('SERVER_AI_BACKUP:')){
+      clearTimeout(timer);
+      state.aiWork.stage='Connecting to backup AI…';
+      updateAiWorkStatus();
+      try{
+        return await runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||18000,onChunk:options.onChunk});
+      }catch(backupError){
+        throw new Error(String(e.message).replace(/^SERVER_AI_BACKUP:/,''));
+      }
+    }
     throw e;
   }finally{ clearTimeout(timer); }
 }
