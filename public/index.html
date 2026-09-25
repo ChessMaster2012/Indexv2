@@ -2287,7 +2287,7 @@ function renderChatLog(){
 }
 function startAiWorkStatus(complex=false){
   stopAiWorkStatus();
-  state.aiWork={startedAt:Date.now(),timerId:null,estimateSec:complex?25:8,stage:complex?'Working through your question…':'Generating your answer…',complex};
+  state.aiWork={startedAt:Date.now(),timerId:null,estimateSec:complex?15:5,stage:complex?'Working through your question…':'Generating your answer…',complex};
   const box=document.getElementById('ai-work-status'); if(box) box.classList.remove('hidden');
   updateAiWorkStatus();
   state.aiWork.timerId=setInterval(updateAiWorkStatus,250);
