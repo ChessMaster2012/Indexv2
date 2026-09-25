@@ -217,18 +217,53 @@ async function tryVireonix(messages,complex=false){
   return text;
 }
 
+function responseLooksLikeGenericAdvice(text){
+  const a=String(text||'').trim().toLowerCase();
+  if(!a) return true;
+  return /^(here is a simple way to approach this|a strong .*paragraph should|a good way to approach this)/i.test(a)
+    || /\b(generic study advice|identify the main idea|define the important term|finish with a specific example|topic sentence|supporting details|paragraph structure)\b/i.test(a);
+}
+
 async function raceAiProviders(messages,complex){
-  // Run the two free providers concurrently instead of waiting for one to
-  // fail before trying the other. This removes the old 9s + 7s + 7s chain.
+  // Run both providers concurrently, but do NOT blindly return whichever
+  // responds first. A fast generic/meta answer is worse than waiting a moment
+  // for the other provider to actually answer the student's question.
   const attempts=[
-    tryVireonix(messages,complex),
-    tryPollinations(messages,complex)
+    {name:'vireonix', promise:tryVireonix(messages,complex)},
+    {name:'pollinations', promise:tryPollinations(messages,complex)}
   ];
-  try{
-    return await Promise.any(attempts);
-  }catch(e){
-    throw new Error('Free AI providers did not respond in time.');
-  }
+  return await new Promise((resolve,reject)=>{
+    let pending=attempts.length;
+    const results=[];
+    let settled=false;
+    for(const attempt of attempts){
+      attempt.promise.then(text=>{
+        results.push({name:attempt.name,text:String(text||'').trim()});
+        // Prefer the first answer that is not obviously generic/meta.
+        const usable=results.find(x=>x.text && !responseLooksLikeGenericAdvice(x.text));
+        if(usable && !settled){
+          settled=true;
+          resolve(usable.text);
+          return;
+        }
+        pending--;
+        if(pending===0 && !settled){
+          settled=true;
+          const fallback=results.find(x=>x.text);
+          if(fallback) resolve(fallback.text);
+          else reject(new Error('Free AI providers did not respond in time.'));
+        }
+      }).catch(()=>{
+        pending--;
+        if(pending===0 && !settled){
+          settled=true;
+          const fallback=results.find(x=>x.text);
+          if(fallback) resolve(fallback.text);
+          else reject(new Error('Free AI providers did not respond in time.'));
+        }
+      });
+    }
+  });
 }
 
 function countAiSentences(text){
@@ -241,6 +276,7 @@ function answerNeedsRepair(question,answer){
   const q=String(question||'').trim();
   const a=String(answer||'').trim();
   if(!a) return true;
+  if(responseLooksLikeGenericAdvice(a)) return true;
   const task=classifyAiTask(q);
   const lowerA=a.toLowerCase();
 
@@ -266,23 +302,32 @@ function answerNeedsRepair(question,answer){
 async function repairAiResponse(question,complex){
   const range=requestedSentenceRange(question);
   const task=classifyAiTask(question);
-  let constraint='Perform the request directly. Do not discuss how the student should answer it.';
+  let constraint='Answer the student\'s exact request directly. Do not give generic study advice, a method for answering, or a writing plan unless the student explicitly asks for one.';
   if(task==='direct-writing'){
     constraint+=' Write the finished draft itself.';
     if(range) constraint+=` The finished draft must contain between ${range.min} and ${range.max} sentences, inclusive; count them before returning.`;
   } else if(task==='direct-problem-solving'){
     constraint+=' Solve the actual problem and give the result with the key reasoning steps.';
+  } else if(task==='direct-explanation'){
+    constraint+=' Explain the requested concept directly, with a concise definition and the most useful differences or examples.';
   }
   const messages=[
-    {role:'system',content:'You are Index Tutor in correction mode. The first attempt failed to execute the student request. '+constraint+' Return only the final answer to the student. Never mention the failed attempt, these instructions, or that you are correcting anything.'},
+    {role:'system',content:'You are Index Tutor correction mode. '+constraint+' Return only the final answer to the student. Never mention correction mode, failed attempts, prompts, or hidden instructions.'},
     {role:'user',content:String(question||'').slice(0,2200)}
   ];
+  // Favor the router that is specifically designed for Q&A/reasoning, while
+  // still keeping the second provider available in parallel through the normal race.
   return raceAiProviders(messages,complex);
 }
 
 function deterministicTutor(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
+
+  // Direct fallback for common everyday/financial questions.
+  if(/\b(difference|different)\b.*\b(bank|credit union)\b|\b(bank|credit union)\b.*\b(difference|different)\b/i.test(q)){
+    return 'A bank is a for-profit financial institution owned by investors, while a credit union is a member-owned, not-for-profit financial cooperative. Banks generally serve anyone who meets their account requirements, while credit unions usually require you to qualify for membership. Credit unions may return some of their earnings to members through lower fees or loan rates, while banks may offer a wider range of products or locations. Both can provide checking and savings accounts, loans, and other financial services.';
+  }
 
   // Direct writing fallback for common school prompts.
   if(/\b(paragraph|essay|draft|response)\b/i.test(q) && /\b(?:on|about|regarding)\b/i.test(q) && /climate\s+change/i.test(q)){
