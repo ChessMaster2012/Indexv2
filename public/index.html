@@ -1753,6 +1753,15 @@ function avatarPreviewHtml(){
   const equippedSkin=skinById(eq.indexlingSkin);
   return '<div class="avatar-preview" style="border:5px solid rgba(255,255,255,.7);">'+indexlingArtHtml(indexling,false,equippedSkin)+'</div><div style="font-size:14px;font-weight:900;">'+esc(indexling.name)+'</div><div style="font-size:12px;opacity:.82;margin-top:4px;">'+(equippedSkin?'Skin · '+esc(equippedSkin.name):'Default skin')+'</div>';
 }
+function setRewardsTab(tab){
+  if(!state.account){promptAccountForPersistentView('rewards');return;}
+  state.rewardsTab=String(tab||'battlepass');
+  try{renderRewards();}catch(e){
+    console.error('Rewards tab error:',e);
+    const root=document.getElementById('rewards-stage');
+    if(root) root.innerHTML='<div class="panel"><h3>Rewards could not open</h3><p class="reward-muted">Refresh once and try again.</p></div>';
+  }
+}
 function renderRewards(){
   if(!state.account){ promptAccountForPersistentView('rewards'); return; }
   ensureRewardUnlocks();
@@ -1762,11 +1771,11 @@ function renderRewards(){
   const unlocked=state.progress.unlockedCosmetics||[];
   const eq=state.progress.equipped||{};
   const rail=`<aside class="rewards-rail">
-    <button class="inventory-rail-btn ${tab==='inventory'?'active':''}" data-action="reward-tab" data-tab="inventory" title="Open inventory">
+    <button type="button" class="inventory-rail-btn ${tab==='inventory'?'active':''}" data-action="reward-tab" data-tab="inventory" onclick="setRewardsTab('inventory')" title="Open inventory">
       <span class="inventory-rail-icon">🎒</span><span class="inventory-rail-label">Inventory</span>
     </button>
   </aside>`;
-  const tabHtml=`<div class="reward-tabs"><button class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass">🏆 Battle Pass</button><button class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar">🧑 Avatar</button><button class="reward-tab ${tab==='packs'?'active':''}" data-action="reward-tab" data-tab="packs">📦 Packs</button><button class="reward-tab ${tab==='daily'?'active':''}" data-action="reward-tab" data-tab="daily">🎡 Daily Wheel</button></div>`;
+  const tabHtml=`<div class="reward-tabs"><button type="button" class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass" onclick="setRewardsTab('battlepass')">🏆 Battle Pass</button><button type="button" class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar" onclick="setRewardsTab('avatar')">🧑 Avatar</button><button type="button" class="reward-tab ${tab==='packs'?'active':''}" data-action="reward-tab" data-tab="packs" onclick="setRewardsTab('packs')">📦 Packs</button><button type="button" class="reward-tab ${tab==='daily'?'active':''}" data-action="reward-tab" data-tab="daily" onclick="setRewardsTab('daily')">🎡 Daily Wheel</button></div>`;
   const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Teacher-hosted Live Games are the source of coins for cosmetic packs.</p></div><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
   let body='';
   if(tab==='battlepass'){
@@ -3252,9 +3261,16 @@ async function openSignin(){
   document.getElementById('auth-status').innerHTML = '';
   document.getElementById('recovery-status').innerHTML = '';
   document.getElementById('reset-status').innerHTML = '';
-  // Render restarts clear in-memory sessions. Verify the live server session
-  // before showing the account panel so stale UI state cannot say signed in.
-  await refreshAuthStatus();
+  const modal=document.getElementById('signin-modal');
+  if(modal) modal.classList.remove('hidden');
+  showAuthPanel();
+  try{
+    await Promise.race([
+      refreshAuthStatus(),
+      new Promise(resolve=>setTimeout(resolve,2500))
+    ]);
+  }catch(e){}
+
   showAuthPanel();
   if(state.account){
     document.getElementById('account-panel').classList.remove('hidden');
