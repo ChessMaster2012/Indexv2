@@ -23,7 +23,7 @@ function avatarFix(){
 }
 
 let questAccountKey='';
-const QUEST_VERSION='v4';
+const QUEST_VERSION='v5';
 
 function dayKey(){
   const d=new Date();
@@ -44,6 +44,56 @@ function saveQuestData(data){
   if(!accountKey())return;
   try{localStorage.setItem(storageKey(),JSON.stringify(data));}catch(e){}
 }
+let questServerSaveTimer=null;
+let questServerSaveInFlight=false;
+let questServerSaveQueued=false;
+function questPayload(){
+  const data=loadQuestData(),s=appSnapshot();
+  const base=data.baseline||s;
+  const progress={
+    ai:Math.max(0,s.ai-Number(base.ai||0)),
+    sets:Math.max(0,s.sets-Number(base.sets||0)),
+    lessons:Math.max(0,s.lessons-Number(base.lessons||0)),
+    xp:Math.max(0,s.xp-Number(base.xp||0)),
+    packs:Math.max(0,s.packs-Number(base.packs||0))
+  };
+  return {day:data.day||dayKey(),baseline:base,progress,claimed:data.claimed||{},announced:data.announced||{}};
+}
+async function syncQuestToServer(keepalive=false){
+  if(!state.account)return;
+  if(questServerSaveInFlight){questServerSaveQueued=true;return;}
+  questServerSaveInFlight=true;
+  try{
+    const payload={quests:questPayload()};
+    const r=await fetch('/api/account/quests',{method:'PUT',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify(payload),keepalive});
+    if(!r.ok)throw new Error('quest sync '+r.status);
+  }catch(e){
+    // Local cache remains authoritative until the next successful account sync.
+  }finally{
+    questServerSaveInFlight=false;
+    if(questServerSaveQueued){questServerSaveQueued=false;setTimeout(()=>syncQuestToServer(),0);}
+  }
+}
+function scheduleQuestServerSave(immediate=false){
+  if(!state.account)return;
+  clearTimeout(questServerSaveTimer);
+  if(immediate){syncQuestToServer();return;}
+  questServerSaveTimer=setTimeout(()=>syncQuestToServer(),500);
+}
+async function loadQuestFromServer(){
+  if(!state.account)return false;
+  try{
+    const r=await fetch('/api/account/quests',{credentials:'same-origin',cache:'no-store'});
+    if(!r.ok)return false;
+    const d=await r.json();
+    if(d.quests){
+      saveQuestData(d.quests);
+      questAccountKey=accountKey();
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
 function appSnapshot(){
   return {
     ai:Array.isArray(state.chat)?state.chat.filter(function(x){return x && x.role==='user';}).length:0,
@@ -57,8 +107,9 @@ function ensureQuestDay(){
   if(!state.account)return false;
   const k=accountKey(),d=dayKey(),data=loadQuestData();
   if(questAccountKey!==k||data.day!==d||!data.baseline){
-    saveQuestData({day:d,baseline:appSnapshot(),claimed:{},announced:{}});
+    saveQuestData({day:d,baseline:appSnapshot(),progress:{},claimed:data.claimed||{},announced:data.announced||{}});
     questAccountKey=k;
+    scheduleQuestServerSave();
   }
   return true;
 }
@@ -114,7 +165,7 @@ function checkQuestCompletions(){
       showQuestCompletion(q);
     }
   });
-  if(changed)saveQuestData(data);
+  if(changed){saveQuestData(data);scheduleQuestServerSave(true);}
 }
 function renderQuests(){
   const root=document.getElementById('view-quests');
@@ -166,7 +217,7 @@ function wire(){
         const data=loadQuestData();
         data.claimed=data.claimed||{};
         data.claimed[id]=Date.now();
-        saveQuestData(data);
+        saveQuestData(data); scheduleQuestServerSave(true);
         state.progress.coins=(state.progress.coins||0)+q.reward;
         if(typeof persistProgress==='function')persistProgress();
         if(typeof renderSidebarBadge==='function')renderSidebarBadge();
@@ -185,12 +236,16 @@ function wire(){
     }
   },1000);
 }
-function startWhenReady(){
+async function startWhenReady(){
   if(!state.account){setTimeout(startWhenReady,500);return;}
+  await loadQuestFromServer();
   ensureQuestDay();
   checkQuestCompletions();
+  scheduleQuestServerSave();
   if(state.view==='quests')renderQuests();
 }
+window.addEventListener('pagehide',function(){if(state.account){saveQuestData(questPayload());syncQuestToServer(true);}});
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden'&&state.account){saveQuestData(questPayload());syncQuestToServer(true);}});
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){wire();startWhenReady();});
 else {wire();startWhenReady();}
 })();
