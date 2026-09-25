@@ -516,7 +516,26 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .pack-glyph{width:86px;height:86px;border-radius:18px;background:linear-gradient(145deg,var(--pack-accent),#172033);margin:0 auto;position:relative;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 10px 18px rgba(0,0,0,.12);transform:rotate(-2deg)}.pack-glyph:before,.pack-glyph:after{content:'';position:absolute;background:rgba(255,255,255,.16);border-radius:4px}.pack-glyph:before{width:9px;height:56px;left:20px;transform:rotate(28deg)}.pack-glyph:after{width:56px;height:9px;top:20px;transform:rotate(-28deg)}.pack-glyph-mark{z-index:2;width:44px;height:44px;border-radius:14px;background:#fffdf8;color:#172033;display:grid;place-items:center;font-size:23px;font-weight:800;border:3px solid rgba(255,255,255,.55)}
 .indexling-art{width:82px;height:82px;margin:0 auto;position:relative;display:grid;place-items:center;filter:drop-shadow(0 8px 10px rgba(0,0,0,.12))}.indexling-body{width:58px;height:58px;border-radius:24px;background:var(--ling-main);border:4px solid var(--ling-dark);position:relative;box-shadow:inset 0 -8px 0 rgba(0,0,0,.08)}.indexling-body:before,.indexling-body:after{content:'';position:absolute;top:20px;width:9px;height:9px;border-radius:50%;background:#172033}.indexling-body:before{left:12px}.indexling-body:after{right:12px}.indexling-mouth{position:absolute;left:50%;top:34px;transform:translateX(-50%);width:14px;height:7px;border-bottom:3px solid #172033;border-radius:0 0 10px 10px}.indexling-horns:before,.indexling-horns:after{content:'';position:absolute;top:6px;width:16px;height:16px;border-radius:4px 12px 4px 12px;background:var(--ling-dark)}.indexling-horns:before{left:8px;transform:rotate(-24deg)}.indexling-horns:after{right:8px;transform:rotate(24deg)}.indexling-mark{position:absolute;right:-8px;top:-8px;width:22px;height:22px;border-radius:8px;background:var(--ling-accent);border:3px solid #fffdf8;display:grid;place-items:center;font-size:11px;font-weight:800;color:#172033}.indexling-mini{width:52px;height:52px}.indexling-mini .indexling-body{width:40px;height:40px;border-width:3px;border-radius:16px}.indexling-mini .indexling-body:before,.indexling-mini .indexling-body:after{top:14px;width:6px;height:6px}.indexling-mini .indexling-body:before{left:8px}.indexling-mini .indexling-body:after{right:8px}.indexling-mini .indexling-mouth{top:25px;width:10px;height:5px;border-width:2px}.indexling-mini .indexling-mark{right:-4px;top:-4px;width:17px;height:17px;border-width:2px;font-size:8px}
 @media(max-width:900px){.sidebar{width:100% !important}.main{padding:22px 18px 48px !important}}
-</style></style>
+/* INDEX_CREATOR_SPOTLIGHT_V2 */
+.creator-spotlight{position:relative;display:flex;align-items:stretch;justify-content:space-between;gap:22px;width:min(900px,100%);margin:0 0 28px auto;padding:22px;border-radius:26px;overflow:hidden;background:linear-gradient(135deg,#24174f 0%,#5a3fdb 35%,#e43d87 68%,#ff8a3d 100%);border:2px solid rgba(255,255,255,.35);box-shadow:0 18px 45px rgba(75,43,170,.28);color:#fff;}
+.creator-spotlight:before{content:"";position:absolute;inset:-55%;background:conic-gradient(from 0deg,#7c5cfc,#4da3ff,#2fd48b,#ffc94d,#ff5ca8,#7c5cfc);opacity:.18;filter:blur(26px);animation:creatorSpin 14s linear infinite;}
+.creator-spotlight:after{content:"";position:absolute;top:-80px;right:26%;width:190px;height:190px;border-radius:50%;border:2px solid rgba(255,255,255,.18);box-shadow:0 0 0 18px rgba(255,255,255,.045),0 0 0 36px rgba(255,255,255,.03);pointer-events:none;}
+@keyframes creatorSpin{to{transform:rotate(360deg);}}
+.creator-copy,.creator-photo-wrap{position:relative;z-index:1;}
+.creator-copy{flex:1;min-width:0;padding:2px 0;}
+.creator-kicker{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);font-size:10px;font-weight:900;letter-spacing:.11em;text-transform:uppercase;}
+.creator-kicker-dot{width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 12px rgba(255,255,255,.9);}
+.creator-copy h2{margin:12px 0 6px;color:#fff;font-size:28px;line-height:1.05;}
+.creator-school{margin:0 0 12px;font-size:12px;font-weight:800;color:rgba(255,255,255,.88);}
+.creator-story{margin:0;color:rgba(255,255,255,.9);font-size:13px;line-height:1.65;max-width:62ch;}
+.creator-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px;}
+.creator-tag{padding:6px 9px;border-radius:999px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.18);font-size:10.5px;font-weight:800;}
+.creator-photo-wrap{width:176px;flex:0 0 176px;display:flex;align-items:center;justify-content:center;}
+.creator-photo-ring{position:relative;width:158px;height:202px;padding:5px;border-radius:24px;background:conic-gradient(#ffc94d,#ff5ca8,#7c5cfc,#4da3ff,#2fd48b,#ffc94d);box-shadow:0 12px 28px rgba(0,0,0,.25),0 0 24px rgba(255,255,255,.12);}
+.creator-photo{display:block;width:100%;height:100%;object-fit:cover;object-position:center;border-radius:19px;border:3px solid rgba(255,255,255,.9);background:#fff;}
+.creator-photo-label{position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);white-space:nowrap;padding:6px 10px;border-radius:999px;background:#fff;color:#241f3d;font-size:10px;font-weight:900;box-shadow:0 5px 14px rgba(0,0,0,.2);}
+@media(max-width:700px){.creator-spotlight{flex-direction:column-reverse;margin-left:0;padding:18px}.creator-photo-wrap{width:100%;flex-basis:auto}.creator-photo-ring{width:132px;height:168px}.creator-copy h2{font-size:24px}.creator-copy{text-align:center}.creator-tags{justify-content:center}.creator-photo-label{font-size:9px}}
+</style>
 <style id="index-rewards-v4">
 .daily-wheel-card{max-width:760px;margin:0 auto;text-align:center;background:#fffdf8;border:1px solid #ddd9cf;border-radius:20px;padding:28px;box-shadow:0 12px 30px rgba(27,32,51,.08)}
 .daily-wheel-wrap{position:relative;width:330px;height:330px;margin:22px auto 14px;display:grid;place-items:center}
@@ -868,7 +887,28 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
     <div class="sidebar-foot" id="sidebar-foot"></div>
   </aside>
 
-  <main class="main">
+  <main class="main"><!-- INDEX_CREATOR_SPOTLIGHT_V2 -->
+<aside class="creator-spotlight" id="about-creator" aria-label="About the creator">
+  <div class="creator-copy">
+    <div class="creator-kicker"><span class="creator-kicker-dot"></span> Built by a student</div>
+    <h2>Made by Michael Sviriduk</h2>
+    <p class="creator-school">Freshman at Northwest High School · Montgomery County Public Schools · Class of 2030</p>
+    <p class="creator-story">I created Index because I wanted students to have one simple place to organize their schoolwork, practice what they are learning, get help when they are stuck, and stay motivated. My goal is to make studying feel more organized and accessible while giving students useful tools they can actually use every day. Index is a student-built project that keeps improving around what students need.</p>
+    <div class="creator-tags">
+      <span class="creator-tag">📚 Study tools</span>
+      <span class="creator-tag">🧠 AI Tutor</span>
+      <span class="creator-tag">🎮 Practice games</span>
+      <span class="creator-tag">🏫 Student-built</span>
+    </div>
+  </div>
+  <div class="creator-photo-wrap">
+    <div class="creator-photo-ring">
+      <img class="creator-photo" src="/michael-sviriduk.jpg" alt="Michael Sviriduk">
+      <div class="creator-photo-label">That’s me 👋</div>
+    </div>
+  </div>
+</aside>
+
     <section class="view active" id="view-dashboard">
       <div class="hero">
         <p class="eyebrow">Every AP course, one desk 🎯</p>
@@ -3972,13 +4012,7 @@ if(hasCompletedSetup()){
 }
 
 </script>
-<!-- INDEX_MADE_BY_MICHAEL_V1 -->
-<section id="about-creator" style="max-width:980px;margin:40px auto 24px;padding:24px 28px;border-radius:18px;background:rgba(20,24,35,.78);border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 30px rgba(0,0,0,.18);color:#fff;">
-  <div style="font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin-bottom:8px;">About the Creator</div>
-  <h2 style="margin:0 0 10px;font-size:24px;">Made by Michael Sviriduk</h2>
-  <p style="margin:0 0 12px;line-height:1.6;opacity:.9;"><strong>Freshman at Northwest High School</strong> · Montgomery County Public Schools · Class of 2030</p>
-  <p style="margin:0;line-height:1.7;opacity:.88;">I created Index because I wanted students to have one simple place to organize their schoolwork, practice what they are learning, get help when they are stuck, and stay motivated. My goal is to make studying feel more organized and accessible while giving students useful tools they can actually use every day. Index is a student-built project designed to keep improving based on what students need.</p>
-</section>
+
 
 </body>
 </html>

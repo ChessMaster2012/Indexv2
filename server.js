@@ -69,11 +69,21 @@ function cleanRoomTitle(value) {
   const title = String(value || '').replace(/[<>\u0000-\u001F]/g, '').trim().slice(0, 120);
   return containsConductViolation(title) ? 'Live Study Game' : (title || 'Live Study Game');
 }
+const AI_BLOCK_PATTERNS = [
+  /\b(?:porn|pornography|xxx|nsfw|hentai|nudes?|naked\s+(?:pics?|photos?|images?)|sex\s*chat|sext(?:ing)?|sexual\s+(?:content|images?|videos?)|onlyfans|fetish|camgirl|escort)\b/i,
+  /\b(?:fuck|fucker|fucking|shit|bitch|asshole|dick|pussy|cunt|slut|whore)\b/i,
+  /\b(?:kill\s+yourself|kys|go\s+die|suicide|self[-\s]?harm|self[-\s]?injury)\b/i,
+  /\b(?:nazi|kkk|white\s+supremac(?:ist|y)|racial\s+slur)\b/i
+];
 function aiContentIsAllowed(messages) {
-  // The tutor can discuss sensitive subjects academically, but should not be used
-  // to create harassment, sexual content, or instructions for harmful behavior.
   const userText = messages.filter(m => m && m.role === 'user').map(m => String(m.content || '')).join('\n');
-  return !CONDUCT_PATTERNS.some(re => re.test(userText)) || /class|history|biology|health|civics|literature|science|safety|policy|academic/i.test(userText);
+  const normalized = normalizeNameForModeration(userText);
+  const blockedRaw = AI_BLOCK_PATTERNS.some(re => re.test(userText));
+  const blockedNormalized = /(?:porn|pornography|xxx|nsfw|hentai|nudes|nakedpics|sexchat|sexting|sexualcontent|onlyfans|fetish|camgirl|escort|fuck|fucker|fucking|shit|bitch|asshole|dick|pussy|cunt|slut|whore|killsyourself|kys|godie|suicide|selfharm|selfinjury|nazi|kkk)/i.test(normalized);
+  return !(blockedRaw || blockedNormalized);
+}
+function aiModerationMessage() {
+  return 'That request is not available in Index Tutor. Please keep searches and messages school-appropriate.';
 }
 
 // Server-side AI Tutor: NO browser model and NO API key.
@@ -574,6 +584,7 @@ app.post('/api/ai/chat',async(req,res)=>{
   try{
     const messages=buildAiMessages(req.body?.messages);
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
+    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
     const complex=aiQuestionIsComplex(question);
 
