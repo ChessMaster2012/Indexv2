@@ -996,7 +996,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
     </section>
 
     <section class="view" id="view-tutor">
-      <div class="row" style="margin-bottom:16px;"><div><h2 style="font-size:24px;font-weight:600;">AI Tutor</h2><p class="lede" style="margin-top:4px;">Ask about anything — a formula, a period of history, a line of code, a due-date panic.</p><p id="ai-hardware-note" class="gate-note" style="margin:6px 0 0;">Free cloud AI • no model is loaded on this device</p></div></div>
+      <div class="row" style="margin-bottom:16px;"><div><h2 style="font-size:24px;font-weight:600;">AI Tutor</h2><p class="lede" style="margin-top:4px;">Ask about anything — a formula, a period of history, a line of code, a due-date panic.</p><p id="ai-hardware-note" class="gate-note" style="margin:6px 0 0;">Free cloud AI • server AI + browser backup ready</p></div></div>
       <div class="tutor-shell">
         <div class="tutor-bar">
           <label for="tutor-subject" style="font-size:12.5px;color:var(--ink-soft);font-weight:700;">Focus:</label>
@@ -1007,7 +1007,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
         <div class="chat-log" id="chat-log"><div class="chat-empty"><h3>What are you working on? 👋</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div></div>
         <div class="tutor-input"><textarea id="tutor-textarea" rows="1" placeholder="Ask anything…"></textarea><button class="btn btn-primary" id="tutor-send" data-action="send-chat">Send</button></div>
       </div>
-      <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI generation runs on the server; study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
+      <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI generation uses the server first with a browser AI backup; study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
     </section>
 
     <section class="view" id="view-notes">
@@ -1329,13 +1329,13 @@ function ensureLocalAiWorker(){ return null; }
 function checkAiStatus(){
   state.aiEnabled=true;
   const note=document.getElementById('ai-hardware-note');
-  if(note) note.textContent='Free cloud AI • no model is loaded on this device';
+  if(note) note.textContent='Free cloud AI • server AI + browser backup ready';
   renderSidebarBadge();
 }
 function requestLocalAiCapabilities(){
   localAiCapabilitiesRequested=true;
   const note=document.getElementById('ai-hardware-note');
-  if(note) note.textContent='Free cloud AI • no model is loaded on this device';
+  if(note) note.textContent='Free cloud AI • server AI + browser backup ready';
 }
 async function runPuterAi(messages, options={}){
   if(typeof window==='undefined' || !window.puter || !window.puter.ai || typeof window.puter.ai.chat!=='function'){
