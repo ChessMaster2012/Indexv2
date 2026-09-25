@@ -1411,7 +1411,8 @@ function accountStatePayload(){
     studySets: Array.isArray(state.studySets) ? state.studySets : [],
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
     progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
-    profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||''}
+    profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||''},
+    quests:(typeof questPayload==='function'?questPayload():undefined)
   };
 }
 async function syncAccountStateNow(){
@@ -2333,7 +2334,8 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
   try{
     const normalized = text.toLowerCase().replace(/[^a-z0-9?\s]/g,'').trim();
     const greeting = /^(hi|hello|hey|heyy|yo|sup|good morning|good afternoon|good evening)[!?.\s]*$/.test(normalized);
-    const reply = greeting ? 'Hi! What are you working on? I can help explain a topic, solve practice problems step by step, or review your notes.' : await runLocalAi(turns,{timeoutMs:30000,onChunk:(chunk)=>{
+    const complexAi=estimateAiDifficulty(text);
+    const reply = greeting ? 'Hi! What are you working on? I can help explain a topic, solve practice problems step by step, or review your notes.' : await runLocalAi(turns,{timeoutMs:complexAi?30000:10000,onChunk:(chunk)=>{
       if(chunk==='\u0000RESET_STREAM\u0000'){ streamText=''; state.chat[assistantIndex].text=''; renderChatLog(); return; }
       streamText += chunk; state.chat[assistantIndex].text=streamText; renderChatLog();
     }});
