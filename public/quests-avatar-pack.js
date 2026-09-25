@@ -121,13 +121,13 @@ function ensureQuestDay(){
 }
 function snap(){
   if(!ensureQuestDay())return {ai:0,sets:0,lessons:0,xp:0,packs:0};
-  const data=loadQuestData(),now=appSnapshot(),base=data.baseline||now;
+  const data=loadQuestData(),now=appSnapshot(),base=data.baseline||now,saved=data.progress||{};
   return {
-    ai:Math.max(0,now.ai-Number(base.ai||0)),
-    sets:Math.max(0,now.sets-Number(base.sets||0)),
-    lessons:Math.max(0,now.lessons-Number(base.lessons||0)),
-    xp:Math.max(0,now.xp-Number(base.xp||0)),
-    packs:Math.max(0,now.packs-Number(base.packs||0))
+    ai:Math.max(Number(saved.ai)||0,Math.max(0,now.ai-Number(base.ai||0))),
+    sets:Math.max(Number(saved.sets)||0,Math.max(0,now.sets-Number(base.sets||0))),
+    lessons:Math.max(Number(saved.lessons)||0,Math.max(0,now.lessons-Number(base.lessons||0))),
+    xp:Math.max(Number(saved.xp)||0,Math.max(0,now.xp-Number(base.xp||0))),
+    packs:Math.max(Number(saved.packs)||0,Math.max(0,now.packs-Number(base.packs||0)))
   };
 }
 function quests(){
@@ -162,6 +162,8 @@ function showQuestCompletion(q){
 function checkQuestCompletions(){
   if(!state.account||!ensureQuestDay())return;
   const data=loadQuestData(),current=quests();
+  const s=snap();
+  data.progress={ai:s.ai,sets:s.sets,lessons:s.lessons,xp:s.xp,packs:s.packs};
   data.announced=data.announced||{};
   let changed=false;
   current.forEach(function(q){
