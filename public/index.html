@@ -1337,16 +1337,30 @@ function requestLocalAiCapabilities(){
   const note=document.getElementById('ai-hardware-note');
   if(note) note.textContent='Free cloud AI • server AI + browser backup ready';
 }
-async function runPuterAi(messages, options={}){
-  if(typeof window==='undefined' || !window.puter || !window.puter.ai || typeof window.puter.ai.chat!=='function'){
-    throw new Error('Backup AI is not available in this browser.');
+async function waitForPuterAi(maxWaitMs=9000){
+  if(typeof window==='undefined') throw new Error('Browser AI is unavailable outside the browser.');
+  if(window.puter?.ai?.chat) return window.puter.ai;
+  // The script is already in <head>, but some networks/browsers finish loading
+  // third-party scripts after the Tutor UI becomes interactive. Wait instead of
+  // failing immediately.
+  const started=Date.now();
+  while(Date.now()-started<maxWaitMs){
+    if(window.puter?.ai?.chat) return window.puter.ai;
+    await new Promise(resolve=>setTimeout(resolve,250));
   }
+  throw new Error('Browser AI did not finish loading.');
+}
+
+async function runPuterAi(messages, options={}){
+  const ai=await waitForPuterAi(options.loadTimeoutMs||9000);
   const timeoutMs=options.timeoutMs||18000;
-  const modelOrder=['gpt-5.6-luna','google/gemini-3.8-flash'];
+  // Start with Puter's current default model. This is the most compatible path
+  // because it does not depend on a model name changing or being unavailable.
+  const modelOrder=[null,'gpt-5.6-luna','google/gemini-3.8-flash'];
   let lastError=null;
   for(const model of modelOrder){
     try{
-      const request=window.puter.ai.chat(messages,{model});
+      const request=model ? ai.chat(messages,{model}) : ai.chat(messages);
       const response=await Promise.race([
         request,
         new Promise((_,reject)=>setTimeout(()=>reject(new Error('Backup AI timed out.')),timeoutMs))
