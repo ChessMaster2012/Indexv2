@@ -249,7 +249,7 @@ function wire(){
         state.progress.xp=(state.progress.xp||0)+q.rewardXP; syncQuestToServer(true);
         if(typeof persistProgress==='function')persistProgress();
         if(typeof renderSidebarBadge==='function')renderSidebarBadge();
-        if(typeof updateCoinDisplays==='function')updateCoinDisplays(); if(typeof renderXP==='function')renderXP();
+        if(typeof renderXP==='function')renderXP();
         renderQuests();
       }
     }
