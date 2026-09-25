@@ -8,14 +8,16 @@ const marker = '<!-- INDEX_REWARDS_V2 -->';
 
 try {
   let html = fs.readFileSync(htmlPath, 'utf8');
-  html = html.replace(/\\n?\\s*<!-- INDEXLING_CUSTOM_V1 -->\\n?/g, '\\n');
-  html = html.replace(/\\n?\\s*<script src=["']\\/indexling-custom\\.js["']><\\/script>\\n?/g, '\\n');
-  html = html.replace(/\\n?\\s*<script src=["']\\/quests-avatar-pack\\.js["']><\\/script>\\n?/g, '\\n');
+  const legacyTag = '<script src="/indexling-custom.js"></script>';
+  const questTag = '<script src="/quests-avatar-pack.js"></script>';
+  html = html.split('<!-- INDEXLING_CUSTOM_V1 -->').join('');
+  html = html.split(legacyTag).join('');
+  html = html.split(questTag).join('');
   if (!html.includes(marker)) {
-    const patch = `\n${marker}\n<script src="/quests-avatar-pack.js"></script>\n`;
+    const patch = `\\n${marker}\\n${questTag}\\n`;
     html = html.replace('</body>', patch + '</body>');
-  } else if (!html.includes('quests-avatar-pack.js')) {
-    html = html.replace(marker, marker + '\n<script src="/quests-avatar-pack.js"></script>');
+  } else if (!html.includes(questTag)) {
+    html = html.replace(marker, marker + `\\n${questTag}`);
   }
   fs.writeFileSync(htmlPath, html, 'utf8');
 } catch (err) {
