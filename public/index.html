@@ -3111,7 +3111,7 @@ async function resetPasswordSubmit(){
     setTimeout(()=>{ showAuthPanel(); setAuthMode('login'); },700);
   }catch(e){ status.innerHTML='<div class="error-note">Couldn’t reach the server. Please try again.</div>'; }
 }
-async async function accountSaveProfile(){
+async function accountSaveProfile(){
   const displayName = document.getElementById('account-first').value.trim().slice(0,60);
   const username = document.getElementById('account-username').value.trim().toLowerCase();
   try{
@@ -3129,7 +3129,7 @@ async async function accountSaveProfile(){
     state.account = d.user; renderProfileSlot(); closeSignin();
   }catch(e){ alert('Could not reach the server.'); }
 }
-async async function accountDelete(){
+async function accountDelete(){
   if(!confirm('Delete your Index account and its saved sign-in data? This cannot be undone.')) return;
   try{
     const r = await fetch('/api/auth/delete', { method:'POST' });
@@ -3139,7 +3139,7 @@ async async function accountDelete(){
     alert('Your Index account was deleted.');
   }catch(e){ alert('Could not reach the server.'); }
 }
-async async function accountSignout(){
+async function accountSignout(){
   try{ await syncAccountStateNow(); }catch(e){}
   try{ await fetch('/api/auth/logout', { method:'POST' }); }catch(e){}
   state.account = null; clearAccountScopedLocalCache(); renderProfileSlot(); closeSignin();
