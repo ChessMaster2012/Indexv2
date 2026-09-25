@@ -1311,7 +1311,7 @@ async function loadAccountState(){
     if(!d.state){
       // New account: never import guest wallet/cosmetics into the account.
       // Local notes/study sets can be adopted, but account-owned rewards start at zero.
-      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:[],claimedBPLevels:[],equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default',indexling:'ling-orbit'},openedPacks:0,liveGames:0};
+      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:''},openedPacks:0,liveGames:0};
       await syncAccountStateNow();
       return;
     }
