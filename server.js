@@ -197,8 +197,7 @@ function requestedWritingConstraints(messages){
   }
   if(!sentenceRange){
     const loose=combined.match(/\b(?:between\s+)?(\d+)\s*(?:-|to|through|and)\s*(\d+)\s+(?:sentences?)\b/ig);
-    if(loose){
-      const m=loose[loose.length-1].match(/(\d+)\s*(?:-|to|through|and)\s*(\d+)/i);
+    if(loose){      const m=loose[loose.length-1].match(/(\d+)\s*(?:-|to|through|and)\s*(\d+)/i);
       if(m) sentenceRange={min:Number(m[1]),max:Number(m[2])};
     }
   }
@@ -308,14 +307,22 @@ async function tryPollinations(messages,complex=false){
 }
 
 async function tryVireonix(messages,complex=false){
-  const timeout=complex?9000:6500;
+  // Vireonix Auto is the main Tutor model. It automatically routes each request
+  // to a capable model for coding, Q&A, reasoning, and writing, without an API key.
+  const timeout=complex?15000:10000;
   let lastError=null;
   for(let attempt=0;attempt<2;attempt++){
     try{
       const r=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
         method:'POST',
         headers:{'Content-Type':'application/json','Accept':'application/json'},
-        body:JSON.stringify({model:'auto',messages,stream:false,max_tokens:complex?650:420,temperature:0.15})
+        body:JSON.stringify({
+          model:'auto',
+          messages,
+          stream:false,
+          max_tokens:complex?1400:900,
+          temperature:0.2
+        })
       },timeout);
       const text=extractText(r);
       if(!text) throw new Error('Vireonix returned no text');
@@ -323,8 +330,10 @@ async function tryVireonix(messages,complex=false){
     }catch(e){
       lastError=e;
       const msg=String(e?.message||e);
-      if(attempt===0 && /HTTP (429|5\d\d)|AbortError/.test(msg)){
-        await new Promise(resolve=>setTimeout(resolve,300));
+      // Retry only transient failures. A normal successful request uses one
+      // provider call, keeping Render bandwidth low.
+      if(attempt===0 && /HTTP (429|5\d\d)|AbortError|fetch failed|ECONNRESET|ETIMEDOUT/i.test(msg)){
+        await new Promise(resolve=>setTimeout(resolve,500));
         continue;
       }
       throw e;
@@ -397,8 +406,7 @@ function answerAddressesQuestion(question,answer,sourceMessages){
   const a=String(answer||'').trim();
   if(responseLooksLikeGenericAdvice(a)) return false;
 
-  // Do not require the answer to repeat exact keywords from the question.
-  // Good answers commonly use synonyms, definitions, examples, equations, or
+  // Do not require the answer to repeat exact keywords from the question.  // Good answers commonly use synonyms, definitions, examples, equations, or
   // different terminology. The AI is responsible for interpreting the request.
   return a.length>=12;
 }
@@ -415,8 +423,11 @@ async function raceAiProviders(messages,complex){
   // first, then call the backup only when the first provider fails or returns
   // an obviously unusable answer. This keeps the normal path fast and greatly
   // reduces Render outbound bandwidth without removing the backup.
-  const primary = complex ? 'vireonix' : 'pollinations';
-  const secondary = primary === 'vireonix' ? 'pollinations' : 'vireonix';
+  // Always use Vireonix Auto first. This gives ordinary questions the same
+  // capable model routing as harder questions while using one normal AI request.
+  // Pollinations remains an emergency backup only.
+  const primary = 'vireonix';
+  const secondary = 'pollinations';
   const run = name => name === 'vireonix'
     ? tryVireonix(messages,complex)
     : tryPollinations(messages,complex);
@@ -598,7 +609,6 @@ function deterministicTutor(question){
 
   if(/^what\s+is\s+federalism\??$/i.test(q))
     return 'Federalism is a system of government in which power is divided between a national government and state governments. In the United States, the federal government handles national issues such as defense and foreign policy, while states have power over many areas such as education and local government. Federalism matters because it prevents all government power from being concentrated at one level.';
-
   if(/^what\s+is\s+separation\s+of\s+powers\??$/i.test(q))
     return 'Separation of powers divides government responsibilities among different branches. In the United States, Congress makes laws, the president carries out laws, and the courts interpret laws. This structure helps prevent one part of government from becoming too powerful.';
 
@@ -797,8 +807,7 @@ async function dbSaveUser(user, extra = {}) {
     row.account_data_blob = user.accountData === null ? null : encodeAccountData(user.accountData);
     row.account_data = null;
   }
-  if (!row.created_at) row.created_at = new Date(user.createdAt || Date.now()).toISOString();
-  await supabaseRequest(SUPABASE_TABLE, {
+  if (!row.created_at) row.created_at = new Date(user.createdAt || Date.now()).toISOString();  await supabaseRequest(SUPABASE_TABLE, {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
     body: JSON.stringify(row)
@@ -997,8 +1006,7 @@ app.post('/api/auth/signup', async (req, res) => {
     if (!isValidEmail(identifier)) return res.status(400).json({ error: 'Enter a valid email address.' });
     if (!isValidUsername(username)) return res.status(400).json({ error: 'Username must be 3–24 characters and use only letters, numbers, periods, underscores, or hyphens.' });
     if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
-    let existing = users.get('email:' + identifier);
-    if (SUPABASE_ENABLED) { const row = await dbFindUserByEmail(identifier); if (row) existing = dbRowToUser(row); }
+    let existing = users.get('email:' + identifier);    if (SUPABASE_ENABLED) { const row = await dbFindUserByEmail(identifier); if (row) existing = dbRowToUser(row); }
     if (existing) return res.status(409).json({ error: 'An account with that email already exists — try logging in instead.' });
     let existingUsername = usersByUsername.get(username);
     if (SUPABASE_ENABLED) {
@@ -1197,8 +1205,7 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     claimed[questId]=Date.now();
     const updatedQuests={...quests,claimed};
     const updated=sanitizeAccountState({...existing,progress:updatedProgress,quests:updatedQuests});
-    req.user.accountData=updated;
-    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    req.user.accountData=updated;    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
     usersById.set(req.user.id,req.user);
     res.json({ok:true,rewardXP,state:updated.progress,quests:updated.quests});
   }catch(e){
@@ -1397,8 +1404,7 @@ app.post('/api/auth/forgot-username', async (req,res)=>{
   try{
     if(user){
       await sendRecoveryEmail(email,'Your Index username',`<p>Your Index username is <strong>@${escapeHtml(user.username)}</strong>.</p><p>If you did not request this, you can ignore this email.</p>`,`Your Index username is @${user.username}. If you did not request this, you can ignore this email.`);
-    }
-    res.json({ok:true,message:'If an account matches that email, we sent the username to it.'});
+    }    res.json({ok:true,message:'If an account matches that email, we sent the username to it.'});
   }catch(e){ console.error('Username recovery email failed:',e.message); res.status(502).json({error:'We could not send the recovery email. Please try again later.'}); }
 });
 
@@ -1597,8 +1603,7 @@ setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms.entries()) {
     if (now - room.createdAt > ROOM_MAX_AGE_MS) { clearRevealTimer(room); rooms.delete(code); }
-  }
-}, 30 * 60 * 1000);
+  }}, 30 * 60 * 1000);
 
 io.on('connection', socket => {
   let joined = null; // { code, playerId, role }
