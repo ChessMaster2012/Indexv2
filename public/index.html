@@ -553,6 +553,13 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .pack-result.reveal .result-name .indexling-art{transform:scale(1.2);margin:2px auto 0}
 .pack-result.reveal .result-rarity{font-size:13px !important;color:#d9473a !important}
 .pack-result.reveal .result-note{font-weight:700}
+</style><style id="index-avatar-collection-v2">
+.avatar-indexling{overflow:visible!important;background:#f4f1e9!important;display:grid!important;place-items:center!important}.avatar-indexling .indexling-art{transform:scale(.52);transform-origin:center}
+.indexling-pack-group{margin-top:24px}.indexling-pack-group:first-of-type{margin-top:0}.indexling-pack-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;background:#172033;color:#fff;border-radius:16px;margin-bottom:10px}.indexling-pack-heading h3{margin:0;font-size:18px}.indexling-pack-heading p{margin:3px 0 0;color:rgba(255,255,255,.64)}.pack-group-count{font-size:11px;font-weight:900;padding:7px 9px;border-radius:999px;background:rgba(255,255,255,.1)}
+.indexling-rarity-group{margin:10px 0 0}.indexling-rarity-heading{display:flex;justify-content:space-between;align-items:center;padding:7px 3px;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.1em;color:#667085}.indexling-rarity-heading span:first-child:before{content:'•';margin-right:7px;color:#ff5c4d}
+.indexling-locked-card{background:#eceae4!important;border-color:#d2cec4!important;color:#8b8a86!important;filter:grayscale(.45)}.indexling-locked-card .cosmetic-icon{background:#dedbd3!important}.indexling-mystery{width:44px;height:44px;border-radius:14px;background:#aaa69d;color:#f7f5ef;display:grid;place-items:center;font:900 26px var(--font-display);box-shadow:inset 0 -6px 0 rgba(0,0,0,.08)}
+.quest-popup-backdrop{position:fixed;inset:0;background:rgba(23,32,51,.28);backdrop-filter:blur(3px);z-index:19000}.quest-popup-card{position:fixed;z-index:19001;top:50%;left:50%;transform:translate(-50%,-50%) scale(.94);width:min(430px,90vw);background:#fffdf8;border:2px solid #ff5c4d;border-radius:22px;padding:28px;box-shadow:0 28px 80px rgba(23,32,51,.28);text-align:center;opacity:0}.quest-popup-card h3{font-family:var(--font-display);font-size:28px;margin:5px 0}.quest-popup-card p{color:#667085;line-height:1.5;font-size:13px}.quest-popup-icon{width:58px;height:58px;border-radius:18px;margin:0 auto 10px;display:grid;place-items:center;background:#dff7e9;color:#2f805e;font:900 30px var(--font-display)}.quest-popup-eyebrow{font-size:10px;font-weight:950;letter-spacing:.15em;color:#d9473a}.quest-popup-card .btn{margin-top:8px}
+#index-quest-popup.show .quest-popup-card{animation:questPopIn .22s ease forwards}@keyframes questPopIn{to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 </style></head>
 <body>
 
@@ -1684,13 +1691,24 @@ function renderRewards(){
     }).join('');
     body='<div class="bp-hero"><div style="display:flex;justify-content:space-between;align-items:end;gap:10px;flex-wrap:wrap;"><div><div class="rewards-eyebrow" style="color:rgba(255,255,255,.75)">INDEX BATTLE PASS</div><div style="font-family:var(--font-display);font-size:32px;font-weight:700;">Level '+lvl+' <span style="font-size:14px;opacity:.72;">/ 50</span></div></div><div style="font-size:13px;font-weight:800;">'+into+'/100 XP</div></div><div class="bp-track"><div class="bp-fill" style="width:'+(lvl>=50?100:into)+'%"></div></div><div style="font-size:11.5px;opacity:.9;">Every 5 levels awards 5 free Skin Crates plus bonus coins.</div></div><div class="crate-banner"><div><strong>🧰 Skin Crates</strong><div class="reward-muted">Crates contain visual skins for your equipped Indexling.</div></div><div class="crate-count">'+(state.progress.skinCrates||0)+'</div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>Open crate</button></div><div class="bp-levels">'+bpCards+'</div>';
   } else if(tab==='avatar'){
-    const lings=REWARD_COSMETICS.map(c=>{
-      const ok=unlocked.includes(c.id),equipped=eq.indexling===c.id;
-      return '<div class="cosmetic-card '+(ok?'unlocked ':'')+(equipped?'equipped':'')+'"><div class="cosmetic-icon">'+indexlingArtHtml(c,true)+'</div><strong>'+esc(c.name)+'</strong><div class="reward-muted">'+esc(c.rarity)+' · '+esc(c.pack)+' pack</div>'+(ok?'<button class="btn '+(equipped?'btn-dark':'btn-primary')+' btn-sm" data-action="equip-cosmetic" data-id="'+c.id+'">'+(equipped?'Equipped':'Equip')+'</button>':'')+'</div>';
+    const rarityOrder=['Common','Rare','Epic','Legendary'];
+    const packOrder=PACK_ORDER;
+    const packLabels={candy:'🍬 Candy Carnival',medieval:'🏰 Medieval Keep',robo:'🤖 Robo Works',ocean:'🌊 Deep Sea',arcade:'🎮 Arcade Afterdark',cosmic:'🚀 Cosmic Odyssey'};
+    const grouped=packOrder.map(pack=>{
+      const packItems=REWARD_COSMETICS.filter(c=>c.pack===pack);
+      return '<section class="indexling-pack-group"><div class="indexling-pack-heading"><div><h3>'+esc(packLabels[pack]||pack)+'</h3><p class="reward-muted">Collectibles from this world</p></div><span class="pack-group-count">'+packItems.filter(c=>unlocked.includes(c.id)).length+' / '+packItems.length+'</span></div>'+rarityOrder.map(rarity=>{
+        const items=packItems.filter(c=>c.rarity===rarity).sort((a,b)=>a.name.localeCompare(b.name));
+        if(!items.length)return '';
+        return '<div class="indexling-rarity-group"><div class="indexling-rarity-heading"><span>'+esc(rarity)+'</span><span>'+items.filter(c=>unlocked.includes(c.id)).length+'/'+items.length+'</span></div><div class="cosmetic-grid">'+items.map(c=>{
+          const ok=unlocked.includes(c.id), equipped=eq.indexling===c.id;
+          if(ok) return '<div class="cosmetic-card unlocked '+(equipped?'equipped':'')+'"><div class="cosmetic-icon">'+indexlingArtHtml(c,true)+'</div><strong>'+esc(c.name)+'</strong><div class="reward-muted">'+esc(c.rarity)+'</div><button class="btn '+(equipped?'btn-dark':'btn-primary')+' btn-sm" data-action="equip-cosmetic" data-id="'+c.id+'">'+(equipped?'Equipped':'Equip')+'</button></div>';
+          return '<div class="cosmetic-card indexling-locked-card" aria-label="Locked Indexling"><div class="cosmetic-icon"><div class="indexling-mystery">?</div></div><strong>Locked</strong><div class="reward-muted">Keep exploring this pack</div></div>';
+        }).join('')+'</div></div>';
+      }).join('')+'</section>';
     }).join('');
     const ownedSkins=(state.progress.unlockedSkins||[]).map(id=>{const sk=skinById(id);if(!sk)return '';const active=eq.indexlingSkin===id;return '<button class="skin-chip '+(active?'skin-chip-active':'')+'" data-action="equip-indexling-skin" data-id="'+id+'">'+sk.icon+' '+esc(sk.name)+(active?' · Equipped':' · Use')+'</button>';}).join('');
-    body='<div class="avatar-stage">'+avatarPreviewHtml()+'<div class="current-collectible">Equipped Indexling and its saved skin are synced to your account.</div></div><div class="skin-panel"><div><h3>Skin Crates</h3><p class="reward-muted">'+(state.progress.skinCrates||0)+' crates ready · '+(state.progress.unlockedSkins||[]).length+' skins owned.</p></div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>🧰 Open Skin Crate</button></div><div class="owned-skins">'+(ownedSkins||'<span class="reward-muted">No skins yet.</span>')+'</div><div class="panel"><h3>Indexling collection</h3><p class="reward-muted">Choose your active companion.</p><div class="cosmetic-grid">'+lings+'</div></div>';
-  } else if(tab==='inventory'){
+    body='<div class="avatar-stage">'+avatarPreviewHtml()+'<div class="current-collectible">Your equipped Indexling and skin are synced to your account.</div></div><div class="skin-panel"><div><h3>Skin Crates</h3><p class="reward-muted">'+(state.progress.skinCrates||0)+' crates ready · '+(state.progress.unlockedSkins||[]).length+' skins owned.</p></div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>🧰 Open Skin Crate</button></div><div class="owned-skins">'+(ownedSkins||'<span class="reward-muted">No skins yet.</span>')+'</div><div class="panel"><h3>Indexling collection</h3><p class="reward-muted">Grouped by pack, then Common → Rare → Epic → Legendary. Locked Indexlings stay hidden until you unlock them.</p>'+grouped+'</div>';
+   } else if(tab==='inventory'){
     const groups=[['indexling','Indexlings']];
     const inventoryGroups=groups.map(([type,label])=>{
       const items=REWARD_COSMETICS.filter(c=>c.type===type).map(c=>{
@@ -1946,12 +1964,15 @@ function renderProfileSlot(){
   const el = document.getElementById('profile-slot');
   if(!el) return;
   const name = displayName();
-  const avatarIcon = cosmeticById?.(state.progress?.equipped?.avatar)?.icon || (name ? name[0].toUpperCase() : '👤');
   updateAccountCountyLabel();
-  if(name){
-    el.innerHTML = `<button class="profile-btn" data-action="open-signin"><span class="avatar">${esc(avatarIcon)}</span><span style="font-size:12.5px;font-weight:800;">${esc(name)}</span></button>`;
-  }else if(state.account){
-    el.innerHTML = `<button class="signin-btn" data-action="open-signin">👋 Add your name</button>`;
+  if(state.account){
+    const eq=state.progress?.equipped||{};
+    const ling=cosmeticById?.(eq.indexling);
+    const skin=skinById?.(eq.indexlingSkin);
+    const art=ling && typeof indexlingArtHtml==='function'
+      ? indexlingArtHtml(ling,true,skin)
+      : '<span style="font-size:22px;">👤</span>';
+    el.innerHTML = `<button class="profile-btn" data-action="open-signin"><span class="avatar avatar-indexling">${art}</span><span style="font-size:12.5px;font-weight:800;">${esc(name||'Your account')}</span></button>`;
   }else{
     el.innerHTML = `<button class="signin-btn" data-action="open-signin">👋 Sign in</button>`;
   }
