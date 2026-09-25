@@ -545,6 +545,14 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .skin-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f3f0e8;border:1px solid #ddd9cf;border-radius:16px;padding:15px;margin:14px 0}.owned-skins{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.skin-chip{padding:7px 10px;border-radius:999px;background:#172033;color:#fff;font-size:11px;font-weight:800}
 .pack-theme-line{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:10px 0}.mini-ling{display:grid;place-items:center;background:#f6f3eb;border-radius:10px;min-height:52px}.mini-ling .indexling-art{transform:scale(.62);transform-origin:center}
 @media(max-width:640px){.daily-wheel-wrap{transform:scale(.88);margin-top:5px;margin-bottom:-8px}.crate-banner{grid-template-columns:1fr}.skin-panel{align-items:flex-start;flex-direction:column}}
+</style><style id="index-pack-reel-v2">
+.reel-item.reel-selected{position:relative;z-index:8;transform:scale(1.055);border:3px solid #fff;box-shadow:0 0 0 4px #ff5c4d,0 0 34px rgba(255,92,77,.75),0 18px 38px rgba(0,0,0,.28);filter:brightness(1.18)}
+.reel-item.reel-selected:after{content:'YOU GOT THIS';position:absolute;right:14px;top:10px;padding:5px 7px;border-radius:999px;background:#fff;color:#172033;font:900 8px var(--font-ui);letter-spacing:.12em}
+.reel-marker{border-color:#ff5c4d !important;box-shadow:0 0 0 5px rgba(255,92,77,.18),0 0 34px rgba(255,92,77,.45) !important}
+.pack-result.reveal .result-name{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#172033 !important;background:#fffdf8;border:3px solid #ff5c4d;border-radius:20px;padding:16px 18px;box-shadow:0 10px 28px rgba(23,32,51,.16)}
+.pack-result.reveal .result-name .indexling-art{transform:scale(1.2);margin:2px auto 0}
+.pack-result.reveal .result-rarity{font-size:13px !important;color:#d9473a !important}
+.pack-result.reveal .result-note{font-weight:700}
 </style></head>
 <body>
 
@@ -1541,12 +1549,19 @@ function openRewardPack(kind='study'){
   modal.classList.remove('hidden');
   opening.classList.add('is-opening');
   track.style.transition='none'; track.style.transform='translateY(0px)'; void track.offsetHeight;
-  const itemStep=112, itemCenter=10+(9*itemStep)+47, windowCenter=195;
-  const finalOffset=Math.round(windowCenter-itemCenter);
+  const reelItems=Array.from(track.querySelectorAll('.reel-item'));
+  const selectedIndex=9;
+  const selectedEl=reelItems[selectedIndex];
+  reelItems.forEach(el=>el.classList.remove('reel-selected'));
+  if(selectedEl) selectedEl.classList.add('reel-selected');
+  const windowRect=track.parentElement.getBoundingClientRect();
+  const selectedRect=selectedEl?.getBoundingClientRect();
+  const currentOffset=0;
+  const finalOffset=selectedRect?Math.round((windowRect.top+windowRect.height/2)-(selectedRect.top+selectedRect.height/2)):0;
   let tick=0;
-  const timer=setInterval(()=>{tick++;playPackTick();if(tick>=48)clearInterval(timer);},90);
-  track.style.transition='transform 4.35s cubic-bezier(.07,.78,.11,1)';
-  track.style.transform=`translateY(${finalOffset}px)`;
+  const timer=setInterval(()=>{tick++;playPackTick();if(tick>=52)clearInterval(timer);},88);
+  track.style.transition='transform 5.25s cubic-bezier(.055,.76,.08,1)';
+  track.style.transform='translateY('+finalOffset+'px)';
   setTimeout(()=>{
     clearInterval(timer);
     opening.classList.remove('is-opening');
@@ -1561,7 +1576,7 @@ function openRewardPack(kind='study'){
     </div>`;
     state.rewardPackOpening=false;
     renderRewards();
-  },4600);
+  },5550);
 }
 function closePackModal(){
   state.rewardPackOpening=false;
@@ -1647,11 +1662,13 @@ function avatarPreviewHtml(){
   return '<div class="avatar-preview" style="border:5px solid rgba(255,255,255,.7);">'+indexlingArtHtml(indexling,false,equippedSkin)+'</div><div style="font-size:14px;font-weight:900;">'+esc(indexling.name)+'</div><div style="font-size:12px;opacity:.82;margin-top:4px;">'+(equippedSkin?'Skin · '+esc(equippedSkin.name):'Default skin')+'</div>';
 }
 function renderRewards(){
+  if(!state.account){ promptAccountForPersistentView('rewards'); return; }
   ensureRewardUnlocks();
   const root=document.getElementById('rewards-stage'); if(!root) return;
   const lvl=battlePassLevel(), xp=state.progress.xp||0, into=lvl>=50?100:xp%100, tab=state.rewardsTab||'battlepass';
-  const daily=getDailyCoinState(), remaining=Math.max(0,DAILY_COIN_CAP-daily.earned), pct=Math.min(100,daily.earned/DAILY_COIN_CAP*100);
+  const daily=getDailyCoinState(), remaining=Math.max(0,DAILY_COIN_CAP-daily.earned), pct=Math.min(100,DAILY_COIN_CAP-daily.earned<=0?100:daily.earned/DAILY_COIN_CAP*100);
   const unlocked=state.progress.unlockedCosmetics||[];
+  const eq=state.progress.equipped||{};
   const rail=`<aside class="rewards-rail">
     <button class="inventory-rail-btn ${tab==='inventory'?'active':''}" data-action="reward-tab" data-tab="inventory" title="Open inventory">
       <span class="inventory-rail-icon">🎒</span><span class="inventory-rail-label">Inventory</span>
@@ -1847,7 +1864,16 @@ function celebrate(){
 }
 
 /* ============================== NAV / VIEW SWITCH ============================== */
+const ACCOUNT_REQUIRED_VIEWS=new Set(['notes','studysets','rewards','games','live','quests']);
+function promptAccountForPersistentView(view){
+  if(state.account) return true;
+  const labels={notes:'Notes',studysets:'Study Sets',rewards:'Rewards & cosmetics',games:'Games',live:'Live Game',quests:'Quests'};
+  if(typeof showRewardToast==='function') showRewardToast('👤 Sign in or create an account to use '+(labels[view]||'this tab')+' and save your data.');
+  if(typeof openSignin==='function') openSignin();
+  return false;
+}
 function switchView(view){
+  if(ACCOUNT_REQUIRED_VIEWS.has(view) && !promptAccountForPersistentView(view)) return;
   if(state.view==='games' && view!=='games' && state.games.active){
     clearGameTimers(); state.games = { active:null, setupType:null, selectedSetId:null };
     const btn=document.getElementById('games-exit-btn'); if(btn) btn.classList.add('hidden');
