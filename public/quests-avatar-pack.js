@@ -47,18 +47,34 @@ let questServerSaveTimer=null;
 let questServerSaveInFlight=false;
 let questServerSaveQueued=false;
 let lastQuestServerSignature='';
+function updateQuestProgressFromApp(){
+  if(!state.account||!ensureQuestDay())return;
+  const data=loadQuestData(),now=appSnapshot(),base=data.baseline||now;
+  const next={
+    ai:Math.max(0,now.ai-Number(base.ai||0)),
+    sets:Math.max(0,now.sets-Number(base.sets||0)),
+    lessons:Math.max(0,now.lessons-Number(base.lessons||0)),
+    xp:Math.max(0,now.xp-Number(base.xp||0)),
+    packs:Math.max(0,now.packs-Number(base.packs||0))
+  };
+  const prev=data.progress||{};
+  if(JSON.stringify(prev)!==JSON.stringify(next)){
+    data.progress=next;
+    saveQuestData(data);
+    return next;
+  }
+  return prev;
+}
 function questPayload(){
-  const data=loadQuestData(),s=appSnapshot(),base=data.baseline||s;
+  const data=loadQuestData();
+  updateQuestProgressFromApp();
+  const fresh=loadQuestData();
   return {
-    day:data.day||dayKey(),baseline:base,
-    progress:{
-      ai:Math.max(0,s.ai-Number(base.ai||0)),
-      sets:Math.max(0,s.sets-Number(base.sets||0)),
-      lessons:Math.max(0,s.lessons-Number(base.lessons||0)),
-      xp:Math.max(0,s.xp-Number(base.xp||0)),
-      packs:Math.max(0,s.packs-Number(base.packs||0))
-    },
-    claimed:data.claimed||{},announced:data.announced||{}
+    day:fresh.day||dayKey(),
+    baseline:fresh.baseline||appSnapshot(),
+    progress:fresh.progress||{},
+    claimed:fresh.claimed||{},
+    announced:fresh.announced||{}
   };
 }
 async function syncQuestToServer(keepalive=false){
@@ -78,11 +94,13 @@ async function syncQuestToServer(keepalive=false){
 }
 function scheduleQuestServerSave(immediate=false){
   if(!state.account)return;
+  updateQuestProgressFromApp();
   const signature=JSON.stringify({quests:questPayload()});
   if(!immediate&&signature===lastQuestServerSignature)return;
   clearTimeout(questServerSaveTimer);
   questServerSaveTimer=setTimeout(()=>syncQuestToServer(),immediate?0:500);
 }
+
 async function loadQuestFromServer(){
   if(!state.account)return false;
   try{
@@ -121,15 +139,17 @@ function ensureQuestDay(){
 }
 function snap(){
   if(!ensureQuestDay())return {ai:0,sets:0,lessons:0,xp:0,packs:0};
-  const data=loadQuestData(),now=appSnapshot(),base=data.baseline||now,saved=data.progress||{};
+  updateQuestProgressFromApp();
+  const data=loadQuestData(),saved=data.progress||{};
   return {
-    ai:Math.max(Number(saved.ai)||0,Math.max(0,now.ai-Number(base.ai||0))),
-    sets:Math.max(Number(saved.sets)||0,Math.max(0,now.sets-Number(base.sets||0))),
-    lessons:Math.max(Number(saved.lessons)||0,Math.max(0,now.lessons-Number(base.lessons||0))),
-    xp:Math.max(Number(saved.xp)||0,Math.max(0,now.xp-Number(base.xp||0))),
-    packs:Math.max(Number(saved.packs)||0,Math.max(0,now.packs-Number(base.packs||0)))
+    ai:Math.max(0,Number(saved.ai)||0),
+    sets:Math.max(0,Number(saved.sets)||0),
+    lessons:Math.max(0,Number(saved.lessons)||0),
+    xp:Math.max(0,Number(saved.xp)||0),
+    packs:Math.max(0,Number(saved.packs)||0)
   };
 }
+
 function quests(){
   const s=snap(),p=loadQuestData();
   return [
@@ -237,6 +257,7 @@ function wire(){
   setInterval(function(){
     ensureView();avatarFix();
     if(state.account){
+      updateQuestProgressFromApp();
       checkQuestCompletions();
       scheduleQuestServerSave();
       if(state.view==='quests')renderQuests();
@@ -249,6 +270,8 @@ async function startWhenReady(){
   if(!state.account){setTimeout(startWhenReady,500);return;}
   await loadQuestFromServer();
   ensureQuestDay();
+  updateQuestProgressFromApp();
+  scheduleQuestServerSave();
   checkQuestCompletions();
   scheduleQuestServerSave();
   if(state.view==='quests')renderQuests();
