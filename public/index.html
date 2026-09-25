@@ -109,7 +109,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .reward-shell{display:grid;grid-template-columns:1.35fr .65fr;gap:18px;}
 @media(max-width:900px){.reward-shell{grid-template-columns:1fr;}}
 .reward-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px;}
-.reward-tab{border:2px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;font-size:12.5px;font-weight:800;color:var(--ink-soft);}
+.reward-tab{border:2px solid var(--line);background:#fff;border-radius:999px;padding:9px 14px;font-size:11.5px;font-weight:800;color:var(--ink-soft);}
 .reward-tab.active{background:var(--purple);border-color:var(--purple);color:#fff;}
 .bp-hero{background:linear-gradient(135deg,var(--purple),var(--pink));color:#fff;border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 12px 28px rgba(124,92,252,.2);}
 .bp-track{height:12px;border-radius:999px;background:rgba(255,255,255,.25);overflow:hidden;margin:12px 0 8px;}
@@ -635,12 +635,15 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .profile-indexling-art{position:relative!important;z-index:3!important;display:grid!important;place-items:center!important;width:38px!important;height:38px!important}
 .profile-indexling-frame .indexling-svg{width:38px!important;height:38px!important;transform:none!important}
 </style><style id="index-profile-frame-v4">
-.profile-indexling-frame{width:56px!important;height:56px!important;min-width:56px!important;min-height:56px!important;border-radius:50%!important;display:grid!important;place-items:center!important;position:relative!important;z-index:5!important;background:#fffdf8!important;padding:0!important;overflow:visible!important}
+.profile-indexling-frame{width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;border-radius:50%!important;display:grid!important;place-items:center!important;position:relative!important;z-index:5!important;background:#fffdf8!important;padding:0!important;overflow:visible!important}
 .profile-indexling-frame:after{content:'';position:absolute;inset:1px;border-radius:50%;pointer-events:none;z-index:1;box-shadow:inset 0 0 0 2px rgba(255,255,255,.85),inset 0 -4px 8px rgba(23,32,51,.09)}
-.profile-indexling-art{width:36px!important;height:36px!important;position:relative!important;z-index:3!important;display:grid!important;place-items:center!important}
+.profile-indexling-art{width:30px!important;height:30px!important;position:relative!important;z-index:3!important;display:grid!important;place-items:center!important}
 .profile-indexling-art .indexling-svg{width:36px!important;height:36px!important;transform:none!important;z-index:3!important}
 .profile-indexling-art .indexling-svg svg{width:36px!important;height:36px!important}
 .profile-btn .profile-indexling-frame{margin-right:8px!important}
+</style><style id="index-wheel-v6-speed">
+.daily-wheel{will-change:transform}
+.daily-wheel-countdown{font-variant-numeric:tabular-nums}
 </style></head>
 <body>
 
@@ -1902,12 +1905,12 @@ async function dailyWheelSpin(){
       const targetCenter=index*seg+seg/2;
       const current=Number(wheel.dataset.rotation||0);
       const normalized=((current%360)+360)%360;
-      const extra=7*360+((360-targetCenter-normalized+360)%360);
+      const extra=9*360+((360-targetCenter-normalized+360)%360);
       const target=current+extra;
-      wheel.style.transition='transform 10s cubic-bezier(.08,.72,.12,1)';
+      wheel.style.transition='transform 6s cubic-bezier(.015,.86,.12,1)';
       wheel.style.transform='rotate('+target+'deg)';
       wheel.dataset.rotation=String(target);
-      await new Promise(resolve=>setTimeout(resolve,10050));
+      await new Promise(resolve=>setTimeout(resolve,6050));
     }
     if(d.state) state.progress={...state.progress,...(d.state.progress||{}),equipped:{...state.progress.equipped,...((d.state.progress&&d.state.progress.equipped)||{})}};
     persistProgressLocalOnly();
