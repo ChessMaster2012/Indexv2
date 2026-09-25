@@ -253,13 +253,29 @@ async function tryPollinations(messages,complex=false){
 }
 
 async function tryVireonix(messages,complex=false){
-  const r=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
-    method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'auto',messages,stream:false,max_tokens:complex?420:280,temperature:0.2})
-  },complex?6500:4800);
-  const text=extractText(r);
-  if(!text) throw new Error('Vireonix returned no text');
-  return text;
+  const timeout=complex?9000:6500;
+  let lastError=null;
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      const r=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body:JSON.stringify({model:'auto',messages,stream:false,max_tokens:complex?650:420,temperature:0.15})
+      },timeout);
+      const text=extractText(r);
+      if(!text) throw new Error('Vireonix returned no text');
+      return text;
+    }catch(e){
+      lastError=e;
+      const msg=String(e?.message||e);
+      if(attempt===0 && /HTTP (429|5\d\d)|AbortError/.test(msg)){
+        await new Promise(resolve=>setTimeout(resolve,300));
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw lastError||new Error('Vireonix request failed');
 }
 
 function responseLooksLikeGenericAdvice(text){
