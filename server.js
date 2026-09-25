@@ -383,6 +383,41 @@ async function repairAiResponse(question,complex,sourceMessages){
   return raceAiProviders(messages,complex);
 }
 
+function fastDeterministicTutor(question){
+  const q=String(question||'').trim();
+  const l=q.toLowerCase();
+
+  // Common radical requests should never depend on a cloud provider.
+  const root=l.match(/^(?:what\s+is\s+)?(?:the\s+)?(?:square\s+root\s+of\s+|sqrt\s*|root\s+)(-?\d+(?:\.\d+)?)\??$/i);
+  if(root){
+    const n=Number(root[1]);
+    if(Number.isFinite(n)){
+      if(n<0) return '√'+root[1]+' is not a real number.';
+      const whole=Math.floor(n);
+      let outside=1;
+      let inside=whole;
+      for(let f=2;f*f<=inside;f++){
+        while(inside%(f*f)===0){ outside*=f; inside/=f*f; }
+      }
+      const exact=inside===1 ? String(outside) : (outside===1 ? '√'+inside : outside+'√'+inside);
+      const decimal=Math.round(Math.sqrt(n)*1000)/1000;
+      return '√'+root[1]+' = '+exact+' ≈ '+decimal+'.';
+    }
+  }
+
+  // Small arithmetic expressions are also safe to answer locally.
+  const arithmetic=q.replace(/^what\s+is\s+/i,'').replace(/\?$/,'').trim();
+  if(/^-?\d+(?:\.\d+)?\s*[+\-*/×÷]\s*-?\d+(?:\.\d+)?$/.test(arithmetic)){
+    const normalized=arithmetic.replace(/×/g,'*').replace(/÷/g,'/');
+    try{
+      const value=Function('"use strict"; return ('+normalized+')')();
+      if(Number.isFinite(value)) return arithmetic+' = '+value+'.';
+    }catch(e){}
+  }
+
+  return null;
+}
+
 function deterministicTutor(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
@@ -425,36 +460,46 @@ function deterministicTutor(question){
 }
 
 app.post('/api/ai/chat',async(req,res)=>{
-  const messages=buildAiMessages(req.body?.messages);
-  if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
-  const question=latestUserQuestion(messages);
-  const complex=aiQuestionIsComplex(question);
-
-  // Race the two free providers. The first usable answer is checked for
-  // task-following before it is returned, so a fast but generic/meta answer
-  // cannot silently replace the student's actual request.
   try{
-    let text=await raceAiProviders(messages,complex);
-    if(answerNeedsRepair(question,text,messages)){
-      try{
-        const repaired=await repairAiResponse(question,complex,messages);
-        if(repaired && !answerNeedsRepair(question,repaired,messages)) text=repaired;
-        else if(repaired) text=repaired;
-      }catch(e2){
-        console.warn('[AI] response repair failed:',e2?.message||e2);
+    const messages=buildAiMessages(req.body?.messages);
+    if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
+    const question=latestUserQuestion(messages);
+    const complex=aiQuestionIsComplex(question);
+
+    // Answer simple deterministic math locally before touching any external
+    // provider. This makes basic questions reliable even if a cloud provider
+    // is unavailable, rate-limited, or temporarily broken.
+    const fast=fastDeterministicTutor(question);
+    if(fast) return res.json({text:fast,provider:'built-in-fast-fallback',fallback:true});
+
+    // Race the free providers, but reject obvious generic/meta answers.
+    try{
+      let text=await raceAiProviders(messages,complex);
+      if(answerNeedsRepair(question,text,messages)){
+        try{
+          const repaired=await repairAiResponse(question,complex,messages);
+          if(repaired && !answerNeedsRepair(question,repaired,messages)) text=repaired;
+          else if(repaired) text=repaired;
+        }catch(e2){
+          console.warn('[AI] response repair failed:',e2?.message||e2);
+        }
       }
-    }
-    if(answerNeedsRepair(question,text,messages)){
+      if(answerNeedsRepair(question,text,messages)){
+        return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
+      }
+      return res.json({text,provider:'free-cloud-race'});
+    }catch(e){
+      console.warn('[AI] cloud providers failed:',e?.message||e);
       return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
     }
-    return res.json({text,provider:'free-cloud-race'});
   }catch(e){
-    console.warn('[AI] cloud providers failed:',e?.message||e);
+    // Never turn an AI failure into a generic 500 that the browser interprets
+    // as “The AI service could not answer right now.” Return a usable answer
+    // payload instead.
+    console.error('[AI] request handling error:',e?.stack||e);
+    const question=String(req.body?.messages?.slice?.(-1)?.find?.(m=>m?.role==='user')?.content||'').trim();
+    return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
   }
-
-  // Always finish with a useful deterministic answer instead of leaving the
-  // browser request hanging.
-  return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
 });
 
 const server = http.createServer(app);
