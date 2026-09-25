@@ -165,26 +165,42 @@ async function tryPollinationsModel(messages,model,timeoutMs){
     return text;
   }finally{clearTimeout(timer);}
 }
-async function tryPollinations(messages){
-  const question=latestUserQuestion(messages);
-  const complex=/\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step)\b/i.test(question)||question.length>220;
+function aiQuestionIsComplex(question){
+  return /\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step|reason|evaluate)\b/i.test(question)||String(question||'').length>220;
+}
+
+async function tryPollinations(messages,complex=false){
   const primary=complex?'mistralai/mistral-small-4':'google/gemini-2.5-flash-lite';
   const secondary=complex?'google/gemini-2.5-flash-lite':'mistralai/mistral-small-4';
   try{
-    return await tryPollinationsModel(messages,primary,complex?9000:5500);
+    return await tryPollinationsModel(messages,primary,complex?6500:4800);
   }catch(first){
-    return await tryPollinationsModel(messages,secondary,complex?7000:5500);
+    return await tryPollinationsModel(messages,secondary,complex?4500:3000);
   }
 }
 
-async function tryVireonix(messages){
+async function tryVireonix(messages,complex=false){
   const r=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
     method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'auto',messages,stream:false,max_tokens:220,temperature:0.2})
-  },7000);
+    body:JSON.stringify({model:'auto',messages,stream:false,max_tokens:complex?420:280,temperature:0.2})
+  },complex?6500:4800);
   const text=extractText(r);
   if(!text) throw new Error('Vireonix returned no text');
   return text;
+}
+
+async function raceAiProviders(messages,complex){
+  // Run the two free providers concurrently instead of waiting for one to
+  // fail before trying the other. This removes the old 9s + 7s + 7s chain.
+  const attempts=[
+    tryVireonix(messages,complex),
+    tryPollinations(messages,complex)
+  ];
+  try{
+    return await Promise.any(attempts);
+  }catch(e){
+    throw new Error('Free AI providers did not respond in time.');
+  }
 }
 
 function deterministicTutor(question){
@@ -222,21 +238,20 @@ app.post('/api/ai/chat',async(req,res)=>{
   const messages=buildAiMessages(req.body?.messages);
   if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
   const question=latestUserQuestion(messages);
+  const complex=aiQuestionIsComplex(question);
 
-  // Try free keyless cloud generation first. Neither endpoint requires a key
-  // in the browser or in Render for these legacy/public routes.
+  // Race the two free providers. The previous implementation waited for a
+  // failed provider before starting the next one, which could make a single
+  // Tutor request take 20+ seconds and hit the browser timeout.
   try{
-    const text=await tryPollinations(messages);
-    return res.json({text,provider:'pollinations'});
-  }catch(e){ console.warn('[AI] Pollinations failed:',e?.message||e); }
+    const text=await raceAiProviders(messages,complex);
+    return res.json({text,provider:'free-cloud-race'});
+  }catch(e){
+    console.warn('[AI] cloud providers failed:',e?.message||e);
+  }
 
-  try{
-    const text=await tryVireonix(messages);
-    return res.json({text,provider:'vireonix'});
-  }catch(e){ console.warn('[AI] Vireonix failed:',e?.message||e); }
-
-  // Never return an empty response. Give the student a useful answer even
-  // during a provider outage.
+  // Always finish with a useful deterministic answer instead of leaving the
+  // browser request hanging.
   return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
 });
 
