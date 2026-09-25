@@ -157,6 +157,7 @@ function requestedWritingConstraints(messages){
   // original request for one paragraph. Only an actual paragraph-range request
   // changes the shape.
   const singleParagraph=users.some(t=>/\b(?:a|one|single)\s+paragraph\b/i.test(t)) && !requestedParagraphRange;
+  const latest=users[users.length-1]||'';
   return {sentenceRange, requestedParagraphRange, writingMentioned, singleParagraph, latest};
 }
 
@@ -450,7 +451,7 @@ function deterministicTutor(question){
   const l=q.toLowerCase();
 
   // Fast, topic-specific fallbacks for common school concepts.
-  if(/pythagorean\s+theor(?:y|em)/i.test(q) || /pythagor(?:e|o)an/i.test(q)){
+  if(/\bpythagor(?:ean|eon|ian|en)?\b/i.test(q)){
     return 'The Pythagorean theorem is used for right triangles. It says a² + b² = c², where a and b are the two shorter legs and c is the hypotenuse, the side opposite the right angle. For example, if the legs are 3 and 4, then 3² + 4² = c², so 9 + 16 = 25 and c = 5.';
   }
   if(/\barea\b.*\btriangle\b/i.test(q)){
