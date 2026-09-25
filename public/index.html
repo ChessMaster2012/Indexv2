@@ -528,7 +528,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .daily-wheel-result{min-height:28px;font-size:20px;font-weight:900;margin:8px 0 10px}
 .wheel-values{display:flex;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:16px}.wheel-values span{background:#f3f0e8;border:1px solid #ddd9cf;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:800}
 .crate-banner{display:grid;grid-template-columns:1fr auto auto;gap:14px;align-items:center;background:#fff6da;border:1px solid #ead39a;border-radius:16px;padding:16px;margin:14px 0}.crate-count{font:800 28px var(--font-display);min-width:46px}.bp-reward-icon{font-size:24px;margin:9px 0}.bp-reward-note{font-size:11px;color:#8b6b1c;margin-top:5px;font-weight:800}
-.skin-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f3f0e8;border:1px solid #ddd9cf;border-radius:16px;padding:15px;margin:14px 0}.owned-skins{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.skin-chip{padding:7px 10px;border-radius:999px;background:#172033;color:#fff;font-size:11px;font-weight:800}
+.skin-panel{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f3f0e8;border:1px solid #ddd9cf;border-radius:16px;padding:15px;margin:14px 0}.owned-skins{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.skin-chip{padding:7px 10px;border-radius:999px;background:#172033;color:#fff;font-size:11px;font-weight:800;border:1px solid transparent}.skin-chip-active{border-color:#ff5c4d;box-shadow:0 0 0 2px rgba(255,92,77,.12)}
 .pack-theme-line{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin:10px 0}.mini-ling{display:grid;place-items:center;background:#f6f3eb;border-radius:10px;min-height:52px}.mini-ling .indexling-art{transform:scale(.62);transform-origin:center}
 @media(max-width:640px){.daily-wheel-wrap{transform:scale(.88);margin-top:5px;margin-bottom:-8px}.crate-banner{grid-template-columns:1fr}.skin-panel{align-items:flex-start;flex-direction:column}}
 </style><style id="index-wheel-v5">
@@ -1115,7 +1115,7 @@ let state = {
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:0, liveGames:0 },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
@@ -1239,7 +1239,7 @@ function loadLocalData(){
   state.notes = lsGet('index-notes', []);
   state.studySets = lsGet('index-studysets', []);
   const p = lsGet('index-progress', {});
-  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0)), unlockedSkins:Array.isArray(p.unlockedSkins)?p.unlockedSkins:[], equipped:p.equipped||{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
+  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0)), unlockedSkins:Array.isArray(p.unlockedSkins)?p.unlockedSkins:[], claimedSkinCrateLevels:Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels:[], equipped:p.equipped||{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
   state.customTopics = lsGet('index-customtopics', {});
   state.profile = lsGet('index-profile', {});
   state.district = state.profile.district || '';
@@ -1299,7 +1299,7 @@ function clearAccountScopedLocalCache(){
 function resetSignedOutAccountState(){
   // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
   // This prevents one device's old wallet/cosmetics from appearing before authentication.
-  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:''},openedPacks:0,liveGames:0};
+  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:''},openedPacks:0,liveGames:0};
   updateCoinDisplays();
 }
 async function loadAccountState(){
@@ -1311,7 +1311,7 @@ async function loadAccountState(){
     if(!d.state){
       // New account: never import guest wallet/cosmetics into the account.
       // Local notes/study sets can be adopted, but account-owned rewards start at zero.
-      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:''},openedPacks:0,liveGames:0};
+      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:''},openedPacks:0,liveGames:0};
       await syncAccountStateNow();
       return;
     }
@@ -1325,7 +1325,7 @@ async function loadAccountState(){
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
   }catch(e){}
 }
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
@@ -1615,6 +1615,20 @@ function openSkinCrate(){
   persistProgress(); syncAccountStateNow(); renderRewards();
   showRewardToast(duplicate?'🧰 Duplicate skin · +20 coins':'✨ New Indexling skin · '+skin.name);
 }
+async function equipIndexlingSkin(id){
+  if(!state.account){showRewardToast('👤 Sign in to save Indexling skins.');return;}
+  const skin=skinById(id); if(!skin || !(state.progress.unlockedSkins||[]).includes(id)) return;
+  if(!state.progress.equipped) state.progress.equipped={indexling:'ling-sugarbug',indexlingSkin:''};
+  state.progress.equipped.indexlingSkin=id;
+  persistProgressLocalOnly(); renderRewards(); renderProfileSlot();
+  try{
+    const r=await fetch('/api/account/equipped',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({equipped:state.progress.equipped})});
+    if(!r.ok) throw new Error('sync');
+    const d=await r.json();
+    if(d.equipped) state.progress.equipped={...state.progress.equipped,...d.equipped};
+    persistProgressLocalOnly(); renderRewards(); renderProfileSlot();
+  }catch(e){scheduleAccountStateSync();showRewardToast('Saved locally; skin sync will retry.');}
+}
 function indexlingArtHtml(c, mini=false, skin=null){
   const sk=skin||skinById(state.progress?.equipped?.indexlingSkin);
   const main=esc(sk?.main||c?.main||'#9bb6d8'), dark=esc(sk?.dark||c?.dark||'#526d8e'), accent=esc(sk?.accent||c?.accent||'#e5eef9');
@@ -1654,7 +1668,7 @@ function renderRewards(){
       const ok=unlocked.includes(c.id),equipped=eq.indexling===c.id;
       return '<div class="cosmetic-card '+(ok?'unlocked ':'')+(equipped?'equipped':'')+'"><div class="cosmetic-icon">'+indexlingArtHtml(c,true)+'</div><strong>'+esc(c.name)+'</strong><div class="reward-muted">'+esc(c.rarity)+' · '+esc(c.pack)+' pack</div>'+(ok?'<button class="btn '+(equipped?'btn-dark':'btn-primary')+' btn-sm" data-action="equip-cosmetic" data-id="'+c.id+'">'+(equipped?'Equipped':'Equip')+'</button>':'')+'</div>';
     }).join('');
-    const ownedSkins=(state.progress.unlockedSkins||[]).map(id=>{const sk=skinById(id);return sk?'<span class="skin-chip">'+sk.icon+' '+esc(sk.name)+'</span>':''}).join('');
+    const ownedSkins=(state.progress.unlockedSkins||[]).map(id=>{const sk=skinById(id);if(!sk)return '';const active=eq.indexlingSkin===id;return '<button class="skin-chip '+(active?'skin-chip-active':'')+'" data-action="equip-indexling-skin" data-id="'+id+'">'+sk.icon+' '+esc(sk.name)+(active?' · Equipped':' · Use')+'</button>';}).join('');
     body='<div class="avatar-stage">'+avatarPreviewHtml()+'<div class="current-collectible">Equipped Indexling and its saved skin are synced to your account.</div></div><div class="skin-panel"><div><h3>Skin Crates</h3><p class="reward-muted">'+(state.progress.skinCrates||0)+' crates ready · '+(state.progress.unlockedSkins||[]).length+' skins owned.</p></div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>🧰 Open Skin Crate</button></div><div class="owned-skins">'+(ownedSkins||'<span class="reward-muted">No skins yet.</span>')+'</div><div class="panel"><h3>Indexling collection</h3><p class="reward-muted">Choose your active companion.</p><div class="cosmetic-grid">'+lings+'</div></div>';
   } else if(tab==='inventory'){
     const groups=[['indexling','Indexlings']];
@@ -1757,16 +1771,18 @@ function applyBattlePassRewards(){
   if(!Array.isArray(state.progress.claimedBPLevels)) state.progress.claimedBPLevels=[];
   if(!Array.isArray(state.progress.unlockedCosmetics)) state.progress.unlockedCosmetics=[];
   if(!Array.isArray(state.progress.unlockedSkins)) state.progress.unlockedSkins=[];
+  if(!Array.isArray(state.progress.claimedSkinCrateLevels)) state.progress.claimedSkinCrateLevels=[];
   state.progress.skinCrates=Math.max(0,Math.floor(Number(state.progress.skinCrates)||0));
   const lvl=battlePassLevel();
   for(let level=1; level<=lvl; level++){
-    if(state.progress.claimedBPLevels.includes(level)) continue;
     const reward=rewardForLevel(level);
-    if(reward?.kind==='coins') state.progress.coins=(state.progress.coins||0)+reward.amount;
-    if(reward?.kind==='bundle'){
+    if(reward?.kind==='bundle' && !state.progress.claimedSkinCrateLevels.includes(level)){
       state.progress.skinCrates += Number(reward.skinCrates||0);
-      state.progress.coins += Number(reward.coins||0);
+      state.progress.claimedSkinCrateLevels.push(level);
     }
+    if(state.progress.claimedBPLevels.includes(level)) continue;
+    if(reward?.kind==='coins') state.progress.coins=(state.progress.coins||0)+reward.amount;
+    if(reward?.kind==='bundle') state.progress.coins=(state.progress.coins||0)+Number(reward.coins||0);
     state.progress.claimedBPLevels.push(level);
   }
   persistProgress();
@@ -3442,6 +3458,7 @@ document.addEventListener('click', async (e)=>{
    else if(action==='daily-wheel-spin'){ dailyWheelSpin(); }
   else if(action==='equip-cosmetic'){ equipCosmetic(t.dataset.id); }
   else if(action==='open-skin-crate'){ openSkinCrate(); }
+  else if(action==='equip-indexling-skin'){ equipIndexlingSkin(t.dataset.id); }
   else if(action==='open-pack'){ openRewardPack(t.dataset.pack||'study'); }
   else if(action==='close-pack-modal'){ closePackModal(); }
   else if(action==='live-goto-hub'){ state.live.screen='hub'; renderLive(); }
