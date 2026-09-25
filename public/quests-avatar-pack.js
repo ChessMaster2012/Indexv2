@@ -47,17 +47,20 @@ function saveQuestData(data){
 let questServerSaveTimer=null;
 let questServerSaveInFlight=false;
 let questServerSaveQueued=false;
+let lastQuestServerSignature='';
 function questPayload(){
-  const data=loadQuestData(),s=appSnapshot();
-  const base=data.baseline||s;
-  const progress={
-    ai:Math.max(0,s.ai-Number(base.ai||0)),
-    sets:Math.max(0,s.sets-Number(base.sets||0)),
-    lessons:Math.max(0,s.lessons-Number(base.lessons||0)),
-    xp:Math.max(0,s.xp-Number(base.xp||0)),
-    packs:Math.max(0,s.packs-Number(base.packs||0))
+  const data=loadQuestData(),s=appSnapshot(),base=data.baseline||s;
+  return {
+    day:data.day||dayKey(),baseline:base,
+    progress:{
+      ai:Math.max(0,s.ai-Number(base.ai||0)),
+      sets:Math.max(0,s.sets-Number(base.sets||0)),
+      lessons:Math.max(0,s.lessons-Number(base.lessons||0)),
+      xp:Math.max(0,s.xp-Number(base.xp||0)),
+      packs:Math.max(0,s.packs-Number(base.packs||0))
+    },
+    claimed:data.claimed||{},announced:data.announced||{}
   };
-  return {day:data.day||dayKey(),baseline:base,progress,claimed:data.claimed||{},announced:data.announced||{}};
 }
 async function syncQuestToServer(keepalive=false){
   if(!state.account)return;
@@ -65,20 +68,21 @@ async function syncQuestToServer(keepalive=false){
   questServerSaveInFlight=true;
   try{
     const payload={quests:questPayload()};
+    const signature=JSON.stringify(payload.quests);
     const r=await fetch('/api/account/quests',{method:'PUT',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify(payload),keepalive});
     if(!r.ok)throw new Error('quest sync '+r.status);
-  }catch(e){
-    // Local cache remains authoritative until the next successful account sync.
-  }finally{
+    lastQuestServerSignature=signature;
+  }catch(e){}finally{
     questServerSaveInFlight=false;
     if(questServerSaveQueued){questServerSaveQueued=false;setTimeout(()=>syncQuestToServer(),0);}
   }
 }
 function scheduleQuestServerSave(immediate=false){
   if(!state.account)return;
+  const signature=JSON.stringify({quests:questPayload()});
+  if(!immediate&&signature===lastQuestServerSignature)return;
   clearTimeout(questServerSaveTimer);
-  if(immediate){syncQuestToServer();return;}
-  questServerSaveTimer=setTimeout(()=>syncQuestToServer(),500);
+  questServerSaveTimer=setTimeout(()=>syncQuestToServer(),immediate?0:500);
 }
 async function loadQuestFromServer(){
   if(!state.account)return false;
@@ -89,6 +93,7 @@ async function loadQuestFromServer(){
     if(d.quests){
       saveQuestData(d.quests);
       questAccountKey=accountKey();
+      lastQuestServerSignature=JSON.stringify({quests:d.quests});
       return true;
     }
   }catch(e){}
@@ -230,12 +235,13 @@ function wire(){
     ensureView();avatarFix();
     if(state.account){
       checkQuestCompletions();
+      scheduleQuestServerSave();
       if(state.view==='quests')renderQuests();
     }else{
       questAccountKey='';
+      lastQuestServerSignature='';
     }
-  },1000);
-}
+  },1000);}
 async function startWhenReady(){
   if(!state.account){setTimeout(startWhenReady,500);return;}
   await loadQuestFromServer();
