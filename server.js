@@ -748,6 +748,40 @@ app.put('/api/account/quests', async (req,res)=>{
     res.status(503).json({error:'Could not save quest progress right now. Please try again.'});
   }
 });
+// Quest claim is server-authoritative: the quest flag and Battle Pass XP are
+// committed together so a sign-out/reload cannot lose the reward or duplicate it.
+const QUEST_REWARDS = Object.freeze({ai:15,set:10,lessons:20,xp:25,packs:15});
+app.post('/api/account/quest-claim', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    if(SUPABASE_ENABLED){
+      const row=await dbFindUserById(req.user.id);
+      if(row) req.user=dbRowToUser(row);
+    }
+    const questId=String(req.body?.questId||'');
+    const rewardXP=Number(QUEST_REWARDS[questId]||0);
+    if(!rewardXP) return res.status(400).json({error:'That quest is not claimable.'});
+    const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const quests=existing.quests&&typeof existing.quests==='object'?existing.quests:null;
+    const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    if(!quests||String(quests.day||'')!==today) return res.status(409).json({error:'This quest day has expired. Refresh your quests.'});
+    const claimed=quests.claimed&&typeof quests.claimed==='object'?{...quests.claimed}:{};
+    if(claimed[questId]) return res.status(409).json({error:'This quest has already been claimed.',state:existing,quests});
+    const progress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
+    const updatedProgress={...progress,xp:Math.max(0,Number(progress.xp)||0)+rewardXP};
+    claimed[questId]=Date.now();
+    const updatedQuests={...quests,claimed};
+    const updated=sanitizeAccountState({...existing,progress:updatedProgress,quests:updatedQuests});
+    req.user.accountData=updated;
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    usersById.set(req.user.id,req.user);
+    res.json({ok:true,rewardXP,state:updated.progress,quests:updated.quests});
+  }catch(e){
+    console.error('Quest claim error:',e.message);
+    res.status(503).json({error:'Could not save the quest reward right now. Please try again.'});
+  }
+});
+
 app.put('/api/account/equipped', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
