@@ -1194,7 +1194,7 @@ function loadLocalData(){
   state.notes = lsGet('index-notes', []);
   state.studySets = lsGet('index-studysets', []);
   const p = lsGet('index-progress', {});
-  state.progress = { xp:Number(p.xp)||0, activeDates:p.activeDates||[], lessonsLearned:p.lessonsLearned||[], coins:Number(p.coins)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], equipped:p.equipped||{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
+  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], equipped:p.equipped||{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
   state.customTopics = lsGet('index-customtopics', {});
   state.profile = lsGet('index-profile', {});
   state.district = state.profile.district || '';
@@ -1251,13 +1251,25 @@ function scheduleAccountStateSync(){ if(!state.account) return; clearTimeout(acc
 function clearAccountScopedLocalCache(){
   ['index-notes','index-studysets','index-customtopics','index-progress','index-profile'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
 }
+function resetSignedOutAccountState(){
+  // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
+  // This prevents one device's old wallet/cosmetics from appearing before authentication.
+  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:[],claimedBPLevels:[],equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'},openedPacks:0,liveGames:0};
+  updateCoinDisplays();
+}
 async function loadAccountState(){
   if(!state.account) return;
   try{
     const r=await fetch('/api/account/state',{cache:'no-store'}); const d=await r.json();
     if(r.status===401){ state.account=null; renderProfileSlot(); return; }
     if(!r.ok) return;
-    if(!d.state){ await syncAccountStateNow(); return; }
+    if(!d.state){
+      // New account: never import guest wallet/cosmetics into the account.
+      // Local notes/study sets can be adopted, but account-owned rewards start at zero.
+      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:[],claimedBPLevels:[],equipped:{avatar:'avatar-scholar',outfit:'outfit-books',accessory:'',frame:'default',background:'default'},openedPacks:0,liveGames:0};
+      await syncAccountStateNow();
+      return;
+    }
     const a=d.state;
     if(Array.isArray(a.notes)) state.notes=a.notes;
     if(Array.isArray(a.studySets)) state.studySets=a.studySets;
@@ -1267,7 +1279,7 @@ async function loadAccountState(){
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
   }catch(e){}
 }
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
@@ -1367,6 +1379,7 @@ function saveDailyCoinState(earned){ lsSet('index-daily-coins',{date:coinDayStr(
 function dailyCoinsRemaining(){ return Math.max(0,DAILY_COIN_CAP-getDailyCoinState().earned); }
 
 function addCoins(amount, reason=''){
+  if(!state.account){ showRewardToast('🪙 Sign in to save coins to your account.'); return 0; }
   const n=Math.max(0,Math.floor(Number(amount)||0)); if(!n) return 0;
   const daily=getDailyCoinState();
   const grant=Math.min(n, DAILY_COIN_CAP-daily.earned);
@@ -1512,9 +1525,16 @@ function closePackModal(){
   renderRewards();
 }
 function equipCosmetic(id){
+  if(!state.account){ showRewardToast('👤 Sign in to equip and save cosmetics.'); return; }
   if(!state.progress.unlockedCosmetics.includes(id)) return;
   const c=cosmeticById(id); if(!c) return;
-  state.progress.equipped[c.type]=id; persistProgress(); renderRewards(); renderProfileSlot();
+  state.progress.equipped[c.type]=id;
+  persistProgress();
+  // Push immediately as well as through the normal debounce so an equip survives
+  // tab closes/reloads and stays synchronized with the signed-in account.
+  syncAccountStateNow();
+  renderRewards();
+  renderProfileSlot();
 }
 function avatarPreviewHtml(){
   ensureRewardUnlocks();
@@ -3091,7 +3111,7 @@ async function resetPasswordSubmit(){
     setTimeout(()=>{ showAuthPanel(); setAuthMode('login'); },700);
   }catch(e){ status.innerHTML='<div class="error-note">Couldn’t reach the server. Please try again.</div>'; }
 }
-async function accountSaveProfile(){
+async async function accountSaveProfile(){
   const displayName = document.getElementById('account-first').value.trim().slice(0,60);
   const username = document.getElementById('account-username').value.trim().toLowerCase();
   try{
@@ -3109,7 +3129,7 @@ async function accountSaveProfile(){
     state.account = d.user; renderProfileSlot(); closeSignin();
   }catch(e){ alert('Could not reach the server.'); }
 }
-async function accountDelete(){
+async async function accountDelete(){
   if(!confirm('Delete your Index account and its saved sign-in data? This cannot be undone.')) return;
   try{
     const r = await fetch('/api/auth/delete', { method:'POST' });
@@ -3119,7 +3139,7 @@ async function accountDelete(){
     alert('Your Index account was deleted.');
   }catch(e){ alert('Could not reach the server.'); }
 }
-async function accountSignout(){
+async async function accountSignout(){
   try{ await syncAccountStateNow(); }catch(e){}
   try{ await fetch('/api/auth/logout', { method:'POST' }); }catch(e){}
   state.account = null; clearAccountScopedLocalCache(); renderProfileSlot(); closeSignin();
@@ -3397,7 +3417,8 @@ async function handleAuthRedirectResult(){
   if(!authError && !complete && !welcome) return;
   history.replaceState({}, '', window.location.pathname);
   await refreshAuthStatus();
-  await loadAccountState();
+  if(state.account) await loadAccountState();
+  else resetSignedOutAccountState();
   if(authError){
     showAuthPanel();
     setAuthMode('login');
