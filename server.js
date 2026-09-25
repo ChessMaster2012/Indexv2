@@ -105,7 +105,9 @@ function latestUserQuestion(messages){
 function classifyAiTask(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
-  if(/\b(write|generate|create|draft|compose|produce|make)\b[\\s\\S]*\b(paragraph|essay|speech|letter|response|thesis|introduction|conclusion|report|draft)\b/i.test(q)){
+  const writingNoun=/\b(paragraph|essay|speech|letter|response|thesis|introduction|conclusion|report|draft)\b/i.test(q);
+  const writingVerb=/\b(write|generate|create|draft|compose|produce|make|writ|wirte|wriet|wriite)\b/i.test(q);
+  if((writingVerb && writingNoun) || /\b(?:6|7|8)\s*(?:-|to|through|and)\s*(?:6|7|8)?\s*paragraphs?\b/i.test(q) || /\b(paragraph|essay)\b/i.test(q) && /\b(?:on|about|regarding)\b/i.test(q)){
     return 'direct-writing';
   }
   if(/\b(solve|calculate|compute|simplify|factor|evaluate|find|derive|prove|balance)\b/i.test(l)){
@@ -142,13 +144,14 @@ function requestedWritingConstraints(messages){
     if(found){ sentenceRange=found; break; }
   }
   if(!sentenceRange){
-    const loose=combined.match(/\b(?:between\s+)?(\d+)\s*(?:-|to|through|and)\s*(\d+)\b/ig);
+    const loose=combined.match(/\b(?:between\s+)?(\d+)\s*(?:-|to|through|and)\s*(\d+)\s+(?:sentences?)\b/ig);
     if(loose){
       const m=loose[loose.length-1].match(/(\d+)\s*(?:-|to|through|and)\s*(\d+)/i);
       if(m) sentenceRange={min:Number(m[1]),max:Number(m[2])};
     }
   }
-  const paragraphRangeMatch=combined.match(/\b(?:between\s+)?(\d+)\s*(?:-|to|through|and)\s*(\d+)\s+paragraphs?\b/i);
+  const paragraphRangeMatch=combined.match(/\b(?:between\s+)?(\d+)\s*(?:-|to|through|and)\s*(\d+)\s+paragraphs?\b/i)
+    || combined.match(/\b(\d+)\s*[-–]\s*(\d+)\s+paragraphs?\b/i);
   const requestedParagraphRange=paragraphRangeMatch
     ? {min:Number(paragraphRangeMatch[1]),max:Number(paragraphRangeMatch[2])}
     : null;
@@ -526,7 +529,18 @@ function deterministicTutor(question){
 
   // Direct writing fallback for common school prompts.
   if(/\b(paragraph|essay|draft|response)\b/i.test(q) && /\b(?:on|about|regarding)\b/i.test(q) && /climate\s+change/i.test(q)){
-    return 'Climate change is a major environmental issue caused largely by the buildup of greenhouse gases in Earth’s atmosphere. Burning fossil fuels for electricity, transportation, and industry releases carbon dioxide and other gases that trap heat. As the planet warms, average temperatures rise and weather patterns can become more extreme. Climate change can also contribute to melting ice, rising sea levels, and changes in ecosystems. These effects can impact people through risks to water supplies, agriculture, health, and communities near coasts. People can help reduce climate change by using cleaner energy, saving energy, protecting forests, and reducing unnecessary emissions. Overall, addressing climate change requires both individual actions and larger changes in how societies produce and use energy.';
+    const constraints=requestedWritingConstraints([{role:'user',content:q}]);
+    const range=constraints.requestedParagraphRange;
+    const count=range ? Math.max(range.min,Math.min(range.max,6)) : 1;
+    const paragraphs=[
+      'Climate change is a long-term change in Earth’s temperatures and weather patterns. Today, much of the warming is connected to human activities that add greenhouse gases to the atmosphere. Burning coal, oil, and natural gas releases carbon dioxide, while other activities also add greenhouse gases. These gases trap heat and cause the planet to warm.',
+      'One major cause of climate change is the use of fossil fuels. Cars, airplanes, factories, power plants, and other machines often depend on coal, oil, or natural gas. Agriculture and deforestation also contribute by changing how carbon is stored and released. As these activities continue, greenhouse gas levels can increase.',
+      'Climate change affects natural systems in many ways. Rising temperatures can melt glaciers and ice sheets and contribute to sea-level rise. Some regions experience more intense heat, drought, heavy rainfall, or other changes in weather patterns. Plants and animals may also have to move or adapt as their environments change.',
+      'People can experience these effects in their daily lives. Hotter conditions can make heat waves more dangerous, while changing rainfall can affect farming and water supplies. Coastal communities can face greater risks from rising seas and stronger storms. Climate-related changes can also create economic challenges when homes, roads, crops, or businesses are damaged.',
+      'There are several ways societies can respond to climate change. Using renewable energy, improving energy efficiency, protecting forests, and developing cleaner transportation can reduce greenhouse gas emissions. Communities can also prepare for impacts by improving infrastructure, planning for extreme weather, and protecting important natural areas.',
+      'Climate change is a complicated problem, but people and governments can take meaningful steps to address it. Scientific research can help communities understand risks and choose effective solutions. Individual choices can contribute, but large-scale changes in energy, transportation, buildings, and industry are also important. Working on both reducing emissions and preparing for future impacts can help create a more resilient future.'
+    ];
+    return paragraphs.slice(0,count).join('\\n\\n');
   }
 
   // Fast math examples.
