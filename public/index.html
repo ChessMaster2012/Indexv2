@@ -630,6 +630,8 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .profile-indexling-frame{width:40px;height:40px;border-radius:50%;position:relative;overflow:visible!important;display:grid!important;place-items:center!important;background:#f4f1e9!important;padding:0!important;flex:0 0 40px}.profile-indexling-art{position:relative;z-index:2;display:grid;place-items:center}.profile-indexling-frame .indexling-svg{transform:scale(.55);transform-origin:center}
 .avatar-indexling{overflow:visible!important}
 .pack-option .pack-box{background:transparent!important;box-shadow:none!important;height:128px!important;display:grid!important;place-items:center!important}.pack-glyph{width:116px;height:116px;position:relative;margin:0 auto;display:grid;place-items:center;filter:drop-shadow(0 12px 12px rgba(0,0,0,.2))}.pack-glyph-back{position:absolute;inset:12px;border-radius:24px;transform:rotate(-4deg);background:linear-gradient(145deg,var(--pack-accent),#172033);box-shadow:inset 0 3px 0 rgba(255,255,255,.42),inset 0 -8px 0 rgba(0,0,0,.16)}.pack-glyph-mark{position:relative;z-index:2;width:66px;height:66px;border-radius:20px;background:#fffdf8;color:#172033;display:grid;place-items:center;font-size:32px;box-shadow:0 8px 18px rgba(0,0,0,.18);border:4px solid rgba(255,255,255,.8)}.pack-glyph-seal{position:absolute;z-index:3;bottom:2px;padding:5px 9px;border-radius:999px;background:#172033;color:#fff;font:900 9px var(--font-ui);letter-spacing:.12em}.pack-glyph-castle .pack-glyph-back{border-radius:16px 16px 28px 28px}.pack-glyph-robo .pack-glyph-back{border-radius:14px}.pack-glyph-ocean .pack-glyph-back{border-radius:50% 50% 26px 26px}.pack-glyph-arcade .pack-glyph-back{border-radius:20px}.pack-glyph-cosmic .pack-glyph-back{border-radius:50%}.pack-option .pack-name{display:block!important;visibility:visible!important;color:#172033!important;opacity:1!important;font-size:18px!important;font-weight:950!important;text-align:center!important}.pack-option .pack-desc{color:#667085!important}
+</style><style id="index-profile-frame-final">
+.profile-indexling-frame{width:40px!important;height:40px!important;min-width:40px!important;min-height:40px!important;border-radius:50%!important;position:relative!important;display:grid!important;place-items:center!important;overflow:visible!important;background:#f4f1e9!important;padding:0!important;flex:0 0 40px!important;z-index:2}.profile-indexling-frame .indexling-svg{width:62px!important;height:62px!important;transform:none!important}.profile-indexling-art{position:relative!important;z-index:2!important;display:grid!important;place-items:center!important;width:34px!important;height:34px!important}
 </style></head>
 <body>
 
@@ -2091,15 +2093,14 @@ function renderProfileSlot(){
     const eq=state.progress?.equipped||{};
     const ling=cosmeticById?.(eq.indexling);
     const skin=(typeof skinById==='function')?skinById(eq.indexlingSkin):null;
-    const art=ling&&typeof indexlingArtHtml==='function'
-      ?indexlingArtHtml(ling,true,skin,eq.frame||'default')
-      :'<span style="font-size:22px;">👤</span>';
-    el.innerHTML='<button type="button" class="profile-btn" data-action="open-signin"><span class="avatar avatar-indexling">'+art+'</span><span style="font-size:12.5px;font-weight:800;">'+esc(name||'Your account')+'</span></button>';
+    const frame=eq.frame||'default';
+    const art=ling?indexlingArtHtml(ling,true,skin):'<span style="font-size:20px">👤</span>';
+    const frameStyle=typeof indexlingFrameStyle==='function'?indexlingFrameStyle(frame):'';
+    el.innerHTML='<button type="button" class="profile-btn" data-action="open-signin"><span class="profile-indexling-frame" style="'+frameStyle+'"><span class="profile-indexling-art">'+art+'</span></span><span style="font-size:12.5px;font-weight:800;">'+esc(name||'Your account')+'</span></button>';
   }else{
     el.innerHTML='<button type="button" class="signin-btn" data-action="open-signin">👋 Sign in</button>';
   }
 }
-
 /* ============================== COURSES ============================== */
 function renderCourses(){
   const cats = Object.keys(CATEGORIES); let html = '';
