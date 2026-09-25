@@ -187,7 +187,7 @@ function buildAiMessages(messages){
   const followUpRule=/\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|what about it|why is that|how does that)\b/i.test(question) && priorAssistant
     ? 'FOLLOW-UP CONTEXT RULE: The latest student message is a follow-up. Treat words such as “it,” “that,” “this,” “the above,” “simpler,” or “more simple” as referring to the immediately preceding relevant Tutor answer. Use that previous answer as context and answer the follow-up itself. Do not restart with generic study advice.'
     : 'CONTEXT RULE: Use the immediately preceding relevant Tutor answer when the student message depends on prior context.';
-  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer.';
+  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. Interpret normal spelling mistakes, shorthand, fragments, and one- or two-word school topics when the intended meaning is reasonably clear; do not force the student to restate an understandable request. For a short topic such as “photosynthesis,” “federalism,” or a misspelled concept, give a direct definition/explanation rather than asking for more detail. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer.';
   return [
     {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
     ...turns.filter(t=>t.role!=='system')
@@ -266,7 +266,7 @@ function responseLooksLikeGenericAdvice(text){
   const a=String(text||'').trim().toLowerCase();
   if(!a) return true;
   return /^(here is a simple way to approach this|a strong .*paragraph should|a good way to approach this)/i.test(a)
-    || /\b(generic study advice|identify the main idea|define the important term|finish with a specific example|topic sentence|supporting details|paragraph structure|give me the exact school question|please give me the topic)\b/i.test(a);
+    || /\b(generic study advice|identify the main idea|define the important term|finish with a specific example|topic sentence|supporting details|paragraph structure|writing tips|writing advice|study tips|study advice|give me the exact school question|please give me the topic|give me the topic|provide the topic|provide more detail|need more detail|need additional detail|could you clarify|can you clarify|please clarify|what would you like to know|what do you want to know|i need more information|i need more context|i cannot answer without|i can't answer without|i need the full question|please restate|restated question)\b/i.test(a);
 }
 
 function topicKeywords(question){
@@ -274,25 +274,90 @@ function topicKeywords(question){
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g,' ')
     .split(/\s+/)
-    .filter(w=>w.length>=4 && !/^(what|when|where|which|who|whom|whose|why|how|does|do|did|is|are|was|were|can|could|would|should|please|explain|tell|give|make|write|show|about|between|simple|simpler|more|than|with|from|that|this|the|and|for|into|your|you|me|my|a|an|to|of|in|on|or|it|its)$/.test(w));
+    .filter(w=>w.length>=3 && !/^(what|when|where|which|who|whom|whose|why|how|does|do|did|is|are|was|were|can|could|would|should|please|explain|tell|give|make|write|show|about|between|simple|simpler|more|than|with|from|that|this|the|and|for|into|your|you|me|my|a|an|to|of|in|on|or|it|its|do|does|did|just|really|literally)$/.test(w));
+}
+
+function tutorWordStem(word){
+  let w=String(word||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(w.length>6) w=w.replace(/(ing|ed|es|er|ly|s)$/,'');
+  return w;
+}
+
+function tutorEditDistance(a,b){
+  a=tutorWordStem(a); b=tutorWordStem(b);
+  if(!a||!b) return 99;
+  if(a===b) return 0;
+  if(Math.abs(a.length-b.length)>2) return 99;
+  const prev=Array.from({length:b.length+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){
+    const cur=[i];
+    for(let j=1;j<=b.length;j++){
+      cur[j]=Math.min(
+        cur[j-1]+1,
+        prev[j]+1,
+        prev[j-1]+(a[i-1]===b[j-1]?0:1)
+      );
+    }
+    for(let j=0;j<cur.length;j++) prev[j]=cur[j];
+  }
+  return prev[b.length];
+}
+
+function tutorWords(text){
+  return String(text||'')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g,' ')
+    .split(/\s+/)
+    .filter(w=>w.length>=3);
+}
+
+function fuzzyQuestionCoverage(question,answer){
+  const qWords=topicKeywords(question);
+  const aWords=tutorWords(answer);
+  if(!qWords.length||!aWords.length) return 0;
+  let matched=0;
+  for(const q of qWords){
+    if(aWords.some(a=>tutorEditDistance(q,a)<= (q.length>=7?2:1))) matched++;
+  }
+  return matched/qWords.length;
 }
 
 function answerAddressesQuestion(question,answer,sourceMessages){
-  const a=String(answer||'').toLowerCase();
+  const a=String(answer||'').trim();
   if(responseLooksLikeGenericAdvice(a)) return false;
-  const latest=String(question||'').toLowerCase();
-  // Short concept prompts often have no grammatical question words. Require
-  // the answer to contain at least one meaningful term from the request.
+  const latest=String(question||'').trim();
+
+  // A full natural-language prompt is allowed to be answered with synonyms,
+  // examples, equations, names, or other wording that does not literally repeat
+  // the student's words. Only very short fragment/topic prompts need a lexical
+  // relevance check.
   const words=topicKeywords(latest);
-  if(words.length && words.some(w=>a.includes(w))) return true;
+  if(words.length>=3) return a.length>=20;
+
+  // One- or two-word topic prompts should still be answered directly. Fuzzy
+  // matching handles normal student typos such as "therum" -> "theorem".
+  if(words.length){
+    const coverage=fuzzyQuestionCoverage(latest,a);
+    if(coverage>=0.5) return true;
+  }
+
   // Follow-ups can be correctly answered without repeating the topic noun.
   const source=normalizeAiMessages(sourceMessages||[]);
   const prior=[...source].reverse().find(m=>m.role==='assistant')?.content||'';
-  if(prior && /\b(it|that|this|these|those|above|previous|simpler|simple|clarify|explain that)\b/i.test(latest)){
-    const priorWords=topicKeywords(prior).slice(0,12);
-    return priorWords.length===0 || priorWords.some(w=>a.includes(w));
+  if(prior && /\b(it|that|this|these|those|above|previous|simpler|simple|clarify|explain that|what about it|why is that|how does that)\b/i.test(latest)){
+    const priorWords=topicKeywords(prior).slice(0,16);
+    if(priorWords.length===0) return a.length>=12;
+    return priorWords.some(w=>aWordsContainFuzzy(a,w));
   }
-  return words.length===0;
+
+  // Very short but non-empty commands still deserve a real answer rather than
+  // being rejected for not repeating a noun.
+  return a.length>=12;
+}
+
+function aWordsContainFuzzy(answer,word){
+  const aWords=tutorWords(answer);
+  return aWords.some(a=>tutorEditDistance(a,word)<= (String(word).length>=7?2:1));
 }
 
 async function raceAiProviders(messages,complex){
@@ -511,7 +576,9 @@ app.post('/api/ai/chat',async(req,res)=>{
     const fast=fastDeterministicTutor(question);
     if(fast) return res.json({text:fast,provider:'built-in-fast-fallback',fallback:true});
 
-    // Race the free providers, but reject obvious generic/meta answers.
+    // Race the free providers, but reject obvious generic/meta answers. Relevance
+    // validation is intentionally permissive for full questions so valid answers
+    // that use synonyms or different terminology are not thrown away.
     try{
       let text=await raceAiProviders(messages,complex);
       if(answerNeedsRepair(question,text,messages)){
