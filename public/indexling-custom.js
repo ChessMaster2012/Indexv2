@@ -13,7 +13,7 @@
   const styleMap={};
   Object.values(PACK_LINGS).flat().forEach(x=>styleMap[x[3]]=x[3]);
   const all=[];
-  Object.entries(PACK_LINGS).forEach(([pack,list])=>list.forEach(([id,name,icon,style,main,dark,accent,rarity])=>all.push({id,type:'indexling',name,icon,shape:'custom',style:styleMap[style]||style,mark:icon,main,dark,accent,rarity,pack})));
+  Object.entries(PACK_LINGS).forEach(([pack,list])=>list.forEach(([id,name,icon,style,main,dark,rarity])=>all.push({id,type:'indexling',name,icon,shape:'custom',style:styleMap[style]||style,mark:icon,main,dark,accent:main,rarity,pack})));
   const existingIds=new Set(REWARD_COSMETICS.map(x=>x.id));
   all.forEach(x=>{if(!existingIds.has(x.id))REWARD_COSMETICS.push(x);});
   Object.entries(PACK_LINGS).forEach(([pack,list])=>{
