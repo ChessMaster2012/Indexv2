@@ -105,8 +105,10 @@ function latestUserQuestion(messages){
 function buildAiMessages(messages){
   const turns=normalizeAiMessages(messages);
   if(!turns.length) return [];
+  const clientRules=turns.find(t=>t.role==='system')?.content||'';
+  const serverRules='You are Index Tutor, a high-quality school tutor. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily.';
   return [
-    {role:'system',content:'You are Index Tutor, a friendly school tutor. Answer the latest question directly and accurately. For writing requests, write the requested basic school-level paragraph directly. For math, show concise steps and use Unicode symbols such as √. Keep normal answers under about 180 words unless more detail is requested.'},
+    {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
     ...turns.filter(t=>t.role!=='system')
   ];
 }
@@ -141,13 +143,10 @@ async function fetchJsonWithTimeout(url,options={},timeoutMs=14000){
   }finally{clearTimeout(timer);}
 }
 
-async function tryPollinations(messages){
-  // Legacy public text endpoint: no browser key and no local model.
-  const prompt=messages.filter(m=>m.role!=='system')
-    .map(m=>(m.role==='assistant'?'Tutor: ':'Student: ')+m.content).join('\n');
-  const system='You are a helpful school tutor. Answer directly and accurately. '+prompt;
-  const url='https://text.pollinations.ai/'+encodeURIComponent(system)+'?model=openai&seed='+Date.now();
-  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),14000);
+async function tryPollinationsModel(messages,model,timeoutMs){
+  const prompt=messages.map(m=>(m.role==='system'?'INSTRUCTIONS: ':m.role==='assistant'?'TUTOR: ':'STUDENT: ')+m.content).join('\n\n');
+  const url='https://text.pollinations.ai/'+encodeURIComponent(prompt)+'?model='+encodeURIComponent(model)+'&seed='+Date.now();
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
     const r=await fetch(url,{headers:{Accept:'text/plain'},signal:controller.signal});
     const text=(await r.text()).trim();
@@ -155,12 +154,25 @@ async function tryPollinations(messages){
     return text;
   }finally{clearTimeout(timer);}
 }
+async function tryPollinations(messages){
+  const question=latestUserQuestion(messages);
+  const complex=/\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step)\b/i.test(question)||question.length>220;
+  // Pollinations' live monitor currently shows Gemini 2.5 Flash Lite as much faster
+  // than GPT-OSS 20B, with Mistral Small 4 as a secondary fast model.
+  const primary=complex?'mistralai/mistral-small-4':'google/gemini-2.5-flash-lite';
+  try{
+    return await tryPollinationsModel(messages,primary,complex?9000:5500);
+  }catch(first){
+    const secondary=complex?'google/gemini-2.5-flash-lite':'mistralai/mistral-small-4';
+    return await tryPollinationsModel(messages,secondary,complex?7000:5500);
+  }
+}
 
 async function tryVireonix(messages){
   const r=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify({model:'auto',messages,stream:false,max_tokens:220,temperature:0.2})
-  },14000);
+  },7000);
   const text=extractText(r);
   if(!text) throw new Error('Vireonix returned no text');
   return text;
