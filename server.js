@@ -586,13 +586,11 @@ function sanitizeAccountState(input){
       coins: Math.max(0, Math.min(100000000, Number(p.coins)||0)),
       unlockedCosmetics: Array.isArray(p.unlockedCosmetics) ? p.unlockedCosmetics.slice(0, 500) : [],
       claimedBPLevels: Array.isArray(p.claimedBPLevels) ? p.claimedBPLevels.slice(0, 100) : [],
+      skinCrates: Math.max(0, Math.min(1000000, Math.floor(Number(p.skinCrates)||0))),
+      unlockedSkins: Array.isArray(p.unlockedSkins) ? p.unlockedSkins.slice(0, 500) : [],
       equipped: {
-        avatar: String(equipped.avatar||'avatar-scholar').slice(0,80),
-        outfit: String(equipped.outfit||'outfit-books').slice(0,80),
-        accessory: String(equipped.accessory||'').slice(0,80),
-        frame: String(equipped.frame||'default').slice(0,80),
-        background: String(equipped.background||'default').slice(0,80),
-        indexling: String(equipped.indexling||'ling-orbit').slice(0,80)
+        indexling: String(equipped.indexling||'ling-sugarbug').slice(0,80),
+        indexlingSkin: String(equipped.indexlingSkin||'').slice(0,80)
       },
       openedPacks: Math.max(0, Math.min(1000000, Number(p.openedPacks)||0)),
       liveGames: Math.max(0, Math.min(1000000, Number(p.liveGames)||0)),
@@ -652,12 +650,8 @@ app.put('/api/account/equipped', async (req,res)=>{
     const incoming = req.body && typeof req.body==='object' && req.body.equipped && typeof req.body.equipped==='object' ? req.body.equipped : {};
     const equipped = {
       ...existingProgress.equipped,
-      avatar: String(incoming.avatar || existingProgress.equipped?.avatar || 'avatar-scholar').slice(0,80),
-      outfit: String(incoming.outfit || existingProgress.equipped?.outfit || 'outfit-books').slice(0,80),
-      accessory: String(incoming.accessory || existingProgress.equipped?.accessory || '').slice(0,80),
-      frame: String(incoming.frame || existingProgress.equipped?.frame || 'default').slice(0,80),
-      background: String(incoming.background || existingProgress.equipped?.background || 'default').slice(0,80),
-      indexling: String(incoming.indexling || existingProgress.equipped?.indexling || 'ling-orbit').slice(0,80)
+      indexling: String(incoming.indexling || existingProgress.equipped?.indexling || 'ling-sugarbug').slice(0,80),
+      indexlingSkin: String(incoming.indexlingSkin || existingProgress.equipped?.indexlingSkin || '').slice(0,80)
     };
     const updated = sanitizeAccountState({...existing,progress:{...existingProgress,equipped}});
     req.user.accountData = updated;
@@ -678,7 +672,11 @@ app.post('/api/rewards/daily-wheel/spin', async (req,res)=>{
     const progress = existing.progress && typeof existing.progress === 'object' ? existing.progress : {};
     const today = new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
     if (String(progress.dailyWheelDate || '') === today) return res.status(409).json({error:'You already spun today.', reward:Number(progress.dailyWheelReward)||0, state:existing});
-    const rewards=[{amount:10,weight:30},{amount:25,weight:25},{amount:50,weight:20},{amount:75,weight:15},{amount:100,weight:7},{amount:250,weight:2.5},{amount:500,weight:.5}];
+    const rewards=[
+      {amount:5,weight:14},{amount:10,weight:12},{amount:15,weight:10},{amount:20,weight:9},{amount:25,weight:9},
+      {amount:30,weight:8},{amount:40,weight:7},{amount:50,weight:7},{amount:60,weight:6},{amount:75,weight:5},
+      {amount:100,weight:4},{amount:125,weight:3},{amount:150,weight:2.5},{amount:250,weight:2},{amount:500,weight:1.5}
+    ];
     const total=rewards.reduce((a,r)=>a+r.weight,0); let roll=crypto.randomInt(0,1000000)/1000000*total; let rolled=rewards[rewards.length-1].amount;
     for(const item of rewards){ if((roll-=item.weight)<0){rolled=item.amount;break;} }
     const earnedToday=progress.dailyCoinDate===today?Math.max(0,Number(progress.dailyCoinEarned)||0):0;
