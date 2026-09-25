@@ -634,6 +634,13 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .profile-indexling-frame{width:54px!important;height:54px!important;min-width:54px!important;min-height:54px!important;border-radius:50%!important;position:relative!important;display:grid!important;place-items:center!important;overflow:visible!important;background:#f4f1e9!important;padding:0!important;flex:0 0 54px!important;z-index:2}
 .profile-indexling-art{position:relative!important;z-index:3!important;display:grid!important;place-items:center!important;width:38px!important;height:38px!important}
 .profile-indexling-frame .indexling-svg{width:38px!important;height:38px!important;transform:none!important}
+</style><style id="index-profile-frame-v4">
+.profile-indexling-frame{width:56px!important;height:56px!important;min-width:56px!important;min-height:56px!important;border-radius:50%!important;display:grid!important;place-items:center!important;position:relative!important;z-index:5!important;background:#fffdf8!important;padding:0!important;overflow:visible!important}
+.profile-indexling-frame:after{content:'';position:absolute;inset:1px;border-radius:50%;pointer-events:none;z-index:1;box-shadow:inset 0 0 0 2px rgba(255,255,255,.85),inset 0 -4px 8px rgba(23,32,51,.09)}
+.profile-indexling-art{width:36px!important;height:36px!important;position:relative!important;z-index:3!important;display:grid!important;place-items:center!important}
+.profile-indexling-art .indexling-svg{width:36px!important;height:36px!important;transform:none!important;z-index:3!important}
+.profile-indexling-art .indexling-svg svg{width:36px!important;height:36px!important}
+.profile-btn .profile-indexling-frame{margin-right:8px!important}
 </style></head>
 <body>
 
@@ -1571,7 +1578,7 @@ const PACK_DEFS = {
   arcade:{name:'Arcade Afterdark',theme:'Arcade Afterdark',cost:25,icon:'🎮',accent:'#9d91ff',weights:SHARED_PACK_ODDS,contents:['ling-token','ling-joystick','ling-pixel','ling-glitch','ling-synth','ling-racer','ling-arcadeboss','ling-highscore']},
   cosmic:{name:'Cosmic Odyssey',theme:'Cosmic Odyssey',cost:25,icon:'🚀',accent:'#8c9cff',weights:SHARED_PACK_ODDS,contents:['ling-comet','ling-moonlet','ling-starling','ling-nebula','ling-eclipse','ling-quasar','ling-voidling','ling-supernova']}
 }
-function packConfig(kind){ return PACK_DEFS[kind] || PACK_DEFS.study; }
+function packConfig(kind){ return PACK_DEFS[kind] || PACK_DEFS.candy; }
 function packContents(kind){ return packConfig(kind).contents.map(cosmeticById).filter(Boolean); }
 function randomUnit(){
   try{
@@ -1740,7 +1747,7 @@ const INDEXLING_VISUALS={
   'ling-guppy':{body:'bubble',top:'fin',face:'happy',icon:'🐚'},
   'ling-coral':{body:'coral',top:'coralbranch',face:'smile',icon:'🪸'},
   'ling-pearl':{body:'shell',top:'pearlcap',face:'sleepy',icon:'🫧'},
-  'ling-diver':{body:'diver',top:'bubblehelmet',face:'bright',icon:'🤿'},
+  'ling-diver':{body:'bubble',top:'bubblehelmet',face:'bright',icon:'🤿'},
   'ling-kelp':{body:'bean',top:'kelpcrest',face:'happy',icon:'🌿'},
   'ling-kraken':{body:'tentacle',top:'inkspot',face:'fierce',icon:'🐙'},
   'ling-abyssal':{body:'abyss',top:'deepfin',face:'cyclops',icon:'🌑'},
@@ -1867,7 +1874,7 @@ function renderRewards(){
     body='<div class="daily-wheel-card"><div class="rewards-eyebrow">DAILY REWARD</div><h3>Spin for coins</h3><p class="reward-muted">15 different coin values. The server chooses your reward, then the wheel reveals it with a 10-second spin.</p><div class="daily-wheel-wrap"><div class="daily-wheel-pointer"></div><div id="daily-wheel" class="daily-wheel" style="--wheel-segments:conic-gradient('+stops+')">'+labels+'<div class="daily-wheel-center">INDEX</div></div></div><div id="daily-wheel-result" class="daily-wheel-result">'+(wheelToday?'You already spun today'+(lastReward?' · +🪙 '+lastReward:'')+'.':'')+'</div><div id="daily-wheel-countdown" class="reward-muted">Next spin countdown loading…</div><button class="btn btn-primary" data-action="daily-wheel-spin" '+(wheelToday?'disabled':'')+'>'+(wheelToday?'✓ Already spun today':'🎡 Spin for coins')+'</button><div class="wheel-values">'+values.map(v=>'<span>🪙 '+v+'</span>').join('')+'</div></div>';
     setTimeout(updateDailyWheelCountdown,0);
   } else {
-    const packCard=(kind)=>{const c=packConfig(kind),can=(state.progress.coins||0)>=c.cost&&!state.rewardPackOpening;const contents=packContents(kind);return '<div class="pack-option" data-pack="'+kind+'" style="--pack-accent:'+c.accent+'"><div class="pack-rarity-line" style="background:linear-gradient(90deg,'+c.accent+',#fff)"></div><div class="pack-box">'+indexPackArt(c,kind)+'</div><div class="pack-name">'+esc(c.name)+'</div><div class="pack-desc">8 original Indexlings from the '+esc(c.theme||c.name)+' collection.</div><div class="pack-theme-line">'+contents.map(item=>'<span class="mini-ling">'+indexlingArtHtml(item,true)+'</span>').join('')+'</div><div class="pack-count">8 collectibles · '+c.weights.Common+'% Common · '+c.weights.Rare+'% Rare · '+c.weights.Epic+'% Epic · '+c.weights.Legendary+'% Legendary</div><div class="pack-cost"><span class="coin-pill">🪙 '+c.cost+'</span></div><button class="btn '+(can?'btn-primary':'btn-ghost')+'" data-action="open-pack" data-pack="'+kind+'" '+(can?'':'disabled')+'>'+(can?'Open pack':'Not enough coins')+'</button></div>';};
+    const packCard=(kind)=>{const c=packConfig(kind),can=(state.progress.coins||0)>=c.cost&&!state.rewardPackOpening;const contents=packContents(kind);return '<div class="pack-option" data-pack="'+kind+'" style="--pack-accent:'+c.accent+'"><div class="pack-rarity-line" style="background:linear-gradient(90deg,'+c.accent+',#fff)"></div><div class="pack-box">'+indexPackArt(c,kind)+'</div><div class="pack-name" aria-label="'+esc(c.name)+'">'+esc(c.name)+'</div><div class="pack-desc">8 original Indexlings from the '+esc(c.theme||c.name)+' collection.</div><div class="pack-theme-line">'+contents.map(item=>'<span class="mini-ling">'+indexlingArtHtml(item,true)+'</span>').join('')+'</div><div class="pack-count">8 collectibles · '+c.weights.Common+'% Common · '+c.weights.Rare+'% Rare · '+c.weights.Epic+'% Epic · '+c.weights.Legendary+'% Legendary</div><div class="pack-cost"><span class="coin-pill">🪙 '+c.cost+'</span></div><button class="btn '+(can?'btn-primary':'btn-ghost')+'" data-action="open-pack" data-pack="'+kind+'" '+(can?'':'disabled')+'>'+(can?'Open pack':'Not enough coins')+'</button></div>';};
     body='<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">INDEXLING VAULT</div><div class="pack-showcase-title">Pick a world.</div><div class="pack-showcase-copy">Candy, medieval, robo, ocean, arcade, and cosmic packs each have a different collectible set.</div></div><div class="coin-pill">🪙 <span class="coin-balance">'+(state.progress.coins||0)+'</span></div></div><div class="pack-shelf">'+PACK_ORDER.map(packCard).join('')+'</div></div></div>';
 
   }
