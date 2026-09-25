@@ -621,7 +621,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .indexling-art.ix-body-eclipse .ix-side:before{content:'';position:absolute;width:86px;height:86px;border-radius:50%;border:2px solid var(--ling-accent);box-shadow:0 0 15px var(--ling-accent);z-index:0}
 </style><style id="index-auth-resilience">
 #account-profile-status{min-height:20px;font-size:12px;margin:0 0 10px}.success-note{color:#177a57;font-weight:800}.loading-line{font-size:12px}
-</style></head>
+</style><style id="index-account-avatar-v3">#account-avatar-preview{overflow:visible!important;background:#f4f1e9!important;display:grid!important;place-items:center!important}#account-avatar-preview .indexling-art{transform:scale(.58);transform-origin:center}</style></head>
 <body>
 
 <div class="site-gate" id="site-gate" aria-modal="true" role="dialog" aria-labelledby="site-gate-title">
@@ -3284,7 +3284,7 @@ async function openSignin(){
     document.getElementById('account-username').value = state.account.username || '';
     document.getElementById('account-first').value = state.account.firstName || '';
     document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''}`;
-    const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; document.getElementById('account-avatar-preview').textContent=cosmeticById(state.progress?.equipped?.avatar)?.icon || '👤';
+    const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; const aeq=state.progress?.equipped||{}; const aling=cosmeticById(aeq.indexling); const askin=skinById?.(aeq.indexlingSkin); const ap= document.getElementById('account-avatar-preview'); if(ap) ap.innerHTML=aling && typeof indexlingArtHtml==='function'?indexlingArtHtml(aling,true,askin,aeq.frame||'default'):'👤';
   }else{
     document.getElementById('account-panel').classList.add('hidden');
     document.getElementById('auth-panel').classList.remove('hidden');
