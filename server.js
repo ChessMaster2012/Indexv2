@@ -588,6 +588,7 @@ function sanitizeAccountState(input){
       claimedBPLevels: Array.isArray(p.claimedBPLevels) ? p.claimedBPLevels.slice(0, 100) : [],
       skinCrates: Math.max(0, Math.min(1000000, Math.floor(Number(p.skinCrates)||0))),
       unlockedSkins: Array.isArray(p.unlockedSkins) ? p.unlockedSkins.slice(0, 500) : [],
+      claimedSkinCrateLevels: Array.isArray(p.claimedSkinCrateLevels) ? p.claimedSkinCrateLevels.slice(0, 50) : [],
       equipped: {
         indexling: String(equipped.indexling||'ling-sugarbug').slice(0,80),
         indexlingSkin: String(equipped.indexlingSkin||'').slice(0,80)
