@@ -10,8 +10,7 @@ const marker = '<!-- INDEXLING_CUSTOM_V1 -->';
 try {
   let html = fs.readFileSync(htmlPath, 'utf8');
   if (!html.includes(marker) || !html.includes('quests-avatar-pack.js')) {
-    const patch = '\n' + marker + '\n<script src="/indexling-custom.js"></script>
-<script src="/quests-avatar-pack.js"></script>\n';
+    const patch = `\n${marker}\n<script src="/indexling-custom.js"></script>\n<script src="/quests-avatar-pack.js"></script>\n`;
     html = html.replace('</body>', patch + '</body>');
     fs.writeFileSync(htmlPath, html, 'utf8');
   }
