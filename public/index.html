@@ -621,7 +621,11 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .indexling-art.ix-body-eclipse .ix-side:before{content:'';position:absolute;width:86px;height:86px;border-radius:50%;border:2px solid var(--ling-accent);box-shadow:0 0 15px var(--ling-accent);z-index:0}
 </style><style id="index-auth-resilience">
 #account-profile-status{min-height:20px;font-size:12px;margin:0 0 10px}.success-note{color:#177a57;font-weight:800}.loading-line{font-size:12px}
-</style><style id="index-account-avatar-v3">#account-avatar-preview{overflow:visible!important;background:#f4f1e9!important;display:grid!important;place-items:center!important}#account-avatar-preview .indexling-art{transform:scale(.58);transform-origin:center}</style></head>
+</style><style id="index-account-avatar-v3">#account-avatar-preview{overflow:visible!important;background:#f4f1e9!important;display:grid!important;place-items:center!important}#account-avatar-preview .indexling-art{transform:scale(.58);transform-origin:center}</style><style id="index-profile-save-v2">
+#account-save-profile-btn{position:relative;z-index:30;pointer-events:auto}
+.avatar-indexling{overflow:visible!important;display:grid!important;place-items:center!important;background:#f4f1e9!important}
+.avatar-indexling .indexling-art,.avatar-indexling .indexling-mini{transform:scale(.5);transform-origin:center}
+</style></head>
 <body>
 
 <div class="site-gate" id="site-gate" aria-modal="true" role="dialog" aria-labelledby="site-gate-title">
@@ -1058,7 +1062,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
         <button class="btn btn-ghost" data-action="account-signout">Sign out</button>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" data-action="account-delete">Delete account</button>
-          <button class="btn btn-primary" data-action="account-save-profile">Save</button>
+          <button type="button" id="account-save-profile-btn" class="btn btn-primary" onclick="accountSaveProfile()">Save</button>
         </div>
       </div>
     </div>
@@ -1476,6 +1480,13 @@ const BP_REWARDS = Array.from({length:50},(_,i)=>{
   const coins=level<=10?50:level<=20?60:level<=30?75:level<=40?90:100;
   return {level,kind:'coins',amount:coins,label:coins+' coins',icon:'🪙'};
 });
+function skinById(id){ return Array.isArray(INDEXLING_SKINS)?INDEXLING_SKINS.find(s=>s.id===id):null; }
+function indexPackArt(c){
+  const accent=esc(c?.accent||'#7c5cfc');
+  const icon=esc(c?.icon||'✦');
+  const name=esc(c?.name||'INDEX');
+  return '<div class="pack-glyph" style="--pack-accent:'+accent+'"><div class="pack-glyph-mark">'+icon+'</div><div class="pack-glyph-label">'+name+'</div></div>';
+}
 function battlePassLevel(){ return Math.min(50, Math.floor((state.progress.xp||0)/100)+1); }
 function rewardForLevel(level){ return BP_REWARDS.find(r=>r.level===level); }
 function ensureRewardUnlocks(){
@@ -1752,8 +1763,9 @@ function avatarPreviewHtml(){
   ensureRewardUnlocks();
   const eq=state.progress.equipped||{};
   const indexling=cosmeticById(eq.indexling)||cosmeticById('ling-sugarbug');
-  const equippedSkin=skinById(eq.indexlingSkin);
-  return '<div class="avatar-preview" style="border:5px solid rgba(255,255,255,.7);">'+indexlingArtHtml(indexling,false,equippedSkin)+'</div><div style="font-size:14px;font-weight:900;">'+esc(indexling.name)+'</div><div style="font-size:12px;opacity:.82;margin-top:4px;">'+(equippedSkin?'Skin · '+esc(equippedSkin.name):'Default skin')+'</div>';
+  const equippedSkin=(typeof skinById==='function')?skinById(eq.indexlingSkin):null;
+  const frame=eq.frame||'default';
+  return '<div class="avatar-preview" style="'+(typeof indexlingFrameStyle==='function'?indexlingFrameStyle(frame):'border:4px solid #d8d2c5;')+'">'+indexlingArtHtml(indexling,false,equippedSkin,null)+'</div><div style="font-size:14px;font-weight:900;">'+esc(indexling.name)+'</div><div style="font-size:12px;opacity:.82;margin-top:4px;">'+(equippedSkin?'Skin · '+esc(equippedSkin.name):'Default skin')+' · Frame '+esc(frame)+'</div>';
 }
 function setRewardsTab(tab){
   if(!state.account){promptAccountForPersistentView('rewards');return;}
@@ -2057,20 +2069,20 @@ function updateAccountCountyLabel(){
   const p=getLocalJurisdiction(); el.textContent=p?`${p.name} · ${p.district}`:'Not selected';
 }
 function renderProfileSlot(){
-  const el = document.getElementById('profile-slot');
-  if(!el) return;
-  const name = displayName();
+  const el=document.getElementById('profile-slot');
+  if(!el)return;
+  const name=displayName();
   updateAccountCountyLabel();
   if(state.account){
     const eq=state.progress?.equipped||{};
     const ling=cosmeticById?.(eq.indexling);
-    const skin=skinById?.(eq.indexlingSkin);
-    const art=ling && typeof indexlingArtHtml==='function'
-      ? indexlingArtHtml(ling,true,skin,eq.frame||'default')
-      : '<span style="font-size:22px;">👤</span>';
-    el.innerHTML = `<button class="profile-btn" data-action="open-signin"><span class="avatar avatar-indexling">${art}</span><span style="font-size:12.5px;font-weight:800;">${esc(name||'Your account')}</span></button>`;
+    const skin=(typeof skinById==='function')?skinById(eq.indexlingSkin):null;
+    const art=ling&&typeof indexlingArtHtml==='function'
+      ?indexlingArtHtml(ling,true,skin,eq.frame||'default')
+      :'<span style="font-size:22px;">👤</span>';
+    el.innerHTML='<button type="button" class="profile-btn" data-action="open-signin"><span class="avatar avatar-indexling">'+art+'</span><span style="font-size:12.5px;font-weight:800;">'+esc(name||'Your account')+'</span></button>';
   }else{
-    el.innerHTML = `<button class="signin-btn" data-action="open-signin">👋 Sign in</button>`;
+    el.innerHTML='<button type="button" class="signin-btn" data-action="open-signin">👋 Sign in</button>';
   }
 }
 
@@ -3284,7 +3296,7 @@ async function openSignin(){
     document.getElementById('account-username').value = state.account.username || '';
     document.getElementById('account-first').value = state.account.firstName || '';
     document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''}`;
-    const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; const aeq=state.progress?.equipped||{}; const aling=cosmeticById(aeq.indexling); const askin=skinById?.(aeq.indexlingSkin); const ap= document.getElementById('account-avatar-preview'); if(ap) ap.innerHTML=aling && typeof indexlingArtHtml==='function'?indexlingArtHtml(aling,true,askin,aeq.frame||'default'):'👤';
+    const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; const aeq=state.progress?.equipped||{}; const aling=cosmeticById(aeq.indexling); const askin=(typeof skinById==='function')?skinById(aeq.indexlingSkin):null; const ap=document.getElementById('account-avatar-preview'); if(ap) ap.innerHTML=aling&&typeof indexlingArtHtml==='function'?indexlingArtHtml(aling,true,askin,aeq.frame||'default'):'👤';
   }else{
     document.getElementById('account-panel').classList.add('hidden');
     document.getElementById('auth-panel').classList.remove('hidden');
@@ -3800,6 +3812,7 @@ async function initializeApp(){
   await refreshAuthStatus();
   if(state.account) await loadAccountState();
   else resetSignedOutAccountState();
+  renderProfileSlot();
   await handleAuthRedirectResult();
   renderDashboard();
   renderSidebarBadge();
