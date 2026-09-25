@@ -265,7 +265,33 @@ function responseLooksLikeGenericAdvice(text){
   const a=String(text||'').trim().toLowerCase();
   if(!a) return true;
   return /^(here is a simple way to approach this|a strong .*paragraph should|a good way to approach this)/i.test(a)
-    || /\b(generic study advice|identify the main idea|define the important term|finish with a specific example|topic sentence|supporting details|paragraph structure)\b/i.test(a);
+    || /\b(generic study advice|identify the main idea|define the important term|finish with a specific example|topic sentence|supporting details|paragraph structure|give me the exact school question|please give me the topic)\b/i.test(a);
+}
+
+function topicKeywords(question){
+  return String(question||'')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g,' ')
+    .split(/\s+/)
+    .filter(w=>w.length>=4 && !/^(what|when|where|which|who|whom|whose|why|how|does|do|did|is|are|was|were|can|could|would|should|please|explain|tell|give|make|write|show|about|between|simple|simpler|more|than|with|from|that|this|the|and|for|into|your|you|me|my|a|an|to|of|in|on|or|it|its)$/.test(w));
+}
+
+function answerAddressesQuestion(question,answer,sourceMessages){
+  const a=String(answer||'').toLowerCase();
+  if(responseLooksLikeGenericAdvice(a)) return false;
+  const latest=String(question||'').toLowerCase();
+  // Short concept prompts often have no grammatical question words. Require
+  // the answer to contain at least one meaningful term from the request.
+  const words=topicKeywords(latest);
+  if(words.length && words.some(w=>a.includes(w))) return true;
+  // Follow-ups can be correctly answered without repeating the topic noun.
+  const source=normalizeAiMessages(sourceMessages||[]);
+  const prior=[...source].reverse().find(m=>m.role==='assistant')?.content||'';
+  if(prior && /\b(it|that|this|these|those|above|previous|simpler|simple|clarify|explain that)\b/i.test(latest)){
+    const priorWords=topicKeywords(prior).slice(0,12);
+    return priorWords.length===0 || priorWords.some(w=>a.includes(w));
+  }
+  return words.length===0;
 }
 
 async function raceAiProviders(messages,complex){
@@ -323,6 +349,7 @@ function answerNeedsRepair(question,answer,sourceMessages){
   const a=String(answer||'').trim();
   if(!a) return true;
   if(responseLooksLikeGenericAdvice(a)) return true;
+  if(!answerAddressesQuestion(q,a,context)) return true;
   const task=classifyAiTask(q);
   const lowerA=a.toLowerCase();
 
@@ -422,6 +449,17 @@ function deterministicTutor(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
 
+  // Fast, topic-specific fallbacks for common school concepts.
+  if(/pythagorean\s+theor(?:y|em)/i.test(q) || /pythagor(?:e|o)an/i.test(q)){
+    return 'The Pythagorean theorem is used for right triangles. It says a² + b² = c², where a and b are the two shorter legs and c is the hypotenuse, the side opposite the right angle. For example, if the legs are 3 and 4, then 3² + 4² = c², so 9 + 16 = 25 and c = 5.';
+  }
+  if(/\barea\b.*\btriangle\b/i.test(q)){
+    return 'The area of a triangle is A = ½bh, where b is the base and h is the height. Multiply the base by the height, then divide by 2.';
+  }
+  if(/\b(slope|slope formula)\b/i.test(q)){
+    return 'Slope tells you how steep a line is. Use m = (y₂ − y₁) ÷ (x₂ − x₁), which means change in y divided by change in x.';
+  }
+
   // Direct fallback for common everyday/financial questions.
   if(/\b(difference|different)\b.*\b(bank|credit union)\b|\b(bank|credit union)\b.*\b(difference|different)\b/i.test(q)){
     return 'A bank is a for-profit financial institution owned by investors, while a credit union is a member-owned, not-for-profit financial cooperative. Banks generally serve anyone who meets their account requirements, while credit unions usually require you to qualify for membership. Credit unions may return some of their earnings to members through lower fees or loan rates, while banks may offer a wider range of products or locations. Both can provide checking and savings accounts, loans, and other financial services.';
@@ -456,7 +494,7 @@ function deterministicTutor(question){
 
   if(/^(hi|hello|hey)\b/i.test(q)) return 'Hi! What are you working on?';
 
-  return 'Here is a simple way to approach this: identify the main idea of the question, define the important term or concept, explain how it works, and finish with a specific example or why it matters. If you give me the exact school question, I can apply that structure to it.';
+  return 'I want to answer the exact question, but I need a little more detail. Please include the full question or the topic and what you want to know about it.';
 }
 
 app.post('/api/ai/chat',async(req,res)=>{
