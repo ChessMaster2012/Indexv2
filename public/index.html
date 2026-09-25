@@ -707,7 +707,14 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 @media(max-width:1000px){.dashboard-top-grid{grid-template-columns:1fr}.dashboard-top-grid>.creator-spotlight{min-height:0}}
 @media(max-width:700px){.dashboard-top-grid{gap:16px}.dashboard-top-grid>.hero{padding:24px 20px}.dashboard-top-grid .creator-spotlight{margin:0}}
 </style>
-</head>
+<style id="index-creator-photo-fix-v4">
+/* The original uploaded asset contains an unwanted lower corrupted area.
+   Keep the recognizable upper portrait visible and crop before that area. */
+.creator-photo-ring{width:160px;height:156px;border-radius:24px;padding:5px}
+.creator-photo{height:100%;width:100%;object-fit:cover;object-position:center top}
+.creator-photo-label{bottom:-11px}
+@media(max-width:700px){.creator-photo-ring{width:132px;height:132px}}
+</style></head>
 <body>
 
 <div class="site-gate" id="site-gate" aria-modal="true" role="dialog" aria-labelledby="site-gate-title">
