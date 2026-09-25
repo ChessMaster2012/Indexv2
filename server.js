@@ -591,7 +591,8 @@ function sanitizeAccountState(input){
       claimedSkinCrateLevels: Array.isArray(p.claimedSkinCrateLevels) ? p.claimedSkinCrateLevels.slice(0, 50) : [],
       equipped: {
         indexling: String(equipped.indexling||'ling-sugarbug').slice(0,80),
-        indexlingSkin: String(equipped.indexlingSkin||'').slice(0,80)
+        indexlingSkin: String(equipped.indexlingSkin||'').slice(0,80),
+        frame: String(equipped.frame||'default').slice(0,80)
       },
       openedPacks: Math.max(0, Math.min(1000000, Number(p.openedPacks)||0)),
       liveGames: Math.max(0, Math.min(1000000, Number(p.liveGames)||0)),
@@ -652,7 +653,8 @@ app.put('/api/account/equipped', async (req,res)=>{
     const equipped = {
       ...existingProgress.equipped,
       indexling: String(incoming.indexling || existingProgress.equipped?.indexling || 'ling-sugarbug').slice(0,80),
-      indexlingSkin: String(incoming.indexlingSkin || existingProgress.equipped?.indexlingSkin || '').slice(0,80)
+      indexlingSkin: String(incoming.indexlingSkin || existingProgress.equipped?.indexlingSkin || '').slice(0,80),
+      frame: String(incoming.frame || existingProgress.equipped?.frame || 'default').slice(0,80)
     };
     const updated = sanitizeAccountState({...existing,progress:{...existingProgress,equipped}});
     req.user.accountData = updated;
