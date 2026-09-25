@@ -148,11 +148,16 @@ function requestedWritingConstraints(messages){
       if(m) sentenceRange={min:Number(m[1]),max:Number(m[2])};
     }
   }
-  const latest=users[users.length-1]||'';
+  const paragraphRangeMatch=combined.match(/\b(?:between\s+)?(\d+)\s*(?:-|to|through|and)\s*(\d+)\s+paragraphs?\b/i);
+  const requestedParagraphRange=paragraphRangeMatch
+    ? {min:Number(paragraphRangeMatch[1]),max:Number(paragraphRangeMatch[2])}
+    : null;
   const writingMentioned=users.some(t=>/\b(paragraph|essay|draft|response|speech|letter|report|thesis|introduction|conclusion)\b/i.test(t));
-  const singleParagraph=users.some(t=>/\b(?:a|one|single)\s+paragraph\b/i.test(t))
-    && !users.some(t=>/\b(?:two|three|four|five|six|seven|eight|nine|ten|\d+)\s+paragraphs\b/i.test(t));
-  return {sentenceRange, writingMentioned, singleParagraph, latest};
+  // A complaint that a response had “3 paragraphs” must not override the
+  // original request for one paragraph. Only an actual paragraph-range request
+  // changes the shape.
+  const singleParagraph=users.some(t=>/\b(?:a|one|single)\s+paragraph\b/i.test(t)) && !requestedParagraphRange;
+  return {sentenceRange, requestedParagraphRange, writingMentioned, singleParagraph, latest};
 }
 
 function buildAiMessages(messages){
@@ -174,7 +179,9 @@ function buildAiMessages(messages){
     : '';
   const shapeRule=writingConstraints.singleParagraph
     ? 'WRITING SHAPE RULE: The student asked for a single paragraph. Return exactly ONE paragraph; do not split the response into multiple blank-line paragraphs or add a title.'
-    : '';
+    : writingConstraints.requestedParagraphRange
+      ? `WRITING SHAPE RULE: The student requested between ${writingConstraints.requestedParagraphRange.min} and ${writingConstraints.requestedParagraphRange.max} paragraphs. Return a finished response in that paragraph range.`
+      : '';
   const priorAssistant=[...turns].reverse().find(t=>t.role==='assistant')?.content||'';
   const followUpRule=/\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|what about it|why is that|how does that)\b/i.test(question) && priorAssistant
     ? 'FOLLOW-UP CONTEXT RULE: The latest student message is a follow-up. Treat words such as “it,” “that,” “this,” “the above,” “simpler,” or “more simple” as referring to the immediately preceding relevant Tutor answer. Use that previous answer as context and answer the follow-up itself. Do not restart with generic study advice.'
@@ -333,6 +340,9 @@ function answerNeedsRepair(question,answer,sourceMessages){
       const paragraphs=a.split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
       if(paragraphs.length!==1) return true;
       if(/^#{1,6}\s/.test(a)) return true; // no standalone title for a single-paragraph request
+    } else if(constraints.requestedParagraphRange){
+      const paragraphs=a.split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
+      if(paragraphs.length<constraints.requestedParagraphRange.min || paragraphs.length>constraints.requestedParagraphRange.max) return true;
     }
   }
 
@@ -358,6 +368,7 @@ async function repairAiResponse(question,complex,sourceMessages){
     constraint+=' Write the finished draft itself.';
     if(range) constraint+=` The finished draft must contain between ${range.min} and ${range.max} sentences, inclusive; count the sentences before returning.`;
     if(constraints.singleParagraph) constraint+=' Return exactly one paragraph with no title.';
+    else if(constraints.requestedParagraphRange) constraint+=` Return between ${constraints.requestedParagraphRange.min} and ${constraints.requestedParagraphRange.max} paragraphs.`;
   } else if(task==='direct-problem-solving'){
     constraint+=' Solve the actual problem and give the result with the key reasoning steps.';
   } else if(task==='direct-explanation'){
