@@ -697,7 +697,17 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .profile-indexling-art .indexling-svg svg{width:25px!important;height:25px!important}
 .profile-btn>span:last-child{min-width:0;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px!important}
 .pack-count{display:block!important;width:max-content!important;max-width:100%!important;margin:7px auto 0!important;color:#27334a!important;background:#f2efe7!important;border:1px solid #d7d0c3!important;border-radius:999px!important;padding:5px 9px!important;font-size:10px!important;font-weight:900!important;line-height:1.25!important;text-shadow:none!important;opacity:1!important}
-</style></head>
+</style><style id="index-dashboard-creator-layout">
+.dashboard-top-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(360px,.92fr);gap:22px;align-items:stretch;margin-bottom:22px}
+.dashboard-top-grid>.hero{margin:0;min-height:100%;box-sizing:border-box;padding:30px;background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(246,243,255,.96));border:1px solid rgba(124,92,252,.12);border-radius:26px;box-shadow:0 12px 32px rgba(36,31,61,.06)}
+.dashboard-top-grid>.hero h1{max-width:18ch}
+.dashboard-top-grid .creator-spotlight{width:auto;margin:0;min-height:100%;box-sizing:border-box}
+.creator-photo-ring{width:160px;height:214px}
+.creator-photo{object-fit:cover;object-position:center}
+@media(max-width:1000px){.dashboard-top-grid{grid-template-columns:1fr}.dashboard-top-grid>.creator-spotlight{min-height:0}}
+@media(max-width:700px){.dashboard-top-grid{gap:16px}.dashboard-top-grid>.hero{padding:24px 20px}.dashboard-top-grid .creator-spotlight{margin:0}}
+</style>
+</head>
 <body>
 
 <div class="site-gate" id="site-gate" aria-modal="true" role="dialog" aria-labelledby="site-gate-title">
@@ -887,7 +897,11 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
     <div class="sidebar-foot" id="sidebar-foot"></div>
   </aside>
 
-  <main class="main"><!-- INDEX_CREATOR_SPOTLIGHT_V2 -->
+  <main class="main">
+
+    <section class="view active" id="view-dashboard">
+      <div class="dashboard-top-grid">
+<!-- INDEX_CREATOR_SPOTLIGHT_V2 -->
 <aside class="creator-spotlight" id="about-creator" aria-label="About the creator">
   <div class="creator-copy">
     <div class="creator-kicker"><span class="creator-kicker-dot"></span> Built by a student</div>
@@ -908,8 +922,6 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
     </div>
   </div>
 </aside>
-
-    <section class="view active" id="view-dashboard">
       <div class="hero">
         <p class="eyebrow">Every AP course, one desk 🎯</p>
         <h1>Study smarter for the exams that actually matter to you.</h1>
@@ -919,6 +931,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
           <button class="btn btn-pink" data-action="goto" data-view="live">⚡ Host a live game</button>
           <button class="btn btn-ghost" data-action="new-note">+ Add a note</button>
         </div>
+      </div>
       </div>
       <div class="progress-banner" id="progress-banner"></div>
       <div class="personal-banner">
