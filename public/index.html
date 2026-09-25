@@ -1189,7 +1189,7 @@ let state = {
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'}, openedPacks:0, liveGames:0 },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
@@ -1373,7 +1373,7 @@ function clearAccountScopedLocalCache(){
 function resetSignedOutAccountState(){
   // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
   // This prevents one device's old wallet/cosmetics from appearing before authentication.
-  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:''},openedPacks:0,liveGames:0};
+  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
   updateCoinDisplays();
 }
 async function loadAccountState(){
@@ -1385,7 +1385,7 @@ async function loadAccountState(){
     if(!d.state){
       // New account: never import guest wallet/cosmetics into the account.
       // Local notes/study sets can be adopted, but account-owned rewards start at zero.
-      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:''},openedPacks:0,liveGames:0};
+      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
       await syncAccountStateNow();
       return;
     }
