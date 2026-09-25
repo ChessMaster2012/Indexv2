@@ -109,6 +109,7 @@ function wire(){
   ensureView();
   avatarFix();
   paint();
+  checkQuestCompletions();
   document.addEventListener('click',function(e){
     const nav=e.target.closest('[data-view="quests"]');
     if(nav){e.preventDefault();openQuestView();return;}
@@ -127,6 +128,7 @@ function wire(){
   },true);
   setInterval(function(){
     avatarFix();ensureView();paint();
+    checkQuestCompletions();
     if(state.view==='quests')renderQuests();
   },1200);
 }
