@@ -4,8 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Index — Study every AP class</title>
-<!-- Keyless browser AI backup. The server remains the primary path; this is used only when the server-side providers fail. -->
-<script src="https://js.puter.com/v2/"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap');
 
@@ -1337,143 +1335,59 @@ function requestLocalAiCapabilities(){
   const note=document.getElementById('ai-hardware-note');
   if(note) note.textContent='Free cloud AI • server AI + browser backup ready';
 }
-async function waitForPuterAi(maxWaitMs=9000){
-  if(typeof window==='undefined') throw new Error('Browser AI is unavailable outside the browser.');
-  if(window.puter?.ai?.chat) return window.puter.ai;
-  // The script is already in <head>, but some networks/browsers finish loading
-  // third-party scripts after the Tutor UI becomes interactive. Wait instead of
-  // failing immediately.
-  const started=Date.now();
-  while(Date.now()-started<maxWaitMs){
-    if(window.puter?.ai?.chat) return window.puter.ai;
-    await new Promise(resolve=>setTimeout(resolve,250));
-  }
-  throw new Error('Browser AI did not finish loading.');
-}
-
-async function runPuterAi(messages, options={}){
-  const ai=await waitForPuterAi(options.loadTimeoutMs||9000);
-  const timeoutMs=options.timeoutMs||18000;
-  // Start with Puter's current default model, then use documented model IDs
-  // as fallbacks. Normalize responses so vendor-specific content formats do not
-  // break the Tutor parser.
-  const modelOrder=['gpt-5.6-luna',null];
-  let lastError=null;
-  for(const model of modelOrder){
-    try{
-      const request=model ? ai.chat(messages,{model,normalize:true}) : ai.chat(messages,{normalize:true});
-      const response=await Promise.race([
-        request,
-        new Promise((_,reject)=>setTimeout(()=>reject(new Error('Backup AI timed out.')),timeoutMs))
-      ]);
-      const values=[
-        typeof response==='string'?response:'',
-        response?.message?.content,
-        response?.content,
-        response?.text,
-        response?.output_text,
-        response?.output?.text,
-        response?.choices?.[0]?.message?.content,
-        response?.choices?.[0]?.text
-      ];
-      let answer='';
-      for(const value of values){
-        if(typeof value==='string' && value.trim()){ answer=value.trim(); break; }
-        if(Array.isArray(value)){
-          const joined=value.map(x=>typeof x==='string'?x:(x?.text||x?.content||'')).join('').trim();
-          if(joined){ answer=joined; break; }
-        }
-      }
-      if(!answer) throw new Error('Backup AI returned an empty response.');
-      options.onChunk?.(answer);
-      return answer;
-    }catch(e){
-      lastError=e;
-    }
-  }
-  throw lastError||new Error('Backup AI could not answer.');
-}
-
-function browserAiContentIsAllowed(messages){
-  const text=messages.filter(m=>m && m.role==='user').map(m=>String(m.content||'')).join('\n');
-  const normalized=text.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
-    .replace(/[0@]/g,'o').replace(/[1!|]/g,'i').replace(/3/g,'e').replace(/4/g,'a')
-    .replace(/5/g,'s').replace(/7/g,'t').replace(/[^a-z0-9]/g,'');
-  const rawBlocked=/\b(?:porn|pornography|xxx|nsfw|hentai|nudes?|naked\s+(?:pics?|photos?|images?)|sex\s*chat|sext(?:ing)?|sexual\s+(?:content|images?|videos?)|onlyfans|fetish|camgirl|escort)\b|\b(?:fuck|fucker|fucking|shit|bitch|asshole|dick|pussy|cunt|slut|whore)\b|\b(?:kill\s+yourself|kys|go\s+die|suicide|self[-\s]?harm|self[-\s]?injury)\b|\b(?:nazi|kkk|white\s+supremac(?:ist|y)|racial\s+slur)\b/i.test(text);
-  const normalizedBlocked=/(?:porn|pornography|xxx|nsfw|hentai|nudes|nakedpics|sexchat|sexting|sexualcontent|onlyfans|fetish|camgirl|escort|fuck|fucker|fucking|shit|bitch|asshole|dick|pussy|cunt|slut|whore|killsyourself|kys|godie|suicide|selfharm|selfinjury|nazi|kkk|whitesupremacist|racialslur)/i.test(normalized);
-  return !(rawBlocked||normalizedBlocked);
-}
-
-async function runDualAi(messages, options={}){
-  if(!browserAiContentIsAllowed(messages)){
-    throw new Error('That request is not available in Index Tutor. Please keep searches and messages school-appropriate.');
+async function runLocalAi(messages, options={}){
+  // Server-only AI path. The browser sends only to the same-origin Render
+  // endpoint, which performs provider failover server-side. This works on
+  // restrictive school networks because the browser never contacts an AI vendor.
+  if(!Array.isArray(messages) || !messages.length){
+    throw new Error('No AI question was supplied.');
   }
 
-  // Prefer the browser AI on devices that can reach Puter. It avoids Render
-  // outbound-provider failures and supports the full range of normal questions.
-  // If it is unavailable, fall back to the same-origin server proxy, which is
-  // the path designed for restrictive school networks.
-  state.aiWork.stage='Connecting to AI…';
-  updateAiWorkStatus();
-
-  let browserError=null;
-  try{
-    const answer=await runPuterAi(messages,{
-      timeoutMs:options.backupTimeoutMs||30000,
-      loadTimeoutMs:9000
-    });
-    if(String(answer||'').trim()) return String(answer).trim();
-    browserError=new Error('Browser AI returned an empty response.');
-  }catch(e){
-    browserError=e;
-  }
-
-  state.aiWork.stage='Connecting to server AI…';
-  updateAiWorkStatus();
-
+  const timeoutMs=Number(options.timeoutMs)||45000;
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
     const response=await fetch('/api/ai/chat',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
       body:JSON.stringify({messages}),
-      signal:AbortSignal.timeout(options.serverTimeoutMs||45000)
+      signal:controller.signal
     });
+
     let data=null;
     try{ data=await response.json(); }catch{}
 
-    if(response.status>=400 && response.status<500){
-      throw new Error(String(data?.error||'The AI request was rejected.'));
+    const serverError=String(data?.error||'').trim();
+    if(!response.ok){
+      throw new Error(serverError || ('AI request failed ('+response.status+').'));
     }
-    if(!response.ok) throw new Error(String(data?.error||'The server AI is temporarily unavailable.'));
 
     const answer=String(
+      data?.text ||
       data?.choices?.[0]?.message?.content ||
       data?.choices?.[0]?.delta?.content ||
       data?.choices?.[0]?.text ||
       data?.output_text ||
-      data?.text ||
       data?.answer ||
       data?.message?.content ||
+      data?.content ||
       ''
     ).trim();
 
-    // Never accept the generic built-in failure as if it were an AI answer.
-    if(!answer || (data?.fallback && String(data?.provider||'')==='built-in-fallback')){
-      throw new Error('The server AI providers did not return an answer.');
+    if(!answer){
+      throw new Error('The server AI returned an empty response.');
     }
     return answer;
-  }catch(serverError){
-    const b=String(browserError?.message||'Browser AI unavailable');
-    const s=String(serverError?.message||'Server AI unavailable');
-    console.warn('[AI] browser fallback failed:',b);
-    console.warn('[AI] server fallback failed:',s);
-    throw new Error('AI_UNAVAILABLE');
+  }catch(e){
+    if(e?.name==='AbortError'){
+      throw new Error('The AI service took too long to respond. Please try again.');
+    }
+    throw e;
+  }finally{
+    clearTimeout(timer);
   }
 }
 
-async function runLocalAi(messages, options={}){
-  return runDualAi(messages,options);
-}
 function parseLooseJson(text){
   let cleaned=String(text||'').replace(/```json/gi,'').replace(/```/g,'').trim();
   for(let pass=0;pass<2;pass++){
