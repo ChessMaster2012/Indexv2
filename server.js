@@ -312,108 +312,60 @@ async function callChatProvider(url,model,messages,complex,timeoutMs,extraHeader
   return text;
 }
 
-async function tryLlmFaucet(messages,complex=false){
-  // LLMFaucet currently documents an anonymous OpenAI-compatible endpoint with
-  // an "auto" selector and a placeholder free bearer token.
-  return callChatProvider(
-    'https://api.llmfaucet.dev/v1/chat/completions',
-    'auto',
-    messages,
-    complex,
-    complex?14000:10000,
-    {Authorization:'Bearer free'}
-  );
-}
-
 async function tryVireonix(messages,complex=false){
-  // Primary server-side Tutor provider. Vireonix documents keyless Auto chat.
   return callChatProvider(
     'https://vireonix.ai/v1/chat/completions',
     'auto',
     messages,
     complex,
-    complex?15000:12000
+    complex?18000:15000
   );
+}
+
+async function tryBlockRun(messages,complex=false){
+  // BlockRun currently lists these as free, no-key OpenAI-compatible models.
+  // Try a strong reasoning model first and then independent free models from the
+  // same endpoint if an upstream model is temporarily unavailable.
+  const models=[
+    'nvidia/nemotron-3.5-lightning',
+    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
+    'nvidia/gpt-oss-20b'
+  ];
+  let lastError=null;
+  for(const model of models){
+    try{
+      return await callChatProvider(
+        'https://blockrun.ai/api/v1/chat/completions',
+        model,
+        messages,
+        complex,
+        complex?18000:15000
+      );
+    }catch(e){
+      lastError=e;
+    }
+  }
+  throw lastError||new Error('BlockRun free models did not respond.');
 }
 
 async function tryKiloFree(messages,complex=false){
-  // Kilo's current Auto Free tier is anonymous and dynamically chooses an
-  // available free model, so the Tutor does not depend on one model disappearing.
-  return callChatProvider(
-    'https://api.kilo.ai/api/gateway/chat/completions',
-    'kilo-auto/free',
-    messages,
-    complex,
-    complex?15000:12000
-  );
-}
-
-async function tryBlockRunFree(messages,complex=false){
-  // Final no-key fallback for GPT-OSS 20B.
-  return callChatProvider(
-    'https://blockrun.ai/api/v1/chat/completions',
-    'nvidia/gpt-oss-20b',
-    messages,
-    complex,
-    complex?15000:12000
-  );
-}
-
-let nflStandingsCache={at:0,text:''};
-
-function aiNeedsCurrentNflStandings(question){
-  const q=String(question||'').toLowerCase();
-  return /\b(nfl|football|quarterback|qb|chiefs|bills|ravens|bengals|eagles|cowboys|49ers|falcons|dolphins|lions|vikings|raiders|steelers|jaguars|broncos|chargers|packers|patriots|jets|giants|browns|texans|colts|commanders|seahawks|rams|saints|buccaneers|panthers|titans|cardinals)\b/.test(q)
-    && /\b(current|now|today|latest|this season|2026|after week|standings|record|top|best|rank|rankings|team|teams)\b/.test(q);
-}
-
-function extractNflStandings(data){
-  const groups=Array.isArray(data?.children)?data.children:[];
-  const rows=[];
-  for(const group of groups){
-    const entries=Array.isArray(group?.standings?.entries)?group.standings.entries:[];
-    for(const entry of entries){
-      const team=entry?.team;
-      if(!team?.displayName) continue;
-      const stats=Array.isArray(entry?.stats)?entry.stats:[];
-      const value=name=>{
-        const hit=stats.find(x=>String(x?.name||'').toLowerCase()===name);
-        return hit?.displayValue ?? hit?.value ?? '';
-      };
-      rows.push({
-        team:String(team.displayName),
-        record:(()=>{
-          const w=value('wins'), l=value('losses'), t=value('ties');
-          return (w!==''?w:'0')+'-'+(l!==''?l:'0')+(t&&String(t)!=='0'?'-'+t:'');
-        })(),
-        pct:String(value('winpercent')||value('winningpercent')||'')
-      });
+  // Kilo documents anonymous access to models tagged :free.
+  const models=['minimax/minimax-m2.1:free','z-ai/glm-5:free'];
+  let lastError=null;
+  for(const model of models){
+    try{
+      return await callChatProvider(
+        'https://api.kilo.ai/api/gateway/chat/completions',
+        model,
+        messages,
+        complex,
+        complex?16000:13000
+      );
+    }catch(e){
+      lastError=e;
     }
   }
-  return rows;
-}
-
-async function getCurrentNflStandingsContext(question){
-  if(!aiNeedsCurrentNflStandings(question)) return '';
-  const now=Date.now();
-  if(nflStandingsCache.text && now-nflStandingsCache.at<5*60*1000) return nflStandingsCache.text;
-  try{
-    const data=await fetchTextJson('https://site.api.espn.com/apis/v2/sports/football/nfl/standings?region=us&lang=en&season=2026&type=2&limit=100',5000);
-    const rows=extractNflStandings(data);
-    if(!rows.length) return '';
-    const date=new Intl.DateTimeFormat('en-US',{dateStyle:'long',timeZone:'America/New_York'}).format(new Date());
-    const text=[
-      'CURRENT NFL STANDINGS CONTEXT (ESPN public standings data):',
-      'Data date: '+date+'.',
-      'Use these current records for current-2026 NFL team questions. Do not present records from a past season as current.',
-      ...rows.map(r=>r.team+' — '+r.record+(r.pct?' — win pct '+r.pct:''))
-    ].join('\\n').slice(0,7000);
-    nflStandingsCache={at:now,text};
-    return text;
-  }catch(e){
-    console.warn('[AI] current NFL standings unavailable:',e?.message||e);
-    return nflStandingsCache.text||'';
-  }
+  throw lastError||new Error('Kilo free models did not respond.');
 }
 
 function aiQuestionIsComplex(question){
@@ -500,14 +452,12 @@ function aWordsContainFuzzy(answer,word){
 }
 
 async function raceAiProviders(messages,complex){
-  // One provider at a time. The primary is the old server-side Vireonix path;
-  // Kilo Auto Free and BlockRun are independent fallbacks. A provider failure
-  // immediately moves to the next service instead of retrying the same service.
+  // Use several independently hosted, documented free endpoints. Keep the
+  // normal path to one successful request and fail over immediately on errors.
   const providers=[
-    ['llmfaucet',()=>tryLlmFaucet(messages,complex)],
     ['vireonix',()=>tryVireonix(messages,complex)],
-    ['kilo-auto-free',()=>tryKiloFree(messages,complex)],
-    ['blockrun-free',()=>tryBlockRunFree(messages,complex)]
+    ['blockrun',()=>tryBlockRun(messages,complex)],
+    ['kilo-free',()=>tryKiloFree(messages,complex)]
   ];
 
   let lastError=null;
