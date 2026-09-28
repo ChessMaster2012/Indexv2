@@ -994,7 +994,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
     </section>
 
     <section class="view" id="view-tutor">
-      <div class="row" style="margin-bottom:16px;"><div><h2 style="font-size:24px;font-weight:600;">AI Tutor</h2><p class="lede" style="margin-top:4px;">Ask about anything — a formula, a period of history, a line of code, a due-date panic.</p><p id="ai-hardware-note" class="gate-note" style="margin:6px 0 0;">Free cloud AI • server AI + browser backup ready</p></div></div>
+      <div class="row" style="margin-bottom:16px;"><div><h2 style="font-size:24px;font-weight:600;">AI Tutor</h2><p class="lede" style="margin-top:4px;">Ask about anything — a formula, a period of history, a line of code, a due-date panic.</p><p id="ai-hardware-note" class="gate-note" style="margin:6px 0 0;">Free cloud AI • server AI ready</p></div></div>
       <div class="tutor-shell">
         <div class="tutor-bar">
           <label for="tutor-subject" style="font-size:12.5px;color:var(--ink-soft);font-weight:700;">Focus:</label>
@@ -1327,13 +1327,13 @@ function ensureLocalAiWorker(){ return null; }
 function checkAiStatus(){
   state.aiEnabled=true;
   const note=document.getElementById('ai-hardware-note');
-  if(note) note.textContent='Free cloud AI • server AI + browser backup ready';
+  if(note) note.textContent='Free cloud AI • server AI ready';
   renderSidebarBadge();
 }
 function requestLocalAiCapabilities(){
   localAiCapabilitiesRequested=true;
   const note=document.getElementById('ai-hardware-note');
-  if(note) note.textContent='Free cloud AI • server AI + browser backup ready';
+  if(note) note.textContent='Free cloud AI • server AI ready';
 }
 async function runLocalAi(messages, options={}){
   // Server-only AI path. The browser sends only to the same-origin Render
