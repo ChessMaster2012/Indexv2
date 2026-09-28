@@ -327,7 +327,7 @@ async function tryVireonix(messages,complex=false){
   // the earlier successful 7x7 and clownfish tests.
   // Give Vireonix Auto enough time for slower routed responses while keeping
   // the total (two attempts plus a short backoff) under the browser's 55s limit.
-  const timeoutMs=complex?26000:24000;
+  const timeoutMs=complex?35000:35000;
   let lastError=null;
 
   for(let attempt=0;attempt<2;attempt++){
