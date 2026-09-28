@@ -287,6 +287,16 @@ async function fetchJsonWithTimeout(url,options={},timeoutMs=15000){
   }finally{ clearTimeout(timer); }
 }
 
+function providerFailureLabel(error){
+  const status=Number(error?.status||0);
+  if(status) return 'HTTP '+status;
+  if(error?.name==='AbortError') return 'request timed out';
+  const message=String(error?.message||error||'');
+  if(/fetch failed|ECONNRESET|ETIMEDOUT|socket hang up|ENOTFOUND|EAI_AGAIN/i.test(message)) return 'network request failed';
+  if(/returned no text/i.test(message)) return 'provider returned no usable text';
+  return 'request failed';
+}
+
 function providerRetryable(error){
   const status=Number(error?.status||0);
   const msg=String(error?.message||error||'');
@@ -658,7 +668,9 @@ app.post('/api/ai/chat',async(req,res)=>{
       return res.json({text,provider:'server-ai'});
     }catch(e){
       console.warn('[AI] cloud providers failed:',e?.message||e);
-      return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
+      const fallback=deterministicTutor(question);
+      const failure='Vireonix Auto request failed: '+providerFailureLabel(e)+'.';
+      return res.json({text:fallback==='I could not reach the AI service for this request right now. Please try the same question again.'?failure+' Please try again in a moment.':fallback+'\n\n'+failure,provider:'built-in-fallback',fallback:true});
     }
   }catch(e){
     // Never turn an AI failure into a generic 500 that the browser interprets
