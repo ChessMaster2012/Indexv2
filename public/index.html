@@ -1189,6 +1189,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
       <div class="field hidden" id="auth-username-field"><label>Username</label><input type="text" id="auth-username" name="signup-username" maxlength="24" autocomplete="username" placeholder="3–24 letters, numbers, or . _ -"></div>
       <div class="field"><label>Password</label><input type="password" id="auth-password" name="password" autocomplete="current-password" placeholder="At least 8 characters"></div>
       <div id="auth-status"></div>
+      <div id="auth-storage-status" class="lede" style="font-size:11px;margin:8px 0;"></div>
       <div class="modal-actions" style="justify-content:space-between;">
         <button class="btn btn-ghost btn-sm" data-action="toggle-auth-mode" id="auth-mode-toggle">Have an account? Log in</button>
         <button class="btn btn-primary" data-action="auth-submit" id="auth-submit-btn">Sign up</button>
@@ -3472,6 +3473,17 @@ async function refreshAuthStatus(){
   try{
     const r=await fetch('/api/auth/status',{cache:'no-store'}); const d=await r.json();
     state.googleEnabled=!!d.googleEnabled;
+    state.persistentStorageEnabled=!!d.persistentStorageEnabled;
+    state.persistentStorageReady=!!d.persistentStorageReady;
+    const storageStatus=document.getElementById('auth-storage-status');
+    if(storageStatus){
+      storageStatus.textContent=d.persistentStorageReady
+        ? 'Persistent account storage is connected.'
+        : d.persistentStorageEnabled
+          ? 'Persistent account storage is configured but not reachable. Account changes may fail to save.'
+          : 'This server uses local file storage. Account data may be lost after a restart or redeploy.';
+      storageStatus.className=d.persistentStorageReady?'success-note':'error-note';
+    }
   }catch(e){ state.googleEnabled=false; }
   const gb=document.getElementById('google-signin-btn'); const gd=document.getElementById('google-signin-divider');
   if(gb){
