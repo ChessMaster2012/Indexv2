@@ -1155,7 +1155,13 @@ function sanitizeAccountState(input){
       name: String(profile.name||'').slice(0,60),
       district: String(profile.district||'').slice(0,200),
       county: String(profile.county||'').slice(0,80),
-      countyName: String(profile.countyName||'').slice(0,200)
+      countyName: String(profile.countyName||'').slice(0,200),
+      bio: String(profile.bio||'').replace(/[<>\u0000-\u001F]/g,'').slice(0,140),
+      favoriteSubject: String(profile.favoriteSubject||'').slice(0,80),
+      studyGoal: String(profile.studyGoal||'').slice(0,100),
+      profileAccent: String(profile.profileAccent||'purple').slice(0,20),
+      showProgress: profile.showProgress !== false,
+      reducedMotion: profile.reducedMotion === true
     },
     savedAt: Date.now()
   };
