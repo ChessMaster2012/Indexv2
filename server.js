@@ -314,20 +314,8 @@ async function callChatProvider(url,model,messages,complex,timeoutMs){
   return text;
 }
 
-async function tryKiloFree(messages,complex=false){
-  // Kilo documents anonymous access to free models and an OpenAI-compatible
-  // gateway. This model id is explicitly listed as a free model.
-  return callChatProvider(
-    'https://api.kilo.ai/api/gateway/chat/completions',
-    'minimax/minimax-m2.1:free',
-    messages,
-    complex,
-    complex?15000:12000
-  );
-}
-
 async function tryVireonix(messages,complex=false){
-  // Vireonix documents this OpenAI-compatible endpoint and keyless Auto model.
+  // Primary server-side Tutor provider. Vireonix documents keyless Auto chat.
   return callChatProvider(
     'https://vireonix.ai/v1/chat/completions',
     'auto',
@@ -337,8 +325,20 @@ async function tryVireonix(messages,complex=false){
   );
 }
 
+async function tryKiloFree(messages,complex=false){
+  // Kilo's current Auto Free tier is anonymous and dynamically chooses an
+  // available free model, so the Tutor does not depend on one model disappearing.
+  return callChatProvider(
+    'https://api.kilo.ai/api/gateway/chat/completions',
+    'kilo-auto/free',
+    messages,
+    complex,
+    complex?15000:12000
+  );
+}
+
 async function tryBlockRunFree(messages,complex=false){
-  // BlockRun documents this no-key free GPT-OSS endpoint.
+  // Final no-key fallback for GPT-OSS 20B.
   return callChatProvider(
     'https://blockrun.ai/api/v1/chat/completions',
     'nvidia/gpt-oss-20b',
@@ -432,12 +432,12 @@ function aWordsContainFuzzy(answer,word){
 }
 
 async function raceAiProviders(messages,complex){
-  // Sequential provider failover. A successful request normally uses one
-  // provider; a slow or failed provider immediately gives the next provider
-  // a chance. This preserves Render bandwidth and avoids long retry chains.
+  // One provider at a time. The primary is the old server-side Vireonix path;
+  // Kilo Auto Free and BlockRun are independent fallbacks. A provider failure
+  // immediately moves to the next service instead of retrying the same service.
   const providers=[
-    ['kilo-free',()=>tryKiloFree(messages,complex)],
     ['vireonix',()=>tryVireonix(messages,complex)],
+    ['kilo-auto-free',()=>tryKiloFree(messages,complex)],
     ['blockrun-free',()=>tryBlockRunFree(messages,complex)]
   ];
 
