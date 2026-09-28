@@ -294,13 +294,13 @@ function providerRetryable(error){
     /AbortError|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
 }
 
-async function callChatProvider(url,model,messages,complex,timeoutMs){
+async function callChatProvider(url,model,messages,complex,timeoutMs,extraHeaders={}){
   // Keep the OpenAI-compatible request deliberately minimal. Some free
   // gateways reject optional generation parameters even though they accept
   // the standard model/messages contract.
   const data=await fetchJsonWithTimeout(url,{
     method:'POST',
-    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    headers:{'Content-Type':'application/json','Accept':'application/json',...extraHeaders},
     body:JSON.stringify({
       model,
       messages,
@@ -310,6 +310,19 @@ async function callChatProvider(url,model,messages,complex,timeoutMs){
   const text=extractText(data);
   if(!text) throw new Error('Provider returned an empty response.');
   return text;
+}
+
+async function tryLlmFaucet(messages,complex=false){
+  // LLMFaucet currently documents an anonymous OpenAI-compatible endpoint with
+  // an "auto" selector and a placeholder free bearer token.
+  return callChatProvider(
+    'https://api.llmfaucet.dev/v1/chat/completions',
+    'auto',
+    messages,
+    complex,
+    complex?14000:10000,
+    {Authorization:'Bearer free'}
+  );
 }
 
 async function tryVireonix(messages,complex=false){
@@ -491,8 +504,9 @@ async function raceAiProviders(messages,complex){
   // Kilo Auto Free and BlockRun are independent fallbacks. A provider failure
   // immediately moves to the next service instead of retrying the same service.
   const providers=[
-    ['kilo-auto-free',()=>tryKiloFree(messages,complex)],
+    ['llmfaucet',()=>tryLlmFaucet(messages,complex)],
     ['vireonix',()=>tryVireonix(messages,complex)],
+    ['kilo-auto-free',()=>tryKiloFree(messages,complex)],
     ['blockrun-free',()=>tryBlockRunFree(messages,complex)]
   ];
 
@@ -546,7 +560,8 @@ function answerNeedsRepair(question,answer,sourceMessages){
     }
   }
 
-  if(/\b(generate|write|create|draft|compose|produce|calculate|solve|factor|simplify)\b/i.test(q) &&
+  if(task==='direct-writing' &&
+     /\b(generate|write|create|draft|compose|produce)\b/i.test(q) &&
      /\b(here is a way|a good way to|you should|you can start by|the best approach|approach this by|steps to|how to)\b/i.test(lowerA)){
     return true;
   }
