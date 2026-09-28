@@ -295,18 +295,16 @@ function providerRetryable(error){
 }
 
 async function callChatProvider(url,model,messages,complex,timeoutMs){
-  // Do not spend the whole response window retrying one provider. The next
-  // provider is the retry. This keeps the Tutor responsive and makes failover
-  // predictable.
+  // Keep the OpenAI-compatible request deliberately minimal. Some free
+  // gateways reject optional generation parameters even though they accept
+  // the standard model/messages contract.
   const data=await fetchJsonWithTimeout(url,{
     method:'POST',
     headers:{'Content-Type':'application/json','Accept':'application/json'},
     body:JSON.stringify({
       model,
       messages,
-      stream:false,
-      max_tokens:complex?1400:900,
-      temperature:0.2
+      stream:false
     })
   },timeoutMs);
   const text=extractText(data);
@@ -346,6 +344,63 @@ async function tryBlockRunFree(messages,complex=false){
     complex,
     complex?15000:12000
   );
+}
+
+let nflStandingsCache={at:0,text:''};
+
+function aiNeedsCurrentNflStandings(question){
+  const q=String(question||'').toLowerCase();
+  return /\b(nfl|football|quarterback|qb|chiefs|bills|ravens|bengals|eagles|cowboys|49ers|falcons|dolphins|lions|vikings|raiders|steelers|jaguars|broncos|chargers|packers|patriots|jets|giants|browns|texans|colts|commanders|seahawks|rams|saints|buccaneers|panthers|titans|cardinals)\b/.test(q)
+    && /\b(current|now|today|latest|this season|2026|after week|standings|record|top|best|rank|rankings|team|teams)\b/.test(q);
+}
+
+function extractNflStandings(data){
+  const groups=Array.isArray(data?.children)?data.children:[];
+  const rows=[];
+  for(const group of groups){
+    const entries=Array.isArray(group?.standings?.entries)?group.standings.entries:[];
+    for(const entry of entries){
+      const team=entry?.team;
+      if(!team?.displayName) continue;
+      const stats=Array.isArray(entry?.stats)?entry.stats:[];
+      const value=name=>{
+        const hit=stats.find(x=>String(x?.name||'').toLowerCase()===name);
+        return hit?.displayValue ?? hit?.value ?? '';
+      };
+      rows.push({
+        team:String(team.displayName),
+        record:(()=>{
+          const w=value('wins'), l=value('losses'), t=value('ties');
+          return (w!==''?w:'0')+'-'+(l!==''?l:'0')+(t&&String(t)!=='0'?'-'+t:'');
+        })(),
+        pct:String(value('winpercent')||value('winningpercent')||'')
+      });
+    }
+  }
+  return rows;
+}
+
+async function getCurrentNflStandingsContext(question){
+  if(!aiNeedsCurrentNflStandings(question)) return '';
+  const now=Date.now();
+  if(nflStandingsCache.text && now-nflStandingsCache.at<5*60*1000) return nflStandingsCache.text;
+  try{
+    const data=await fetchTextJson('https://site.api.espn.com/apis/v2/sports/football/nfl/standings?region=us&lang=en&season=2026&type=2&limit=100',5000);
+    const rows=extractNflStandings(data);
+    if(!rows.length) return '';
+    const date=new Intl.DateTimeFormat('en-US',{dateStyle:'long',timeZone:'America/New_York'}).format(new Date());
+    const text=[
+      'CURRENT NFL STANDINGS CONTEXT (ESPN public standings data):',
+      'Data date: '+date+'.',
+      'Use these current records for current-2026 NFL team questions. Do not present records from a past season as current.',
+      ...rows.map(r=>r.team+' — '+r.record+(r.pct?' — win pct '+r.pct:''))
+    ].join('\\n').slice(0,7000);
+    nflStandingsCache={at:now,text};
+    return text;
+  }catch(e){
+    console.warn('[AI] current NFL standings unavailable:',e?.message||e);
+    return nflStandingsCache.text||'';
+  }
 }
 
 function aiQuestionIsComplex(question){
@@ -436,8 +491,8 @@ async function raceAiProviders(messages,complex){
   // Kilo Auto Free and BlockRun are independent fallbacks. A provider failure
   // immediately moves to the next service instead of retrying the same service.
   const providers=[
-    ['vireonix',()=>tryVireonix(messages,complex)],
     ['kilo-auto-free',()=>tryKiloFree(messages,complex)],
+    ['vireonix',()=>tryVireonix(messages,complex)],
     ['blockrun-free',()=>tryBlockRunFree(messages,complex)]
   ];
 
@@ -632,6 +687,11 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
     const complex=aiQuestionIsComplex(question);
+
+    // Fresh sports data is lightweight and only added when the request clearly
+    // asks about current NFL teams/records/rankings.
+    const nflContext=await getCurrentNflStandingsContext(question);
+    if(nflContext && messages[0]?.role==='system') messages[0].content+='\\n\\n'+nflContext;
 
     // Keep the Tutor topic-agnostic. Current and follow-up questions are handled
     // by the same conversational AI path instead of special-casing one subject.
