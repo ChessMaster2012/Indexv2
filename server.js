@@ -295,7 +295,6 @@ function providerRetryable(error){
 }
 
 async function callVireonix(messages,complex=false,timeoutMs=12000){
-  const maxTokens=complex?2400:1200;
   const data=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
     method:'POST',
     headers:{
