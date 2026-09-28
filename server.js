@@ -353,12 +353,18 @@ function aiQuestionIsComplex(question){
     || String(question||'').length>220;
 }
 
-let nflFreshCache={at:0,text:''};
+let nflFreshCache={at:0,text:'',refreshing:false};
+let nflTeamsCache={at:0,teams:[]};
 
 function aiNeedsFreshNflContext(question){
   const q=String(question||'').toLowerCase();
-  return /\b(nfl|football|quarterback|qb|dolphins|chiefs|bills|ravens|bengals|eagles|chargers|cowboys|49ers|falcons|steelers|jets|patriots|broncos|packers|vikings|lions|texans|jaguars|bears|commanders|giants|saints|panthers|buccaneers|titans|colts|browns|raiders|cardinals|rams)\b/.test(q)
-    && /\b(current|now|today|latest|this season|2026|2025|roster|team|play|plays|stats|stat|trade|traded|signed|released|starter|starting|top|best|rank|rankings)\b/.test(q);
+  const hasNflTerm=/\b(nfl|football|quarterback|qb|dolphins|chiefs|bills|ravens|bengals|eagles|chargers|cowboys|49ers|falcons|steelers|jets|patriots|broncos|packers|vikings|lions|texans|jaguars|bears|commanders|giants|saints|panthers|buccaneers|titans|colts|browns|raiders|cardinals|rams)\b/.test(q);
+  const hasFreshTerm=/\b(current|now|today|latest|this season|2026|2025|roster|team|play|plays|stats|stat|trade|traded|signed|released|starter|starting|top|best|rank|rankings)\b/.test(q);
+  return hasNflTerm&&hasFreshTerm;
+}
+
+function normalizeNflName(value){
+  return String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
 }
 
 async function fetchTextJson(url,timeoutMs=5000){
@@ -372,64 +378,141 @@ async function fetchTextJson(url,timeoutMs=5000){
   }finally{ clearTimeout(timer); }
 }
 
+async function getNflTeams(){
+  const now=Date.now();
+  if(nflTeamsCache.teams.length && now-nflTeamsCache.at<60*60*1000) return nflTeamsCache.teams;
+  const data=await fetchTextJson('https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams',5000);
+  const teams=Array.isArray(data?.sports?.[0]?.leagues?.[0]?.teams)
+    ? data.sports[0].leagues[0].teams.map(x=>x.team).filter(Boolean)
+    : [];
+  if(!teams.length) throw new Error('ESPN returned no NFL teams.');
+  nflTeamsCache={at:now,teams};
+  return teams;
+}
+
+function nflTeamMatches(team,question){
+  const q=normalizeNflName(question);
+  const candidates=[
+    team?.id,team?.abbreviation,team?.displayName,team?.shortDisplayName,
+    team?.name,team?.nickname,team?.location
+  ].filter(Boolean).map(normalizeNflName);
+  return candidates.some(x=>x && q.includes(x));
+}
+
+function collectNflQuarterbacks(data,team){
+  const out=[];
+  const add=(player)=>{
+    if(!player?.fullName) return;
+    const position=String(
+      player?.position?.abbreviation ||
+      player?.position?.name ||
+      player?.position?.displayName ||
+      player?.position ||
+      ''
+    ).toLowerCase();
+    if(position!=='qb' && position!=='quarterback' && position!=='q') return;
+    out.push({
+      player:String(player.fullName),
+      team:String(team?.displayName||team?.location||''),
+      status:String(player?.status?.name||player?.status?.type?.name||'Active')
+    });
+  };
+
+  const athletes=Array.isArray(data?.athletes)?data.athletes:[];
+  for(const entry of athletes){
+    if(Array.isArray(entry?.items)){
+      for(const player of entry.items) add(player);
+    }else{
+      add(entry);
+    }
+  }
+  return out;
+}
+
+async function fetchNflRosterQbs(team){
+  const data=await fetchTextJson(
+    'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/'+encodeURIComponent(team.id)+'/roster',
+    3500
+  );
+  return collectNflQuarterbacks(data,team);
+}
+
+async function refreshNflFreshCache(){
+  if(nflFreshCache.refreshing) return nflFreshCache.text;
+  nflFreshCache.refreshing=true;
+  try{
+    const teams=await getNflTeams();
+    const rosterResults=await Promise.allSettled(teams.map(team=>fetchNflRosterQbs(team)));
+    const qbs=[];
+    for(const result of rosterResults){
+      if(result.status==='fulfilled') qbs.push(...result.value);
+    }
+    if(!qbs.length) throw new Error('No current NFL quarterbacks were returned.');
+    const currentYear=new Date().getFullYear();
+    const currentDate=new Intl.DateTimeFormat('en-US',{
+      year:'numeric',month:'long',day:'numeric',timeZone:'America/New_York'
+    }).format(new Date());
+    nflFreshCache={
+      at:Date.now(),
+      refreshing:false,
+      text:[
+        'LIVE NFL ROSTER CONTEXT (retrieved from ESPN public NFL roster data):',
+        'As of '+currentDate+', the current NFL season is '+currentYear+'.',
+        'Use this roster data as the source of truth for current player/team affiliations.',
+        'TIME RULE: If the student asks about the 2025 season, treat 2025 as historical. If the student asks current/now/latest, use the current roster data below.',
+        ...qbs.map(x=>x.player+' — '+x.team+' — '+x.status)
+      ].join('\n').slice(0,9000)
+    };
+    return nflFreshCache.text;
+  }catch(e){
+    nflFreshCache.refreshing=false;
+    console.warn('[AI] NFL background refresh failed:',e?.message||e);
+    return nflFreshCache.text||'';
+  }finally{
+    nflFreshCache.refreshing=false;
+  }
+}
+
 async function getFreshNflContext(question){
   if(!aiNeedsFreshNflContext(question)) return '';
   const now=Date.now();
-  if(nflFreshCache.text && now-nflFreshCache.at<10*60*1000) return nflFreshCache.text;
 
+  // Never make the AI request wait on all 32 NFL roster endpoints.
+  // A cached league snapshot is returned immediately while a stale snapshot
+  // refreshes in the background.
+  if(nflFreshCache.text){
+    if(now-nflFreshCache.at>15*60*1000) void refreshNflFreshCache();
+    return nflFreshCache.text;
+  }
+
+  // For a specific team question, fetch only that team's roster synchronously.
+  // This keeps follow-ups such as "Tua plays for the Falcons" fast.
   try{
-    const teamsData=await fetchTextJson('https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams',6000);
-    const teams=Array.isArray(teamsData?.sports?.[0]?.leagues?.[0]?.teams)
-      ? teamsData.sports[0].leagues[0].teams.map(x=>x.team).filter(Boolean)
-      : [];
-
-    const rosterResults=await Promise.allSettled(
-      teams.map(team=>fetchTextJson(
-        'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/'+encodeURIComponent(team.id)+'/roster',
-        4500
-      ))
-    );
-
-    const qbs=[];
-    for(let i=0;i<rosterResults.length;i++){
-      const result=rosterResults[i];
-      if(result.status!=='fulfilled') continue;
-      const groups=Array.isArray(result.value?.athletes)?result.value.athletes:[];
-      const team=teams[i];
-      for(const group of groups){
-        const position=String(group?.position||'').toLowerCase();
-        if(position!=='quarterback' && position!=='qb') continue;
-        for(const player of Array.isArray(group.items)?group.items:[]){
-          if(!player?.fullName) continue;
-          qbs.push({
-            player:String(player.fullName),
-            team:String(team?.displayName||team?.location||''),
-            status:String(player?.status?.name||'Active')
-          });
-        }
+    const teams=await getNflTeams();
+    const team=teams.find(t=>nflTeamMatches(t,question));
+    if(team){
+      const qbs=await fetchNflRosterQbs(team);
+      if(qbs.length){
+        return [
+          'LIVE NFL TEAM ROSTER CONTEXT (retrieved from ESPN public NFL roster data):',
+          'Use this current roster as the source of truth for statements about the team mentioned in the student request.',
+          ...qbs.map(x=>x.player+' — '+x.team+' — '+x.status)
+        ].join('\n').slice(0,5000);
       }
     }
-
-    if(!qbs.length) return '';
-
-    const currentYear=new Date().getFullYear();
-    const currentDate=new Intl.DateTimeFormat('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'America/New_York'}).format(new Date());
-
-    const lines=[
-      'LIVE NFL ROSTER CONTEXT (retrieved from ESPN public NFL roster data):',
-      'As of '+currentDate+', the current NFL season is '+currentYear+'.',
-      'Use these roster/team affiliations as the source of truth for statements about who currently plays for which NFL team.',
-      'IMPORTANT TIME RULE: If the student asks for the 2025 season, answer about the 2025 season as a historical season and do not describe those 2025 team affiliations as current. If the student says current/now/latest, use the current roster data below.',
-      ...qbs.map(x=>x.player+' — '+x.team+' — '+x.status)
-    ];
-    const text=lines.join('\n').slice(0,9000);
-    nflFreshCache={at:now,text};
-    return text;
   }catch(e){
-    console.warn('[AI] fresh NFL context unavailable:',e?.message||e);
-    return '';
+    console.warn('[AI] targeted NFL lookup failed:',e?.message||e);
   }
+
+  // League-wide data is warmed outside the request path.
+  void refreshNflFreshCache();
+  return '';
 }
+
+// Warm the league snapshot after startup and refresh it periodically. This work
+// happens outside individual Tutor requests so current sports questions stay fast.
+setTimeout(()=>void refreshNflFreshCache(),1500);
+setInterval(()=>void refreshNflFreshCache(),15*60*1000);
 
 function responseLooksLikeGenericAdvice(text){
   const a=String(text||'').trim().toLowerCase();
