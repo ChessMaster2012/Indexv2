@@ -382,8 +382,11 @@ function aiQuestionIsComplex(question){
 function responseLooksLikeGenericAdvice(text){
   const a=String(text||'').trim().toLowerCase();
   if(!a) return true;
+  // Reject only unmistakable meta-responses. Do not reject legitimate subject
+  // answers merely because they contain words such as "topic", "paragraph",
+  // "study", or "explain".
   return /^(here is a simple way to approach this|a strong .*paragraph should|a good way to approach this)/i.test(a)
-    || /\b(generic study advice|identify the main idea|define the important term|finish with a specific example|topic sentence|supporting details|paragraph structure|writing tips|writing advice|study tips|study advice|give me the exact school question|please give me the topic|give me the topic|provide the topic|provide more detail|need more detail|need additional detail|could you clarify|can you clarify|please clarify|what would you like to know|what do you want to know|i need more information|i need more context|i cannot answer without|i can't answer without|i need the full question|please restate|restated question)\b/i.test(a);
+    || /\b(give me the exact school question|please give me the topic|give me the topic|provide the topic|provide more detail|need more detail|need additional detail|could you clarify|can you clarify|please clarify|what would you like to know|what do you want to know|i need more information|i need more context|i cannot answer without|i can't answer without|i need the full question|please restate|restated question)\b/i.test(a);
 }
 
 function topicKeywords(question){
