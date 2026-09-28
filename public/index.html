@@ -1354,13 +1354,14 @@ async function waitForPuterAi(maxWaitMs=9000){
 async function runPuterAi(messages, options={}){
   const ai=await waitForPuterAi(options.loadTimeoutMs||9000);
   const timeoutMs=options.timeoutMs||18000;
-  // Start with Puter's current default model. This is the most compatible path
-  // because it does not depend on a model name changing or being unavailable.
-  const modelOrder=[null,'gpt-5.6-luna','google/gemini-3.8-flash'];
+  // Start with Puter's current default model, then use documented model IDs
+  // as fallbacks. Normalize responses so vendor-specific content formats do not
+  // break the Tutor parser.
+  const modelOrder=[null,'gpt-5.6-luna','gemini-3.1-flash-lite'];
   let lastError=null;
   for(const model of modelOrder){
     try{
-      const request=model ? ai.chat(messages,{model}) : ai.chat(messages);
+      const request=model ? ai.chat(messages,{model,normalize:true}) : ai.chat(messages,{normalize:true});
       const response=await Promise.race([
         request,
         new Promise((_,reject)=>setTimeout(()=>reject(new Error('Backup AI timed out.')),timeoutMs))
