@@ -303,12 +303,12 @@ const INDEX_AI_MODEL = 'auto';
 const VIREONIX_CHAT_URL = 'https://vireonix.ai/v1/chat/completions';
 
 async function callVireonix(messages,complex=false,timeoutMs=12000){
+  // Use Vireonix's currently documented minimal OpenAI-compatible payload.
+  // Keep model fixed to Auto; do not add provider-specific parameters that can
+  // cause the gateway/router to reject an otherwise valid request.
   const payload={
     model:INDEX_AI_MODEL,
-    messages,
-    stream:false,
-    max_tokens:complex?2400:1200,
-    temperature:0.2
+    messages
   };
   const data=await fetchJsonWithTimeout(VIREONIX_CHAT_URL,{
     method:'POST',
@@ -320,6 +320,22 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
   },timeoutMs);
   const text=extractText(data);
   if(!text) throw new Error('Vireonix returned no text.');
+  return text;
+}
+
+async function callVireonixLocalApi(messages,timeoutMs=12000){
+  // Same Vireonix service and same public Auto model, using its documented
+  // local-compatible chat route as an emergency same-provider retry.
+  const data=await fetchJsonWithTimeout('https://vireonix.ai/api/chat',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Accept':'application/json'
+    },
+    body:JSON.stringify({model:INDEX_AI_MODEL,messages})
+  },timeoutMs);
+  const text=extractText(data);
+  if(!text) throw new Error('Vireonix local chat returned no text.');
   return text;
 }
 
@@ -339,8 +355,9 @@ function compactVireonixMessages(messages){
 
 async function tryVireonix(messages,complex=false){
   // Vireonix Auto is intentionally the only cloud provider.
-  // First try the full conversational request. If the gateway rejects or
-  // times out, retry the SAME Vireonix Auto model once with a compact payload.
+  // Retry only inside the same Vireonix service, never by switching models or
+  // providers. The sequence is: full request -> compact request -> Vireonix's
+  // documented local-compatible chat route.
   const timeoutMs=complex?18000:14000;
   let lastError=null;
 
@@ -350,11 +367,10 @@ async function tryVireonix(messages,complex=false){
     lastError=e;
     const retryable=providerRetryable(e);
     console.warn('[AI] Vireonix primary attempt failed:',e?.message||e);
-
     if(!retryable) throw e;
 
     const retryAfter=Number(e?.retryAfter||0);
-    const waitMs=Math.max(300,Math.min(1500,retryAfter>0?retryAfter*1000:500));
+    const waitMs=Math.max(500,Math.min(5000,retryAfter>0?retryAfter*1000:1000));
     await sleep(waitMs);
 
     try{
@@ -362,6 +378,13 @@ async function tryVireonix(messages,complex=false){
     }catch(e2){
       lastError=e2;
       console.warn('[AI] Vireonix compact retry failed:',e2?.message||e2);
+    }
+
+    try{
+      return await callVireonixLocalApi(compactVireonixMessages(messages),timeoutMs);
+    }catch(e3){
+      lastError=e3;
+      console.warn('[AI] Vireonix local-route retry failed:',e3?.message||e3);
     }
   }
 
