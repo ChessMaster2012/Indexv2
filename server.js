@@ -503,7 +503,7 @@ async function repairAiResponse(question,complex,sourceMessages){
   return raceAiProviders(messages,complex);
 }
 
-function fastDeterministicTutor(question){
+function fastDeterministicTutor(question,messages=[]){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
 
@@ -522,6 +522,22 @@ function fastDeterministicTutor(question){
       const exact=inside===1 ? String(outside) : (outside===1 ? '√'+inside : outside+'√'+inside);
       const decimal=Math.round(Math.sqrt(n)*1000)/1000;
       return '√'+root[1]+' = '+exact+' ≈ '+decimal+'.';
+    }
+  }
+
+  // Explain a just-answered arithmetic expression locally when the student
+  // asks a short contextual follow-up such as "why?" or "how?".
+  if(/^(?:why|how|how so|explain|why\s+is\s+that)\??$/i.test(q)){
+    const turns=normalizeAiMessages(messages);
+    const priorUsers=turns.filter(m=>m.role==='user');
+    const priorAssistant=[...turns].reverse().find(m=>m.role==='assistant')?.content||'';
+    const previous=priorUsers.length>1?priorUsers[priorUsers.length-2].content:'';
+    const match=previous.replace(/\s+/g,'').match(/^(\d+(?:\.\d+)?)[xX×](\d+(?:\.\d+)?)\??$/);
+    if(match && /\b=\s*\d/.test(priorAssistant)){
+      const a=Number(match[1]), b=Number(match[2]);
+      if(Number.isFinite(a)&&Number.isFinite(b)&&a>=0&&b>=0&&a<=100&&b<=100&&Number.isInteger(b)){
+        return 'Multiplication is repeated addition. '+a+' × '+b+' means adding '+a+' '+b+' times, which equals '+(a*b)+'.';
+      }
     }
   }
 
@@ -619,7 +635,7 @@ app.post('/api/ai/chat',async(req,res)=>{
     // Answer simple deterministic math locally before touching any external
     // provider. This makes basic questions reliable even if a cloud provider
     // is unavailable, rate-limited, or temporarily broken.
-    const fast=fastDeterministicTutor(question);
+    const fast=fastDeterministicTutor(question,messages);
     if(fast) return res.json({text:fast,provider:'built-in-fast-fallback',fallback:true});
 
     // Race the free providers, but reject obvious generic/meta answers. Relevance
