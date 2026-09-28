@@ -294,78 +294,56 @@ function providerRetryable(error){
     /AbortError|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
 }
 
-async function callChatProvider(url,model,messages,complex,timeoutMs,extraHeaders={}){
-  // Keep the OpenAI-compatible request deliberately minimal. Some free
-  // gateways reject optional generation parameters even though they accept
-  // the standard model/messages contract.
-  const data=await fetchJsonWithTimeout(url,{
+async function callVireonix(messages,complex=false,timeoutMs=12000){
+  const maxTokens=complex?2400:1200;
+  const data=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
     method:'POST',
-    headers:{'Content-Type':'application/json','Accept':'application/json',...extraHeaders},
+    headers:{
+      'Content-Type':'application/json',
+      'Accept':'application/json'
+    },
     body:JSON.stringify({
-      model,
+      model:'auto',
       messages,
-      stream:false
+      stream:false,
+      max_tokens:maxTokens,
+      temperature:0.2
     })
   },timeoutMs);
   const text=extractText(data);
-  if(!text) throw new Error('Provider returned an empty response.');
+  if(!text) throw new Error('Vireonix returned no text.');
   return text;
 }
 
 async function tryVireonix(messages,complex=false){
-  return callChatProvider(
-    'https://vireonix.ai/v1/chat/completions',
-    'auto',
-    messages,
-    complex,
-    complex?18000:15000
-  );
-}
-
-async function tryBlockRun(messages,complex=false){
-  // BlockRun currently lists these as free, no-key OpenAI-compatible models.
-  // Try a strong reasoning model first and then independent free models from the
-  // same endpoint if an upstream model is temporarily unavailable.
-  const models=[
-    'nvidia/nemotron-3.5-lightning',
-    'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning',
-    'nvidia/gpt-oss-20b'
-  ];
+  // Keep Vireonix Auto as the ONLY cloud AI provider. Auto routes each request
+  // to an appropriate model while preserving the same provider that handled
+  // the earlier successful 7x7 and clownfish tests.
+  const timeoutMs=complex?18000:12000;
   let lastError=null;
-  for(const model of models){
+
+  for(let attempt=0;attempt<2;attempt++){
     try{
-      return await callChatProvider(
-        'https://blockrun.ai/api/v1/chat/completions',
-        model,
-        messages,
-        complex,
-        complex?18000:15000
-      );
+      return await callVireonix(messages,complex,timeoutMs);
     }catch(e){
       lastError=e;
+      const retryable=providerRetryable(e);
+      if(!retryable || attempt===1) throw e;
+
+      const retryAfter=Number(e?.retryAfter||0);
+      const waitMs=Math.max(300,Math.min(1200,retryAfter>0?retryAfter*1000:500));
+      console.warn('[AI] Vireonix transient failure; retrying in '+waitMs+'ms:',e?.message||e);
+      await sleep(waitMs);
     }
   }
-  throw lastError||new Error('BlockRun free models did not respond.');
+
+  throw lastError||new Error('Vireonix request failed.');
 }
 
-async function tryKiloFree(messages,complex=false){
-  // Kilo documents anonymous access to models tagged :free.
-  const models=['minimax/minimax-m2.1:free','z-ai/glm-5:free'];
-  let lastError=null;
-  for(const model of models){
-    try{
-      return await callChatProvider(
-        'https://api.kilo.ai/api/gateway/chat/completions',
-        model,
-        messages,
-        complex,
-        complex?16000:13000
-      );
-    }catch(e){
-      lastError=e;
-    }
-  }
-  throw lastError||new Error('Kilo free models did not respond.');
+async function raceAiProviders(messages,complex){
+  // One provider only: Vireonix Auto. A transient failure gets one short retry
+  // inside tryVireonix, while ordinary successful requests use exactly one call.
+  return tryVireonix(messages,complex);
 }
 
 function aiQuestionIsComplex(question){
@@ -653,13 +631,8 @@ app.post('/api/ai/chat',async(req,res)=>{
     const question=latestUserQuestion(messages);
     const complex=aiQuestionIsComplex(question);
 
-    // Fresh sports data is lightweight and only added when the request clearly
-    // asks about current NFL teams/records/rankings.
-    const nflContext=await getCurrentNflStandingsContext(question);
-    if(nflContext && messages[0]?.role==='system') messages[0].content+='\\n\\n'+nflContext;
-
-    // Keep the Tutor topic-agnostic. Current and follow-up questions are handled
-    // by the same conversational AI path instead of special-casing one subject.
+    // Keep the Tutor topic-agnostic. Every non-empty, school-safe question
+    // uses the same conversational Vireonix Auto path, including follow-ups.
 
     // Answer simple deterministic math locally before touching any external
     // provider. This makes basic questions reliable even if a cloud provider
