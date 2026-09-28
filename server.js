@@ -304,10 +304,7 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
     },
     body:JSON.stringify({
       model:'auto',
-      messages,
-      stream:false,
-      max_tokens:maxTokens,
-      temperature:0.2
+      messages
     })
   },timeoutMs);
   const text=extractText(data);
