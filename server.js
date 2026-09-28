@@ -325,7 +325,9 @@ async function tryVireonix(messages,complex=false){
   // Keep Vireonix Auto as the ONLY cloud AI provider. Auto routes each request
   // to an appropriate model while preserving the same provider that handled
   // the earlier successful 7x7 and clownfish tests.
-  const timeoutMs=complex?18000:12000;
+  // Give Vireonix Auto enough time for slower routed responses while keeping
+  // the total (two attempts plus a short backoff) under the browser's 55s limit.
+  const timeoutMs=complex?26000:24000;
   let lastError=null;
 
   for(let attempt=0;attempt<2;attempt++){
