@@ -1315,7 +1315,17 @@ app.post('/api/auth/delete', async (req, res) => {
   if (req.sessionToken) sessions.delete(req.sessionToken);
   if (SUPABASE_ENABLED) {
     try { await supabaseRequest(`${SUPABASE_TABLE}?id=eq.${encodeURIComponent(user.id)}`, {method:'DELETE'}); } catch(e) { return res.status(503).json({error:'Could not delete the account right now.'}); }
-  } else saveUsers();
+  } else {
+    try { saveUsers(); }
+    catch(e){
+      usersById.set(user.id,user);
+      if(user.method==='google' && user.googleId) users.set('google:'+String(user.googleId),user);
+      else users.set('email:'+normalizeEmail(user.identifier||user.email),user);
+      if(user.username) usersByUsername.set(normalizeUsername(user.username),user);
+      console.error('Account delete persistence error:',e.message);
+      return res.status(503).json({error:'Could not delete the account right now.'});
+    }
+  }
   clearSessionCookie(res);
   res.json({ ok: true });
 });
