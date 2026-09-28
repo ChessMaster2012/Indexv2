@@ -1357,7 +1357,7 @@ async function runPuterAi(messages, options={}){
   // Start with Puter's current default model, then use documented model IDs
   // as fallbacks. Normalize responses so vendor-specific content formats do not
   // break the Tutor parser.
-  const modelOrder=[null,'gpt-5.6-luna','gemini-3.1-flash-lite'];
+  const modelOrder=['gpt-5.6-luna',null];
   let lastError=null;
   for(const model of modelOrder){
     try{
@@ -1394,7 +1394,56 @@ async function runPuterAi(messages, options={}){
   throw lastError||new Error('Backup AI could not answer.');
 }
 
+function browserAiContentIsAllowed(messages){
+  const text=messages.filter(m=>m && m.role==='user').map(m=>String(m.content||'')).join('\n');
+  const normalized=text.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
+    .replace(/[0@]/g,'o').replace(/[1!|]/g,'i').replace(/3/g,'e').replace(/4/g,'a')
+    .replace(/5/g,'s').replace(/7/g,'t').replace(/[^a-z0-9]/g,'');
+  const rawBlocked=/\b(?:porn|pornography|xxx|nsfw|hentai|nudes?|naked\s+(?:pics?|photos?|images?)|sex\s*chat|sext(?:ing)?|sexual\s+(?:content|images?|videos?)|onlyfans|fetish|camgirl|escort)\b|\b(?:fuck|fucker|fucking|shit|bitch|asshole|dick|pussy|cunt|slut|whore)\b|\b(?:kill\s+yourself|kys|go\s+die|suicide|self[-\s]?harm|self[-\s]?injury)\b|\b(?:nazi|kkk|white\s+supremac(?:ist|y)|racial\s+slur)\b/i.test(text);
+  const normalizedBlocked=/(?:porn|pornography|xxx|nsfw|hentai|nudes|nakedpics|sexchat|sexting|sexualcontent|onlyfans|fetish|camgirl|escort|fuck|fucker|fucking|shit|bitch|asshole|dick|pussy|cunt|slut|whore|killsyourself|kys|godie|suicide|selfharm|selfinjury|nazi|kkk|whitesupremacist|racialslur)/i.test(normalized);
+  return !(rawBlocked||normalizedBlocked);
+}
+
+async function runDualAi(messages, options={}){
+  if(!browserAiContentIsAllowed(messages)){
+    throw new Error('That request is not available in Index Tutor. Please keep searches and messages school-appropriate.');
+  }
+
+  const puterPromise=runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||30000});
+  const serverPromise=(async()=>{
+    const response=await fetch('/api/ai/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messages})
+    });
+    let data=null;
+    try{ data=await response.json(); }catch{}
+    if(response.status>=400 && response.status<500){
+      throw new Error(String(data?.error||'The AI request was rejected.'));
+    }
+    if(!response.ok) throw new Error('SERVER_AI_BACKUP:The server AI is temporarily unavailable.');
+    const answer=String(data?.choices?.[0]?.message?.content||data?.choices?.[0]?.delta?.content||data?.choices?.[0]?.text||data?.output_text||data?.text||data?.answer||data?.message?.content||'').trim();
+    if(!answer) throw new Error('SERVER_AI_BACKUP:The server returned an empty response.');
+    if(data?.fallback && String(data?.provider||'')==='built-in-fallback'){
+      throw new Error('SERVER_AI_BACKUP:The server AI providers did not return an answer.');
+    }
+    return answer;
+  })();
+
+  state.aiWork.stage='Connecting to the fastest available AI…';
+  updateAiWorkStatus();
+
+  try{
+    const answer=await Promise.any([serverPromise,puterPromise]);
+    options.onChunk?.(answer);
+    return answer;
+  }catch(e){
+    throw new Error('The AI service could not answer right now.');
+  }
+}
+
 async function runLocalAi(messages, options={}){
+  return runDualAi(messages,options);
   const timeoutMs=options.timeoutMs||30000;
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
