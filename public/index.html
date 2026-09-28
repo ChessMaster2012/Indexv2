@@ -1409,134 +1409,70 @@ async function runDualAi(messages, options={}){
     throw new Error('That request is not available in Index Tutor. Please keep searches and messages school-appropriate.');
   }
 
-  const puterPromise=runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||30000});
-  const serverPromise=(async()=>{
-    const response=await fetch('/api/ai/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({messages})
-    });
-    let data=null;
-    try{ data=await response.json(); }catch{}
-    if(response.status>=400 && response.status<500){
-      throw new Error(String(data?.error||'The AI request was rejected.'));
-    }
-    if(!response.ok) throw new Error('SERVER_AI_BACKUP:The server AI is temporarily unavailable.');
-    const answer=String(data?.choices?.[0]?.message?.content||data?.choices?.[0]?.delta?.content||data?.choices?.[0]?.text||data?.output_text||data?.text||data?.answer||data?.message?.content||'').trim();
-    if(!answer) throw new Error('SERVER_AI_BACKUP:The server returned an empty response.');
-    if(data?.fallback && String(data?.provider||'')==='built-in-fallback'){
-      throw new Error('SERVER_AI_BACKUP:The server AI providers did not return an answer.');
-    }
-    return answer;
-  })();
-
-  state.aiWork.stage='Connecting to the fastest available AI…';
+  // Prefer the browser AI on devices that can reach Puter. It avoids Render
+  // outbound-provider failures and supports the full range of normal questions.
+  // If it is unavailable, fall back to the same-origin server proxy, which is
+  // the path designed for restrictive school networks.
+  state.aiWork.stage='Connecting to AI…';
   updateAiWorkStatus();
 
+  let browserError=null;
   try{
-    const answer=await Promise.any([serverPromise,puterPromise]);
-    options.onChunk?.(answer);
-    return answer;
+    const answer=await runPuterAi(messages,{
+      timeoutMs:options.backupTimeoutMs||30000,
+      loadTimeoutMs:9000
+    });
+    if(String(answer||'').trim()) return String(answer).trim();
+    browserError=new Error('Browser AI returned an empty response.');
   }catch(e){
-    throw new Error('The AI service could not answer right now.');
+    browserError=e;
   }
-}
 
-async function runLocalAi(messages, options={}){
-  return runDualAi(messages,options);
-  const timeoutMs=options.timeoutMs||30000;
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  state.aiWork.stage='Connecting to server AI…';
+  updateAiWorkStatus();
+
   try{
     const response=await fetch('/api/ai/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({messages}),
-      signal:controller.signal
+      signal:AbortSignal.timeout(options.serverTimeoutMs||45000)
     });
-    const contentType=response.headers.get('content-type')||'';
-    if(!response.ok){
-      let message='The AI service could not answer right now.';
-      let data=null;
-      try{ data=await response.json(); if(data?.error) message=String(data.error); }catch{}
-      // Do not bypass server-side safety/moderation errors. Only network/server
-      // failures are eligible for the browser backup.
-      if(response.status>=400 && response.status<500) throw new Error(message);
-      throw new Error('SERVER_AI_BACKUP:'+message);
+    let data=null;
+    try{ data=await response.json(); }catch{}
+
+    if(response.status>=400 && response.status<500){
+      throw new Error(String(data?.error||'The AI request was rejected.'));
     }
-    if(!response.body) throw new Error('SERVER_AI_BACKUP:The AI service returned no response.');
-    if(contentType.includes('application/json')){
-      const data=await response.json();
-      const answer=String(data?.choices?.[0]?.message?.content||data?.choices?.[0]?.delta?.content||data?.choices?.[0]?.text||data?.output_text||data?.text||data?.answer||data?.message?.content||'').trim();
-      if(!answer) throw new Error('SERVER_AI_BACKUP:The AI returned an empty response.');
-      // The deterministic fast fallback is intentionally trusted. If the server
-      // had to use its generic fallback, try a second independent AI path instead
-      // of showing the old “I could not reach the AI service” message.
-      const provider=String(data?.provider||'');
-      if(data?.fallback && provider==='built-in-fallback'){
-        clearTimeout(timer);
-        state.aiWork.stage='Connecting to backup AI…';
-        updateAiWorkStatus();
-        try{
-          return await runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||18000,onChunk:options.onChunk});
-        }catch(backupError){
-          // Preserve the server's useful topic-specific fallback if the backup
-          // service is unavailable or the user is not signed in to it yet.
-          options.onChunk?.(answer);
-          return answer;
-        }
-      }
-      options.onChunk?.(answer);
-      return answer;
+    if(!response.ok) throw new Error(String(data?.error||'The server AI is temporarily unavailable.'));
+
+    const answer=String(
+      data?.choices?.[0]?.message?.content ||
+      data?.choices?.[0]?.delta?.content ||
+      data?.choices?.[0]?.text ||
+      data?.output_text ||
+      data?.text ||
+      data?.answer ||
+      data?.message?.content ||
+      ''
+    ).trim();
+
+    // Never accept the generic built-in failure as if it were an AI answer.
+    if(!answer || (data?.fallback && String(data?.provider||'')==='built-in-fallback')){
+      throw new Error('The server AI providers did not return an answer.');
     }
-    const reader=response.body.getReader();
-    const decoder=new TextDecoder();
-    let buffer=''; let full='';
-    const handleEvent=(eventText)=>{
-      for(const line of String(eventText||'').split(/\r?\n/)){
-        if(!line.startsWith('data:')) continue;
-        const payload=line.slice(5).trim();
-        if(!payload) continue;
-        let d; try{ d=JSON.parse(payload); }catch{ continue; }
-        if(d.error) throw new Error(String(d.error));
-        if(d.status==='connected') { state.aiWork.stage='Writing your answer…'; updateAiWorkStatus(); return; }
-        if(typeof d.text==='string' && d.text){ full+=d.text; options.onChunk?.(d.text); }
-      }
-    };
-    while(true){
-      const {value,done}=await reader.read();
-      if(done) break;
-      buffer+=decoder.decode(value,{stream:true});
-      let idx;
-      while((idx=buffer.indexOf('\n\n'))>=0){ const evt=buffer.slice(0,idx); buffer=buffer.slice(idx+2); handleEvent(evt); }
-    }
-    buffer+=decoder.decode();
-    if(buffer.trim()) handleEvent(buffer);
-    if(!full.trim()) throw new Error('SERVER_AI_BACKUP:The AI returned an empty response.');
-    return full.trim();
-  }catch(e){
-    if(e?.name==='AbortError'){
-      clearTimeout(timer);
-      state.aiWork.stage='Connecting to backup AI…';
-      updateAiWorkStatus();
-      try{
-        return await runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||18000,onChunk:options.onChunk});
-      }catch(backupError){
-        throw new Error('The AI service could not answer right now.');
-      }
-    }
-    if(String(e?.message||'').startsWith('SERVER_AI_BACKUP:')){
-      clearTimeout(timer);
-      state.aiWork.stage='Connecting to backup AI…';
-      updateAiWorkStatus();
-      try{
-        return await runPuterAi(messages,{timeoutMs:options.backupTimeoutMs||18000,onChunk:options.onChunk});
-      }catch(backupError){
-        throw new Error(String(e.message).replace(/^SERVER_AI_BACKUP:/,''));
-      }
-    }
-    throw e;
-  }finally{ clearTimeout(timer); }
+    return answer;
+  }catch(serverError){
+    const b=String(browserError?.message||'Browser AI unavailable');
+    const s=String(serverError?.message||'Server AI unavailable');
+    console.warn('[AI] browser fallback failed:',b);
+    console.warn('[AI] server fallback failed:',s);
+    throw new Error('AI_UNAVAILABLE');
+  }
+}
+
+async function runLocalAi(messages, options={}){
+  return runDualAi(messages,options);
 }
 function parseLooseJson(text){
   let cleaned=String(text||'').replace(/```json/gi,'').replace(/```/g,'').trim();
