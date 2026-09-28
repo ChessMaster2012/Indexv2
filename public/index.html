@@ -1005,7 +1005,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
         <div class="chat-log" id="chat-log"><div class="chat-empty"><h3>What are you working on? 👋</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div></div>
         <div class="tutor-input"><textarea id="tutor-textarea" rows="1" placeholder="Ask anything…"></textarea><button class="btn btn-primary" id="tutor-send" data-action="send-chat">Send</button></div>
       </div>
-      <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI generation uses the server first with a browser AI backup; study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
+      <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI responses use Vireonix Auto through the server. Study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
     </section>
 
     <section class="view" id="view-notes">
@@ -1473,14 +1473,26 @@ function accountStatePayload(){
     quests:(typeof questPayload==='function'?questPayload():undefined)
   };
 }
+let accountSyncNoticeAt=0;
+function showAccountSyncNotice(message){
+  const now=Date.now();
+  if(now-accountSyncNoticeAt<15000) return;
+  accountSyncNoticeAt=now;
+  showRewardToast(message);
+}
 async function syncAccountStateNow(){
   if(!state.account) return;
   if(accountSyncInFlight){ accountSyncQueued=true; return; }
   accountSyncInFlight=true;
   try{
     const r=await fetch('/api/account/state',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:accountStatePayload()})});
+    const d=await r.json().catch(()=>({}));
     if(r.status===401){ state.account=null; renderProfileSlot(); }
-  }catch(e){}
+    else if(!r.ok) showAccountSyncNotice(d.error||'Your account changes could not be saved. Please try again.');
+    else if(d.storage==='server-file') showAccountSyncNotice('Account saved on this server. Cross-deploy persistence needs persistent storage.');
+  }catch(e){
+    showAccountSyncNotice('Could not reach account storage. Your latest changes may not be saved.');
+  }
   accountSyncInFlight=false;
   if(accountSyncQueued){ accountSyncQueued=false; scheduleAccountStateSync(); }
 }
@@ -1499,7 +1511,8 @@ async function loadAccountState(){
   try{
     const r=await fetch('/api/account/state',{cache:'no-store'}); const d=await r.json();
     if(r.status===401){ state.account=null; renderProfileSlot(); return; }
-    if(!r.ok) return;
+    if(!r.ok){ showAccountSyncNotice(d.error||'Could not load saved account data.'); return; }
+    if(d.storage==='server-file') showAccountSyncNotice('Account data is using server-file storage and may not follow your account across deployments.');
     if(!d.state){
       // New account: never import guest wallet/cosmetics into the account.
       // Local notes/study sets can be adopted, but account-owned rewards start at zero.
@@ -1515,7 +1528,7 @@ async function loadAccountState(){
     if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; }
     applyBattlePassRewards();
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
-  }catch(e){}
+  }catch(e){ showAccountSyncNotice('Could not load saved account data. Please check your connection.'); }
 }
 function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
