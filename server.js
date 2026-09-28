@@ -429,27 +429,8 @@ function aWordsContainFuzzy(answer,word){
   return aWords.some(a=>tutorEditDistance(a,word)<= (String(word).length>=7?2:1));
 }
 
-async function raceAiProviders(messages,complex){
-  // Use several independently hosted, documented free endpoints. Keep the
-  // normal path to one successful request and fail over immediately on errors.
-  const providers=[
-    ['vireonix',()=>tryVireonix(messages,complex)],
-    ['blockrun',()=>tryBlockRun(messages,complex)],
-    ['kilo-free',()=>tryKiloFree(messages,complex)]
-  ];
 
-  let lastError=null;
-  for(const [name,run] of providers){
-    try{
-      const answer=String(await run()||'').trim();
-      if(answer) return answer;
-    }catch(e){
-      lastError=e;
-      console.warn('[AI] provider failed:',name,e?.message||e);
-    }
-  }
-  throw lastError||new Error('No free AI provider returned an answer.');
-}
+// Vireonix Auto is the only Index Tutor provider; keep all Tutor traffic on this same model.
 
 function countAiSentences(text){
   const cleaned=String(text||'').replace(/\s+/g,' ').trim();
