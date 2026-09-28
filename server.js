@@ -27,6 +27,17 @@ const app = express();
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
 
+// Conservative browser/security headers for a student-facing educational site.
+// These do not require extra services and keep camera, microphone, and location
+// permissions unavailable unless a future feature explicitly needs them.
+app.use((req,res,next)=>{
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options','SAMEORIGIN');
+  res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 // Compress JSON API responses before sending them to browsers. This is
 // especially useful for Tutor responses and account payloads, and reduces
 // Render outbound bandwidth without changing the API shape for clients.
