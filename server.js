@@ -527,8 +527,13 @@ function fastDeterministicTutor(question){
 
   // Small arithmetic expressions are also safe to answer locally.
   const arithmetic=q.replace(/^what\s+is\s+/i,'').replace(/\?$/,'').trim();
-  if(/^-?\d+(?:\.\d+)?\s*[+\-*/×÷]\s*-?\d+(?:\.\d+)?$/.test(arithmetic)){
-    const normalized=arithmetic.replace(/×/g,'*').replace(/÷/g,'/');
+  // Accept the common keyboard spelling "x" as multiplication, along with
+  // explicit words such as "times", without treating variables as arithmetic.
+  const normalizedArithmetic=arithmetic
+    .replace(/\b(times|multiplied by)\b/gi,'*')
+    .replace(/(?<=\d)\s*[xX]\s*(?=[+-]?\d)/g,'*');
+  if(/^-?\d+(?:\.\d+)?\s*[+\-*/×÷]\s*-?\d+(?:\.\d+)?$/.test(normalizedArithmetic)){
+    const normalized=normalizedArithmetic.replace(/×/g,'*').replace(/÷/g,'/');
     try{
       const value=Function('"use strict"; return ('+normalized+')')();
       if(Number.isFinite(value)) return arithmetic+' = '+value+'.';
@@ -839,10 +844,11 @@ function loadUsers() {
       const arr = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
       arr.forEach(u => {
         delete u.school; delete u.grade;
-        if(u.method !== 'email') return;
-        if(!u.username) u.username = makeUniqueUsername(u.identifier, u.id, true);
+        if(u.method !== 'email' && u.method !== 'google') return;
+        if(!u.username) u.username = makeUniqueUsername(u.identifier || u.email, u.id, true);
         u.username = normalizeUsername(u.username);
-        users.set(u.method + ':' + u.identifier, u);
+        if(u.method === 'google' && u.googleId) users.set('google:' + String(u.googleId), u);
+        if(u.method === 'email' && u.identifier) users.set('email:' + normalizeEmail(u.identifier), u);
         usersById.set(u.id, u);
         usersByUsername.set(u.username, u);
       });
