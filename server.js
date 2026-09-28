@@ -307,36 +307,41 @@ async function tryPollinations(messages,complex=false){
 }
 
 async function tryVireonix(messages,complex=false){
-  // Vireonix Auto is the main Tutor model. It automatically routes each request
-  // to a capable model for coding, Q&A, reasoning, and writing, without an API key.
+  // Vireonix Auto is the main Tutor model. The first request keeps the full
+  // conversation and Tutor rules. If that request fails, retry through the
+  // documented endpoint with a minimal, plain-text request so unusual prompts,
+  // oversized context, or an upstream compatibility issue do not turn into the
+  // generic "AI service" error.
   const timeout=complex?30000:20000;
   let lastError=null;
-  for(let attempt=0;attempt<2;attempt++){
+  const attempts=[
+    {url:'https://vireonix.ai/v1/chat/completions', messages, extra:{max_tokens:complex?1400:900,temperature:0.2}},
+    {url:'https://vireonix.ai/v1/chat/completions', messages:[{role:'user',content:String(latestUserQuestion(messages)||'')}], extra:{}},
+    {url:'https://vireonix.ai/api/chat', messages:[{role:'user',content:String(latestUserQuestion(messages)||'')}], extra:{}}
+  ];
+  for(let i=0;i<attempts.length;i++){
     try{
-      const r=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
+      const attempt=attempts[i];
+      const r=await fetchJsonWithTimeout(attempt.url,{
         method:'POST',
         headers:{'Content-Type':'application/json','Accept':'application/json'},
         body:JSON.stringify({
           model:'auto',
-          messages,
-          stream:false,
-          max_tokens:complex?1400:900,
-          temperature:0.2
+          messages:attempt.messages,
+          ...attempt.extra
         })
-      },timeout);
+      },i===0?timeout:Math.min(timeout,12000));
       const text=extractText(r);
       if(!text) throw new Error('Vireonix returned no text');
       return text;
     }catch(e){
       lastError=e;
       const msg=String(e?.message||e);
-      // Retry only transient failures. A normal successful request uses one
-      // provider call, keeping Render bandwidth low.
-      if(attempt===0 && /HTTP (429|5\d\d)|AbortError|fetch failed|ECONNRESET|ETIMEDOUT/i.test(msg)){
-        await new Promise(resolve=>setTimeout(resolve,500));
+      if(i<attempts.length-1 && /HTTP (400|408|409|425|429|5\d\d)|AbortError|fetch failed|ECONNRESET|ETIMEDOUT/i.test(msg)){
+        await new Promise(resolve=>setTimeout(resolve,350*(i+1)));
         continue;
       }
-      throw e;
+      if(i===attempts.length-1) throw e;
     }
   }
   throw lastError||new Error('Vireonix request failed');
@@ -404,11 +409,13 @@ function fuzzyQuestionCoverage(question,answer){
 
 function answerAddressesQuestion(question,answer,sourceMessages){
   const a=String(answer||'').trim();
+  if(!a) return false;
   if(responseLooksLikeGenericAdvice(a)) return false;
 
-  // Do not require the answer to repeat exact keywords from the question.  // Good answers commonly use synonyms, definitions, examples, equations, or
-  // different terminology. The AI is responsible for interpreting the request.
-  return a.length>=12;
+  // Do not require the answer to repeat exact keywords from the question.
+  // Valid answers can be extremely short (for example "42", "Yes", or a
+  // one-word definition), so never reject an answer only because it is short.
+  return true;
 }
 
 function aWordsContainFuzzy(answer,word){
