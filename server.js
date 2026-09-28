@@ -418,11 +418,12 @@ function fuzzyQuestionCoverage(question,answer){
 
 function answerAddressesQuestion(question,answer,sourceMessages){
   const a=String(answer||'').trim();
+  if(!a) return false;
   if(responseLooksLikeGenericAdvice(a)) return false;
 
-  // Do not require the answer to repeat exact keywords from the question.  // Good answers commonly use synonyms, definitions, examples, equations, or
-  // different terminology. The AI is responsible for interpreting the request.
-  return a.length>=12;
+  // Never reject a valid answer because it is short. Simple questions can have
+  // one-word or numeric answers, while complex requests can naturally be long.
+  return true;
 }
 
 function aWordsContainFuzzy(answer,word){
