@@ -268,7 +268,7 @@ function extractText(data){
 
 async function sleep(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
 
-async function fetchJsonWithTimeout(url,options={},timeoutMs=30000){
+async function fetchJsonWithTimeout(url,options={},timeoutMs=15000){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
@@ -280,7 +280,6 @@ async function fetchJsonWithTimeout(url,options={},timeoutMs=30000){
       const detail=data?.error?.message || data?.error || data?.message || raw.slice(0,300) || ('HTTP '+r.status);
       const err=new Error('HTTP '+r.status+': '+String(detail).replace(/\s+/g,' ').trim().slice(0,300));
       err.status=r.status;
-      err.code=String(data?.error?.code || data?.code || '');
       err.retryAfter=Number(r.headers.get('retry-after')||0)||0;
       throw err;
     }
@@ -296,81 +295,56 @@ function providerRetryable(error){
 }
 
 async function callChatProvider(url,model,messages,complex,timeoutMs){
-  let lastError=null;
-  for(let attempt=0;attempt<2;attempt++){
-    try{
-      const data=await fetchJsonWithTimeout(url,{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
-        body:JSON.stringify({
-          model,
-          messages,
-          stream:false,
-          max_tokens:complex?1400:900,
-          temperature:0.2
-        })
-      },timeoutMs);
-      const text=extractText(data);
-      if(!text) throw new Error('Provider returned an empty response.');
-      return text;
-    }catch(e){
-      lastError=e;
-      if(attempt===0 && providerRetryable(e)){
-        const wait=Math.max(350,Math.min(2500,(Number(e.retryAfter)||0)*1000||700));
-        await sleep(wait);
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw lastError||new Error('Provider request failed.');
+  // Do not spend the whole response window retrying one provider. The next
+  // provider is the retry. This keeps the Tutor responsive and makes failover
+  // predictable.
+  const data=await fetchJsonWithTimeout(url,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
+    body:JSON.stringify({
+      model,
+      messages,
+      stream:false,
+      max_tokens:complex?1400:900,
+      temperature:0.2
+    })
+  },timeoutMs);
+  const text=extractText(data);
+  if(!text) throw new Error('Provider returned an empty response.');
+  return text;
+}
+
+async function tryKiloFree(messages,complex=false){
+  // Kilo documents anonymous access to free models and an OpenAI-compatible
+  // gateway. This model id is explicitly listed as a free model.
+  return callChatProvider(
+    'https://api.kilo.ai/api/gateway/chat/completions',
+    'minimax/minimax-m2.1:free',
+    messages,
+    complex,
+    complex?15000:12000
+  );
 }
 
 async function tryVireonix(messages,complex=false){
+  // Vireonix documents this OpenAI-compatible endpoint and keyless Auto model.
   return callChatProvider(
     'https://vireonix.ai/v1/chat/completions',
     'auto',
     messages,
     complex,
-    complex?30000:20000
+    complex?15000:12000
   );
-}
-
-async function tryVireonixLocal(messages,complex=false){
-  return callChatProvider(
-    'https://vireonix.ai/api/chat',
-    'auto',
-    messages,
-    complex,
-    complex?30000:20000
-  );
-}
-
-async function tryKiloFree(messages,complex=false){
-  let lastError=null;
-  for(const model of ['minimax/minimax-m2.1:free','z-ai/glm-5:free']){
-    try{
-      return await callChatProvider(
-        'https://api.kilo.ai/api/gateway/chat/completions',
-        model,
-        messages,
-        complex,
-        complex?30000:22000
-      );
-    }catch(e){
-      lastError=e;
-    }
-  }
-  throw lastError||new Error('Kilo free models did not respond.');
 }
 
 async function tryBlockRunFree(messages,complex=false){
+  // BlockRun documents this no-key free GPT-OSS endpoint.
   return callChatProvider(
     'https://blockrun.ai/api/v1/chat/completions',
     'nvidia/gpt-oss-20b',
     messages,
     complex,
-    complex?35000:25000
+    complex?15000:12000
   );
 }
 
@@ -457,12 +431,12 @@ function aWordsContainFuzzy(answer,word){
 }
 
 async function raceAiProviders(messages,complex){
-  // Sequential failover: normal questions use one provider, so Render bandwidth
-  // stays low. A provider is replaced only when it actually fails or returns empty.
+  // Sequential provider failover. A successful request normally uses one
+  // provider; a slow or failed provider immediately gives the next provider
+  // a chance. This preserves Render bandwidth and avoids long retry chains.
   const providers=[
-    ['vireonix',()=>tryVireonix(messages,complex)],
-    ['vireonix-local',()=>tryVireonixLocal(messages,complex)],
     ['kilo-free',()=>tryKiloFree(messages,complex)],
+    ['vireonix',()=>tryVireonix(messages,complex)],
     ['blockrun-free',()=>tryBlockRunFree(messages,complex)]
   ];
 
