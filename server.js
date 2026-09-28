@@ -309,7 +309,7 @@ async function tryPollinations(messages,complex=false){
 async function tryVireonix(messages,complex=false){
   // Vireonix Auto is the main Tutor model. It automatically routes each request
   // to a capable model for coding, Q&A, reasoning, and writing, without an API key.
-  const timeout=complex?15000:10000;
+  const timeout=complex?30000:20000;
   let lastError=null;
   for(let attempt=0;attempt<2;attempt++){
     try{
