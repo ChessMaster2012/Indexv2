@@ -294,46 +294,74 @@ function providerRetryable(error){
     /AbortError|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
 }
 
+// INDEX AI PROVIDER LOCK:
+// Keep Index Tutor permanently on Vireonix Auto. Future Tutor changes should
+// improve prompts, context, validation, retries, and UI behavior without
+// replacing this provider or model.
+const INDEX_AI_PROVIDER = 'vireonix';
+const INDEX_AI_MODEL = 'auto';
+const VIREONIX_CHAT_URL = 'https://vireonix.ai/v1/chat/completions';
+
 async function callVireonix(messages,complex=false,timeoutMs=12000){
-  const maxTokens=complex?2400:1200;
-  const data=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
+  const payload={
+    model:INDEX_AI_MODEL,
+    messages,
+    stream:false,
+    max_tokens:complex?2400:1200,
+    temperature:0.2
+  };
+  const data=await fetchJsonWithTimeout(VIREONIX_CHAT_URL,{
     method:'POST',
     headers:{
       'Content-Type':'application/json',
       'Accept':'application/json'
     },
-    body:JSON.stringify({
-      model:'auto',
-      messages,
-      stream:false,
-      max_tokens:maxTokens,
-      temperature:0.2
-    })
+    body:JSON.stringify(payload)
   },timeoutMs);
   const text=extractText(data);
   if(!text) throw new Error('Vireonix returned no text.');
   return text;
 }
 
+function compactVireonixMessages(messages){
+  const turns=normalizeAiMessages(messages);
+  const latest=latestUserQuestion(turns);
+  const prior=[...turns].reverse().find(m=>m.role==='assistant')?.content||'';
+  return [
+    {
+      role:'system',
+      content:'You are Index Tutor. Answer the student\'s latest school-safe request directly and accurately. Use prior context when needed. For writing, write the requested draft itself. For math/science, show key steps and use Unicode symbols instead of LaTeX. Do not give generic study advice when the student asked an actual question.'
+    },
+    ...(prior?[{role:'assistant',content:prior.slice(-2500)}]:[]),
+    {role:'user',content:String(latest||'').slice(0,2200)}
+  ];
+}
+
 async function tryVireonix(messages,complex=false){
-  // Keep Vireonix Auto as the ONLY cloud AI provider. Auto routes each request
-  // to an appropriate model while preserving the same provider that handled
-  // the earlier successful 7x7 and clownfish tests.
-  const timeoutMs=complex?18000:12000;
+  // Vireonix Auto is intentionally the only cloud provider.
+  // First try the full conversational request. If the gateway rejects or
+  // times out, retry the SAME Vireonix Auto model once with a compact payload.
+  const timeoutMs=complex?18000:14000;
   let lastError=null;
 
-  for(let attempt=0;attempt<2;attempt++){
-    try{
-      return await callVireonix(messages,complex,timeoutMs);
-    }catch(e){
-      lastError=e;
-      const retryable=providerRetryable(e);
-      if(!retryable || attempt===1) throw e;
+  try{
+    return await callVireonix(messages,complex,timeoutMs);
+  }catch(e){
+    lastError=e;
+    const retryable=providerRetryable(e);
+    console.warn('[AI] Vireonix primary attempt failed:',e?.message||e);
 
-      const retryAfter=Number(e?.retryAfter||0);
-      const waitMs=Math.max(300,Math.min(1200,retryAfter>0?retryAfter*1000:500));
-      console.warn('[AI] Vireonix transient failure; retrying in '+waitMs+'ms:',e?.message||e);
-      await sleep(waitMs);
+    if(!retryable) throw e;
+
+    const retryAfter=Number(e?.retryAfter||0);
+    const waitMs=Math.max(300,Math.min(1500,retryAfter>0?retryAfter*1000:500));
+    await sleep(waitMs);
+
+    try{
+      return await callVireonix(compactVireonixMessages(messages),complex,timeoutMs);
+    }catch(e2){
+      lastError=e2;
+      console.warn('[AI] Vireonix compact retry failed:',e2?.message||e2);
     }
   }
 
@@ -341,8 +369,7 @@ async function tryVireonix(messages,complex=false){
 }
 
 async function raceAiProviders(messages,complex){
-  // One provider only: Vireonix Auto. A transient failure gets one short retry
-  // inside tryVireonix, while ordinary successful requests use exactly one call.
+  // Provider lock: never route Tutor requests to another AI service.
   return tryVireonix(messages,complex);
 }
 
