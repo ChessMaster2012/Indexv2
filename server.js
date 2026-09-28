@@ -1116,7 +1116,7 @@ app.get('/api/account/state', async (req,res)=>{
       if (row) req.user = dbRowToUser(row);
       usersById.set(req.user.id, req.user);
     }
-    res.json({ok:true, state:req.user.accountData || null});
+    res.json({ok:true, state:req.user.accountData || null, storage:SUPABASE_ENABLED?'supabase':'server-file'});
   } catch(e) {
     res.status(503).json({error:'Your account database is temporarily unavailable. Try again.'});
   }
