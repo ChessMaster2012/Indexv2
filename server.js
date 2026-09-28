@@ -876,7 +876,10 @@ function saveUsers() {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(USERS_FILE, JSON.stringify(Array.from(usersById.values()), null, 2));
-  } catch (e) { console.error('Could not save users.json:', e.message); }
+  } catch (e) {
+    console.error('Could not save users.json:', e.message);
+    throw e;
+  }
 }
 if (!SUPABASE_ENABLED) loadUsers();
 
@@ -1019,7 +1022,11 @@ app.post('/api/auth/signup', async (req, res) => {
     const { salt, hash } = hashPassword(password);
     const user = { id: crypto.randomBytes(12).toString('hex'), method:'email', identifier, email:identifier, username, passwordHash: hash, salt, firstName:'', lastName:'', createdAt:Date.now(), accountData: null };
     if (SUPABASE_ENABLED) await dbSaveUser(user);
-    users.set('email:' + identifier, user); usersById.set(user.id, user); usersByUsername.set(username, user); if(!SUPABASE_ENABLED) saveUsers();
+    users.set('email:' + identifier, user); usersById.set(user.id, user); usersByUsername.set(username, user);
+    if(!SUPABASE_ENABLED){
+      try{ saveUsers(); }
+      catch(e){ users.delete('email:'+identifier); usersById.delete(user.id); usersByUsername.delete(username); throw e; }
+    }
     const token = createSession(user.id);
     setSessionCookie(res, token);
     res.json({ ok:true, user:publicUser(user), isNew:true });
@@ -1367,6 +1374,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     if(user.email) users.set('email:'+normalizeEmail(user.email),user);
     if(user.googleId) users.set('google:'+String(user.googleId),user);
     if(user.username) usersByUsername.set(normalizeUsername(user.username),user);
+    if(!SUPABASE_ENABLED) saveUsers();
     const token=createSession(user.id);
     setSessionCookie(res, token);
     res.redirect('/?welcome=1' + ((!user.firstName) ? '&complete=1' : ''));
@@ -1430,6 +1438,7 @@ app.post('/api/auth/forgot-password', async (req,res)=>{
 });
 
 app.post('/api/auth/reset-password', (req,res)=>{
+  try{
   const token=String(req.body?.token||'');
   const password=String(req.body?.password||'');
   if(token.length<20) return res.status(400).json({error:'This reset link is invalid or expired.'});
@@ -1445,6 +1454,7 @@ app.post('/api/auth/reset-password', (req,res)=>{
   saveUsers();
   for(const [sessionToken,session] of sessions.entries()) if(session.userId===user.id) sessions.delete(sessionToken);
   res.json({ok:true});
+  }catch(e){ console.error('Password reset save error:',e.message); res.status(503).json({error:'Could not save the new password right now. Please try again.'}); }
 });
 
 function escapeHtml(v){ return String(v||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
