@@ -1001,6 +1001,7 @@ function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 
 app.get('/api/auth/status', async (req, res) => {
   let persistentStorageReady = false;
+  const storageMode = SUPABASE_ENABLED ? 'supabase' : 'server-file';
   if (SUPABASE_ENABLED) {
     try {
       await supabaseRequest(`${SUPABASE_TABLE}?select=id&limit=1`);
@@ -1009,7 +1010,13 @@ app.get('/api/auth/status', async (req, res) => {
       console.error('Supabase account storage health check failed:', e.message);
     }
   }
-  res.json({ googleEnabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET), persistentStorageEnabled: SUPABASE_ENABLED, persistentStorageReady });
+  res.json({
+    googleEnabled: !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET),
+    persistentStorageEnabled: SUPABASE_ENABLED,
+    persistentStorageReady,
+    storageMode,
+    durableAcrossDeploys: SUPABASE_ENABLED && persistentStorageReady
+  });
 });
 
 app.get('/api/auth/me', (req, res) => {
@@ -1161,10 +1168,19 @@ app.get('/api/account/state', async (req,res)=>{
 app.put('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try {
+    // Supabase is the durable source of truth in production. The request does
+    // not report success until the complete account snapshot is committed.
     req.user.accountData = sanitizeAccountState(req.body?.state);
     if (SUPABASE_ENABLED) await dbSaveUser(req.user);
     else saveUsers();
-    res.json({ok:true, state:req.user.accountData, storage:SUPABASE_ENABLED?'supabase':'server-file', compressed:true});
+    res.json({
+      ok:true,
+      state:req.user.accountData,
+      storage:SUPABASE_ENABLED?'supabase':'server-file',
+      durableAcrossDeploys:SUPABASE_ENABLED,
+      compressed:true,
+      savedAt:req.user.accountData.savedAt
+    });
   } catch(e) {
     console.error('Account state save error:', e.message);
     res.status(503).json({error:'Could not save your account data right now. Please try again.'});
