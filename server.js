@@ -353,6 +353,84 @@ function aiQuestionIsComplex(question){
     || String(question||'').length>220;
 }
 
+let nflFreshCache={at:0,text:''};
+
+function aiNeedsFreshNflContext(question){
+  const q=String(question||'').toLowerCase();
+  return /\b(nfl|football|quarterback|qb|dolphins|chiefs|bills|ravens|bengals|eagles|chargers|cowboys|49ers|falcons|steelers|jets|patriots|broncos|packers|vikings|lions|texans|jaguars|bears|commanders|giants|saints|panthers|buccaneers|titans|colts|browns|raiders|cardinals|rams)\b/.test(q)
+    && /\b(current|now|today|latest|this season|2026|2025|roster|team|play|plays|stats|stat|trade|traded|signed|released|starter|starting|top|best|rank|rankings)\b/.test(q);
+}
+
+async function fetchTextJson(url,timeoutMs=5000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{
+    const response=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal});
+    const raw=await response.text();
+    if(!response.ok) throw new Error('HTTP '+response.status);
+    return raw?JSON.parse(raw):null;
+  }finally{ clearTimeout(timer); }
+}
+
+async function getFreshNflContext(question){
+  if(!aiNeedsFreshNflContext(question)) return '';
+  const now=Date.now();
+  if(nflFreshCache.text && now-nflFreshCache.at<10*60*1000) return nflFreshCache.text;
+
+  try{
+    const teamsData=await fetchTextJson('https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams',6000);
+    const teams=Array.isArray(teamsData?.sports?.[0]?.leagues?.[0]?.teams)
+      ? teamsData.sports[0].leagues[0].teams.map(x=>x.team).filter(Boolean)
+      : [];
+
+    const rosterResults=await Promise.allSettled(
+      teams.map(team=>fetchTextJson(
+        'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/'+encodeURIComponent(team.id)+'/roster',
+        4500
+      ))
+    );
+
+    const qbs=[];
+    for(let i=0;i<rosterResults.length;i++){
+      const result=rosterResults[i];
+      if(result.status!=='fulfilled') continue;
+      const groups=Array.isArray(result.value?.athletes)?result.value.athletes:[];
+      const team=teams[i];
+      for(const group of groups){
+        const position=String(group?.position||'').toLowerCase();
+        if(position!=='quarterback' && position!=='qb') continue;
+        for(const player of Array.isArray(group.items)?group.items:[]){
+          if(!player?.fullName) continue;
+          qbs.push({
+            player:String(player.fullName),
+            team:String(team?.displayName||team?.location||''),
+            status:String(player?.status?.name||'Active')
+          });
+        }
+      }
+    }
+
+    if(!qbs.length) return '';
+
+    const currentYear=new Date().getFullYear();
+    const currentDate=new Intl.DateTimeFormat('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'America/New_York'}).format(new Date());
+
+    const lines=[
+      'LIVE NFL ROSTER CONTEXT (retrieved from ESPN public NFL roster data):',
+      'As of '+currentDate+', the current NFL season is '+currentYear+'.',
+      'Use these roster/team affiliations as the source of truth for statements about who currently plays for which NFL team.',
+      'IMPORTANT TIME RULE: If the student asks for the 2025 season, answer about the 2025 season as a historical season and do not describe those 2025 team affiliations as current. If the student says current/now/latest, use the current roster data below.',
+      ...qbs.map(x=>x.player+' — '+x.team+' — '+x.status)
+    ];
+    const text=lines.join('\n').slice(0,9000);
+    nflFreshCache={at:now,text};
+    return text;
+  }catch(e){
+    console.warn('[AI] fresh NFL context unavailable:',e?.message||e);
+    return '';
+  }
+}
+
 function responseLooksLikeGenericAdvice(text){
   const a=String(text||'').trim().toLowerCase();
   if(!a) return true;
@@ -632,6 +710,13 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
     const complex=aiQuestionIsComplex(question);
+
+    // For current NFL questions, inject live roster context before the model
+    // answers. This prevents stale team affiliations from older model knowledge.
+    const freshNflContext=await getFreshNflContext(question);
+    if(freshNflContext && messages[0]?.role==='system'){
+      messages[0].content += '\n\n'+freshNflContext;
+    }
 
     // Answer simple deterministic math locally before touching any external
     // provider. This makes basic questions reliable even if a cloud provider
