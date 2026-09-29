@@ -3524,7 +3524,7 @@ async function openSignin(){
 
   showAuthPanel();
   if(state.account){
-    try{ await loadAccountState(); }catch(e){}
+    try{ await loadAccountState(); await loadAccountCustomization(); }catch(e){}
     document.getElementById('account-panel').classList.remove('hidden');
     document.getElementById('auth-panel').classList.add('hidden');
     document.getElementById('guest-panel').classList.add('hidden');
@@ -3594,6 +3594,7 @@ async function authSubmit(){
     if(!r.ok){ status.innerHTML = `<div class="error-note">${esc(d.error||'Something went wrong.')}</div>`; return; }
     state.account = d.user;
     await loadAccountState();
+    await loadAccountCustomization();
     try { localStorage.setItem('index.authIdentifier', (d.user && d.user.email) ? d.user.email : identifier); } catch(e) {}
     status.innerHTML = '';
     document.getElementById('auth-identifier').value = ''; document.getElementById('auth-username').value = ''; document.getElementById('auth-password').value = '';
@@ -4128,7 +4129,7 @@ async function initializeApp(){
   applyBattlePassRewards();
   await checkAiStatus();
   await refreshAuthStatus();
-  if(state.account) await loadAccountState();
+  if(state.account){ await loadAccountState(); await loadAccountCustomization(); }
   else resetSignedOutAccountState();
   renderProfileSlot();
   await handleAuthRedirectResult();
