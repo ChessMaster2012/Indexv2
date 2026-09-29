@@ -391,8 +391,8 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
 }
 
 async function streamVireonixToResponse(messages,complex,res){
-  // Keep the server-side deadline below 15 seconds so the browser has a
-  // small amount of time left for the Render -> browser hop.
+  // One hard deadline for the complete upstream response. Keep it below the
+  // browser's 15-second ceiling so the UI has a little network headroom.
   const deadline=Date.now()+14600;
 
   async function requestAttempt(){
@@ -402,7 +402,10 @@ async function streamVireonixToResponse(messages,complex,res){
     try{
       const response=await fetch('https://vireonix.ai/v1/chat/completions',{
         method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},
+        headers:{
+          'Content-Type':'application/json',
+          'Accept':'text/event-stream, application/json'
+        },
         body:JSON.stringify({
           model:'auto',
           messages,
@@ -423,8 +426,7 @@ async function streamVireonixToResponse(messages,complex,res){
   let attempt=await requestAttempt();
   let upstream=attempt.response;
 
-  // Vireonix recommends retrying 429/5xx. Retry only the SAME Auto model and
-  // only when enough of the 15-second budget remains to do so safely.
+  // Same-model retry for transient rate limiting/server errors only.
   if((upstream.status===429 || upstream.status>=500) && Date.now()<deadline-1200){
     const retryAfter=Number(upstream.headers.get('retry-after')||0)||0;
     const wait=Math.min(900,Math.max(150,retryAfter*1000));
@@ -445,14 +447,12 @@ async function streamVireonixToResponse(messages,complex,res){
       let data=null;
       try{data=raw?JSON.parse(raw):null;}catch{}
       const detail=data?.error?.message || data?.error || data?.message || raw.slice(0,300) || ('HTTP '+upstream.status);
-      const err=new Error('HTTP '+upstream.status+': '+String(detail).replace(/\s+/g,' ').trim().slice(0,300));
+      const err=new Error('HTTP '+upstream.status+': '+String(detail).replace(/\\s+/g,' ').trim().slice(0,300));
       err.status=upstream.status;
       throw err;
     }
 
-    // Tolerate a normal JSON response even if an intermediary changes the
-    // content type. Vireonix's documented completion text is
-    // choices[0].message.content.
+    // If Vireonix returns JSON, handle the documented OpenAI-compatible response.
     if(!contentType.includes('text/event-stream')){
       const data=await upstream.json();
       const answer=extractText(data);
@@ -460,68 +460,42 @@ async function streamVireonixToResponse(messages,complex,res){
       return res.json({text:answer,provider:'Vireonix Auto',model:'auto'});
     }
 
+    // IMPORTANT: Do not parse/rebuild the provider's SSE stream on the server.
+    // Proxy the raw bytes exactly as Vireonix sent them. The browser already
+    // understands OpenAI-style SSE, so this avoids dropping valid chunks when
+    // the upstream event framing varies.
     res.status(200);
-    res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+    res.setHeader('Content-Type',upstream.headers.get('content-type')||'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control','no-cache, no-transform');
     res.setHeader('Connection','keep-alive');
     res.setHeader('X-Accel-Buffering','no');
+    if(upstream.headers.get('vary')) res.setHeader('Vary',upstream.headers.get('vary'));
     if(typeof res.flushHeaders==='function') res.flushHeaders();
 
-    const reader=upstream.body.getReader();
-    const decoder=new TextDecoder();
-    let buffer='';
-    let fullText='';
-    let sawDone=false;
+    if(!upstream.body) throw new Error('Vireonix Auto returned an empty stream.');
 
-    const send=payload=>res.write('data: '+JSON.stringify(payload)+'\\n\\n');
-
-    const handleData=dataText=>{
-      const clean=String(dataText||'').trim();
-      if(!clean) return;
-      if(clean==='[DONE]'){ sawDone=true; return; }
-      let data=null;
-      try{data=JSON.parse(clean);}catch{return;}
-      if(data?.error) throw new Error(String(data.error?.message||data.error||'Vireonix Auto streaming error.'));
-      const chunk=extractText(data);
-      if(chunk){
-        fullText+=chunk;
-        send({type:'chunk',text:chunk});
-      }
-    };
-
-    send({type:'start',provider:'Vireonix Auto',model:'auto'});
-
-    while(true){
-      const {value,done}=await reader.read();
-      if(done) break;
-      buffer+=decoder.decode(value,{stream:true});
-      const events=buffer.split(/\\r?\\n\\r?\\n/);
-      buffer=events.pop()||'';
-      for(const event of events){
-        for(const line of event.split(/\\r?\\n/)){
-          if(line.startsWith('data:')) handleData(line.slice(5));
-        }
-      }
+    for await (const chunk of upstream.body){
+      if(Date.now()>=deadline) throw new Error('Vireonix Auto request timed out.');
+      if(chunk) res.write(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
     }
 
-    buffer+=decoder.decode();
-    if(buffer.trim()){
-      for(const event of buffer.split(/\\r?\\n\\r?\\n/)){
-        for(const line of event.split(/\\r?\\n/)){
-          if(line.startsWith('data:')) handleData(line.slice(5));
-        }
-      }
-    }
-
-    if(!fullText.trim()){
-      throw new Error(sawDone ? 'Vireonix Auto ended its stream without generating text.' : 'Vireonix Auto ended without an answer.');
-    }
-
-    send({type:'done',text:fullText,provider:'Vireonix Auto',model:'auto'});
     res.end();
+  }catch(e){
+    if(!res.headersSent) throw e;
+
+    // Headers are already committed for a stream. Tell the client explicitly
+    // that the stream failed so it does not interpret a truncated stream as a
+    // successful empty answer.
+    try{
+      const message=e?.name==='AbortError'
+        ? 'Vireonix Auto request timed out.'
+        : String(e?.message||'Vireonix Auto stream failed.');
+      res.write('data: '+JSON.stringify({type:'error',error:message})+'\\n\\n');
+      res.end();
+    }catch{}
   }finally{
     clearTimeout(attempt.timer);
-    try{await upstream.body?.cancel();}catch{}
+    try{attempt.controller.abort();}catch{}
   }
 }
 
