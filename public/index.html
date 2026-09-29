@@ -3768,7 +3768,7 @@ function bindAccountCustomizerAutosave(){
   ['account-bio','account-first','account-username'].forEach(id=>{
     const el=document.getElementById(id);if(!el||el.dataset.autosaveBound==='1')return;
     el.dataset.autosaveBound='1';
-    el.addEventListener('input',()=>{updateAccountCustomizerPreview();scheduleAccountCustomizationSave(300);});
+    el.addEventListener('input',()=>{collectAccountCustomizer();writeAccountCustomizationMirror(customizationSnapshot());persistProfileLocalOnly();updateAccountCustomizerPreview();scheduleAccountCustomizationSave(300);});
     el.addEventListener('blur',()=>saveAccountCustomizerChanges({profileIdentity:id!=='account-bio',keepStatus:false}));
   });
 }
