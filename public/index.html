@@ -1479,7 +1479,7 @@ async function syncAccountStateNow(){
   if(accountSyncInFlight){ accountSyncQueued=true; return; }
   accountSyncInFlight=true;
   try{
-    const r=await fetch('/api/account/state',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({state:accountStatePayload()})});
+    const r=await fetch('/api/account/state',{method:'PUT',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',keepalive:true,body:JSON.stringify({state:accountStatePayload()})});
     const d=await r.json().catch(()=>({}));
     if(r.status===401){ state.account=null; renderProfileSlot(); }
     else if(!r.ok) showAccountSyncNotice(d.error||'Your account changes could not be saved. Please try again.');
@@ -3605,6 +3605,8 @@ async function authSubmit(){
       document.getElementById('account-username').value=d.user.username||'';
       document.getElementById('account-first').value=''; document.getElementById('account-last').value='';
       document.getElementById('account-contact').textContent = `@${d.user.username} · ${d.user.email}`;
+      await loadAccountCustomization();
+      hydrateAccountCustomizer(); applyAccountProfilePreferences(); bindAccountCustomizerAutosave(); renderAccountSetupStep(1);
     }else{
       closeSignin();
     }
