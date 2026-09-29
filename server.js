@@ -350,7 +350,7 @@ async function tryVireonix(messages,complex=false){
   // Vireonix Auto is the ONLY cloud AI provider.
   // One request only: there is no retry and no alternate model, so every
   // request has a strict response-time ceiling.
-  return callVireonix(messages,complex,14200);
+  return callVireonix(messages,complex,14700);
 }
 
 async function raceAiProviders(messages,complex){
@@ -646,7 +646,7 @@ app.post('/api/ai/chat',async(req,res)=>{
     const complex=aiQuestionIsComplex(question);
 
     // ONLY Vireonix Auto answers the request. One provider call, no fallback
-    // model, and no second repair call. The hard upstream budget is 13.5s.
+    // model, and no second repair call. The hard upstream budget is 14.7s.
     try{
       const text=await raceAiProviders(messages,complex);
       if(!text || !String(text).trim()) throw new Error('Vireonix Auto returned no usable text.');
