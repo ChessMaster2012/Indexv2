@@ -294,9 +294,12 @@ function buildAiMessages(messages){
     && !writingConstraints.writingMentioned;
 
   if(tiny){
+    // Fast lane: remove Tutor framework text entirely and tell Auto to produce
+    // only the short answer needed. This keeps model:'auto' while minimizing
+    // routing/context overhead for questions such as "7x7" or "Gettysburg
+    // Address explanation".
     return [
-      {role:'system',content:'You are Index Tutor. Answer immediately and directly. Give the answer plus a brief explanation; for a very simple calculation, one short explanation sentence is enough.'},
-      {role:'user',content:question}
+      {role:'user',content:`Answer this school question directly in no more than 2 concise sentences. Include a brief explanation unless the request asks for writing. Question: ${question}`}
     ];
   }
 
