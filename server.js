@@ -1172,11 +1172,11 @@ function sanitizeAccountState(input){
 function customizationProfileFromState(input){
   const p=input&&typeof input==='object'?input:{};
   return {
-    name:String(p.name||'').replace(/[<>\\u0000-\\u001F]/g,'').slice(0,60),
+    name:String(p.name||'').replace(/[<>\u0000-\u001F]/g,'').slice(0,60),
     district:String(p.district||'').slice(0,200),
     county:String(p.county||'').slice(0,80),
     countyName:String(p.countyName||'').slice(0,200),
-    bio:String(p.bio||'').replace(/[<>\\u0000-\\u001F]/g,'').slice(0,140),
+    bio:String(p.bio||'').replace(/[<>\u0000-\u001F]/g,'').slice(0,140),
     favoriteSubject:String(p.favoriteSubject||'').slice(0,80),
     studyGoal:String(p.studyGoal||'').slice(0,100),
     profileAccent:String(p.profileAccent||'purple').slice(0,20),
