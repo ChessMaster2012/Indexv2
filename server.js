@@ -269,8 +269,8 @@ function buildAiMessages(messages){
   // Self-contained short requests should take the shortest possible Vireonix
   // Auto path. We still use the SAME model/provider; we simply avoid sending
   // unnecessary context that can slow first-token latency.
-  const selfContained=/^(?:7\\s*[x×]\\s*7|[-+]?\\d+(?:\\s*[+\\-*÷×]\\s*[-+]?\\d+)+|what\\s+is\\s+[-+]?\\d+(?:\\s*[+\\-*÷×]\\s*[-+]?\\d+)+\\??)$/i.test(question)
-    || (question.length<=90 && !/\\b(?:it|that|this|these|those|why|how|above|previous|same|instead|again|more|simpler|explain that)\\b/i.test(question)
+  const selfContained=/^(?:7\s*[x×]\s*7|[-+]?\d+(?:\s*[+*÷×-]\s*[-+]?\d+)+|what\s+is\s+[-+]?\d+(?:\s*[+*÷×-]\s*[-+]?\d+)+\??)$/i.test(question)
+    || (question.length<=90 && !/\b(?:it|that|this|these|those|why|how|above|previous|same|instead|again|more|simpler|explain that)\b/i.test(question)
         && !range && !writingConstraints.writingMentioned);
 
   if(selfContained){
