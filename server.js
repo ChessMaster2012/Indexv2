@@ -242,46 +242,75 @@ function requestedWritingConstraints(messages){
 function buildAiMessages(messages){
   const turns=normalizeAiMessages(messages);
   if(!turns.length) return [];
-  const clientRules=turns.find(t=>t.role==='system')?.content||'';
+
   const question=latestUserQuestion(turns);
-  const task=classifyAiTask(question);
   const writingConstraints=requestedWritingConstraints(turns);
   const range=writingConstraints.sentenceRange;
-  const taskRules={
-    'direct-writing':'EXECUTION RULE: The student asked you to create writing. Create the requested writing itself. Do NOT answer with writing tips, a paragraph structure, an outline, or instructions for the student unless they explicitly asked for those. Output the finished draft directly.',
-    'direct-problem-solving':'EXECUTION RULE: The student asked you to solve or calculate something. Perform the problem, give the result, and include a brief explanation of the reasoning. Do NOT replace the requested solution with generic study advice.',
-    'direct-explanation':'EXECUTION RULE: Answer the exact concept/question asked and briefly explain the answer. Do not substitute a different topic or give generic classroom advice.',
-    'direct-answer':'EXECUTION RULE: Follow the student\'s concrete request literally, answer it directly, and briefly explain the answer unless the request is to write/compose/draft something.'
-  }[task];
+  const priorAssistant=[...turns].reverse().find(t=>t.role==='assistant')?.content||'';
+  const priorUser=[...turns].reverse().find(t=>t.role==='user' && t.content!==question)?.content||'';
+
+  // Detect short contextual follow-ups aggressively so phrases such as
+  // "why?", "as a radical", and "what about plants?" keep the previous answer
+  // without retransmitting the entire conversation.
+  const shortFollowUp=/^(?:why|how|how so|can you explain(?: that| it)?|what about\b|how about\b|what if\b|what was that|what did you mean|make (?:that|it) (?:simpler|simple)|simpler|as a radical|as a fraction|in simplest form|in decimal form|then what|and (?:what|how|why)\b|also\b|so\b)\??/i.test(question)
+    || (question.length<=120 && /\b(?:it|that|this|these|those|the above|the previous|same|instead|again|more|simpler|explain that)\b/i.test(question));
+
+  const task=classifyAiTask(question);
+  const taskRule=task==='direct-writing'
+    ? 'Create the finished writing the student requested. Do not give a plan or writing advice unless asked.'
+    : task==='direct-problem-solving'
+      ? 'Solve the actual problem and give the result with the key reasoning.'
+      : task==='direct-explanation'
+        ? 'Answer the exact concept or question and briefly explain it.'
+        : 'Answer the student directly and briefly explain the answer.';
+
   const lengthRule=range
-    ? `WRITING LENGTH RULE: The student requested between ${range.min} and ${range.max} sentences. Produce a finished response in that range and count the sentences before returning it.`
+    ? `The student requested between ${range.min} and ${range.max} sentences. Keep the finished answer inside that range.`
     : '';
   const shapeRule=writingConstraints.singleParagraph
-    ? 'WRITING SHAPE RULE: The student asked for a single paragraph. Return exactly ONE paragraph; do not split the response into multiple blank-line paragraphs or add a title.'
+    ? 'Return exactly one paragraph with no title.'
     : writingConstraints.requestedParagraphRange
-      ? `WRITING SHAPE RULE: The student requested between ${writingConstraints.requestedParagraphRange.min} and ${writingConstraints.requestedParagraphRange.max} paragraphs. Return a finished response in that paragraph range.`
+      ? `Return between ${writingConstraints.requestedParagraphRange.min} and ${writingConstraints.requestedParagraphRange.max} paragraphs.`
       : '';
-  const priorAssistant=[...turns].reverse().find(t=>t.role==='assistant')?.content||'';
-  const followUpRule=/\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|what about it|why is that|how does that)\b/i.test(question) && priorAssistant
-    ? 'FOLLOW-UP CONTEXT RULE: The latest student message is a follow-up. Treat words such as “it,” “that,” “this,” “the above,” “simpler,” or “more simple” as referring to the immediately preceding relevant Tutor answer. Use that previous answer as context and answer the follow-up itself. Do not restart with generic study advice.'
-    : 'CONTEXT RULE: Use the immediately preceding relevant Tutor answer when the student message depends on prior context.';
-  const serverRules='You are Index Tutor, a high-quality school tutor optimized for very low latency. Prefer the fastest capable reasoning path that can answer correctly. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. Unless the student explicitly asks you to write/compose/draft something, ALWAYS give a brief explanation of how or why the answer is correct, even for short factual or arithmetic questions. For very simple questions, keep the explanation to one or two clear sentences. Prefer the shortest complete answer that satisfies the request. Avoid unnecessary preambles, repetition, and long tangents. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. Interpret normal spelling mistakes, shorthand, fragments, and one- or two-word school topics when the intended meaning is reasonably clear; do not force the student to restate an understandable request. For a short topic such as “photosynthesis,” “federalism,” or a misspelled concept, give a direct definition/explanation rather than asking for more detail. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer. UNIVERSAL REQUEST RULE: Any non-empty student message is a request to help. Interpret the student\'s intent from the wording and conversation context. Short topics, fragments, abbreviations, misspellings, equations, names, dates, code snippets, and conversational follow-ups are all valid inputs. Give the most useful direct answer you can. Do not respond with a request for the student to provide more detail when a reasonable interpretation exists.';
-  // Self-contained short requests should take the shortest possible Vireonix
-  // Auto path. We still use the SAME model/provider; we simply avoid sending
-  // unnecessary context that can slow first-token latency.
-  const selfContained=/^(?:7\s*[x×]\s*7|[-+]?\d+(?:\s*[+*÷×-]\s*[-+]?\d+)+|what\s+is\s+[-+]?\d+(?:\s*[+*÷×-]\s*[-+]?\d+)+\??)$/i.test(question)
-    || (question.length<=90 && !/\b(?:it|that|this|these|those|why|how|above|previous|same|instead|again|more|simpler|explain that)\b/i.test(question)
-        && !range && !writingConstraints.writingMentioned);
 
-  if(selfContained){
+  const serverRules=[
+    'You are Index Tutor, a fast and accurate school tutor.',
+    'Answer the latest student request directly.',
+    'Unless the student explicitly asks you to write, compose, draft, or generate a piece of writing, include a brief explanation of how or why the answer is correct.',
+    'For simple calculations, the explanation can be one sentence.',
+    'Use prior conversation when the latest message depends on it.',
+    'Do not ask for clarification when a reasonable interpretation exists.',
+    'Do not give generic study advice instead of answering the request.',
+    'Do not invent facts.',
+    'Keep answers concise unless the student requested longer writing.',
+    taskRule,
+    lengthRule,
+    shapeRule
+  ].filter(Boolean).join(' ');
+
+  const tiny=question.length<=90
+    && !shortFollowUp
+    && !range
+    && !writingConstraints.writingMentioned;
+
+  if(tiny){
     return [
-      {role:'system',content:'Answer the user directly and immediately. For arithmetic or factual questions, give the answer plus a brief explanation of how or why it is correct. For a very simple calculation, one concise explanation sentence is enough. Do not add a teaching plan or unnecessary filler.'},
+      {role:'system',content:'You are Index Tutor. Answer immediately and directly. Give the answer plus a brief explanation; for a very simple calculation, one short explanation sentence is enough.'},
+      {role:'user',content:question}
+    ];
+  }
+
+  if(shortFollowUp && priorAssistant){
+    return [
+      {role:'system',content:serverRules+' This is a follow-up. Treat the latest message as referring to the immediately preceding Tutor answer.'},
+      ...(priorUser ? [{role:'user',content:priorUser.slice(-4000)}] : []),
+      {role:'assistant',content:priorAssistant.slice(-6000)},
       {role:'user',content:question}
     ];
   }
 
   return [
-    {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
+    {role:'system',content:serverRules},
     ...turns.filter(t=>t.role!=='system')
   ];
 }
@@ -362,22 +391,53 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
 }
 
 async function streamVireonixToResponse(messages,complex,res){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),14500);
-  try{
-    const upstream=await fetch('https://vireonix.ai/v1/chat/completions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},
-      body:JSON.stringify({
-        model:'auto',
-        messages,
-        stream:false,
-        max_tokens:complex ? 850 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 64 : 240),
-        temperature:0
-      }),
-      signal:controller.signal
-    });
+  // Keep the server-side deadline below 15 seconds so the browser has a
+  // small amount of time left for the Render -> browser hop.
+  const deadline=Date.now()+14600;
 
+  async function requestAttempt(){
+    const remaining=Math.max(100,deadline-Date.now());
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),remaining);
+    try{
+      const response=await fetch('https://vireonix.ai/v1/chat/completions',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},
+        body:JSON.stringify({
+          model:'auto',
+          messages,
+          stream:true,
+          max_tokens:complex ? 760 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 96 : 320),
+          temperature:0
+        }),
+        signal:controller.signal
+      });
+      return {response,controller,timer};
+    }catch(e){
+      clearTimeout(timer);
+      if(e?.name==='AbortError') throw new Error('Vireonix Auto request timed out.');
+      throw e;
+    }
+  }
+
+  let attempt=await requestAttempt();
+  let upstream=attempt.response;
+
+  // Vireonix recommends retrying 429/5xx. Retry only the SAME Auto model and
+  // only when enough of the 15-second budget remains to do so safely.
+  if((upstream.status===429 || upstream.status>=500) && Date.now()<deadline-1200){
+    const retryAfter=Number(upstream.headers.get('retry-after')||0)||0;
+    const wait=Math.min(900,Math.max(150,retryAfter*1000));
+    try{ await upstream.arrayBuffer(); }catch{}
+    clearTimeout(attempt.timer);
+    await new Promise(resolve=>setTimeout(resolve,Math.min(wait,Math.max(100,deadline-Date.now()-300))));
+    if(Date.now()<deadline-300){
+      attempt=await requestAttempt();
+      upstream=attempt.response;
+    }
+  }
+
+  try{
     const contentType=String(upstream.headers.get('content-type')||'').toLowerCase();
 
     if(!upstream.ok){
@@ -390,9 +450,9 @@ async function streamVireonixToResponse(messages,complex,res){
       throw err;
     }
 
-    // Auto can return either an SSE stream or a normal OpenAI-compatible JSON
-    // completion. Handle both so a valid response is never mistaken for an
-    // empty stream.
+    // Tolerate a normal JSON response even if an intermediary changes the
+    // content type. Vireonix's documented completion text is
+    // choices[0].message.content.
     if(!contentType.includes('text/event-stream')){
       const data=await upstream.json();
       const answer=extractText(data);
@@ -413,22 +473,15 @@ async function streamVireonixToResponse(messages,complex,res){
     let fullText='';
     let sawDone=false;
 
-    const send=(payload)=>res.write('data: '+JSON.stringify(payload)+'\n\n');
+    const send=payload=>res.write('data: '+JSON.stringify(payload)+'\\n\\n');
 
-    const handleData=(dataText)=>{
+    const handleData=dataText=>{
       const clean=String(dataText||'').trim();
       if(!clean) return;
-      if(clean==='[DONE]'){
-        sawDone=true;
-        return;
-      }
-
+      if(clean==='[DONE]'){ sawDone=true; return; }
       let data=null;
       try{data=JSON.parse(clean);}catch{return;}
-      if(data?.error){
-        throw new Error(String(data.error?.message||data.error||'Vireonix Auto streaming error.'));
-      }
-
+      if(data?.error) throw new Error(String(data.error?.message||data.error||'Vireonix Auto streaming error.'));
       const chunk=extractText(data);
       if(chunk){
         fullText+=chunk;
@@ -441,36 +494,34 @@ async function streamVireonixToResponse(messages,complex,res){
     while(true){
       const {value,done}=await reader.read();
       if(done) break;
-
       buffer+=decoder.decode(value,{stream:true});
-
-      // Parse complete SSE lines. Network chunks are arbitrary, so do not
-      // assume an entire SSE event arrives in a single read().
-      const lines=buffer.split(/\r?\n/);
-      buffer=lines.pop()||'';
-
-      for(const line of lines){
-        if(line.startsWith('data:')) handleData(line.slice(5));
+      const events=buffer.split(/\\r?\\n\\r?\\n/);
+      buffer=events.pop()||'';
+      for(const event of events){
+        for(const line of event.split(/\\r?\\n/)){
+          if(line.startsWith('data:')) handleData(line.slice(5));
+        }
       }
     }
 
     buffer+=decoder.decode();
-    if(buffer){
-      for(const line of buffer.split(/\r?\n/)){
-        if(line.startsWith('data:')) handleData(line.slice(5));
+    if(buffer.trim()){
+      for(const event of buffer.split(/\\r?\\n\\r?\\n/)){
+        for(const line of event.split(/\\r?\\n/)){
+          if(line.startsWith('data:')) handleData(line.slice(5));
+        }
       }
     }
 
     if(!fullText.trim()){
-      throw new Error(sawDone
-        ? 'Vireonix Auto ended its stream without generating text.'
-        : 'Vireonix Auto ended without an answer.');
+      throw new Error(sawDone ? 'Vireonix Auto ended its stream without generating text.' : 'Vireonix Auto ended without an answer.');
     }
 
     send({type:'done',text:fullText,provider:'Vireonix Auto',model:'auto'});
     res.end();
   }finally{
-    clearTimeout(timer);
+    clearTimeout(attempt.timer);
+    try{await upstream.body?.cancel();}catch{}
   }
 }
 
