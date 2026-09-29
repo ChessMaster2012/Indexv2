@@ -270,12 +270,20 @@ function wire(){
           const result=await r.json().catch(function(){return {};});
           if(!r.ok) throw new Error(result.error||('claim '+r.status));
           if(result.state&&result.state.progress){
-            state.progress={...state.progress,...result.state.progress};
-            if(typeof persistProgressLocalOnly==='function')persistProgressLocalOnly();
+            // The server has already committed the quest XP. Apply the same
+            // Battle Pass pipeline used by normal XP rewards so level-ups,
+            // cosmetic unlocks, and the visible Battle Pass update immediately.
+            state.progress={...state.progress,...result.state.progress,equipped:{...state.progress.equipped,...(result.state.progress.equipped||{})}};
           }else{
             state.progress.xp=(state.progress.xp||0)+q.rewardXP;
-            if(typeof persistProgress==='function')persistProgress();
           }
+          recordActiveToday();
+          applyBattlePassRewards();
+          persistProgressLocalOnly();
+          // Persist any Battle Pass rewards unlocked by this quest claim.
+          // This is a save only; the XP itself was already committed by the
+          // server-side quest transaction above.
+          if(typeof syncAccountStateNow==='function')syncAccountStateNow();
           if(result.quests){
             saveQuestData(result.quests);
           }else{
@@ -283,6 +291,8 @@ function wire(){
           }
           if(typeof renderSidebarBadge==='function')renderSidebarBadge();
           if(typeof renderXP==='function')renderXP();
+          if(typeof renderRewards==='function'&&state.view==='rewards')renderRewards();
+          if(typeof renderDashboard==='function'&&state.view==='dashboard')renderDashboard();
           renderQuests();
           showRewardToast('⚡ +'+q.rewardXP+' Battle Pass XP');
         }).catch(function(err){
