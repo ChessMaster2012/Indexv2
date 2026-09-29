@@ -361,6 +361,104 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
   return text;
 }
 
+async function streamVireonixToResponse(messages,complex,res){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),14700);
+  try{
+    const upstream=await fetch('https://vireonix.ai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'text/event-stream'},
+      body:JSON.stringify({
+        model:'auto',
+        messages,
+        stream:true,
+        max_tokens:complex ? 850 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 160 : 400),
+        temperature:0
+      }),
+      signal:controller.signal
+    });
+
+    if(!upstream.ok){
+      const raw=await upstream.text();
+      let data=null;
+      try{data=raw?JSON.parse(raw):null;}catch{}
+      const detail=data?.error?.message || data?.error || data?.message || raw.slice(0,300) || ('HTTP '+upstream.status);
+      const err=new Error('HTTP '+upstream.status+': '+String(detail).replace(/\\s+/g,' ').trim().slice(0,300));
+      err.status=upstream.status;
+      throw err;
+    }
+
+    res.status(200);
+    res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control','no-cache, no-transform');
+    res.setHeader('Connection','keep-alive');
+    res.setHeader('X-Accel-Buffering','no');
+    if(typeof res.flushHeaders==='function') res.flushHeaders();
+
+    const reader=upstream.body.getReader();
+    const decoder=new TextDecoder();
+    let buffer='';
+    let fullText='';
+
+    const send=(payload)=>{
+      res.write('data: '+JSON.stringify(payload)+'\\n\\n');
+    };
+
+    send({type:'start',provider:'Vireonix Auto',model:'auto'});
+
+    while(true){
+      const {value,done}=await reader.read();
+      if(done) break;
+      buffer+=decoder.decode(value,{stream:true});
+      const events=buffer.split(/\\n\\n/);
+      buffer=events.pop()||'';
+
+      for(const event of events){
+        const lines=event.split(/\\r?\\n/).filter(line=>line.startsWith('data:'));
+        if(!lines.length) continue;
+        const dataText=lines.map(line=>line.slice(5).trim()).join('');
+        if(!dataText) continue;
+        if(dataText==='[DONE]'){
+          send({type:'done',text:fullText,provider:'Vireonix Auto',model:'auto'});
+          res.end();
+          return;
+        }
+
+        let data=null;
+        try{data=JSON.parse(dataText);}catch{continue;}
+        const chunk=extractText(data);
+        if(chunk){
+          fullText+=chunk;
+          send({type:'chunk',text:chunk});
+        }
+      }
+    }
+
+    if(buffer.trim()){
+      const dataText=buffer.split(/\\r?\\n/).filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('');
+      if(dataText && dataText!=='[DONE]'){
+        try{
+          const data=JSON.parse(dataText);
+          const chunk=extractText(data);
+          if(chunk){
+            fullText+=chunk;
+            send({type:'chunk',text:chunk});
+          }
+        }catch{}
+      }
+    }
+
+    if(!fullText.trim()) throw new Error('Vireonix Auto returned no usable text.');
+    send({type:'done',text:fullText,provider:'Vireonix Auto',model:'auto'});
+    res.end();
+  }catch(e){
+    clearTimeout(timer);
+    throw e;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
 async function tryVireonix(messages,complex=false){
   // Vireonix Auto is the ONLY cloud AI provider.
   // One request only: there is no retry and no alternate model, so every
@@ -660,28 +758,39 @@ app.post('/api/ai/chat',async(req,res)=>{
     const question=latestUserQuestion(messages);
     const complex=aiQuestionIsComplex(question);
 
-    // ONLY Vireonix Auto answers the request. One provider call, no fallback
-    // model, and no second repair call. The hard upstream budget is 14.7s.
+    // ONLY Vireonix Auto answers the request. One upstream request, streamed
+    // directly through this server so the first generated tokens reach the UI
+    // immediately. No fallback model and no second AI request.
     try{
-      const text=await raceAiProviders(messages,complex);
-      if(!text || !String(text).trim()) throw new Error('Vireonix Auto returned no usable text.');
-      return res.json({text:String(text).trim(),provider:'Vireonix Auto',model:'auto'});
+      await streamVireonixToResponse(messages,complex,res);
     }catch(e){
-      console.warn('[AI] Vireonix Auto failed:',e?.message||e);
-      return res.status(504).json({
-        error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.',
-        provider:'Vireonix Auto',
-        model:'auto',
-        detail:providerFailureLabel(e)
-      });
+      console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
+      if(!res.headersSent){
+        return res.status(504).json({
+          error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.',
+          provider:'Vireonix Auto',
+          model:'auto',
+          detail:providerFailureLabel(e)
+        });
+      }
+      try{
+        res.write('data: '+JSON.stringify({
+          type:'error',
+          error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.'
+        })+'\\n\\n');
+        res.end();
+      }catch{}
     }
   }catch(e){
     console.error('[AI] request handling error:',e?.stack||e);
-    return res.status(500).json({
-      error:'The Vireonix Auto Tutor request could not be completed.',
-      provider:'Vireonix Auto',
-      model:'auto'
-    });
+    if(!res.headersSent){
+      return res.status(500).json({
+        error:'The Vireonix Auto Tutor request could not be completed.',
+        provider:'Vireonix Auto',
+        model:'auto'
+      });
+    }
+    try{res.end();}catch{}
   }
 });
 
