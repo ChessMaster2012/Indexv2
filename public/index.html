@@ -3684,8 +3684,8 @@ let accountCustomizationSaveTimer=0;
 let accountCustomizationSaveInFlight=false;
 let accountCustomizationSaveQueued=false;
 function accountCustomizationLocalKey(){return state.account&&state.account.id?ACCOUNT_CUSTOMIZATION_LOCAL_PREFIX+String(state.account.id):'';}
-function readAccountCustomizationMirror(){const key=accountCustomizationLocalKey();if(!key)return null;try{const raw=localStorage.getItem(key);return raw?JSON.parse(raw):null;}catch(e){return null;}}
-function writeAccountCustomizationMirror(profile){const key=accountCustomizationLocalKey();if(!key)return;try{localStorage.setItem(key,JSON.stringify(profile));}catch(e){}}
+function readAccountCustomizationMirror(){const key=accountCustomizationLocalKey();if(!key)return null;try{const raw=localStorage.getItem(key);if(!raw)return null;const parsed=JSON.parse(raw);return parsed&&parsed.profile?parsed:{profile:parsed,savedAt:0};}catch(e){return null;}}
+function writeAccountCustomizationMirror(profile,savedAt=Date.now()){const key=accountCustomizationLocalKey();if(!key)return;try{localStorage.setItem(key,JSON.stringify({profile,savedAt:Number(savedAt)||Date.now()}));}catch(e){}}
 function clearAccountCustomizationMirror(){const key=accountCustomizationLocalKey();if(key)try{localStorage.removeItem(key);}catch(e){}}
 function customizationSnapshot(){collectAccountCustomizer();return {name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||'',bio:state.profile.bio||'',favoriteSubject:state.profile.favoriteSubject||'',studyGoal:state.profile.studyGoal||'',profileAccent:state.profile.profileAccent||'purple',showProgress:state.profile.showProgress!==false,reducedMotion:state.profile.reducedMotion===true};}
 function customizationMatches(a,b){const keys=['name','district','county','countyName','bio','favoriteSubject','studyGoal','profileAccent','showProgress','reducedMotion'];return keys.every(k=>String(a?.[k]??'')===String(b?.[k]??''));}
@@ -3697,16 +3697,36 @@ async function loadAccountCustomization(){
     const d=await r.json().catch(()=>({}));
     if(r.status===401){state.account=null;renderProfileSlot();return false;}
     if(r.ok&&d.profile){
+      const serverSavedAt=Number(d.savedAt||0)||0;
+      const localProfile=local&&local.profile&&typeof local.profile==='object'?local.profile:null;
+      const localSavedAt=Number(local?.savedAt||0)||0;
+      const useLocalNewer=!!localProfile && localSavedAt>serverSavedAt && !customizationMatches(localProfile,d.profile);
+      if(useLocalNewer){
+        state.profile={...state.profile,...localProfile};
+        persistProfileLocalOnly();
+        hydrateAccountCustomizer();applyAccountProfilePreferences();
+        try{
+          const repair=await fetch('/api/account/customization',{method:'PUT',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',keepalive:true,body:JSON.stringify({profile:customizationSnapshot()})});
+          const repairData=await repair.json().catch(()=>({}));
+          if(repair.ok&&repairData.profile){
+            writeAccountCustomizationMirror(repairData.profile,Number(repairData.savedAt||Date.now())||Date.now());
+            state.profile={...state.profile,...repairData.profile};
+            persistProfileLocalOnly();
+            hydrateAccountCustomizer();applyAccountProfilePreferences();
+          }
+        }catch(e){}
+        return true;
+      }
       state.profile={...state.profile,...d.profile};
-      writeAccountCustomizationMirror(d.profile);
+      writeAccountCustomizationMirror(d.profile,serverSavedAt||Date.now());
       persistProfileLocalOnly();
       hydrateAccountCustomizer();applyAccountProfilePreferences();
       return true;
     }
     throw new Error(d.error||'Could not load customization.');
   }catch(e){
-    if(local&&typeof local==='object'){
-      state.profile={...state.profile,...local};
+    if(local&&local.profile&&typeof local.profile==='object'){
+      state.profile={...state.profile,...local.profile};
       persistProfileLocalOnly();
       hydrateAccountCustomizer();applyAccountProfilePreferences();
       return false;
@@ -3721,7 +3741,7 @@ async function saveAccountCustomizerChanges({profileIdentity=false,closeAfter=fa
   const saveBtn=document.getElementById('account-save-profile-btn');
   collectAccountCustomizer();
   const profile=customizationSnapshot();
-  writeAccountCustomizationMirror(profile);
+  writeAccountCustomizationMirror(profile,Date.now());
   persistProfileLocalOnly();
   accountCustomizationSaveInFlight=true;
   if(status&&keepStatus)status.innerHTML='<div class="loading-line"><span class="spinner"></span> Saving customization…</div>';
@@ -3742,7 +3762,7 @@ async function saveAccountCustomizerChanges({profileIdentity=false,closeAfter=fa
     const d3=await r3.json().catch(()=>({}));
     if(!r3.ok||!d3.profile||!customizationMatches(profile,d3.profile))throw new Error('The saved customization did not verify after writing.');
     state.profile={...state.profile,...d3.profile};
-    writeAccountCustomizationMirror(d3.profile);persistProfileLocalOnly();
+    writeAccountCustomizationMirror(d3.profile,Number(d3.savedAt||Date.now())||Date.now());persistProfileLocalOnly();
     hydrateAccountCustomizer();applyAccountProfilePreferences();updateAccountCustomizerPreview();
     const badge=document.getElementById('account-save-badge');if(badge)badge.textContent='☁️ Saved and verified';
     if(status&&keepStatus)status.innerHTML='<div class="success-note">✓ Saved and verified. Refreshing the tab will keep these customization settings.</div>';
