@@ -1337,7 +1337,7 @@ async function runLocalAi(messages, options={}){
     throw new Error('No AI question was supplied.');
   }
 
-  const timeoutMs=Number(options.timeoutMs)||14500;
+  const timeoutMs=Number(options.timeoutMs)||14800;
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
