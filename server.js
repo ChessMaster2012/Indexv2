@@ -142,7 +142,7 @@ function aiModerationMessage() {
 // Server-side AI Tutor: the browser talks only to /api/ai/chat.
 // The live answer path uses Vireonix Auto only. There is no alternate provider
 // or fallback model.
-const AI_MAX_INPUT_CHARS = 200000; // Long-session context for Vireonix Auto.
+const AI_MAX_INPUT_CHARS = 60000; // Keep substantial follow-up context without creating slow oversized prompts.
 
 function normalizeAiMessages(messages){
   const raw=Array.isArray(messages)?messages:[];
@@ -156,13 +156,13 @@ function normalizeAiMessages(messages){
   // Do not impose a turn-count limit. Preserve the newest conversation turns
   // until the large character budget is reached, so long follow-up sessions
   // keep their context instead of abruptly stopping at 20/200 turns.
-  const conversation=raw.filter(m=>m && m.role!=='system');
+  const conversation=raw.filter(m=>m && m.role!=='system').slice(-80);
   for(let i=conversation.length-1;i>=0;i--){
     const m=conversation[i];
     const role=m.role==='assistant'?'assistant':m.role==='user'?'user':'system';
     let content=String(m.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
-    content=content.slice(0,12000);
+    content=content.slice(0,6000);
     const room=Math.max(0,AI_MAX_INPUT_CHARS-total);
     if(room<=0) break;
     if(content.length>room) content=content.slice(0,room);
@@ -265,7 +265,7 @@ function buildAiMessages(messages){
   const followUpRule=/\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|what about it|why is that|how does that)\b/i.test(question) && priorAssistant
     ? 'FOLLOW-UP CONTEXT RULE: The latest student message is a follow-up. Treat words such as “it,” “that,” “this,” “the above,” “simpler,” or “more simple” as referring to the immediately preceding relevant Tutor answer. Use that previous answer as context and answer the follow-up itself. Do not restart with generic study advice.'
     : 'CONTEXT RULE: Use the immediately preceding relevant Tutor answer when the student message depends on prior context.';
-  const serverRules='You are Index Tutor, a high-quality school tutor. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. Interpret normal spelling mistakes, shorthand, fragments, and one- or two-word school topics when the intended meaning is reasonably clear; do not force the student to restate an understandable request. For a short topic such as “photosynthesis,” “federalism,” or a misspelled concept, give a direct definition/explanation rather than asking for more detail. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer. UNIVERSAL REQUEST RULE: Any non-empty student message is a request to help. Interpret the student\'s intent from the wording and conversation context. Short topics, fragments, abbreviations, misspellings, equations, names, dates, code snippets, and conversational follow-ups are all valid inputs. Give the most useful direct answer you can. Do not respond with a request for the student to provide more detail when a reasonable interpretation exists.';
+  const serverRules='You are Index Tutor, a high-quality school tutor optimized for fast responses. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. Prefer the shortest complete answer that satisfies the request. Avoid unnecessary preambles, repetition, and long tangents. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. Interpret normal spelling mistakes, shorthand, fragments, and one- or two-word school topics when the intended meaning is reasonably clear; do not force the student to restate an understandable request. For a short topic such as “photosynthesis,” “federalism,” or a misspelled concept, give a direct definition/explanation rather than asking for more detail. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer. UNIVERSAL REQUEST RULE: Any non-empty student message is a request to help. Interpret the student\'s intent from the wording and conversation context. Short topics, fragments, abbreviations, misspellings, equations, names, dates, code snippets, and conversational follow-ups are all valid inputs. Give the most useful direct answer you can. Do not respond with a request for the student to provide more detail when a reasonable interpretation exists.';
   return [
     {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
     ...turns.filter(t=>t.role!=='system')
@@ -337,7 +337,8 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
     },
     body:JSON.stringify({
       model:'auto',
-      messages
+      messages,
+      max_tokens: complex ? 900 : 450
     })
   },timeoutMs);
   const text=extractText(data);
@@ -349,7 +350,7 @@ async function tryVireonix(messages,complex=false){
   // Vireonix Auto is the ONLY cloud AI provider.
   // One request only: there is no retry and no alternate model, so every
   // request has a strict response-time ceiling.
-  return callVireonix(messages,complex,13500);
+  return callVireonix(messages,complex,14200);
 }
 
 async function raceAiProviders(messages,complex){
