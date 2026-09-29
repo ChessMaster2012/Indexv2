@@ -367,7 +367,7 @@ async function streamVireonixToResponse(messages,complex,res){
   try{
     const upstream=await fetch('https://vireonix.ai/v1/chat/completions',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'text/event-stream'},
+      headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},
       body:JSON.stringify({
         model:'auto',
         messages,
@@ -378,14 +378,26 @@ async function streamVireonixToResponse(messages,complex,res){
       signal:controller.signal
     });
 
+    const contentType=String(upstream.headers.get('content-type')||'').toLowerCase();
+
     if(!upstream.ok){
       const raw=await upstream.text();
       let data=null;
       try{data=raw?JSON.parse(raw):null;}catch{}
       const detail=data?.error?.message || data?.error || data?.message || raw.slice(0,300) || ('HTTP '+upstream.status);
-      const err=new Error('HTTP '+upstream.status+': '+String(detail).replace(/\\s+/g,' ').trim().slice(0,300));
+      const err=new Error('HTTP '+upstream.status+': '+String(detail).replace(/\s+/g,' ').trim().slice(0,300));
       err.status=upstream.status;
       throw err;
+    }
+
+    // Auto can return either an SSE stream or a normal OpenAI-compatible JSON
+    // completion. Handle both so a valid response is never mistaken for an
+    // empty stream.
+    if(!contentType.includes('text/event-stream')){
+      const data=await upstream.json();
+      const answer=extractText(data);
+      if(!answer) throw new Error('Vireonix Auto returned no usable text.');
+      return res.json({text:answer,provider:'Vireonix Auto',model:'auto'});
     }
 
     res.status(200);
@@ -399,9 +411,29 @@ async function streamVireonixToResponse(messages,complex,res){
     const decoder=new TextDecoder();
     let buffer='';
     let fullText='';
+    let sawDone=false;
 
-    const send=(payload)=>{
-      res.write('data: '+JSON.stringify(payload)+'\\n\\n');
+    const send=(payload)=>res.write('data: '+JSON.stringify(payload)+'\n\n');
+
+    const handleData=(dataText)=>{
+      const clean=String(dataText||'').trim();
+      if(!clean) return;
+      if(clean==='[DONE]'){
+        sawDone=true;
+        return;
+      }
+
+      let data=null;
+      try{data=JSON.parse(clean);}catch{return;}
+      if(data?.error){
+        throw new Error(String(data.error?.message||data.error||'Vireonix Auto streaming error.'));
+      }
+
+      const chunk=extractText(data);
+      if(chunk){
+        fullText+=chunk;
+        send({type:'chunk',text:chunk});
+      }
     };
 
     send({type:'start',provider:'Vireonix Auto',model:'auto'});
@@ -409,51 +441,34 @@ async function streamVireonixToResponse(messages,complex,res){
     while(true){
       const {value,done}=await reader.read();
       if(done) break;
+
       buffer+=decoder.decode(value,{stream:true});
-      const events=buffer.split(/\\n\\n/);
-      buffer=events.pop()||'';
 
-      for(const event of events){
-        const lines=event.split(/\\r?\\n/).filter(line=>line.startsWith('data:'));
-        if(!lines.length) continue;
-        const dataText=lines.map(line=>line.slice(5).trim()).join('');
-        if(!dataText) continue;
-        if(dataText==='[DONE]'){
-          send({type:'done',text:fullText,provider:'Vireonix Auto',model:'auto'});
-          res.end();
-          return;
-        }
+      // Parse complete SSE lines. Network chunks are arbitrary, so do not
+      // assume an entire SSE event arrives in a single read().
+      const lines=buffer.split(/\r?\n/);
+      buffer=lines.pop()||'';
 
-        let data=null;
-        try{data=JSON.parse(dataText);}catch{continue;}
-        const chunk=extractText(data);
-        if(chunk){
-          fullText+=chunk;
-          send({type:'chunk',text:chunk});
-        }
+      for(const line of lines){
+        if(line.startsWith('data:')) handleData(line.slice(5));
       }
     }
 
-    if(buffer.trim()){
-      const dataText=buffer.split(/\\r?\\n/).filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('');
-      if(dataText && dataText!=='[DONE]'){
-        try{
-          const data=JSON.parse(dataText);
-          const chunk=extractText(data);
-          if(chunk){
-            fullText+=chunk;
-            send({type:'chunk',text:chunk});
-          }
-        }catch{}
+    buffer+=decoder.decode();
+    if(buffer){
+      for(const line of buffer.split(/\r?\n/)){
+        if(line.startsWith('data:')) handleData(line.slice(5));
       }
     }
 
-    if(!fullText.trim()) throw new Error('Vireonix Auto returned no usable text.');
+    if(!fullText.trim()){
+      throw new Error(sawDone
+        ? 'Vireonix Auto ended its stream without generating text.'
+        : 'Vireonix Auto ended without an answer.');
+    }
+
     send({type:'done',text:fullText,provider:'Vireonix Auto',model:'auto'});
     res.end();
-  }catch(e){
-    clearTimeout(timer);
-    throw e;
   }finally{
     clearTimeout(timer);
   }
