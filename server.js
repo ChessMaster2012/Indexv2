@@ -338,7 +338,7 @@ function extractText(data){
 
 async function sleep(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
 
-async function fetchJsonWithTimeout(url,options={},timeoutMs=15000){
+async function fetchJsonWithTimeout(url,options={},timeoutMs=30000){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
@@ -394,9 +394,9 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
 }
 
 async function streamVireonixToResponse(messages,complex,res){
-  // One hard deadline for the complete upstream response. Keep it below the
-  // browser's 15-second ceiling so the UI has a little network headroom.
-  const deadline=Date.now()+14600;
+  // One hard deadline for the complete upstream response. Give slower school-network
+  // requests enough time to finish while still keeping a firm ceiling.
+  const deadline=Date.now()+29500;
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -506,7 +506,7 @@ async function tryVireonix(messages,complex=false){
   // Vireonix Auto is the ONLY cloud AI provider.
   // One request only: there is no retry and no alternate model, so every
   // request has a strict response-time ceiling.
-  return callVireonix(messages,complex,14700);
+  return callVireonix(messages,complex,29600);
 }
 
 async function raceAiProviders(messages,complex){
@@ -810,7 +810,7 @@ app.post('/api/ai/chat',async(req,res)=>{
       console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
       if(!res.headersSent){
         return res.status(504).json({
-          error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.',
+          error:'Vireonix Auto did not answer within the 30-second Tutor limit. No fallback model was used.',
           provider:'Vireonix Auto',
           model:'auto',
           detail:providerFailureLabel(e)
@@ -819,7 +819,7 @@ app.post('/api/ai/chat',async(req,res)=>{
       try{
         res.write('data: '+JSON.stringify({
           type:'error',
-          error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.'
+          error:'Vireonix Auto did not answer within the 30-second Tutor limit. No fallback model was used.'
         })+'\\n\\n');
         res.end();
       }catch{}
