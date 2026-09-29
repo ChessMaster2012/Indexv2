@@ -265,7 +265,21 @@ function buildAiMessages(messages){
   const followUpRule=/\b(it|that|this|these|those|the above|the previous|more simple|simpler|clarify|explain that|what about it|why is that|how does that)\b/i.test(question) && priorAssistant
     ? 'FOLLOW-UP CONTEXT RULE: The latest student message is a follow-up. Treat words such as “it,” “that,” “this,” “the above,” “simpler,” or “more simple” as referring to the immediately preceding relevant Tutor answer. Use that previous answer as context and answer the follow-up itself. Do not restart with generic study advice.'
     : 'CONTEXT RULE: Use the immediately preceding relevant Tutor answer when the student message depends on prior context.';
-  const serverRules='You are Index Tutor, a high-quality school tutor optimized for fast responses. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. Prefer the shortest complete answer that satisfies the request. Avoid unnecessary preambles, repetition, and long tangents. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. Interpret normal spelling mistakes, shorthand, fragments, and one- or two-word school topics when the intended meaning is reasonably clear; do not force the student to restate an understandable request. For a short topic such as “photosynthesis,” “federalism,” or a misspelled concept, give a direct definition/explanation rather than asking for more detail. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer. UNIVERSAL REQUEST RULE: Any non-empty student message is a request to help. Interpret the student\'s intent from the wording and conversation context. Short topics, fragments, abbreviations, misspellings, equations, names, dates, code snippets, and conversational follow-ups are all valid inputs. Give the most useful direct answer you can. Do not respond with a request for the student to provide more detail when a reasonable interpretation exists.';
+  const serverRules='You are Index Tutor, a high-quality school tutor optimized for very low latency. Prefer the fastest capable reasoning path that can answer correctly. Follow the student request as an execution task, not as a request for generic advice. Answer the latest question first and use prior turns only when useful. Be accurate, explain reasoning clearly, and do not invent facts. Prefer the shortest complete answer that satisfies the request. Avoid unnecessary preambles, repetition, and long tangents. '+followUpRule+' '+taskRules+' '+lengthRule+' '+shapeRule+' For math and science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. Never use raw LaTeX commands unless the student explicitly asks for them. For writing, produce the requested draft directly at an appropriate student level. Interpret normal spelling mistakes, shorthand, fragments, and one- or two-word school topics when the intended meaning is reasonably clear; do not force the student to restate an understandable request. For a short topic such as “photosynthesis,” “federalism,” or a misspelled concept, give a direct definition/explanation rather than asking for more detail. For coding or difficult multi-step questions, reason carefully before answering and prioritize correctness over brevity. Keep ordinary answers concise enough to read easily. Never describe how to answer when the user asked you to actually answer. UNIVERSAL REQUEST RULE: Any non-empty student message is a request to help. Interpret the student\'s intent from the wording and conversation context. Short topics, fragments, abbreviations, misspellings, equations, names, dates, code snippets, and conversational follow-ups are all valid inputs. Give the most useful direct answer you can. Do not respond with a request for the student to provide more detail when a reasonable interpretation exists.';
+  // Self-contained short requests should take the shortest possible Vireonix
+  // Auto path. We still use the SAME model/provider; we simply avoid sending
+  // unnecessary context that can slow first-token latency.
+  const selfContained=/^(?:7\\s*[x×]\\s*7|[-+]?\\d+(?:\\s*[+\\-*÷×]\\s*[-+]?\\d+)+|what\\s+is\\s+[-+]?\\d+(?:\\s*[+\\-*÷×]\\s*[-+]?\\d+)+\\??)$/i.test(question)
+    || (question.length<=90 && !/\\b(?:it|that|this|these|those|why|how|above|previous|same|instead|again|more|simpler|explain that)\\b/i.test(question)
+        && !range && !writingConstraints.writingMentioned);
+
+  if(selfContained){
+    return [
+      {role:'system',content:'Answer the user directly and immediately. For arithmetic, calculate the exact result. Return only the useful answer with no preamble, no teaching plan, and no unnecessary explanation.'},
+      {role:'user',content:question}
+    ];
+  }
+
   return [
     {role:'system',content:(clientRules?clientRules+'\n\n':'')+serverRules},
     ...turns.filter(t=>t.role!=='system')
@@ -338,7 +352,8 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
     body:JSON.stringify({
       model:'auto',
       messages,
-      max_tokens: complex ? 900 : 450
+      max_tokens: complex ? 850 : (String(question||'').length<=90 ? 160 : 400),
+      temperature: 0
     })
   },timeoutMs);
   const text=extractText(data);
