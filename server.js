@@ -147,17 +147,31 @@ const AI_MAX_INPUT_CHARS = 200000; // Long-session context for Vireonix Auto.
 function normalizeAiMessages(messages){
   const raw=Array.isArray(messages)?messages:[];
   const safe=[]; let total=0;
-  for(const m of raw.slice(-200)){
-    const role=m?.role==='assistant'?'assistant':m?.role==='user'?'user':'system';
-    let content=String(m?.content||'').replace(/\u0000/g,'').trim();
+  const systemTurns=raw
+    .filter(m=>m && m.role==='system')
+    .slice(0,2)
+    .map(m=>({role:'system',content:String(m.content||'').replace(/\u0000/g,'').trim().slice(0,12000)}))
+    .filter(m=>m.content);
+
+  // Do not impose a turn-count limit. Preserve the newest conversation turns
+  // until the large character budget is reached, so long follow-up sessions
+  // keep their context instead of abruptly stopping at 20/200 turns.
+  const conversation=raw.filter(m=>m && m.role!=='system');
+  for(let i=conversation.length-1;i>=0;i--){
+    const m=conversation[i];
+    const role=m.role==='assistant'?'assistant':m.role==='user'?'user':'system';
+    let content=String(m.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
-    content=content.slice(0,2200);
+    content=content.slice(0,12000);
     const room=Math.max(0,AI_MAX_INPUT_CHARS-total);
     if(room<=0) break;
-    content=content.slice(0,room); total+=content.length;
-    safe.push({role,content});
+    if(content.length>room) content=content.slice(0,room);
+    if(!content) break;
+    safe.unshift({role,content});
+    total+=content.length;
+    if(total>=AI_MAX_INPUT_CHARS) break;
   }
-  return safe;
+  return [...systemTurns,...safe];
 }
 
 function latestUserQuestion(messages){
