@@ -356,7 +356,7 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
     body:JSON.stringify({
       model:'auto',
       messages,
-      max_tokens: complex ? 850 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 160 : 400),
+      max_tokens: complex ? 1200 : 700,
       temperature: 0
     })
   },timeoutMs);
