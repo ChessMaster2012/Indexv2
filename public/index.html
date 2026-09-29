@@ -1370,23 +1370,45 @@ async function runLocalAi(messages, options={}){
       };
 
       const consumeEvent=(event)=>{
-        const lines=event.split(/\r?\n/).filter(line=>line.startsWith('data:'));
+        const lines=event.split(/\\r?\\n/).filter(line=>line.startsWith('data:'));
         if(!lines.length) return;
         const payload=lines.map(line=>line.slice(5).trim()).join('');
         if(!payload) return;
 
-        let data=null;
-        try{data=JSON.parse(payload);}catch{return;}
+        if(payload==='[DONE]'){
+          sawDone=true;
+          return;
+        }
 
-        if(data.type==='chunk'){
+        let data=null;
+        try{data=JSON.parse(payload);}catch{
+          // Vireonix is documented as OpenAI-compatible. Ignore non-JSON
+          // keep-alives rather than turning them into a fake Tutor answer.
+          return;
+        }
+
+        if(data?.type==='chunk'){
           emitChunk(String(data.text||''));
-        }else if(data.type==='done'){
+        }else if(data?.type==='done'){
           sawDone=true;
           if(!fullText && data.text) fullText=String(data.text);
-        }else if(data.type==='error'){
+        }else if(data?.type==='error'){
           throw new Error(String(data.error||'Vireonix Auto failed.'));
+        }else{
+          // Native OpenAI-compatible streaming:
+          // choices[0].delta.content is the generated token/chunk.
+          const chunk=String(
+            data?.choices?.[0]?.delta?.content ??
+            data?.choices?.[0]?.message?.content ??
+            data?.choices?.[0]?.text ??
+            data?.output_text ??
+            data?.text ??
+            ''
+          );
+          if(chunk) emitChunk(chunk);
+          if(data?.choices?.[0]?.finish_reason) sawDone=true;
         }
-      };
+      }
 
       while(true){
         const {value,done}=await reader.read();
