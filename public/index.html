@@ -3523,6 +3523,7 @@ async function openSignin(){
 
   showAuthPanel();
   if(state.account){
+    try{ await loadAccountState(); }catch(e){}
     document.getElementById('account-panel').classList.remove('hidden');
     document.getElementById('auth-panel').classList.add('hidden');
     document.getElementById('guest-panel').classList.add('hidden');
@@ -3532,7 +3533,7 @@ async function openSignin(){
     document.getElementById('account-username').value = state.account.username || '';
     document.getElementById('account-first').value = state.account.firstName || '';
     document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''}`;
-    const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; const aeq=state.progress?.equipped||{}; const aling=cosmeticById(aeq.indexling); const askin=(typeof skinById==='function')?skinById(aeq.indexlingSkin):null; const ap=document.getElementById('account-avatar-preview'); if(ap) ap.innerHTML=aling&&typeof indexlingArtHtml==='function'?indexlingArtHtml(aling,true,askin,aeq.frame||'default'):'👤'; hydrateAccountCustomizer(); applyAccountProfilePreferences(); renderAccountSetupStep(1);
+    const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; const aeq=state.progress?.equipped||{}; const aling=cosmeticById(aeq.indexling); const askin=(typeof skinById==='function')?skinById(aeq.indexlingSkin):null; const ap=document.getElementById('account-avatar-preview'); if(ap) ap.innerHTML=aling&&typeof indexlingArtHtml==='function'?indexlingArtHtml(aling,true,askin,aeq.frame||'default'):'👤'; hydrateAccountCustomizer(); applyAccountProfilePreferences(); bindAccountCustomizerAutosave(); renderAccountSetupStep(1);
   }else{
     document.getElementById('account-panel').classList.add('hidden');
     document.getElementById('auth-panel').classList.remove('hidden');
@@ -3674,6 +3675,50 @@ function hydrateAccountCustomizer(){const p=state.profile||{},set=(id,val)=>{con
 function renderAccountSetupStep(step){accountSetupStep=Math.max(1,Math.min(4,Number(step)||1));document.querySelectorAll('[data-account-step]').forEach(el=>el.classList.toggle('active',Number(el.dataset.accountStep)===accountSetupStep));document.querySelectorAll('.account-step').forEach(el=>{const n=Number(el.dataset.step);el.classList.toggle('active',n===accountSetupStep);el.classList.toggle('done',n<accountSetupStep)});const label=document.getElementById('account-step-label');if(label)label.textContent='Step '+accountSetupStep+' of 4';const fill=document.getElementById('account-progress-fill');if(fill)fill.style.width=(accountSetupStep*25)+'%';const prev=document.getElementById('account-prev-btn'),next=document.getElementById('account-next-btn');if(prev)prev.disabled=accountSetupStep===1;if(next)next.textContent=accountSetupStep===4?'Review complete':'Next';}
 function collectAccountCustomizer(){state.profile={...state.profile,name:document.getElementById('account-first')?.value.trim().slice(0,60)||'',bio:document.getElementById('account-bio')?.value.trim().slice(0,140)||'',favoriteSubject:document.getElementById('account-favorite-subject')?.value||'',studyGoal:document.getElementById('account-study-goal')?.value||'',profileAccent:document.getElementById('account-accent')?.value||'purple',showProgress:document.getElementById('account-show-progress')?.checked!==false,reducedMotion:document.getElementById('account-reduced-motion')?.checked===true};applyAccountProfilePreferences();}
 function accountStepNext(){if(accountSetupStep<4)renderAccountSetupStep(accountSetupStep+1);else accountSaveProfile();}function accountStepPrev(){if(accountSetupStep>1)renderAccountSetupStep(accountSetupStep-1);}
+async function saveAccountCustomizerChanges({profileIdentity=false}={}){
+  if(!state.account) return false;
+  collectAccountCustomizer();
+  const status=document.getElementById('account-profile-status');
+  try{
+    if(profileIdentity){
+      const displayName=state.profile.name;
+      const username=document.getElementById('account-username')?.value.trim().toLowerCase()||state.account.username||'';
+      const r=await fetch('/api/auth/profile',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({displayName,username})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok) throw new Error(d.error||'Could not save your profile.');
+      state.account=d.user;
+      renderProfileSlot();
+    }
+    const r2=await fetch('/api/account/state',{method:'PUT',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({state:accountStatePayload()})});
+    const d2=await r2.json().catch(()=>({}));
+    if(!r2.ok || d2.durableAcrossDeploys!==true) throw new Error(d2.error||'The server did not confirm durable storage.');
+    persistProfileLocalOnly();
+    const badge=document.getElementById('account-save-badge'); if(badge) badge.textContent='☁️ Saved to your account';
+    if(status) status.innerHTML='<div class="success-note">✓ Saved and synced to your account.</div>';
+    return true;
+  }catch(e){
+    if(status) status.innerHTML='<div class="error-note">'+esc(e.message||'Could not save this change.')+'</div>';
+    return false;
+  }
+}
+function bindAccountCustomizerAutosave(){
+  const ids=['account-accent','account-favorite-subject','account-study-goal','account-show-progress','account-reduced-motion'];
+  ids.forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el || el.dataset.autosaveBound==='1') return;
+    el.dataset.autosaveBound='1';
+    el.addEventListener('change',()=>{ saveAccountCustomizerChanges(); });
+  });
+  ['account-bio','account-first','account-username'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el || el.dataset.autosaveBound==='1') return;
+    el.dataset.autosaveBound='1';
+    el.addEventListener('blur',()=>{
+      if(id==='account-first'||id==='account-username') saveAccountCustomizerChanges({profileIdentity:true});
+      else saveAccountCustomizerChanges();
+    });
+  });
+}
 async function accountSaveProfile(){if(!state.account)return;collectAccountCustomizer();const displayName=state.profile.name,username=document.getElementById('account-username').value.trim().toLowerCase(),status=document.getElementById('account-profile-status');if(status)status.innerHTML='<div class="loading-line"><span class="spinner"></span> Saving profile and account preferences…</div>';const saveBtn=document.getElementById('account-save-profile-btn');if(saveBtn)saveBtn.disabled=true;try{const r=await fetch('/api/auth/profile',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({displayName,username})});const d=await r.json().catch(()=>({}));if(r.status===401){state.account=null;renderProfileSlot();showAuthPanel();setAuthMode('login');return;}if(!r.ok){if(status)status.innerHTML='<div class="error-note">'+esc(d.error||'Could not save your profile right now.')+'</div>';return;}state.account=d.user;renderProfileSlot();const sr=await fetch('/api/account/state',{method:'PUT',headers:{'content-type':'application/json'},credentials:'same-origin',cache:'no-store',body:JSON.stringify({state:accountStatePayload()})}),sd=await sr.json().catch(()=>({}));if(!sr.ok||sd.durableAcrossDeploys!==true){if(status)status.innerHTML='<div class="error-note">The server could not confirm durable account storage. Nothing was marked as saved.</div>';return;}if(status)status.innerHTML='<div class="success-note">✓ Saved to your account. Your profile will follow your sign-in.</div>';const badge=document.getElementById('account-save-badge');if(badge)badge.textContent='☁️ Saved to your account';setTimeout(closeSignin,500);}catch(e){console.error('Profile save request failed:',e);if(status)status.innerHTML='<div class="error-note">The account server did not respond, so the profile was not confirmed as saved.</div>';}finally{if(saveBtn)saveBtn.disabled=false;}}
 
 async function accountDelete(){
