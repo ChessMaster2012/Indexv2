@@ -1169,6 +1169,62 @@ function sanitizeAccountState(input){
   if (serializedSize > 1400000) throw new Error('Account data is too large to save. Keep very large files outside your account notes.');
   return candidate;
 }
+function customizationProfileFromState(input){
+  const p=input&&typeof input==='object'?input:{};
+  return {
+    name:String(p.name||'').replace(/[<>\\u0000-\\u001F]/g,'').slice(0,60),
+    district:String(p.district||'').slice(0,200),
+    county:String(p.county||'').slice(0,80),
+    countyName:String(p.countyName||'').slice(0,200),
+    bio:String(p.bio||'').replace(/[<>\\u0000-\\u001F]/g,'').slice(0,140),
+    favoriteSubject:String(p.favoriteSubject||'').slice(0,80),
+    studyGoal:String(p.studyGoal||'').slice(0,100),
+    profileAccent:String(p.profileAccent||'purple').slice(0,20),
+    showProgress:p.showProgress!==false,
+    reducedMotion:p.reducedMotion===true
+  };
+}
+async function refreshAccountUserWithState(req){
+  if(!SUPABASE_ENABLED) return req.user;
+  const row=await dbFindUserById(req.user.id);
+  if(row){ req.user=dbRowToUser(row); usersById.set(req.user.id,req.user); }
+  return req.user;
+}
+
+app.get('/api/account/customization', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const data=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const profile=customizationProfileFromState(data.profile||{});
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,profile,storage:SUPABASE_ENABLED?'supabase':'server-file',durableAcrossDeploys:SUPABASE_ENABLED});
+  }catch(e){
+    console.error('Customization load error:',e.message);
+    res.status(503).json({error:'Could not load your customization right now. Please try again.'});
+  }
+});
+
+app.put('/api/account/customization', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const incoming=customizationProfileFromState(req.body?.profile||{});
+    const mergedProfile=customizationProfileFromState({...existing.profile,...incoming});
+    const updated=sanitizeAccountState({...existing,profile:mergedProfile});
+    req.user.accountData=updated;
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    usersById.set(req.user.id,req.user);
+    const savedProfile=customizationProfileFromState(updated.profile);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,profile:savedProfile,storage:SUPABASE_ENABLED?'supabase':'server-file',durableAcrossDeploys:SUPABASE_ENABLED,savedAt:updated.savedAt});
+  }catch(e){
+    console.error('Customization save error:',e.message);
+    res.status(503).json({error:'Could not save your customization right now. Please try again.'});
+  }
+});
+
 app.get('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try {
