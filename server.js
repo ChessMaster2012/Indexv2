@@ -346,34 +346,14 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
 }
 
 async function tryVireonix(messages,complex=false){
-  // Vireonix Auto is the ONLY cloud AI provider. Auto is the single public
-  // Vireonix model ID and may internally route to the appropriate upstream model.
-  // Give the same Auto endpoint enough time for slower reasoning responses,
-  // then retry the SAME endpoint once for transient network/5xx/429 failures.
-  const timeoutMs=complex?45000:45000;
-  let lastError=null;
-
-  for(let attempt=0;attempt<2;attempt++){
-    try{
-      return await callVireonix(messages,complex,timeoutMs);
-    }catch(e){
-      lastError=e;
-      const retryable=providerRetryable(e);
-      if(!retryable || attempt===1) throw e;
-
-      const retryAfter=Number(e?.retryAfter||0);
-      const waitMs=Math.max(300,Math.min(1200,retryAfter>0?retryAfter*1000:500));
-      console.warn('[AI] Vireonix transient failure; retrying in '+waitMs+'ms:',e?.message||e);
-      await sleep(waitMs);
-    }
-  }
-
-  throw lastError||new Error('Vireonix request failed.');
+  // Vireonix Auto is the ONLY cloud AI provider.
+  // One request only: there is no retry and no alternate model, so every
+  // request has a strict response-time ceiling.
+  return callVireonix(messages,complex,13500);
 }
 
 async function raceAiProviders(messages,complex){
-  // One provider only: Vireonix Auto. A transient failure gets one short retry
-  // inside tryVireonix, while ordinary successful requests use exactly one call.
+  // Single-provider wrapper kept for compatibility; it calls Vireonix Auto only.
   return tryVireonix(messages,complex);
 }
 
@@ -664,33 +644,16 @@ app.post('/api/ai/chat',async(req,res)=>{
     const question=latestUserQuestion(messages);
     const complex=aiQuestionIsComplex(question);
 
-    // Vireonix Auto is the ONLY answer provider. There is deliberately no
-    // local-answer engine, alternate model, or fallback model in this route.
-    // Every follow-up is sent with the retained conversation context.
+    // ONLY Vireonix Auto answers the request. One provider call, no fallback
+    // model, and no second repair call. The hard upstream budget is 13.5s.
     try{
-      let text=await raceAiProviders(messages,complex);
-
-      // If Auto returns an obvious meta-answer instead of the requested work,
-      // ask the SAME Vireonix Auto provider to correct it using the same context.
-      // This is not a fallback provider; it is a second Auto pass.
-      if(answerNeedsRepair(question,text,messages)){
-        try{
-          const repaired=await repairAiResponse(question,complex,messages);
-          if(repaired) text=repaired;
-        }catch(e2){
-          console.warn('[AI] same-provider response repair failed:',e2?.message||e2);
-        }
-      }
-
-      if(!text || !String(text).trim()){
-        throw new Error('Vireonix Auto returned no usable text.');
-      }
-
+      const text=await raceAiProviders(messages,complex);
+      if(!text || !String(text).trim()) throw new Error('Vireonix Auto returned no usable text.');
       return res.json({text:String(text).trim(),provider:'Vireonix Auto',model:'auto'});
     }catch(e){
       console.warn('[AI] Vireonix Auto failed:',e?.message||e);
       return res.status(504).json({
-        error:'Vireonix Auto did not return an answer in time. The Tutor uses Vireonix Auto only; no fallback model was used.',
+        error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.',
         provider:'Vireonix Auto',
         model:'auto',
         detail:providerFailureLabel(e)
