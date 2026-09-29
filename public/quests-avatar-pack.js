@@ -55,7 +55,8 @@ function updateQuestProgressFromApp(){
     sets:Math.max(0,now.sets-Number(base.sets||0)),
     lessons:Math.max(0,now.lessons-Number(base.lessons||0)),
     xp:Math.max(0,now.xp-Number(base.xp||0)),
-    packs:Math.max(0,now.packs-Number(base.packs||0))
+    packs:Math.max(0,now.packs-Number(base.packs||0)),
+    liveGames:Math.max(0,now.liveGames-Number(base.liveGames||0))
   };
   const prev=data.progress||{};
   if(JSON.stringify(prev)!==JSON.stringify(next)){
@@ -122,7 +123,8 @@ function appSnapshot(){
     sets:Array.isArray(state.studySets)?state.studySets.length:0,
     lessons:Array.isArray(state.progress&&state.progress.lessonsLearned)?state.progress.lessonsLearned.length:0,
     xp:Number(state.progress&&state.progress.xp||0),
-    packs:Number(state.progress&&state.progress.openedPacks||0)
+    packs:Number(state.progress&&state.progress.openedPacks||0),
+    liveGames:Number(state.progress&&state.progress.liveGames||0)
   };
 }
 function ensureQuestDay(){
@@ -146,18 +148,24 @@ function snap(){
     sets:Math.max(0,Number(saved.sets)||0),
     lessons:Math.max(0,Number(saved.lessons)||0),
     xp:Math.max(0,Number(saved.xp)||0),
-    packs:Math.max(0,Number(saved.packs)||0)
+    packs:Math.max(0,Number(saved.packs)||0),
+    liveGames:Math.max(0,Number(saved.liveGames)||0)
   };
 }
 
 function quests(){
   const s=snap(),p=loadQuestData();
   return [
-    {id:'ai',icon:'💬',title:'Ask the Tutor',desc:'Ask the AI Tutor 3 times today.',goal:3,value:s.ai,rewardXP:15},
-    {id:'set',icon:'🗂️',title:'Build Your Deck',desc:'Create 1 study set today.',goal:1,value:s.sets,rewardXP:10},
-    {id:'lessons',icon:'🎓',title:'Topic Explorer',desc:'Finish 2 topic lessons today.',goal:2,value:s.lessons,rewardXP:20},
-    {id:'xp',icon:'⚡',title:'Momentum',desc:'Earn 50 XP today.',goal:50,value:s.xp,rewardXP:25},
-    {id:'packs',icon:'✦',title:'Open a Pack',desc:'Open 1 Indexling pack today.',goal:1,value:s.packs,rewardXP:15}
+    {id:'ai',icon:'💬',title:'Ask the Tutor',desc:'Ask the AI Tutor 3 times today.',goal:3,value:s.ai,rewardXP:50},
+    {id:'ai2',icon:'🧠',title:'Tutor Marathon',desc:'Ask the AI Tutor 6 times today.',goal:6,value:s.ai,rewardXP:75},
+    {id:'set',icon:'🗂️',title:'Build Your Deck',desc:'Create 1 study set today.',goal:1,value:s.sets,rewardXP:75},
+    {id:'lessons',icon:'🎓',title:'Topic Explorer',desc:'Finish 2 topic lessons today.',goal:2,value:s.lessons,rewardXP:100},
+    {id:'lessons2',icon:'📚',title:'Topic Master',desc:'Finish 4 topic lessons today.',goal:4,value:s.lessons,rewardXP:125},
+    {id:'xp',icon:'⚡',title:'Momentum',desc:'Earn 100 XP today.',goal:100,value:s.xp,rewardXP:75},
+    {id:'xp2',icon:'🚀',title:'XP Rush',desc:'Earn 200 XP today.',goal:200,value:s.xp,rewardXP:125},
+    {id:'packs',icon:'✦',title:'Open a Pack',desc:'Open 1 Indexling pack today.',goal:1,value:s.packs,rewardXP:75},
+    {id:'packs2',icon:'📦',title:'Pack Collector',desc:'Open 2 Indexling packs today.',goal:2,value:s.packs,rewardXP:100},
+    {id:'live',icon:'🎮',title:'Live Challenger',desc:'Play 1 Live Game today.',goal:1,value:s.liveGames,rewardXP:100}
   ].map(function(q){
     q.value=Math.min(q.goal,Math.max(0,Number(q.value)||0));
     q.claimed=!!(p.claimed&&p.claimed[q.id]);
@@ -185,7 +193,7 @@ function checkQuestCompletions(){
   if(!state.account||!ensureQuestDay())return;
   const data=loadQuestData(),current=quests();
   const s=snap();
-  data.progress={ai:s.ai,sets:s.sets,lessons:s.lessons,xp:s.xp,packs:s.packs};
+  data.progress={ai:s.ai,sets:s.sets,lessons:s.lessons,xp:s.xp,packs:s.packs,liveGames:s.liveGames};
   data.announced=data.announced||{};
   let changed=false;
   current.forEach(function(q){
@@ -201,7 +209,7 @@ function renderQuests(){
   const root=document.getElementById('view-quests');
   if(!root||!state.account)return;
   const qs=quests();
-  root.innerHTML='<div class="quest-page"><div class="quest-hero"><div class="eyebrow" style="color:#ffd8ef">DAILY STUDY MISSIONS</div><h2>Quests</h2><p>Complete actions in Index today to fill these missions. Nothing is marked complete from your existing progress when a new day starts.</p></div><div class="quest-grid">'+qs.map(function(q){
+  root.innerHTML='<div class="quest-page"><div class="quest-hero"><div class="eyebrow" style="color:#ffd8ef">DAILY STUDY MISSIONS</div><h2>Quests</h2><p>Complete these study missions today. Your quests and claim status refresh automatically each day.</p></div><div class="quest-grid">'+qs.map(function(q){
     return '<div class="quest-card '+(q.done?'done':'')+'"><div class="quest-top"><div class="quest-icon">'+q.icon+'</div><div><h3>'+q.title+'</h3><p>'+q.desc+'</p></div></div><div class="quest-bar"><div class="quest-fill" style="width:'+Math.round(q.value/q.goal*100)+'%"></div></div><div class="quest-bottom"><span>'+q.value+' / '+q.goal+(q.claimed?' · Claimed':'')+'</span>'+(q.claimed?'<span class="quest-complete">✓ Claimed</span>':q.done?'<button class="btn btn-green btn-sm" data-action="claim-quest" data-quest="'+q.id+'">Claim +'+q.rewardXP+' XP</button>':'<span class="quest-reward">+'+q.rewardXP+' XP</span>')+'</div></div>';
   }).join('')+'</div></div>';
 }

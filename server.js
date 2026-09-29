@@ -338,7 +338,7 @@ function extractText(data){
 
 async function sleep(ms){ return new Promise(resolve=>setTimeout(resolve,ms)); }
 
-async function fetchJsonWithTimeout(url,options={},timeoutMs=15000){
+async function fetchJsonWithTimeout(url,options={},timeoutMs=30000){
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
@@ -394,9 +394,9 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
 }
 
 async function streamVireonixToResponse(messages,complex,res){
-  // One hard deadline for the complete upstream response. Keep it below the
-  // browser's 15-second ceiling so the UI has a little network headroom.
-  const deadline=Date.now()+14600;
+  // One hard deadline for the complete upstream response. Give slower school-network
+  // requests enough time to finish while still keeping a firm ceiling.
+  const deadline=Date.now()+29500;
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -506,7 +506,7 @@ async function tryVireonix(messages,complex=false){
   // Vireonix Auto is the ONLY cloud AI provider.
   // One request only: there is no retry and no alternate model, so every
   // request has a strict response-time ceiling.
-  return callVireonix(messages,complex,14700);
+  return callVireonix(messages,complex,29600);
 }
 
 async function raceAiProviders(messages,complex){
@@ -810,7 +810,7 @@ app.post('/api/ai/chat',async(req,res)=>{
       console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
       if(!res.headersSent){
         return res.status(504).json({
-          error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.',
+          error:'Vireonix Auto did not answer within the 30-second Tutor limit. No fallback model was used.',
           provider:'Vireonix Auto',
           model:'auto',
           detail:providerFailureLabel(e)
@@ -819,7 +819,7 @@ app.post('/api/ai/chat',async(req,res)=>{
       try{
         res.write('data: '+JSON.stringify({
           type:'error',
-          error:'Vireonix Auto did not answer within the 15-second Tutor limit. No fallback model was used.'
+          error:'Vireonix Auto did not answer within the 30-second Tutor limit. No fallback model was used.'
         })+'\\n\\n');
         res.end();
       }catch{}
@@ -1367,6 +1367,39 @@ app.put('/api/account/customization', async (req,res)=>{
   }
 });
 
+function mergeQuestState(existingQuest,incomingQuest){
+  const existing=existingQuest&&typeof existingQuest==='object'?existingQuest:null;
+  const incoming=incomingQuest&&typeof incomingQuest==='object'?incomingQuest:null;
+  if(!incoming) return existing||null;
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const inDay=String(incoming.day||'').slice(0,10);
+  const exDay=existing?String(existing.day||'').slice(0,10):'';
+  // A new calendar day intentionally replaces yesterday's quest state.
+  if(inDay!==today){
+    return exDay===today ? existing : incoming;
+  }
+  // If both snapshots are for today, never let a stale browser snapshot erase
+  // an already-claimed quest or an already-announced completion.
+  if(exDay!==today) return incoming;
+  const exProgress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
+  const inProgress=incoming.progress&&typeof incoming.progress==='object'?incoming.progress:{};
+  const exClaimed=existing.claimed&&typeof existing.claimed==='object'?existing.claimed:{};
+  const inClaimed=incoming.claimed&&typeof incoming.claimed==='object'?incoming.claimed:{};
+  const exAnnounced=existing.announced&&typeof existing.announced==='object'?existing.announced:{};
+  const inAnnounced=incoming.announced&&typeof incoming.announced==='object'?incoming.announced:{};
+  const progress={...inProgress};
+  Object.keys({...exProgress,...inProgress}).forEach(k=>{
+    progress[k]=Math.max(0,Number(exProgress[k])||0,Number(inProgress[k])||0);
+  });
+  return {
+    day:today,
+    baseline:existing.baseline&&typeof existing.baseline==='object'&&Object.keys(existing.baseline).length?existing.baseline:(incoming.baseline||{}),
+    progress,
+    claimed:{...exClaimed,...inClaimed},
+    announced:{...exAnnounced,...inAnnounced}
+  };
+}
+
 app.get('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try {
@@ -1385,7 +1418,12 @@ app.put('/api/account/state', async (req,res)=>{
   try {
     // Supabase is the durable source of truth in production. The request does
     // not report success until the complete account snapshot is committed.
-    req.user.accountData = sanitizeAccountState(req.body?.state);
+    const incomingAccountState=req.body?.state&&typeof req.body.state==='object'?req.body.state:{};
+    const existingAccountState=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const mergedAccountState={...incomingAccountState};
+    const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
+    if(mergedQuests) mergedAccountState.quests=mergedQuests;
+    req.user.accountData = sanitizeAccountState(mergedAccountState);
     if (SUPABASE_ENABLED) await dbSaveUser(req.user);
     else saveUsers();
     res.json({
@@ -1426,7 +1464,8 @@ app.put('/api/account/quests', async (req,res)=>{
       claimed:raw.claimed&&typeof raw.claimed==='object'?raw.claimed:{},
       announced:raw.announced&&typeof raw.announced==='object'?raw.announced:{}
     };
-    req.user.accountData=sanitizeAccountState({...existing,quests:clean});
+    const mergedQuest=mergeQuestState(existing.quests,clean);
+    req.user.accountData=sanitizeAccountState({...existing,quests:mergedQuest});
     if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
     usersById.set(req.user.id,req.user);
     res.json({ok:true,quests:req.user.accountData.quests});
@@ -1437,7 +1476,14 @@ app.put('/api/account/quests', async (req,res)=>{
 });
 // Quest claim is server-authoritative: the quest flag and Battle Pass XP are
 // committed together so a sign-out/reload cannot lose the reward or duplicate it.
-const QUEST_REWARDS = Object.freeze({ai:15,set:10,lessons:20,xp:25,packs:15});
+const QUEST_REWARDS = Object.freeze({
+  ai:50, ai2:75, set:75, lessons:100, lessons2:125,
+  xp:75, xp2:125, packs:75, packs2:100, live:100
+});
+const QUEST_GOALS = Object.freeze({
+  ai:3, ai2:6, set:1, lessons:2, lessons2:4,
+  xp:100, xp2:200, packs:1, packs2:2, live:1
+});
 app.post('/api/account/quest-claim', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
@@ -1447,7 +1493,8 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     }
     const questId=String(req.body?.questId||'');
     const rewardXP=Number(QUEST_REWARDS[questId]||0);
-    if(!rewardXP) return res.status(400).json({error:'That quest is not claimable.'});
+    const goal=Number(QUEST_GOALS[questId]||0);
+    if(!rewardXP||!goal) return res.status(400).json({error:'That quest is not claimable.'});
     const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
     const quests=existing.quests&&typeof existing.quests==='object'?existing.quests:null;
     const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -1455,6 +1502,8 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     const claimed=quests.claimed&&typeof quests.claimed==='object'?{...quests.claimed}:{};
     if(claimed[questId]) return res.status(409).json({error:'This quest has already been claimed.',state:existing,quests});
     const progress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
+    const questProgress=Number(progress[questId==='live'?'liveGames':questId]||0);
+    if(questProgress<goal) return res.status(409).json({error:'This quest is not complete yet.',progress:questProgress,goal});
     const updatedProgress={...progress,xp:Math.max(0,Number(progress.xp)||0)+rewardXP};
     claimed[questId]=Date.now();
     const updatedQuests={...quests,claimed};
