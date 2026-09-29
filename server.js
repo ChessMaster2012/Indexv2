@@ -139,16 +139,15 @@ function aiModerationMessage() {
   return 'That request is not available in Index Tutor. Please keep searches and messages school-appropriate.';
 }
 
-// Server-side AI Tutor: NO browser model and NO API key.
-// The browser only talks to /api/ai/chat. We try free keyless text endpoints,
-// then use deterministic school-answer fallbacks so the Tutor never returns
-// the old "empty response" error.
-const AI_MAX_INPUT_CHARS = 4500;
+// Server-side AI Tutor: the browser talks only to /api/ai/chat.
+// The live answer path uses Vireonix Auto only. There is no alternate provider
+// or fallback model.
+const AI_MAX_INPUT_CHARS = 200000; // Long-session context for Vireonix Auto.
 
 function normalizeAiMessages(messages){
   const raw=Array.isArray(messages)?messages:[];
   const safe=[]; let total=0;
-  for(const m of raw.slice(-8)){
+  for(const m of raw.slice(-200)){
     const role=m?.role==='assistant'?'assistant':m?.role==='user'?'user':'system';
     let content=String(m?.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
@@ -333,12 +332,11 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
 }
 
 async function tryVireonix(messages,complex=false){
-  // Keep Vireonix Auto as the ONLY cloud AI provider. Auto routes each request
-  // to an appropriate model while preserving the same provider that handled
-  // the earlier successful 7x7 and clownfish tests.
-  // Give Vireonix Auto enough time for slower routed responses while keeping
-  // the total (two attempts plus a short backoff) under the browser's 55s limit.
-  const timeoutMs=complex?35000:35000;
+  // Vireonix Auto is the ONLY cloud AI provider. Auto is the single public
+  // Vireonix model ID and may internally route to the appropriate upstream model.
+  // Give the same Auto endpoint enough time for slower reasoning responses,
+  // then retry the SAME endpoint once for transient network/5xx/429 failures.
+  const timeoutMs=complex?45000:45000;
   let lastError=null;
 
   for(let attempt=0;attempt<2;attempt++){
@@ -652,46 +650,45 @@ app.post('/api/ai/chat',async(req,res)=>{
     const question=latestUserQuestion(messages);
     const complex=aiQuestionIsComplex(question);
 
-    // Keep the Tutor topic-agnostic. Every non-empty, school-safe question
-    // uses the same conversational Vireonix Auto path, including follow-ups.
-
-    // Answer simple deterministic math locally before touching any external
-    // provider. This makes basic questions reliable even if a cloud provider
-    // is unavailable, rate-limited, or temporarily broken.
-    const fast=fastDeterministicTutor(question,messages);
-    if(fast) return res.json({text:fast,provider:'built-in-fast-fallback',fallback:true});
-
-    // Race the free providers, but reject obvious generic/meta answers. Relevance
-    // validation is intentionally permissive for full questions so valid answers
-    // that use synonyms or different terminology are not thrown away.
+    // Vireonix Auto is the ONLY answer provider. There is deliberately no
+    // local-answer engine, alternate model, or fallback model in this route.
+    // Every follow-up is sent with the retained conversation context.
     try{
       let text=await raceAiProviders(messages,complex);
+
+      // If Auto returns an obvious meta-answer instead of the requested work,
+      // ask the SAME Vireonix Auto provider to correct it using the same context.
+      // This is not a fallback provider; it is a second Auto pass.
       if(answerNeedsRepair(question,text,messages)){
         try{
           const repaired=await repairAiResponse(question,complex,messages);
-          if(repaired && !answerNeedsRepair(question,repaired,messages)) text=repaired;
-          else if(repaired) text=repaired;
+          if(repaired) text=repaired;
         }catch(e2){
-          console.warn('[AI] response repair failed:',e2?.message||e2);
+          console.warn('[AI] same-provider response repair failed:',e2?.message||e2);
         }
       }
-      if(answerNeedsRepair(question,text,messages)){
-        return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
+
+      if(!text || !String(text).trim()){
+        throw new Error('Vireonix Auto returned no usable text.');
       }
-      return res.json({text,provider:'server-ai'});
+
+      return res.json({text:String(text).trim(),provider:'Vireonix Auto',model:'auto'});
     }catch(e){
-      console.warn('[AI] cloud providers failed:',e?.message||e);
-      const fallback=deterministicTutor(question);
-      const failure='Vireonix Auto request failed: '+providerFailureLabel(e)+'.';
-      return res.json({text:fallback==='I could not reach the AI service for this request right now. Please try the same question again.'?failure+' Please try again in a moment.':fallback+'\n\n'+failure,provider:'built-in-fallback',fallback:true});
+      console.warn('[AI] Vireonix Auto failed:',e?.message||e);
+      return res.status(504).json({
+        error:'Vireonix Auto did not return an answer in time. The Tutor uses Vireonix Auto only; no fallback model was used.',
+        provider:'Vireonix Auto',
+        model:'auto',
+        detail:providerFailureLabel(e)
+      });
     }
   }catch(e){
-    // Never turn an AI failure into a generic 500 that the browser interprets
-    // as “The AI service could not answer right now.” Return a usable answer
-    // payload instead.
     console.error('[AI] request handling error:',e?.stack||e);
-    const question=String(req.body?.messages?.slice?.(-1)?.find?.(m=>m?.role==='user')?.content||'').trim();
-    return res.json({text:deterministicTutor(question),provider:'built-in-fallback',fallback:true});
+    return res.status(500).json({
+      error:'The Vireonix Auto Tutor request could not be completed.',
+      provider:'Vireonix Auto',
+      model:'auto'
+    });
   }
 });
 
