@@ -148,7 +148,8 @@ function snap(){
     sets:Math.max(0,Number(saved.sets)||0),
     lessons:Math.max(0,Number(saved.lessons)||0),
     xp:Math.max(0,Number(saved.xp)||0),
-    packs:Math.max(0,Number(saved.packs)||0)
+    packs:Math.max(0,Number(saved.packs)||0),
+    liveGames:Math.max(0,Number(saved.liveGames)||0)
   };
 }
 
