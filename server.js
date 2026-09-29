@@ -1480,6 +1480,10 @@ const QUEST_REWARDS = Object.freeze({
   ai:50, ai2:75, set:75, lessons:100, lessons2:125,
   xp:75, xp2:125, packs:75, packs2:100, live:100
 });
+const QUEST_GOALS = Object.freeze({
+  ai:3, ai2:6, set:1, lessons:2, lessons2:4,
+  xp:100, xp2:200, packs:1, packs2:2, live:1
+});
 app.post('/api/account/quest-claim', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
@@ -1489,7 +1493,8 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     }
     const questId=String(req.body?.questId||'');
     const rewardXP=Number(QUEST_REWARDS[questId]||0);
-    if(!rewardXP) return res.status(400).json({error:'That quest is not claimable.'});
+    const goal=Number(QUEST_GOALS[questId]||0);
+    if(!rewardXP||!goal) return res.status(400).json({error:'That quest is not claimable.'});
     const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
     const quests=existing.quests&&typeof existing.quests==='object'?existing.quests:null;
     const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -1497,6 +1502,8 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     const claimed=quests.claimed&&typeof quests.claimed==='object'?{...quests.claimed}:{};
     if(claimed[questId]) return res.status(409).json({error:'This quest has already been claimed.',state:existing,quests});
     const progress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
+    const questProgress=Number(progress[questId==='live'?'liveGames':questId]||0);
+    if(questProgress<goal) return res.status(409).json({error:'This quest is not complete yet.',progress:questProgress,goal});
     const updatedProgress={...progress,xp:Math.max(0,Number(progress.xp)||0)+rewardXP};
     claimed[questId]=Date.now();
     const updatedQuests={...quests,claimed};
