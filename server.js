@@ -363,7 +363,7 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
 
 async function streamVireonixToResponse(messages,complex,res){
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),14700);
+  const timer=setTimeout(()=>controller.abort(),14500);
   try{
     const upstream=await fetch('https://vireonix.ai/v1/chat/completions',{
       method:'POST',
@@ -371,8 +371,8 @@ async function streamVireonixToResponse(messages,complex,res){
       body:JSON.stringify({
         model:'auto',
         messages,
-        stream:true,
-        max_tokens:complex ? 850 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 160 : 400),
+        stream:false,
+        max_tokens:complex ? 850 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 64 : 240),
         temperature:0
       }),
       signal:controller.signal
