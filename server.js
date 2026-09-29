@@ -900,7 +900,7 @@ async function dbFindUserById(id) {
 }
 async function dbFindUserByEmail(email) {
   if (!SUPABASE_ENABLED) return null;
-  const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,method,email,username,google_id,password_hash,salt,first_name,last_name,created_at&id=eq.${encodeURIComponent(normalizeEmail(email))}&limit=1`);
+  const rows = await supabaseRequest(`${SUPABASE_TABLE}?select=id,method,email,username,google_id,password_hash,salt,first_name,last_name,created_at&email=eq.${encodeURIComponent(normalizeEmail(email))}&limit=1`);
   return Array.isArray(rows) ? (rows[0] || null) : null;
 }
 async function dbFindUserByUsername(username) {
