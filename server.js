@@ -1367,6 +1367,39 @@ app.put('/api/account/customization', async (req,res)=>{
   }
 });
 
+function mergeQuestState(existingQuest,incomingQuest){
+  const existing=existingQuest&&typeof existingQuest==='object'?existingQuest:null;
+  const incoming=incomingQuest&&typeof incomingQuest==='object'?incomingQuest:null;
+  if(!incoming) return existing||null;
+  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const inDay=String(incoming.day||'').slice(0,10);
+  const exDay=existing?String(existing.day||'').slice(0,10):'';
+  // A new calendar day intentionally replaces yesterday's quest state.
+  if(inDay!==today){
+    return exDay===today ? existing : incoming;
+  }
+  // If both snapshots are for today, never let a stale browser snapshot erase
+  // an already-claimed quest or an already-announced completion.
+  if(exDay!==today) return incoming;
+  const exProgress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
+  const inProgress=incoming.progress&&typeof incoming.progress==='object'?incoming.progress:{};
+  const exClaimed=existing.claimed&&typeof existing.claimed==='object'?existing.claimed:{};
+  const inClaimed=incoming.claimed&&typeof incoming.claimed==='object'?incoming.claimed:{};
+  const exAnnounced=existing.announced&&typeof existing.announced==='object'?existing.announced:{};
+  const inAnnounced=incoming.announced&&typeof incoming.announced==='object'?incoming.announced:{};
+  const progress={...inProgress};
+  Object.keys({...exProgress,...inProgress}).forEach(k=>{
+    progress[k]=Math.max(0,Number(exProgress[k])||0,Number(inProgress[k])||0);
+  });
+  return {
+    day:today,
+    baseline:existing.baseline&&typeof existing.baseline==='object'&&Object.keys(existing.baseline).length?existing.baseline:(incoming.baseline||{}),
+    progress,
+    claimed:{...exClaimed,...inClaimed},
+    announced:{...exAnnounced,...inAnnounced}
+  };
+}
+
 app.get('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try {
@@ -1385,7 +1418,12 @@ app.put('/api/account/state', async (req,res)=>{
   try {
     // Supabase is the durable source of truth in production. The request does
     // not report success until the complete account snapshot is committed.
-    req.user.accountData = sanitizeAccountState(req.body?.state);
+    const incomingAccountState=req.body?.state&&typeof req.body.state==='object'?req.body.state:{};
+    const existingAccountState=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const mergedAccountState={...incomingAccountState};
+    const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
+    if(mergedQuests) mergedAccountState.quests=mergedQuests;
+    req.user.accountData = sanitizeAccountState(mergedAccountState);
     if (SUPABASE_ENABLED) await dbSaveUser(req.user);
     else saveUsers();
     res.json({
@@ -1426,7 +1464,8 @@ app.put('/api/account/quests', async (req,res)=>{
       claimed:raw.claimed&&typeof raw.claimed==='object'?raw.claimed:{},
       announced:raw.announced&&typeof raw.announced==='object'?raw.announced:{}
     };
-    req.user.accountData=sanitizeAccountState({...existing,quests:clean});
+    const mergedQuest=mergeQuestState(existing.quests,clean);
+    req.user.accountData=sanitizeAccountState({...existing,quests:mergedQuest});
     if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
     usersById.set(req.user.id,req.user);
     res.json({ok:true,quests:req.user.accountData.quests});
@@ -1437,7 +1476,10 @@ app.put('/api/account/quests', async (req,res)=>{
 });
 // Quest claim is server-authoritative: the quest flag and Battle Pass XP are
 // committed together so a sign-out/reload cannot lose the reward or duplicate it.
-const QUEST_REWARDS = Object.freeze({ai:15,set:10,lessons:20,xp:25,packs:15});
+const QUEST_REWARDS = Object.freeze({
+  ai:50, ai2:75, set:75, lessons:100, lessons2:125,
+  xp:75, xp2:125, packs:75, packs2:100, live:100
+});
 app.post('/api/account/quest-claim', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
