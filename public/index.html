@@ -1330,9 +1330,8 @@ function requestLocalAiCapabilities(){
   if(note) note.textContent='Free cloud AI • server AI ready';
 }
 async function runLocalAi(messages, options={}){
-  // Server-only AI path. The browser sends only to the same-origin Render
-  // endpoint, which uses Vireonix Auto only. This works on restrictive school
-  // networks because the browser never contacts the AI vendor directly.
+  // Server-only Vireonix Auto path. Responses are streamed so the Tutor can
+  // display generated tokens immediately instead of waiting for the full body.
   if(!Array.isArray(messages) || !messages.length){
     throw new Error('No AI question was supplied.');
   }
@@ -1343,19 +1342,72 @@ async function runLocalAi(messages, options={}){
   try{
     const response=await fetch('/api/ai/chat',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},
       body:JSON.stringify({messages}),
       signal:controller.signal
     });
 
-    let data=null;
-    try{ data=await response.json(); }catch{}
+    const contentType=String(response.headers.get('content-type')||'').toLowerCase();
 
-    const serverError=String(data?.error||'').trim();
-    if(!response.ok){
+    if(!response.ok && !contentType.includes('text/event-stream')){
+      let data=null;
+      try{ data=await response.json(); }catch{}
+      const serverError=String(data?.error||'').trim();
       throw new Error(serverError || ('AI request failed ('+response.status+').'));
     }
 
+    if(contentType.includes('text/event-stream') && response.body){
+      const reader=response.body.getReader();
+      const decoder=new TextDecoder();
+      let buffer='';
+      let fullText='';
+      let sawDone=false;
+
+      const emitChunk=(chunk)=>{
+        if(!chunk) return;
+        fullText+=chunk;
+        if(typeof options.onChunk==='function') options.onChunk(chunk);
+      };
+
+      const consumeEvent=(event)=>{
+        const lines=event.split(/\r?\n/).filter(line=>line.startsWith('data:'));
+        if(!lines.length) return;
+        const payload=lines.map(line=>line.slice(5).trim()).join('');
+        if(!payload) return;
+
+        let data=null;
+        try{data=JSON.parse(payload);}catch{return;}
+
+        if(data.type==='chunk'){
+          emitChunk(String(data.text||''));
+        }else if(data.type==='done'){
+          sawDone=true;
+          if(!fullText && data.text) fullText=String(data.text);
+        }else if(data.type==='error'){
+          throw new Error(String(data.error||'Vireonix Auto failed.'));
+        }
+      };
+
+      while(true){
+        const {value,done}=await reader.read();
+        if(done) break;
+        buffer+=decoder.decode(value,{stream:true});
+        const events=buffer.split(/\n\n/);
+        buffer=events.pop()||'';
+        for(const event of events) consumeEvent(event);
+      }
+
+      buffer+=decoder.decode();
+      if(buffer.trim()) consumeEvent(buffer);
+
+      if(!fullText.trim()){
+        throw new Error(sawDone ? 'Vireonix Auto returned an empty response.' : 'Vireonix Auto ended without an answer.');
+      }
+      return fullText.trim();
+    }
+
+    let data=null;
+    try{ data=await response.json(); }catch{}
     const answer=String(
       data?.text ||
       data?.choices?.[0]?.message?.content ||
@@ -1368,9 +1420,7 @@ async function runLocalAi(messages, options={}){
       ''
     ).trim();
 
-    if(!answer){
-      throw new Error('The server AI returned an empty response.');
-    }
+    if(!answer) throw new Error('The server AI returned an empty response.');
     return answer;
   }catch(e){
     if(e?.name==='AbortError'){
