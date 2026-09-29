@@ -246,23 +246,15 @@ function buildAiMessages(messages){
   const question=latestUserQuestion(turns);
   const writingConstraints=requestedWritingConstraints(turns);
   const range=writingConstraints.sentenceRange;
-  const priorAssistant=[...turns].reverse().find(t=>t.role==='assistant')?.content||'';
-  const priorUser=[...turns].reverse().find(t=>t.role==='user' && t.content!==question)?.content||'';
-
-  // Detect short contextual follow-ups aggressively so phrases such as
-  // "why?", "as a radical", and "what about plants?" keep the previous answer
-  // without retransmitting the entire conversation.
-  const shortFollowUp=/^(?:why|how|how so|can you explain(?: that| it)?|what about\b|how about\b|what if\b|what was that|what did you mean|make (?:that|it) (?:simpler|simple)|simpler|as a radical|as a fraction|in simplest form|in decimal form|then what|and (?:what|how|why)\b|also\b|so\b)\??/i.test(question)
-    || (question.length<=120 && /\b(?:it|that|this|these|those|the above|the previous|same|instead|again|more|simpler|explain that)\b/i.test(question));
 
   const task=classifyAiTask(question);
   const taskRule=task==='direct-writing'
-    ? 'Create the finished writing the student requested. Do not give a plan or writing advice unless asked.'
+    ? 'When the student asks you to write, compose, draft, or generate writing, produce the finished writing itself.'
     : task==='direct-problem-solving'
-      ? 'Solve the actual problem and give the result with the key reasoning.'
+      ? 'Solve the actual problem and show the important reasoning.'
       : task==='direct-explanation'
-        ? 'Answer the exact concept or question and briefly explain it.'
-        : 'Answer the student directly and briefly explain the answer.';
+        ? 'Explain the exact concept or question clearly, including why the answer is correct.'
+        : 'Answer the exact request directly, then give a useful explanation when appropriate.';
 
   const lengthRule=range
     ? `The student requested between ${range.min} and ${range.max} sentences. Keep the finished answer inside that range.`
@@ -274,50 +266,30 @@ function buildAiMessages(messages){
       : '';
 
   const serverRules=[
-    'You are Index Tutor, a fast and accurate school tutor.',
+    'You are Index Tutor, a knowledgeable, friendly school tutor.',
+    'Treat every new question as a genuinely new question unless the student clearly refers to an earlier turn.',
+    'Never substitute a canned example, previous question, or unrelated subject for the student’s actual latest request.',
+    'Use the entire supplied conversation when a follow-up depends on earlier turns. Resolve references such as “why?”, “what about that?”, “the other one”, “simpler”, “as a radical”, and “can you explain?” from the conversation instead of asking the student to repeat it.',
     'Answer the latest student request directly.',
-    'Unless the student explicitly asks you to write, compose, draft, or generate a piece of writing, include a brief explanation of how or why the answer is correct.',
-    'For simple calculations, the explanation can be one sentence.',
-    'Use prior conversation when the latest message depends on it.',
-    'Do not ask for clarification when a reasonable interpretation exists.',
-    'Do not give generic study advice instead of answering the request.',
-    'Do not invent facts.',
-    'Keep answers concise unless the student requested longer writing.',
+    'Unless the student explicitly asks for finished writing, explain the answer as a tutor would. For simple arithmetic, a short explanation is enough.',
+    'Do not give generic study advice instead of answering the question.',
+    'Do not invent facts. If something is genuinely uncertain, say so.',
+    'Do not repeat the same answer merely because a previous turn had a similar topic.',
+    'Keep ordinary answers concise, but give enough detail for the student to understand the reasoning.',
     taskRule,
     lengthRule,
     shapeRule
   ].filter(Boolean).join(' ');
 
-  const tiny=question.length<=90
-    && !shortFollowUp
-    && !range
-    && !writingConstraints.writingMentioned;
-
-  if(tiny){
-    // Fast lane: remove Tutor framework text entirely and tell Auto to produce
-    // only the short answer needed. This keeps model:'auto' while minimizing
-    // routing/context overhead for questions such as "7x7" or "Gettysburg
-    // Address explanation".
-    return [
-      {role:'user',content:`Answer this school question directly in no more than 2 concise sentences. Include a brief explanation unless the request asks for writing. Question: ${question}`}
-    ];
-  }
-
-  if(shortFollowUp && priorAssistant){
-    return [
-      {role:'system',content:serverRules+' This is a follow-up. Treat the latest message as referring to the immediately preceding Tutor answer.'},
-      ...(priorUser ? [{role:'user',content:priorUser.slice(-4000)}] : []),
-      {role:'assistant',content:priorAssistant.slice(-6000)},
-      {role:'user',content:question}
-    ];
-  }
-
+  // Always preserve the real conversation. The old short-question fast lane
+  // replaced the user's actual message with a new wrapper prompt, and the old
+  // follow-up lane discarded older turns. Both behaviors could make unrelated
+  // questions or follow-ups look like canned examples to the provider.
   return [
     {role:'system',content:serverRules},
     ...turns.filter(t=>t.role!=='system')
   ];
 }
-
 function extractText(data){
   const vals=[
     data?.choices?.[0]?.message?.content,
