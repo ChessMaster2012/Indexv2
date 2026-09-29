@@ -1004,7 +1004,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
     </section>
 
     <section class="view" id="view-tutor">
-      <div class="row" style="margin-bottom:16px;"><div><h2 style="font-size:24px;font-weight:600;">AI Tutor</h2><p class="lede" style="margin-top:4px;">Ask about anything — a formula, a period of history, a line of code, a due-date panic.</p><p id="ai-hardware-note" class="gate-note" style="margin:6px 0 0;">Free cloud AI • server AI ready</p></div></div>
+      <div class="row" style="margin-bottom:16px;"><div><h2 style="font-size:24px;font-weight:600;">AI Tutor</h2><p class="lede" style="margin-top:4px;">Ask about anything — a formula, a period of history, a line of code, a due-date panic. Responses are limited to 15 seconds.</p><p id="ai-hardware-note" class="gate-note" style="margin:6px 0 0;">Free cloud AI • server AI ready</p></div></div>
       <div class="tutor-shell">
         <div class="tutor-bar">
           <label for="tutor-subject" style="font-size:12.5px;color:var(--ink-soft);font-weight:700;">Focus:</label>
@@ -1015,7 +1015,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
         <div class="chat-log" id="chat-log"><div class="chat-empty"><h3>What are you working on? 👋</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div></div>
         <div class="tutor-input"><textarea id="tutor-textarea" rows="1" placeholder="Ask anything…"></textarea><button class="btn btn-primary" id="tutor-send" data-action="send-chat">Send</button></div>
       </div>
-      <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI responses use Vireonix Auto through the server. Study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
+      <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI responses use Vireonix Auto only through the server and are limited to 15 seconds. Study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
     </section>
 
     <section class="view" id="view-notes">
@@ -1337,7 +1337,7 @@ async function runLocalAi(messages, options={}){
     throw new Error('No AI question was supplied.');
   }
 
-  const timeoutMs=Number(options.timeoutMs)||95000;
+  const timeoutMs=Number(options.timeoutMs)||14500;
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),timeoutMs);
   try{
@@ -1394,19 +1394,13 @@ function parseLooseJson(text){
   try{return JSON.parse(cleaned.slice(start,end+1));}catch(e){throw new Error('The AI returned invalid JSON. Try again.');}
 }
 async function askJSON(prompt){
-  let lastError;
-  for(let attempt=0;attempt<2;attempt++){
-    try{
-      const instruction=attempt===0?prompt:`${prompt}\n\nIMPORTANT: Return valid JSON only. Start immediately with { and include every requested field.`;
-      return parseLooseJson(await runLocalAi([
-        {role:'system',content:'You generate accurate study materials for Index. Follow the requested JSON schema exactly. Never add commentary, markdown fences, or repeated filler.'},
-        {role:'user',content:instruction}
-      ],{timeoutMs:95000}));
-    }catch(e){lastError=e;}
-  }
-  throw lastError||new Error('The AI returned invalid JSON. Try again.');
+  const instruction=`${prompt}\n\nIMPORTANT: Return valid JSON only. Start immediately with { and include every requested field. Do not add markdown fences or commentary.`;
+  return parseLooseJson(await runLocalAi([
+    {role:'system',content:'You generate accurate study materials for Index. Follow the requested JSON schema exactly. Never add commentary, markdown fences, or repeated filler.'},
+    {role:'user',content:instruction}
+  ],{timeoutMs:14500}));
 }
-async function askText(turns){ return runLocalAi(turns,{timeoutMs:95000}); }
+async function askText(turns){ return runLocalAi(turns,{timeoutMs:14500}); }
 function explainAiError(error,label='AI request'){
   const message=String(error&&error.message||'').trim();
   if(/timeout|too long/i.test(message)) return `${label} took too long to respond. Please try again.`;
@@ -2565,7 +2559,7 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
     const normalized = text.toLowerCase().replace(/[^a-z0-9?\s]/g,'').trim();
     const greeting = /^(hi|hello|hey|heyy|yo|sup|good morning|good afternoon|good evening)[!?.\s]*$/.test(normalized);
     const complexAi=estimateAiDifficulty(text);
-    const reply = greeting ? 'Hi! What are you working on? I can help explain a topic, solve practice problems step by step, or review your notes.' : await runLocalAi(turns,{timeoutMs:complexAi?95000:95000,onChunk:(chunk)=>{
+    const reply = greeting ? 'Hi! What are you working on? I can help explain a topic, solve practice problems step by step, or review your notes.' : await runLocalAi(turns,{timeoutMs:14500,onChunk:(chunk)=>{
       if(chunk==='\u0000RESET_STREAM\u0000'){ streamText=''; state.chat[assistantIndex].text=''; renderChatLog(); return; }
       streamText += chunk; state.chat[assistantIndex].text=streamText; renderChatLog();
     }});
