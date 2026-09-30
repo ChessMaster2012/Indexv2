@@ -1394,7 +1394,8 @@ function sanitizeAccountState(input){
         baseline: src.quests.baseline && typeof src.quests.baseline==='object' ? src.quests.baseline : {},
         progress: src.quests.progress && typeof src.quests.progress==='object' ? src.quests.progress : {},
         claimed: src.quests.claimed && typeof src.quests.claimed==='object' ? src.quests.claimed : {},
-        announced: src.quests.announced && typeof src.quests.announced==='object' ? src.quests.announced : {}
+        announced: src.quests.announced && typeof src.quests.announced==='object' ? src.quests.announced : {},
+        crateRewardsClaimed: src.quests.crateRewardsClaimed && typeof src.quests.crateRewardsClaimed==='object' ? src.quests.crateRewardsClaimed : {}
       } : null,
     profile: {
       name: String(profile.name||'').slice(0,60),
@@ -1490,6 +1491,8 @@ function mergeQuestState(existingQuest,incomingQuest){
   const inClaimed=incoming.claimed&&typeof incoming.claimed==='object'?incoming.claimed:{};
   const exAnnounced=existing.announced&&typeof existing.announced==='object'?existing.announced:{};
   const inAnnounced=incoming.announced&&typeof incoming.announced==='object'?incoming.announced:{};
+  const exCrateRewards=existing.crateRewardsClaimed&&typeof existing.crateRewardsClaimed==='object'?existing.crateRewardsClaimed:{};
+  const inCrateRewards=incoming.crateRewardsClaimed&&typeof incoming.crateRewardsClaimed==='object'?incoming.crateRewardsClaimed:{};
   const progress={...inProgress};
   Object.keys({...exProgress,...inProgress}).forEach(k=>{
     progress[k]=Math.max(0,Number(exProgress[k])||0,Number(inProgress[k])||0);
@@ -1499,7 +1502,8 @@ function mergeQuestState(existingQuest,incomingQuest){
     baseline:existing.baseline&&typeof existing.baseline==='object'&&Object.keys(existing.baseline).length?existing.baseline:(incoming.baseline||{}),
     progress,
     claimed:{...exClaimed,...inClaimed},
-    announced:{...exAnnounced,...inAnnounced}
+    announced:{...exAnnounced,...inAnnounced},
+    crateRewardsClaimed:{...exCrateRewards,...inCrateRewards}
   };
 }
 
@@ -1565,7 +1569,8 @@ app.put('/api/account/quests', async (req,res)=>{
       baseline:raw.baseline&&typeof raw.baseline==='object'?raw.baseline:{},
       progress:raw.progress&&typeof raw.progress==='object'?raw.progress:{},
       claimed:raw.claimed&&typeof raw.claimed==='object'?raw.claimed:{},
-      announced:raw.announced&&typeof raw.announced==='object'?raw.announced:{}
+      announced:raw.announced&&typeof raw.announced==='object'?raw.announced:{},
+      crateRewardsClaimed:raw.crateRewardsClaimed&&typeof raw.crateRewardsClaimed==='object'?raw.crateRewardsClaimed:{}
     };
     const mergedQuest=mergeQuestState(existing.quests,clean);
     req.user.accountData=sanitizeAccountState({...existing,quests:mergedQuest});
@@ -1657,7 +1662,25 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     });
 
     const claimed=currentQuests.claimed&&typeof currentQuests.claimed==='object'?{...currentQuests.claimed}:{};
-    if(claimed[questId]) return res.status(409).json({error:'This quest has already been claimed.',state:existing,quests:currentQuests});
+    const crateRewardsClaimed=currentQuests.crateRewardsClaimed&&typeof currentQuests.crateRewardsClaimed==='object'?{...currentQuests.crateRewardsClaimed}:{};
+    if(claimed[questId]){
+      if(reward.skinCrates && !crateRewardsClaimed[questId]){
+        const previousProgress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
+        const recoveredProgress=applyQuestBattlePassRewards({
+          ...previousProgress,
+          skinCrates:Math.max(0,Math.floor(Number(previousProgress.skinCrates)||0))+Math.max(0,Math.floor(Number(reward.skinCrates)||0))
+        });
+        crateRewardsClaimed[questId]=Date.now();
+        const recoveredQuests={...currentQuests,crateRewardsClaimed};
+        const recovered=sanitizeAccountState({...existing,progress:recoveredProgress,quests:recoveredQuests});
+        req.user.accountData=recovered;
+        if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+        usersById.set(req.user.id,req.user);
+        const recoveryText='+'+reward.skinCrates+' Skin Crate'+(reward.skinCrates===1?'':'s')+' recovered';
+        return res.json({ok:true,recovered:true,rewardXP:0,rewardCoins:0,rewardPackTokens:0,rewardSkinCrates:reward.skinCrates,rewardText:recoveryText,state:recovered,quests:recovered.quests});
+      }
+      return res.status(409).json({error:'This quest has already been claimed.',state:existing,quests:currentQuests});
+    }
 
     const metric=definition.metric;
     const questProgress=Math.max(0,Number(mergedQuestProgress[metric])||0);
@@ -1670,14 +1693,18 @@ app.post('/api/account/quest-claim', async (req,res)=>{
       ...previousProgress,
       xp:Math.max(0,Number(previousProgress.xp)||0)+Number(reward.xp||0),
       coins:Math.max(0,Number(previousProgress.coins)||0)+Number(reward.coins||0),
-      freePackTokens:Math.max(0,Number(previousProgress.freePackTokens)||0)+Number(reward.packTokens||0)
+      freePackTokens:Math.max(0,Number(previousProgress.freePackTokens)||0)+Number(reward.packTokens||0),
+      skinCrates:Math.max(0,Math.floor(Number(previousProgress.skinCrates)||0))+Math.max(0,Math.floor(Number(reward.skinCrates)||0))
     });
     claimed[questId]=Date.now();
+    const crateRewardsClaimed=currentQuests.crateRewardsClaimed&&typeof currentQuests.crateRewardsClaimed==='object'?{...currentQuests.crateRewardsClaimed}:{};
+    if(reward.skinCrates) crateRewardsClaimed[questId]=Date.now();
 
     const updatedQuests={
       ...currentQuests,
       progress:mergedQuestProgress,
-      claimed
+      claimed,
+      crateRewardsClaimed
     };
     const updated=sanitizeAccountState({...existing,progress:updatedProgress,quests:updatedQuests});
     req.user.accountData=updated;
@@ -1688,11 +1715,11 @@ app.post('/api/account/quest-claim', async (req,res)=>{
       reward.xp?('+'+reward.xp+' XP'):'',
       reward.coins?('+'+reward.coins+' coins'):'',
       reward.packTokens?('+'+reward.packTokens+' free pack'+(reward.packTokens===1?'':'s')+' token'):'',
-      reward.skinCrates?('🧰 Skin Crate · opens now'):''
+      reward.skinCrates?('+'+reward.skinCrates+' Skin Crate'+(reward.skinCrates===1?'':'s')):''
 
     ].filter(Boolean).join(' · ');
 
-    res.json({ok:true,rewardXP:reward.xp,rewardCoins:reward.coins,rewardPackTokens:reward.packTokens,rewardSkinCrates:reward.skinCrates||0,directSkinCrate:!!reward.skinCrates,rewardText,state:updated,quests:updated.quests});
+    res.json({ok:true,rewardXP:reward.xp,rewardCoins:reward.coins,rewardPackTokens:reward.packTokens,rewardSkinCrates:reward.skinCrates||0,rewardText,state:updated,quests:updated.quests});
   }catch(e){
     console.error('Quest claim error:',e.message);
     res.status(503).json({error:'Could not save the quest reward right now. Please try again.'});
