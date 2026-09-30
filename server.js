@@ -178,6 +178,15 @@ function latestUserQuestion(messages){
   return [...messages].reverse().find(m=>m.role==='user')?.content?.trim()||'';
 }
 
+function isLikelyFollowUp(question){
+  const q=String(question||'').trim().toLowerCase();
+  if(!q) return false;
+  if(/^(why|how|how so|explain|explain that|explain it|simpler|make it simpler|shorter|more detail|elaborate|clarify|show (?:me )?(?:the )?(?:steps|work)|show your work|what about|and what about|what does that mean|what did you mean|can you explain(?: that| it)?|can you simplify(?: that| it)?)\b[?!.,\s]*$/i.test(q)) return true;
+  if(/\b(that|it|this|these|those|the above|the previous|the other one|the first one|the second one)\b/i.test(q)
+      && /^(?:what|why|how|which|does|did|is|are|was|were|can|could|would|should|so)\b/i.test(q)) return true;
+  return false;
+}
+
 function classifyAiTask(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
@@ -266,30 +275,30 @@ function buildAiMessages(messages){
       : '';
 
   const serverRules=[
-    'You are Index Tutor, a knowledgeable, friendly school tutor.',
-    'Treat every new question as a genuinely new question unless the student clearly refers to an earlier turn.',
-    'Never substitute a canned example, previous question, or unrelated subject for the student’s actual latest request.',
-    'Use the entire supplied conversation when a follow-up depends on earlier turns. Resolve references such as “why?”, “what about that?”, “the other one”, “simpler”, “as a radical”, and “can you explain?” from the conversation instead of asking the student to repeat it.',
-    'Answer the latest student request directly.',
-    'Unless the student explicitly asks for finished writing, explain the answer as a tutor would. For simple arithmetic, a short explanation is enough.',
-    'Do not give generic study advice instead of answering the question.',
-    'Do not invent facts. If something is genuinely uncertain, say so.',
-    'Do not repeat the same answer merely because a previous turn had a similar topic.',
-    'Keep ordinary answers concise, but give enough detail for the student to understand the reasoning.',
-    'For AP-level work, use precise terminology, multi-step reasoning, equations or evidence when relevant, and address the actual difficulty instead of giving a simplified middle-school response.',
-    'Do not waste the response on a long preamble; start solving or explaining immediately.',
+    'You are Index Tutor, a highly capable school tutor.',
+    'Treat a brand-new question as independent unless the student clearly refers to an earlier turn.',
+    'Never substitute a canned example, previous question, or unrelated subject for the latest request.',
+    'Answer the latest request directly and start immediately; do not use a long preamble or generic study advice.',
+    'For ordinary school questions, give a clear, useful explanation with the important who/what/when/why details rather than a one-line textbook definition.',
+    'For AP-level work, use precise terminology, multi-step reasoning, evidence, equations, interpretation, and nuance when relevant. Do not oversimplify a difficult question.',
+    'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “what about that?”, “simpler”, or “show the steps”.',
+    'Do not invent facts. Distinguish uncertainty when it genuinely exists.',
+    'For finished writing requests, produce the requested draft itself.',
     taskRule,
     lengthRule,
     shapeRule
   ].filter(Boolean).join(' ');
 
-  // Always preserve the real conversation. The old short-question fast lane
-  // replaced the user's actual message with a new wrapper prompt, and the old
-  // follow-up lane discarded older turns. Both behaviors could make unrelated
-  // questions or follow-ups look like canned examples to the provider.
+  // New questions should not carry an entire old chat into Vireonix Auto.
+  // Keeping irrelevant turns can increase prompt work and can confuse routing.
+  // Genuine follow-ups retain a small recent window so references still resolve.
+  const conversationTurns=turns.filter(t=>t.role!=='system');
+  const followUp=isLikelyFollowUp(question);
+  const relevantTurns=followUp ? conversationTurns.slice(-8) : conversationTurns.slice(-1);
+
   return [
     {role:'system',content:serverRules},
-    ...turns.filter(t=>t.role!=='system')
+    ...relevantTurns
   ];
 }
 function extractText(data){
@@ -388,7 +397,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           model:'auto',
           messages,
           stream:true,
-          max_tokens:complex ? 900 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 96 : 280),
+          max_tokens:complex ? 900 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 160 : 360),
           temperature:0
         }),
         signal:controller.signal
