@@ -2,7 +2,7 @@
 
 Index supports three membership tiers:
 
-Free: $0/month — 50 saved study sets, 50 saved notes
+Basic: $0/month — 50 saved study sets, 50 saved notes
 Gold: $4.99/month — 250 saved study sets, 250 saved notes
 Diamond: $9.99/month — 1,000 saved study sets, 500 saved notes
 
