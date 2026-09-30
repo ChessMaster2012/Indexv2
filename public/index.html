@@ -2583,6 +2583,7 @@ function formatTutorText(raw){
   html = html.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   html = html.replace(/`([^`]+)`/g,'<code>$1</code>');
   html = html.replace(/(?:^|\n)\s*[-•]\s+(.+)/g,'\n<span class="tutor-bullet">• $1</span>');
+  html = html.replace(/(?:^|\n)\s*(\d+)[.)]\s+(.+)/g,'\n<span class="tutor-bullet">$1. $2</span>');
   html = html.replace(/\n/g,'<br>');
   return html;
 }
