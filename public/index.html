@@ -1727,7 +1727,7 @@ function openNewUserMembershipPrompt(force=false){
   const modal=document.createElement('div');
   modal.id='membership-onboarding-modal';
   modal.className='overlay';
-  modal.innerHTML='<div class="modal membership-onboard-card"><div class="membership-onboard-head"><div class="eyebrow" style="color:#ffe2f0">WELCOME TO INDEX</div><h2>Choose your membership.</h2><p>Start with Basic or choose a paid plan for more account capacity. You can review the full terms before making a paid purchase.</p></div><div class="membership-onboard-body"><div class="membership-grid-page">'+membershipPlanCardsHtml({tier:'free'},'onboarding')+'</div><div class="membership-onboard-terms"><strong>Before you continue</strong><br>Basic is free. Gold and Diamond are recurring monthly memberships. Paid checkout happens on Stripe's hosted payment page. Index does not ask you to type card details into the Index site. Paid memberships must be purchased by an authorized adult/payment account holder. By continuing, you agree to the <a href="/terms.html" target="_blank" rel="noopener">Index Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</div><label class="membership-consent"><input type="checkbox" id="membership-consent-general"> <span>I have read the membership information and understand that paid plans are optional and recurring monthly subscriptions.</span></label><label class="membership-consent"><input type="checkbox" id="membership-consent-adult"> <span>I understand that any paid membership purchase must be made by an authorized adult/payment account holder.</span></label><div class="membership-onboard-actions"><button class="btn btn-ghost" data-action="membership-choose-basic">Continue with Basic</button><button class="btn btn-primary" data-action="membership-choose-paid">Continue to paid options</button></div><div id="membership-onboard-status"></div></div></div>';
+  modal.innerHTML='<div class="modal membership-onboard-card"><div class="membership-onboard-head"><div class="eyebrow" style="color:#ffe2f0">WELCOME TO INDEX</div><h2>Choose your membership.</h2><p>Start with Basic or choose a paid plan for more account capacity. You can review the full terms before making a paid purchase.</p></div><div class="membership-onboard-body"><div class="membership-grid-page">'+membershipPlanCardsHtml({tier:'free'},'onboarding')+'</div><div class="membership-onboard-terms"><strong>Before you continue</strong><br>Basic is free. Gold and Diamond are recurring monthly memberships. Paid checkout happens on Stripe hosted payment. Index does not ask you to type card details into the Index site. Paid memberships must be purchased by an authorized adult/payment account holder. By continuing, you agree to the <a href="/terms.html" target="_blank" rel="noopener">Index Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</div><label class="membership-consent"><input type="checkbox" id="membership-consent-general"> <span>I have read the membership information and understand that paid plans are optional and recurring monthly subscriptions.</span></label><label class="membership-consent"><input type="checkbox" id="membership-consent-adult"> <span>I understand that any paid membership purchase must be made by an authorized adult/payment account holder.</span></label><div class="membership-onboard-actions"><button class="btn btn-ghost" data-action="membership-choose-basic">Continue with Basic</button><button class="btn btn-primary" data-action="membership-choose-paid">Continue to paid options</button></div><div id="membership-onboard-status"></div></div></div>';
   document.body.appendChild(modal);
 }
 function closeMembershipOnboarding(){
@@ -1737,7 +1737,7 @@ async function chooseBasicMembership(){
   const general=document.getElementById('membership-consent-general');
   const adult=document.getElementById('membership-consent-adult');
   const status=document.getElementById('membership-onboard-status');
-  if(!general?.checked||!adult?.checked){if(status)status.innerHTML='<div class="error-note">Please review and accept both membership safety statements first.</div>';return;}
+  if(!general?.checked){if(status)status.innerHTML='<div class="error-note">Please review the membership terms first.</div>';return;}
   markMembershipOnboardingCompleted();
   closeMembershipOnboarding();
   showRewardToast('Welcome to Index Basic! You can upgrade from the Membership tab anytime.');
@@ -1746,7 +1746,7 @@ function choosePaidMembershipOptions(){
   const general=document.getElementById('membership-consent-general');
   const adult=document.getElementById('membership-consent-adult');
   const status=document.getElementById('membership-onboard-status');
-  if(!general?.checked||!adult?.checked){if(status)status.innerHTML='<div class="error-note">Please review and accept both membership safety statements first.</div>';return;}
+  if(!general?.checked||!adult?.checked){if(status)status.innerHTML='<div class="error-note">Please review both membership safety statements before continuing to paid options.</div>';return;}
   markMembershipOnboardingCompleted();
   closeMembershipOnboarding();
   switchView('membership');
