@@ -1337,8 +1337,16 @@ async function runLocalAi(messages, options={}){
   }
 
   const timeoutMs=Number(options.timeoutMs)||28500;
+  const complexMode=options.complex===true;
+  const extendedTimeoutMs=Math.max(timeoutMs,17800);
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  let timer=null;
+  let timerExtended=false;
+  const armTimer=(ms)=>{
+    if(timer) clearTimeout(timer);
+    timer=setTimeout(()=>controller.abort(),ms);
+  };
+  armTimer(timeoutMs);
   try{
     const response=await fetch('/api/ai/chat',{
       method:'POST',
@@ -1366,6 +1374,10 @@ async function runLocalAi(messages, options={}){
       const emitChunk=(chunk)=>{
         if(!chunk) return;
         fullText+=chunk;
+        if(chunk && complexMode && options.intent==='tutor' && !timerExtended){
+          timerExtended=true;
+          armTimer(extendedTimeoutMs);
+        }
         if(typeof options.onChunk==='function') options.onChunk(chunk);
       };
 
@@ -2645,7 +2657,7 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
     const normalized = text.toLowerCase().replace(/[^a-z0-9?\s]/g,'').trim();
     const greeting = /^(hi|hello|hey|heyy|yo|sup|good morning|good afternoon|good evening)[!?.\s]*$/.test(normalized);
     const complexAi=estimateAiDifficulty(text);
-    const reply = greeting ? 'Hi! What are you working on? I can help explain a topic, solve practice problems step by step, or review your notes.' : await runLocalAi(turns,{timeoutMs:9800,intent:'tutor',onChunk:(chunk)=>{
+    const reply = greeting ? 'Hi! What are you working on? I can help explain a topic, solve practice problems step by step, or review your notes.' : await runLocalAi(turns,{timeoutMs:9700,intent:'tutor',complex:complexAi,onChunk:(chunk)=>{
       if(chunk==='\u0000RESET_STREAM\u0000'){ streamText=''; state.chat[assistantIndex].text=''; renderChatLog(); return; }
       streamText += chunk; state.chat[assistantIndex].text=streamText; renderChatLog();
     }});
