@@ -145,13 +145,24 @@ function aiModerationMessage() {
 const AI_MAX_INPUT_CHARS = 24000; // Keep useful follow-up context while avoiding oversized prompts that slow Tutor requests.
 
 function normalizeTutorMathInput(value){
-  let s=String(value||'');
-  // Preserve the mathematical content while removing common TeX wrappers.
+  let s=String(value||'').replace(/\r\n?/g,'\n');
+
+  // Accept pasted Markdown + LaTeX exactly as it appears when copied from
+  // formatted study material, but send the provider a clean semantic form.
+  s=s.replace(/^\s{0,3}#{1,6}\s+/gm,'');
+  s=s.replace(/\*\*([^*]+)\*\*/g,'$1');
+  s=s.replace(/__([^_]+)__/g,'$1');
+  s=s.replace(/^\s*[-*+]\s+/gm,'');
+  s=s.replace(/^\s*\d+[.)]\s+/gm,'');
   s=s.replace(/\\\[|\\\]|\\\(|\\\)|\\\\/g,' ');
   s=s.replace(/\$\$/g,' ');
   s=s.replace(/\\left\b|\\right\b/g,'');
-  s=s.replace(/\\text\s*\{([^{}]*)\}/g,'$1');
+  s=s.replace(/\\[,;:!]|\\quad\b|\\qquad\b/g,' ');
+  s=s.replace(/\\,|\\;|\\!|\\:/g,' ');
+  s=s.replace(/\\text(?:rm|bf|it)?\s*\{([^{}]*)\}/g,'$1');
   s=s.replace(/\\mathrm\s*\{([^{}]*)\}/g,'$1');
+  s=s.replace(/\\mathbf\s*\{([^{}]*)\}/g,'$1');
+  s=s.replace(/\\mathit\s*\{([^{}]*)\}/g,'$1');
   const commands=[
     ['\\leqslant','≤'],['\\geqslant','≥'],['\\leq','≤'],['\\ge','≥'],['\\neq','≠'],
     ['\\approx','≈'],['\\equiv','≡'],['\\propto','∝'],['\\pm','±'],['\\mp','∓'],
@@ -166,7 +177,7 @@ function normalizeTutorMathInput(value){
   s=s.replace(/\\sqrt\s*\{([^{}]+)\}/g,'√($1)');
   s=s.replace(/\\sqrt\s*\(([^()]*)\)/g,'√($1)');
   s=s.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,'($1)/($2)');
-  return s.replace(/[ \t]+/g,' ').trim();
+  return s.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 }
 
 function normalizeAiMessages(messages){
