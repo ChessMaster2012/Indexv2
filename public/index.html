@@ -2271,6 +2271,19 @@ function indexlingArtHtmlBase(c,mini=false,skin=null,frameId=null){
     const gid=String(c?.id||'indexling').replace(/[^a-z0-9]/gi,'');
     const v=INDEXLING_VISUALS[c?.id]||{top:'spark',face:'happy',icon:'✦'};
     const feature=INDEXLING_FEATURES[c?.id]||'';
+    const skinEffect=(function(kind){
+    const effects={
+      gold:'<path d="M22 35L78 70" stroke="#fff7cc" stroke-width="8" opacity=".36" stroke-linecap="round"/><path d="M28 29L72 29" stroke="#fff" stroke-width="3" opacity=".48" stroke-linecap="round"/>',
+      silver:'<path d="M20 38L80 68" stroke="#fff" stroke-width="8" opacity=".48" stroke-linecap="round"/><path d="M27 28L71 28" stroke="#fff" stroke-width="3" opacity=".6" stroke-linecap="round"/>',
+      chrome:'<path d="M18 33L82 70" stroke="#fff" stroke-width="6" opacity=".52" stroke-linecap="round"/><path d="M28 42L73 42" stroke="#eef6ff" stroke-width="2" opacity=".7"/>',
+      ruby:'<path d="m50 21 15 23-15 35-15-35Z" fill="#fff" opacity=".13"/><path d="M35 44h30M50 21v58" stroke="#ffd8df" stroke-width="2" opacity=".6"/>',
+      sapphire:'<path d="m50 19 17 25-17 39-17-39Z" fill="#fff" opacity=".15"/><path d="M33 44h34M50 19v64" stroke="#e2edff" stroke-width="2" opacity=".55"/>',
+      emerald:'<path d="m50 20 17 24-17 38-17-38Z" fill="#fff" opacity=".14"/><path d="M34 44h32M50 20v62" stroke="#ddfff0" stroke-width="2" opacity=".55"/>',
+      lava:'<path d="M30 29l12 18-8 20M56 22l-6 24 16 18M43 66l-4 13M68 42l-8 14" stroke="#ff7422" stroke-width="4" opacity=".96" stroke-linecap="round"/><path d="M31 31l10 15m17-22-5 22m14-2-7 12" stroke="#ffd34d" stroke-width="1.8" opacity=".9"/>',
+      ice:'<path d="M26 39l18 8-6 30M74 39l-18 8 6 30M50 23v54M31 61l38-20" stroke="#fff" stroke-width="3" opacity=".55" stroke-linecap="round"/><circle cx="34" cy="31" r="3" fill="#fff" opacity=".75"/><circle cx="67" cy="28" r="4" fill="#fff" opacity=".55"/>'
+    };
+    return effects[kind]||'';
+  })(sk?.effect);
     const faces={
       smile:'<circle cx="40" cy="52" r="4"/><circle cx="60" cy="52" r="4"/><path d="M40 62q10 7 20 0"/>',
       happy:'<circle cx="40" cy="52" r="4"/><circle cx="60" cy="52" r="4"/><path d="M39 61q11 10 22 0"/>',
