@@ -301,6 +301,9 @@ function buildAiMessages(messages){
       : 'For a difficult or AP-level question, give a complete explanation: answer first, explain the reasoning or causal chain, support it with relevant evidence/example/equation, and include an important nuance, consequence, or limitation. Aim for roughly 5–10 substantive sentences or equivalent depth.')
     : 'For an ordinary school question, give roughly 3–6 substantive sentences when explanation is requested: answer directly, then explain what happened or how it works, and include a useful example, consequence, or significance when relevant. Avoid a one-line definition.';
   const notationRule='Use precise notation and Unicode symbols when they genuinely clarify the answer: √, ×, ÷, ±, ≤, ≥, ≠, ≈, ∝, Δ, Σ, ∑, ∫, π, α, β, γ, θ, λ, μ, →, ⇒, ↔, ∴, ∵. For math/science, show equations cleanly and define symbols before relying on them. Do not sprinkle symbols randomly.';
+  const structureRule=complexQuestion
+    ? 'For comprehensive answers, use clear sections or numbered steps when they improve readability, such as Answer, Reasoning, Example/Evidence, and Why It Matters. Keep every section substantive.'
+    : '';
   const explanationRule=task==='direct-explanation'
     ? 'For an explanation request, use this structure when appropriate: direct answer → what/how it works → why/causes → concrete example or evidence → significance/consequence → useful nuance.'
     : '';
@@ -320,6 +323,7 @@ function buildAiMessages(messages){
     'Do not invent facts. Distinguish uncertainty when it genuinely exists.',
     'For finished writing requests, produce the requested draft itself.',
     notationRule,
+    structureRule,
     explanationRule,
     taskRule,
     lengthRule,
