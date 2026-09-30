@@ -164,7 +164,7 @@ function normalizeTutorMathInput(value){
   s=s.replace(/\\mathbf\s*\{([^{}]*)\}/g,'$1');
   s=s.replace(/\\mathit\s*\{([^{}]*)\}/g,'$1');
   const commands=[
-    ['\\leqslant','≤'],['\\geqslant','≥'],['\\leq','≤'],['\\ge','≥'],['\\neq','≠'],
+    ['\\leqslant','≤'],['\\geqslant','≥'],['\\leq','≤'],['\\geq','≥'],['\\le','≤'],['\\ge','≥'],['\\neq','≠'],
     ['\\approx','≈'],['\\equiv','≡'],['\\propto','∝'],['\\pm','±'],['\\mp','∓'],
     ['\\times','×'],['\\cdot','·'],['\\div','÷'],['\\to','→'],['\\rightarrow','→'],
     ['\\Rightarrow','⇒'],['\\Leftrightarrow','↔'],['\\leftrightarrow','↔'],
