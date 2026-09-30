@@ -1697,7 +1697,6 @@ app.post('/api/account/quest-claim', async (req,res)=>{
       skinCrates:Math.max(0,Math.floor(Number(previousProgress.skinCrates)||0))+Math.max(0,Math.floor(Number(reward.skinCrates)||0))
     });
     claimed[questId]=Date.now();
-    const crateRewardsClaimed=currentQuests.crateRewardsClaimed&&typeof currentQuests.crateRewardsClaimed==='object'?{...currentQuests.crateRewardsClaimed}:{};
     if(reward.skinCrates) crateRewardsClaimed[questId]=Date.now();
 
     const updatedQuests={
