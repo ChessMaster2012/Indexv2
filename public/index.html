@@ -213,8 +213,10 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .chat-empty{margin:auto;text-align:center;color:var(--ink-soft);max-width:340px;}
 .chat-empty h3{margin-bottom:8px;color:var(--ink);}
 .tutor-input{display:flex;gap:10px;padding:14px 16px;border-top:2px solid var(--line);}
-.tutor-input textarea{flex:1;resize:none;border:2px solid var(--line);border-radius:14px;padding:10px 13px;font-size:14px;background:var(--bg);max-height:120px;line-height:1.45;}
-.tutor-input textarea:focus{outline:none;border-color:var(--purple);}
+.tutor-input .tutor-composer{flex:1;min-width:0;min-height:40px;max-height:150px;overflow-y:auto;border:2px solid var(--line);border-radius:14px;padding:10px 13px;font-size:14px;background:var(--bg);line-height:1.45;white-space:pre-wrap;word-break:break-word;cursor:text;}
+.tutor-input .tutor-composer:focus{outline:none;border-color:var(--purple);}
+.tutor-input .tutor-composer:empty::before{content:attr(data-placeholder);color:var(--ink-soft);opacity:.72;pointer-events:none;}
+.tutor-input .tutor-composer:empty:focus::before{opacity:.5;}
 .disclaimer{font-size:11px;color:var(--ink-soft);text-align:center;padding:8px 0 0;}
 .notes-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:22px;flex-wrap:wrap;}
 .notes-toolbar input[type=text]{padding:10px 13px;border:2px solid var(--line);border-radius:12px;background:var(--card);font-size:13.5px;min-width:200px;}
@@ -1013,7 +1015,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
         </div>
         <div id="ai-work-status" class="ai-work-status hidden"><span class="ai-stage" id="ai-stage">Preparing local AI…</span><span><strong id="ai-elapsed">0s</strong> · <span class="ai-eta" id="ai-eta">Estimating…</span></span></div>
         <div class="chat-log" id="chat-log"><div class="chat-empty"><h3>What are you working on? 👋</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div></div>
-        <div class="tutor-input"><textarea id="tutor-textarea" rows="1" placeholder="Ask anything…"></textarea><button class="btn btn-primary" id="tutor-send" data-action="send-chat">Send</button></div>
+        <div class="tutor-input"><div id="tutor-textarea" class="tutor-composer" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Ask anything…"></div><button class="btn btn-primary" id="tutor-send" data-action="send-chat">Send</button></div>
       </div>
       <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI responses use Vireonix Auto only through the server and are limited to 30 seconds. Study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
     </section>
@@ -2644,9 +2646,9 @@ function estimateAiDifficulty(text){
   return deep || multiPart || q.length>180;
 }
 async function sendChat(){
-  const ta = document.getElementById('tutor-textarea'); const text = ta.value.trim();
+  const ta = document.getElementById('tutor-textarea'); const text = normalizeTutorComposerInput(ta.innerText || ta.textContent || '');
   if(!text || state.chatLoading) return;
-  ta.value = ''; autoSizeTextarea(ta);
+  ta.innerHTML = ''; autoSizeTextarea(ta);
   state.chat.push({role:'user', text});
   state.chat.push({role:'assistant', text:'', streaming:true});
   const assistantIndex=state.chat.length-1;
@@ -2697,7 +2699,11 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
   state.chatLoading = false; stopAiWorkStatus(); document.getElementById('tutor-send').disabled = false; renderChatLog();
 }
 
-function autoSizeTextarea(ta){ ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 120)+'px'; }
+function autoSizeTextarea(ta){
+  ta.style.height='auto';
+  const max=Number.parseInt(getComputedStyle(ta).maxHeight,10)||150;
+  ta.style.height=Math.min(Math.max(ta.scrollHeight,40),max)+'px';
+}
 
 /* ============================== NOTES ============================== */
 function renderNotes(){
@@ -4213,7 +4219,17 @@ document.addEventListener('input', (e)=>{
 });
 document.getElementById('nav').addEventListener('click', (e)=>{ const b=e.target.closest('.nav-btn'); if(b) switchView(b.dataset.view); });
 document.getElementById('tutor-textarea').addEventListener('input', function(){ autoSizeTextarea(this); });
-document.getElementById('tutor-textarea').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); } });
+document.getElementById('tutor-textarea').addEventListener('paste', function(e){
+  const pasted=e.clipboardData?.getData('text/plain');
+  if(pasted==null) return;
+  const cleaned=normalizeTutorComposerInput(pasted);
+  e.preventDefault();
+  document.execCommand('insertText',false,cleaned);
+  autoSizeTextarea(this);
+});
+document.getElementById('tutor-textarea').addEventListener('keydown', function(e){
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
+});
 document.getElementById('notes-search').addEventListener('input', renderNotes);
 document.getElementById('notes-filter').addEventListener('change', renderNotes);
 document.getElementById('note-subject').addEventListener('change', updateNoteTopicSuggestions);
