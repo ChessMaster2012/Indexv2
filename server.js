@@ -290,11 +290,16 @@ function buildAiMessages(messages){
       : '';
 
   const complexQuestion=aiQuestionIsComplex(question);
+  const extremeQuestion=/\b(derive|prove|proof|synthesize|synthesis|counterargument|evaluate|critique|research|DBQ|LEQ|SAQ|document-based|AP|advanced placement|thesis|nuance|multiple parts?|comprehensive)\b/i.test(question)
+    || String(question||'').length>320;
   const depthRule=complexQuestion
-    ? 'For a difficult or AP-level question, give a complete but efficient explanation: state the answer, explain the reasoning or causal chain, support it with the most relevant evidence, example, or equation, and include an important nuance when appropriate. Aim for roughly 5–8 substantive sentences or equivalent depth for a problem or essay.'
+    ? (extremeQuestion
+      ? 'For an extremely difficult or AP-level question, be comprehensive rather than shallow. Answer first, then build the explanation in logical layers: context/definitions → reasoning or causal chain → evidence/example/equation → implications/significance → important nuance or limitation. For multi-part problems, clearly separate each part. Aim for roughly 8–14 substantive sentences or equivalent depth, but do not add filler.'
+      : 'For a difficult or AP-level question, give a complete explanation: answer first, explain the reasoning or causal chain, support it with relevant evidence/example/equation, and include an important nuance, consequence, or limitation. Aim for roughly 5–10 substantive sentences or equivalent depth.')
     : 'For an ordinary school question, give roughly 3–6 substantive sentences when explanation is requested: answer directly, then explain what happened or how it works, and include a useful example, consequence, or significance when relevant. Avoid a one-line definition.';
+  const notationRule='Use precise notation and Unicode symbols when they genuinely clarify the answer: √, ×, ÷, ±, ≤, ≥, ≠, ≈, ∝, Δ, Σ, ∑, ∫, π, α, β, γ, θ, λ, μ, →, ⇒, ↔, ∴, ∵. For math/science, show equations cleanly and define symbols before relying on them. Do not sprinkle symbols randomly.';
   const explanationRule=task==='direct-explanation'
-    ? 'For an explanation request, use a direct answer first, then explain the mechanism or historical context, then give an example, consequence, or significance.'
+    ? 'For an explanation request, use this structure when appropriate: direct answer → what/how it works → why/causes → concrete example or evidence → significance/consequence → useful nuance.'
     : '';
 
   const serverRules=[
@@ -306,9 +311,12 @@ function buildAiMessages(messages){
     depthRule,
     'For AP-level work, use your strongest available reasoning through Auto. Use precise terminology, multi-step reasoning, evidence, equations, interpretation, nuance, and counterarguments when relevant. Do not oversimplify a difficult question.',
     'For difficult questions, spend response space on reasoning and evidence instead of repeating the prompt or adding filler.',
+    'When the question is complex, make the answer self-contained: define specialized terms, show the logical chain, and do not assume the student already knows an unstated step.',
+    'For math/science reasoning, show the important transformation at each step and explain why it is valid; end with the final result and a quick interpretation/check when useful.',
     'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “tell me more”, “what about that?”, “simpler”, or “show the steps”.',
     'Do not invent facts. Distinguish uncertainty when it genuinely exists.',
     'For finished writing requests, produce the requested draft itself.',
+    notationRule,
     explanationRule,
     taskRule,
     lengthRule,
@@ -405,7 +413,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // generation keeps the longer compatibility deadline used by other Index features.
   const tutorMode=String(options.mode||'')==='tutor';
   const fastTutor=!complex && tutorMode;
-  const deadline=Date.now()+(tutorMode ? 9700 : 29500);
+  const deadline=Date.now()+(tutorMode ? (complex ? 18000 : 9700) : 29500);
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -422,7 +430,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           model:'auto',
           messages,
           stream:!fastTutor,
-          max_tokens:complex ? 820 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 220 : 340),
+          max_tokens:complex ? 1400 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 220 : 420),
           temperature:0
         }),
         signal:controller.signal
@@ -529,9 +537,12 @@ async function raceAiProviders(messages,complex){
 
 function aiQuestionIsComplex(question){
   const q=String(question||'').trim();
-  const deepSignal=/\b(code|debug|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|step by step|reason through|evaluate|significance|justify|justification|synthesize|synthesis|interpret|critique|assess|evidence|counterargument|causation|rhetorical|primary source|document-based|AP|advanced placement|SAQ|LEQ|DBQ|thesis|nuance|multiple parts?|show your work)\b/i.test(q);
-  const multiPart=/\b(?:and|then|while|whereas|although)\b/i.test(q) && q.length>90;
-  return deepSignal || multiPart || q.length>180;
+  const extreme=/\b(derive|prove|proof|synthesize|synthesis|counterargument|evaluate|critique|research|DBQ|LEQ|SAQ|document-based|primary source|AP|advanced placement|thesis|nuance|multiple parts?|show your work|justify|justification)\b/i.test(q)
+    || /\b(?:compare|contrast|analyze|assess)\b/i.test(q) && q.length>90
+    || q.length>320;
+  const deep=/\b(code|debug|program|javascript|python|analy[sz]e|compare|contrast|essay|step by step|reason through|evaluate|significance|interpret|critique|assess|evidence|causation|rhetorical|primary source|document-based|AP|advanced placement|SAQ|LEQ|DBQ|thesis|nuance|multiple parts?|show your work|explain in depth|comprehensive)\b/i.test(q)
+    || q.length>140;
+  return extreme || deep;
 }
 
 function responseLooksLikeGenericAdvice(text){
