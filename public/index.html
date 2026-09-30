@@ -1680,7 +1680,7 @@ async function openMembership(){
   }
   const current=state.membership||{tier:'free',status:'active',configured:false};
   const plans=[
-    {tier:'free',name:'Free',price:'$0',suffix:'/month',tag:'Core access',copy:'Start studying with the essential Index tools.',features:['Core study tools','AI Tutor','50 saved study sets','100 saved notes','Daily rewards']},
+    {tier:'free',name:'Free',price:'$0',suffix:'/month',tag:'Core access',copy:'Start studying with the essential Index tools.',features:['Core study tools','AI Tutor','50 saved study sets','50 saved notes','Daily rewards']},
     {tier:'gold',name:'Gold',price:'$4.99',suffix:'/month',tag:'More room',copy:'More space for your classes and study library.',features:['Everything in Free','250 saved study sets','250 saved notes','Gold membership badge','Higher account limits']},
     {tier:'diamond',name:'Diamond',price:'$9.99',suffix:'/month',tag:'BEST VALUE',copy:'The largest Index limits for students using it across all their classes.',features:['Everything in Gold','1,000 saved study sets','500 saved notes','Diamond membership badge','Highest account limits']}
   ];
@@ -1743,7 +1743,7 @@ async function handleBillingReturn(){
   }
 }
 
-function persistProgressLocalOnly(){ activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, freePackTokens:state.progress.freePackTokens||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, freePackTokens:state.progress.freePackTokens||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
@@ -4711,8 +4711,9 @@ async function initializeApp(){
   applyBattlePassRewards();
   await checkAiStatus();
   await refreshAuthStatus();
-  if(state.account){ await loadAccountState(); await loadAccountCustomization(); }
+  if(state.account){ await loadAccountState(); await loadAccountCustomization(); await loadMembershipStatus(); }
   else resetSignedOutAccountState();
+  await handleBillingReturn();
   renderProfileSlot();
   await handleAuthRedirectResult();
   renderDashboard();
