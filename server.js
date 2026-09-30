@@ -674,18 +674,30 @@ function fastDeterministicTutor(question,messages=[]){
     }
   }
 
-  // Explain a just-answered arithmetic expression locally when the student
-  // asks a short contextual follow-up such as "why?" or "how?".
-  if(/^(?:why|how|how so|explain|why\s+is\s+that)\??$/i.test(q)){
+  // Explain a just-answered arithmetic expression locally. These common
+  // follow-ups should never spend several seconds waiting for cloud AI.
+  const isExplainFollowUp=/^(?:why|how|how so|explain|explain that|explain it|why\s+is\s+that|how did you get (?:that|it)|show (?:me )?(?:the )?(?:steps|work)|show your work|what does (?:that|it) mean)\s*[?!.,]*$/i.test(q);
+  if(isExplainFollowUp){
     const turns=normalizeAiMessages(messages);
     const priorUsers=turns.filter(m=>m.role==='user');
-    const priorAssistant=[...turns].reverse().find(m=>m.role==='assistant')?.content||'';
-    const previous=priorUsers.length>1?priorUsers[priorUsers.length-2].content:'';
-    const match=previous.replace(/\s+/g,'').match(/^(\d+(?:\.\d+)?)[xX×](\d+(?:\.\d+)?)\??$/);
-    if(match && /\b=\s*\d/.test(priorAssistant)){
+    const previous=[...priorUsers.slice(0,-1)].reverse().find(m=>String(m.content||'').trim())?.content||'';
+    const cleanPrevious=previous.replace(/\s+/g,'').replace(/[?!.,]+$/,'');
+    const match=cleanPrevious.match(/^(\d+(?:\.\d+)?)[xX×](\d+(?:\.\d+)?)$/);
+    if(match){
       const a=Number(match[1]), b=Number(match[2]);
-      if(Number.isFinite(a)&&Number.isFinite(b)&&a>=0&&b>=0&&a<=100&&b<=100&&Number.isInteger(b)){
-        return 'Multiplication is repeated addition. '+a+' × '+b+' means adding '+a+' '+b+' times, which equals '+(a*b)+'.';
+      if(Number.isFinite(a)&&Number.isFinite(b)&&a>=0&&b>=0&&a<=1000&&b<=1000&&Number.isInteger(b)){
+        const answer=a*b;
+        return String(a)+' × '+String(b)+' = '+String(answer)+'. This works because multiplication means repeated addition: '+String(a)+' × '+String(b)+' is '+String(b)+' groups of '+String(a)+', so adding '+String(a)+' '+String(b)+' times gives '+String(answer)+'.';
+      }
+    }
+    // Also explain a prior simple arithmetic answer when the expression is
+    // written with the keyboard spelling "times".
+    const times=String(previous||'').match(/^(\d+(?:\.\d+)?)\s+(?:times|multiplied by)\s+(\d+(?:\.\d+)?)\s*[?!.,]*$/i);
+    if(times){
+      const a=Number(times[1]), b=Number(times[2]);
+      if(Number.isFinite(a)&&Number.isFinite(b)&&a>=0&&b>=0&&a<=1000&&b<=1000){
+        const answer=a*b;
+        return String(a)+' × '+String(b)+' = '+String(answer)+'. Multiplication means repeated addition: '+String(a)+' groups of '+String(b)+' has a total of '+String(answer)+'.';
       }
     }
   }
