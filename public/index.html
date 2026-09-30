@@ -1337,7 +1337,7 @@ async function runLocalAi(messages, options={}){
   }
 
   const complexMode=options.complex===true;
-  const timeoutMs=complexMode ? 17800 : (Number(options.timeoutMs)||28500);
+  const timeoutMs=complexMode ? 29500 : (Number(options.timeoutMs)||28500);
   const controller=new AbortController();
   let timer=null;
   const armTimer=(ms)=>{
