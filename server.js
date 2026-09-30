@@ -282,8 +282,9 @@ function buildAiMessages(messages){
     'Treat a brand-new question as independent unless the student clearly refers to an earlier turn.',
     'Never substitute a canned example, previous question, or unrelated subject for the latest request.',
     'Answer the latest request directly and start immediately; do not use a long preamble or generic study advice.',
-    'For ordinary school questions, give a clear, useful explanation with the important who/what/when/why details rather than a one-line textbook definition. Aim for a few substantive sentences without unnecessary filler.',
-    'For AP-level work, use your strongest available reasoning through Auto: precise terminology, multi-step reasoning, evidence, equations, interpretation, nuance, and self-contained explanations when relevant. Do not oversimplify a difficult question.',
+    'For ordinary school questions, give a clear, useful explanation with the important who/what/when/why details rather than a one-line textbook definition. Aim for about 3–6 substantive sentences, using a concrete example, cause/effect, or significance when it helps.',
+    'For AP-level work, use your strongest available reasoning through Auto: precise terminology, multi-step reasoning, evidence, equations, interpretation, nuance, counterarguments when relevant, and a self-contained explanation. Do not oversimplify a difficult question.',
+    'For difficult questions, spend response space on reasoning and evidence instead of repeating the prompt or adding filler.',
     'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “what about that?”, “simpler”, or “show the steps”.',
     'Do not invent facts. Distinguish uncertainty when it genuinely exists.',
     'For finished writing requests, produce the requested draft itself.',
@@ -381,7 +382,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // Tutor requests have a firm sub-10-second upstream deadline; background AI
   // generation keeps the longer compatibility deadline used by other Index features.
   const tutorMode=String(options.mode||'')==='tutor';
-  const deadline=Date.now()+(tutorMode ? 9300 : 29500);
+  const deadline=Date.now()+(tutorMode ? 9700 : 29500);
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -398,7 +399,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           model:'auto',
           messages,
           stream:true,
-          max_tokens:complex ? 900 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 160 : 360),
+          max_tokens:complex ? 820 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 220 : 340),
           temperature:0
         }),
         signal:controller.signal
@@ -500,10 +501,10 @@ async function raceAiProviders(messages,complex){
 }
 
 function aiQuestionIsComplex(question){
-  const q=String(question||'');
-  return /\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step|reason|evaluate|why|significance|justify|justification|synthesize|synthesis|interpret|critique|assess|evidence|counterargument|causation|rhetorical|primary source|document-based|AP|advanced placement|SAQ|LEQ|DBQ)\b/i.test(q)
-    || q.length>140
-    || /\b(?:\w+\s+){2,}\b(?:and|or)\b(?:\s+\w+){2,}/i.test(q);
+  const q=String(question||'').trim();
+  const deepSignal=/\b(code|debug|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|step by step|reason through|evaluate|significance|justify|justification|synthesize|synthesis|interpret|critique|assess|evidence|counterargument|causation|rhetorical|primary source|document-based|AP|advanced placement|SAQ|LEQ|DBQ|thesis|nuance|multiple parts?|show your work)\b/i.test(q);
+  const multiPart=/\b(?:and|then|while|whereas|although)\b/i.test(q) && q.length>90;
+  return deepSignal || multiPart || q.length>180;
 }
 
 function responseLooksLikeGenericAdvice(text){
