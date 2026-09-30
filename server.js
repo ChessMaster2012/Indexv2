@@ -253,6 +253,9 @@ function buildAiMessages(messages){
   if(!turns.length) return [];
 
   const question=latestUserQuestion(turns);
+  const clientSystem=turns.filter(t=>t.role==='system').map(t=>t.content).join('\n');
+  const subjectMatch=clientSystem.match(/currently focused on AP\s+([^.!?]+)[.!?]/i);
+  const subjectContext=subjectMatch ? 'The student is currently focused on AP '+subjectMatch[1].trim()+'.' : '';
   const conversationTurns=turns.filter(t=>t.role!=='system');
   const followUp=isLikelyFollowUp(question);
   const relevantForConstraints=followUp ? conversationTurns.slice(-8) : conversationTurns.slice(-1);
@@ -277,17 +280,27 @@ function buildAiMessages(messages){
       ? `Return between ${writingConstraints.requestedParagraphRange.min} and ${writingConstraints.requestedParagraphRange.max} paragraphs.`
       : '';
 
+  const complexQuestion=aiQuestionIsComplex(question);
+  const depthRule=complexQuestion
+    ? 'For a difficult or AP-level question, give a complete but efficient explanation: state the answer, explain the reasoning or causal chain, support it with the most relevant evidence, example, or equation, and include an important nuance when appropriate. Aim for roughly 5–8 substantive sentences or equivalent depth for a problem or essay.'
+    : 'For an ordinary school question, give roughly 3–6 substantive sentences when explanation is requested: answer directly, then explain what happened or how it works, and include a useful example, consequence, or significance when relevant. Avoid a one-line definition.';
+  const explanationRule=task==='direct-explanation'
+    ? 'For an explanation request, use a direct answer first, then explain the mechanism or historical context, then give an example, consequence, or significance.'
+    : '';
+
   const serverRules=[
     'You are Index Tutor, a highly capable school tutor.',
+    subjectContext,
     'Treat a brand-new question as independent unless the student clearly refers to an earlier turn.',
     'Never substitute a canned example, previous question, or unrelated subject for the latest request.',
     'Answer the latest request directly and start immediately; do not use a long preamble or generic study advice.',
-    'For ordinary school questions, give a clear, useful explanation with the important who/what/when/why details rather than a one-line textbook definition. Aim for about 3–6 substantive sentences, using a concrete example, cause/effect, or significance when it helps.',
-    'For AP-level work, use your strongest available reasoning through Auto: precise terminology, multi-step reasoning, evidence, equations, interpretation, nuance, counterarguments when relevant, and a self-contained explanation. Do not oversimplify a difficult question.',
+    depthRule,
+    'For AP-level work, use your strongest available reasoning through Auto. Use precise terminology, multi-step reasoning, evidence, equations, interpretation, nuance, and counterarguments when relevant. Do not oversimplify a difficult question.',
     'For difficult questions, spend response space on reasoning and evidence instead of repeating the prompt or adding filler.',
-    'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “what about that?”, “simpler”, or “show the steps”.',
+    'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “tell me more”, “what about that?”, “simpler”, or “show the steps”.',
     'Do not invent facts. Distinguish uncertainty when it genuinely exists.',
     'For finished writing requests, produce the requested draft itself.',
+    explanationRule,
     taskRule,
     lengthRule,
     shapeRule
@@ -382,6 +395,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // Tutor requests have a firm sub-10-second upstream deadline; background AI
   // generation keeps the longer compatibility deadline used by other Index features.
   const tutorMode=String(options.mode||'')==='tutor';
+  const fastTutor=!complex && tutorMode;
   const deadline=Date.now()+(tutorMode ? 9700 : 29500);
 
   async function requestAttempt(){
@@ -393,12 +407,12 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
         method:'POST',
         headers:{
           'Content-Type':'application/json',
-          'Accept':'text/event-stream, application/json'
+          'Accept':fastTutor ? 'application/json, text/event-stream' : 'text/event-stream, application/json'
         },
         body:JSON.stringify({
           model:'auto',
           messages,
-          stream:true,
+          stream:!fastTutor,
           max_tokens:complex ? 820 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 220 : 340),
           temperature:0
         }),
@@ -463,23 +477,27 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 
     if(!upstream.body) throw new Error('Vireonix Auto returned an empty stream.');
 
+    let sentAnyChunk=false;
     for await (const chunk of upstream.body){
       if(Date.now()>=deadline) throw new Error('Vireonix Auto request timed out.');
-      if(chunk) res.write(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
+      if(chunk){
+        sentAnyChunk=true;
+        res.write(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
+      }
     }
 
     res.end();
   }catch(e){
     if(!res.headersSent) throw e;
 
-    // Headers are already committed for a stream. Tell the client explicitly
-    // that the stream failed so it does not interpret a truncated stream as a
-    // successful empty answer.
+    // If useful text already reached the browser, finish the stream cleanly
+    // instead of converting an almost-complete answer into a total failure.
     try{
       const message=e?.name==='AbortError'
         ? 'Vireonix Auto request timed out.'
         : String(e?.message||'Vireonix Auto stream failed.');
-      res.write('data: '+JSON.stringify({type:'error',error:message})+'\\n\\n');
+      if(sentAnyChunk) res.write('data: [DONE]\\n\\n');
+      else res.write('data: '+JSON.stringify({type:'error',error:message})+'\\n\\n');
       res.end();
     }catch{}
   }finally{
