@@ -1532,7 +1532,7 @@ function mergeQuestState(existingQuest,incomingQuest){
 
 /* ============================== MEMBERSHIP / BILLING ============================== */
 const MEMBERSHIP_PLANS = Object.freeze({
-  free:{tier:'free',name:'Free',priceCents:0,interval:'month',studySetLimit:50,noteLimit:50,features:['Core study tools','AI Tutor','Up to 50 saved study sets','Up to 50 saved notes','Daily rewards']},
+  free:{tier:'free',name:'Basic',priceCents:0,interval:'month',studySetLimit:50,noteLimit:50,features:['Core study tools','AI Tutor','Up to 50 saved study sets','Up to 50 saved notes','Daily rewards']},
   gold:{tier:'gold',name:'Gold',priceCents:499,interval:'month',studySetLimit:250,noteLimit:250,features:['Everything in Free','Up to 250 saved study sets','Up to 250 saved notes','Gold membership badge','Higher account limits']},
   diamond:{tier:'diamond',name:'Diamond',priceCents:999,interval:'month',studySetLimit:1000,noteLimit:500,features:['Everything in Gold','Up to 1,000 saved study sets','Up to 500 saved notes','Diamond membership badge','Highest account limits']}
 });
