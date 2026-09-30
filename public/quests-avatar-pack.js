@@ -176,9 +176,50 @@ function questRewardText(q){
   if(q.rewardPackTokens)parts.push('+'+q.rewardPackTokens+' 🎁 Free Pack');
   return parts.join(' · ');
 }
+function questSetForDay(){
+  // Rotate the available quests at the same midnight-ET reset used by progress.
+  // A deterministic daily shuffle means every signed-in device sees the same set.
+  const day=dayKey();
+  let seed=0;
+  for(let i=0;i<day.length;i++) seed=((seed<<5)-seed+day.charCodeAt(i))|0;
+  const list=QUEST_DEFS.slice();
+  for(let i=list.length-1;i>0;i--){
+    seed=(seed*1664525+1013904223)|0;
+    const j=Math.abs(seed)% (i+1);
+    const tmp=list[i]; list[i]=list[j]; list[j]=tmp;
+  }
+  // Keep the quest board varied while retaining enough choices for every category.
+  const selected=[];
+  ['Daily','Study','Challenge','Milestone'].forEach(function(category){
+    const first=list.find(function(q){return q.category===category;});
+    if(first) selected.push(first);
+  });
+  list.forEach(function(q){if(selected.indexOf(q)<0 && selected.length<8) selected.push(q);});
+  return selected;
+}
+function nextQuestResetMs(){
+  const now=new Date();
+  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+  const get=function(t){return Number(parts.find(function(x){return x.type===t;})?.value||0);};
+  const tomorrow=new Date(Date.UTC(get('year'),get('month')-1,get('day')+1));
+  const y=tomorrow.getUTCFullYear(),m=String(tomorrow.getUTCMonth()+1).padStart(2,'0'),d=String(tomorrow.getUTCDate()).padStart(2,'0');
+  const offsetPart=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',timeZoneName:'longOffset'}).formatToParts(now).find(function(x){return x.type==='timeZoneName';});
+  const offset=String(offsetPart?.value||'GMT-04:00').replace('GMT','');
+  const target=Date.parse(y+'-'+m+'-'+d+'T00:00:00'+offset);
+  return Number.isFinite(target)?target:Date.now()+86400000;
+}
+function questCountdownText(){
+  const left=Math.max(0,nextQuestResetMs()-Date.now());
+  const total=Math.floor(left/1000);
+  const h=Math.floor(total/3600);
+  const m=Math.floor((total%3600)/60);
+  const sec=total%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
 function quests(){
   const s=snap(),p=loadQuestData();
-  return QUEST_DEFS.map(function(def){
+  const defs=questSetForDay();
+  return defs.map(function(def){
     const q={...def,value:Math.min(def.goal,Math.max(0,Number(s[def.metric])||0))};
     q.claimed=!!(p.claimed&&p.claimed[q.id]);
     q.done=q.value>=q.goal;
@@ -232,7 +273,7 @@ function renderQuests(){
       return '<div class="quest-card '+(q.done?'done':'')+' '+(q.category==='Challenge'?'quest-hard':'')+'"><div class="quest-top"><div class="quest-icon">'+q.icon+'</div><div><h3>'+q.title+'</h3><p>'+q.desc+'</p></div></div><div class="quest-bar"><div class="quest-fill" style="width:'+pct+'%"></div></div><div class="quest-bottom"><span>'+q.value+' / '+q.goal+(q.claimed?' · Claimed':'')+'</span>'+action+'</div></div>';
     }).join('')+'</div></section>';
   }).join('');
-  root.innerHTML='<div class="quest-page"><div class="quest-hero"><div class="eyebrow" style="color:#ffd8ef">DAILY MISSIONS</div><h2>Quests</h2><p>Complete daily study missions, tougher challenges, and milestone quests. Rewards can include Battle Pass XP, coins, and free Indexling pack tokens.</p></div>'+sections+'</div>';
+  root.innerHTML='<div class="quest-page"><div class="quest-hero"><div class="eyebrow" style="color:#ffd8ef">DAILY MISSIONS</div><h2>Quests</h2><p>Complete daily study missions, tougher challenges, and milestone quests. The whole quest board rotates when the timer reaches zero.</p><div style="display:inline-flex;align-items:center;gap:8px;margin-top:12px;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.14);font-weight:900;font-size:13px"><span>🔄 New quests in</span><span id="quest-reset-countdown">'+questCountdownText()+'</span></div></div>'+sections+'</div>';
 }
 function ensureView(){
   const main=document.querySelector('.main');
@@ -295,16 +336,19 @@ function wire(){
             // Battle Pass pipeline used by normal XP rewards so level-ups,
             // cosmetic unlocks, and the visible Battle Pass update immediately.
             state.progress={...state.progress,...result.state.progress,equipped:{...state.progress.equipped,...(result.state.progress.equipped||{})}};
+            state.progress.skinCrates=Math.max(0,Math.floor(Number(result.state.progress.skinCrates)||0));
+            state.progress.claimedSkinCrateLevels=Array.isArray(result.state.progress.claimedSkinCrateLevels)
+              ? result.state.progress.claimedSkinCrateLevels.slice()
+              : [];
           }else{
             state.progress.xp=(state.progress.xp||0)+q.rewardXP;
           }
           recordActiveToday();
           applyBattlePassRewards();
           persistProgressLocalOnly();
-          // Persist any Battle Pass rewards unlocked by this quest claim.
-          // This is a save only; the XP itself was already committed by the
-          // server-side quest transaction above.
-          if(typeof syncAccountStateNow==='function')syncAccountStateNow();
+          // The quest-claim endpoint already committed the complete account state,
+          // including Skin Crates and Battle Pass claim ledgers. Do not immediately
+          // PUT the older browser snapshot back over that authoritative result.
           if(result.quests){
             saveQuestData(result.quests);
           }else{
@@ -334,7 +378,11 @@ function wire(){
       updateQuestProgressFromApp();
       checkQuestCompletions();
       scheduleQuestServerSave();
-      if(state.view==='quests')renderQuests();
+      if(state.view==='quests'){
+        renderQuests();
+        const timer=document.getElementById('quest-reset-countdown');
+        if(timer)timer.textContent=questCountdownText();
+      }
     }else{
       questAccountKey='';
       lastQuestServerSignature='';
