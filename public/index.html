@@ -1600,7 +1600,7 @@ async function loadAccountState(){
     if(!d.state){
       // New account: never import guest wallet/cosmetics into the account.
       // Local notes/study sets can be adopted, but account-owned rewards start at zero.
-      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
+      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
       await syncAccountStateNow();
       return;
     }
@@ -1614,7 +1614,7 @@ async function loadAccountState(){
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
   }catch(e){ showAccountSyncNotice('Could not load saved account data. Please check your connection.'); }
 }
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, freePackTokens:state.progress.freePackTokens||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
