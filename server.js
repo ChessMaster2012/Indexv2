@@ -1593,6 +1593,30 @@ const QUEST_REWARDS = Object.freeze({
   xp2:{xp:150,coins:30,packTokens:1},
   lessons6:{xp:200,coins:40,packTokens:1}
 });
+function applyQuestBattlePassRewards(progress){
+  const p=progress&&typeof progress==='object'?progress:{};
+  const xp=Math.max(0,Math.floor(Number(p.xp)||0));
+  const level=Math.max(1,Math.floor(xp/100)+1);
+  const claimedBP=Array.isArray(p.claimedBPLevels)?p.claimedBPLevels.slice():[];
+  const claimedSkin=Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels.slice():[];
+  let coins=Math.max(0,Number(p.coins)||0);
+  let skinCrates=Math.max(0,Math.floor(Number(p.skinCrates)||0));
+  const skinCrateLevels=[];
+  for(let bpLevel=1;bpLevel<=level;bpLevel++){
+    if(bpLevel%5===0) skinCrateLevels.push(bpLevel);
+    if(claimedBP.indexOf(bpLevel)>=0) continue;
+    const amount=bpLevel<=10?50:bpLevel<=20?60:bpLevel<=30?75:bpLevel<=40?90:100;
+    coins+=bpLevel%5===0?150:amount;
+    claimedBP.push(bpLevel);
+  }
+  for(const bpLevel of skinCrateLevels){
+    if(claimedSkin.indexOf(bpLevel)>=0) continue;
+    skinCrates+=5;
+    claimedSkin.push(bpLevel);
+  }
+  return {...p,coins,skinCrates,claimedBPLevels:claimedBP,claimedSkinCrateLevels:claimedSkin};
+}
+
 const QUEST_GOALS = Object.freeze({
   login:{goal:1,metric:'login'},
   ai:{goal:3,metric:'ai'},
@@ -1642,12 +1666,12 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     }
 
     const previousProgress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
-    const updatedProgress={
+    const updatedProgress=applyQuestBattlePassRewards({
       ...previousProgress,
       xp:Math.max(0,Number(previousProgress.xp)||0)+Number(reward.xp||0),
       coins:Math.max(0,Number(previousProgress.coins)||0)+Number(reward.coins||0),
       freePackTokens:Math.max(0,Number(previousProgress.freePackTokens)||0)+Number(reward.packTokens||0)
-    };
+    });
     claimed[questId]=Date.now();
 
     const updatedQuests={
@@ -1663,7 +1687,9 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     const rewardText=[
       reward.xp?('+'+reward.xp+' XP'):'',
       reward.coins?('+'+reward.coins+' coins'):'',
-      reward.packTokens?('+'+reward.packTokens+' free pack'+(reward.packTokens===1?'':'s')+' token'):''
+      reward.packTokens?('+'+reward.packTokens+' free pack'+(reward.packTokens===1?'':'s')+' token'):'',
+      (Number(updatedProgress.skinCrates||0)>Number(previousProgress.skinCrates||0))?('+'+(Number(updatedProgress.skinCrates||0)-Number(previousProgress.skinCrates||0))+' Skin Crates'):''
+
     ].filter(Boolean).join(' · ');
 
     res.json({ok:true,rewardXP:reward.xp,rewardCoins:reward.coins,rewardPackTokens:reward.packTokens,rewardText,state:updated,quests:updated.quests});
