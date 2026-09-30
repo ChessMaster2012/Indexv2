@@ -1376,6 +1376,9 @@ function sanitizeAccountState(input){
       equipped: {
         indexling: String(equipped.indexling||'ling-sugarbug').slice(0,80),
         indexlingSkin: String(equipped.indexlingSkin||'').slice(0,80),
+        skinByIndexling: equipped.skinByIndexling && typeof equipped.skinByIndexling==='object'
+          ? Object.fromEntries(Object.entries(equipped.skinByIndexling).slice(0,100).map(([k,v])=>[String(k).slice(0,80),String(v).slice(0,80)]))
+          : {},
         frame: String(equipped.frame||'default').slice(0,80)
       },
       openedPacks: Math.max(0, Math.min(1000000, Number(p.openedPacks)||0)),
