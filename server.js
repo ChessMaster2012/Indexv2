@@ -1591,7 +1591,7 @@ const QUEST_REWARDS = Object.freeze({
   ai10:{xp:150,coins:35,packTokens:1},
   xp:{xp:75,coins:15,packTokens:0},
   xp2:{xp:150,coins:30,packTokens:1},
-  lessons6:{xp:200,coins:40,packTokens:1}
+  lessons6:{xp:200,coins:40,packTokens:1,skinCrates:1}
 });
 function applyQuestBattlePassRewards(progress){
   const p=progress&&typeof progress==='object'?progress:{};
@@ -1670,7 +1670,8 @@ app.post('/api/account/quest-claim', async (req,res)=>{
       ...previousProgress,
       xp:Math.max(0,Number(previousProgress.xp)||0)+Number(reward.xp||0),
       coins:Math.max(0,Number(previousProgress.coins)||0)+Number(reward.coins||0),
-      freePackTokens:Math.max(0,Number(previousProgress.freePackTokens)||0)+Number(reward.packTokens||0)
+      freePackTokens:Math.max(0,Number(previousProgress.freePackTokens)||0)+Number(reward.packTokens||0),
+      skinCrates:Math.max(0,Math.floor(Number(previousProgress.skinCrates)||0))+Math.max(0,Math.floor(Number(reward.skinCrates)||0))
     });
     claimed[questId]=Date.now();
 
@@ -1688,7 +1689,7 @@ app.post('/api/account/quest-claim', async (req,res)=>{
       reward.xp?('+'+reward.xp+' XP'):'',
       reward.coins?('+'+reward.coins+' coins'):'',
       reward.packTokens?('+'+reward.packTokens+' free pack'+(reward.packTokens===1?'':'s')+' token'):'',
-      (Number(updatedProgress.skinCrates||0)>Number(previousProgress.skinCrates||0))?('+'+(Number(updatedProgress.skinCrates||0)-Number(previousProgress.skinCrates||0))+' Skin Crates'):''
+      reward.skinCrates?('+'+reward.skinCrates+' Skin Crate'+(reward.skinCrates===1?'':'s')):''
 
     ].filter(Boolean).join(' · ');
 
