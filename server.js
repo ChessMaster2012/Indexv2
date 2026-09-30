@@ -1374,7 +1374,7 @@ function sanitizeAccountState(input){
     membership: (() => {
       const m=src.membership&&typeof src.membership==='object'?src.membership:{};
       const tier=['free','gold','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
-      const status=['active','trialing','past_due','cancelled','incomplete','unpaid'].includes(String(m.status||''))?String(m.status):'active';
+      const status=['active','trialing','past_due','cancelled','canceled','incomplete','unpaid'].includes(String(m.status||''))?String(m.status):'active';
       return {
         tier,status,
         customerId:String(m.customerId||'').slice(0,120),
@@ -1689,6 +1689,20 @@ app.put('/api/account/state', async (req,res)=>{
     // not report success until the complete account snapshot is committed.
     const incomingAccountState=req.body?.state&&typeof req.body.state==='object'?req.body.state:{};
     const existingAccountState=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const incomingSets=Array.isArray(incomingAccountState.studySets)?incomingAccountState.studySets:[];
+    const incomingNotes=Array.isArray(incomingAccountState.notes)?incomingAccountState.notes:[];
+    const currentMembership=membershipForUser(req.user);
+    const limits=currentMembership.plan||MEMBERSHIP_PLANS.free;
+    const existingSets=Array.isArray(existingAccountState.studySets)?existingAccountState.studySets.length:0;
+    const existingNotes=Array.isArray(existingAccountState.notes)?existingAccountState.notes.length:0;
+    const allowedSets=Math.max(limits.studySetLimit,existingSets);
+    const allowedNotes=Math.max(limits.noteLimit,existingNotes);
+    if(incomingSets.length>allowedSets){
+      return res.status(403).json({error:'Your '+limits.name+' plan allows up to '+limits.studySetLimit+' saved study sets. Upgrade your membership to save more.'});
+    }
+    if(incomingNotes.length>allowedNotes){
+      return res.status(403).json({error:'Your '+limits.name+' plan allows up to '+limits.noteLimit+' saved notes. Upgrade your membership to save more.'});
+    }
     const mergedAccountState={...incomingAccountState};
     // Membership is server-owned and only changes after verified Stripe events.
     if(existingAccountState.membership) mergedAccountState.membership=existingAccountState.membership;
