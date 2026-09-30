@@ -458,7 +458,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   let sentAnyChunk=false;
   // ~10s is the Tutor target; difficult Auto generations get a ~30s fail-safe
   // so a valid deep answer is not discarded just because first-token latency is high.
-  const deadline=Date.now()+(tutorMode ? (complex ? 29500 : 9700) : 29500);
+  const deadline=Date.now()+(tutorMode ? (complex ? 45000 : 9700) : 29500);
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -475,7 +475,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           model:'auto',
           messages,
           stream:true,
-          max_tokens:complex ? 850 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420),
+          max_tokens:complex ? 750 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420),
           temperature:0
         }),
         signal:controller.signal
