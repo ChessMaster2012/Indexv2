@@ -148,7 +148,7 @@ function normalizeTutorMathInput(value){
   let s=String(value||'');
   // Preserve the mathematical content while removing common TeX wrappers.
   s=s.replace(/\\\[|\\\]|\\\(|\\\)|\\\\/g,' ');
-  s=s.replace(/\$\$?/g,' ');
+  s=s.replace(/\$\$/g,' ');
   s=s.replace(/\\left\b|\\right\b/g,'');
   s=s.replace(/\\text\s*\{([^{}]*)\}/g,'$1');
   s=s.replace(/\\mathrm\s*\{([^{}]*)\}/g,'$1');
