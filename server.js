@@ -144,6 +144,31 @@ function aiModerationMessage() {
 // or fallback model.
 const AI_MAX_INPUT_CHARS = 24000; // Keep useful follow-up context while avoiding oversized prompts that slow Tutor requests.
 
+function normalizeTutorMathInput(value){
+  let s=String(value||'');
+  // Preserve the mathematical content while removing common TeX wrappers.
+  s=s.replace(/\\\[|\\\]|\\\(|\\\)|\\\\/g,' ');
+  s=s.replace(/\$\$?/g,' ');
+  s=s.replace(/\\left\b|\\right\b/g,'');
+  s=s.replace(/\\text\s*\{([^{}]*)\}/g,'$1');
+  s=s.replace(/\\mathrm\s*\{([^{}]*)\}/g,'$1');
+  const commands=[
+    ['\\leqslant','≤'],['\\geqslant','≥'],['\\leq','≤'],['\\ge','≥'],['\\neq','≠'],
+    ['\\approx','≈'],['\\equiv','≡'],['\\propto','∝'],['\\pm','±'],['\\mp','∓'],
+    ['\\times','×'],['\\cdot','·'],['\\div','÷'],['\\to','→'],['\\rightarrow','→'],
+    ['\\Rightarrow','⇒'],['\\Leftrightarrow','↔'],['\\leftrightarrow','↔'],
+    ['\\infty','∞'],['\\sum','Σ'],['\\int','∫'],['\\partial','∂'],
+    ['\\Delta','Δ'],['\\Sigma','Σ'],['\\alpha','α'],['\\beta','β'],['\\gamma','γ'],
+    ['\\theta','θ'],['\\lambda','λ'],['\\mu','μ'],['\\sigma','σ'],['\\rho','ρ'],
+    ['\\pi','π']
+  ];
+  for(const [token,replacement] of commands) s=s.replace(new RegExp(token,'g'),replacement);
+  s=s.replace(/\\sqrt\s*\{([^{}]+)\}/g,'√($1)');
+  s=s.replace(/\\sqrt\s*\(([^()]*)\)/g,'√($1)');
+  s=s.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,'($1)/($2)');
+  return s.replace(/[ \t]+/g,' ').trim();
+}
+
 function normalizeAiMessages(messages){
   const raw=Array.isArray(messages)?messages:[];
   const safe=[]; let total=0;
@@ -162,6 +187,7 @@ function normalizeAiMessages(messages){
     const role=m.role==='assistant'?'assistant':m.role==='user'?'user':'system';
     let content=String(m.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
+    if(role==='user') content=normalizeTutorMathInput(content);
     content=content.slice(0,4000);
     const room=Math.max(0,AI_MAX_INPUT_CHARS-total);
     if(room<=0) break;
@@ -319,6 +345,7 @@ function buildAiMessages(messages){
     'For difficult questions, spend response space on reasoning and evidence instead of repeating the prompt or adding filler. Do not expose private chain-of-thought; provide concise, checkable reasoning, intermediate steps, evidence, and conclusions.',
     'When the question is complex, make the answer self-contained: define specialized terms, show the logical chain, and do not assume the student already knows an unstated step.',
     'For math/science reasoning, show the important transformation at each step and explain why it is valid; end with the final result and a quick interpretation/check when useful.',
+    'Math input may use LaTeX/TeX delimiters and commands such as $...$, \\( ... \\), \\leq, \\sqrt, \\frac, \\pi, \\sum, and superscripts/subscripts. Interpret the mathematical content exactly; the server normalizes common notation into readable Unicode equivalents before sending it to you.',
     'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “tell me more”, “what about that?”, “simpler”, or “show the steps”.',
     'Do not invent facts. Distinguish uncertainty when it genuinely exists.',
     'For finished writing requests, produce the requested draft itself.',
