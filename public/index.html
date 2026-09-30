@@ -2264,7 +2264,7 @@ function indexlingArtHtmlBase(c,mini=false,skin=null,frameId=null){
     'ling-supernova': '<path d="m50 5 9 23 24-12-12 24 24 10-24 9 12 24-24-12-9 25-9-25-24 12 12-24-24-9 24-10-12-24 24 12Z"/><circle cx="41" cy="50" r="5" fill="white"/><circle cx="59" cy="50" r="5" fill="white"/><path d="M42 64q8 6 16 0" fill="none" stroke="#172033" stroke-width="3"/>'
   };
   function indexlingArtHtml(c,mini=false,skin=null,frameId=null){
-    const sk=skin||skinById(state.progress?.equipped?.indexlingSkin);
+    const sk=skin||getEquippedSkinForIndexling(c?.id);
     const main=esc(sk?.main||c?.main||'#9bb6d8'),dark=esc(sk?.dark||c?.dark||'#526d8e'),accent=esc(sk?.accent||c?.accent||'#e5eef9');
     const frame=frameId?indexlingFrameStyle(frameId):'';
     const cls=mini?' indexling-svg-mini':'';
