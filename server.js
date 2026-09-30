@@ -419,7 +419,8 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // Tutor requests have a firm sub-10-second upstream deadline; background AI
   // generation keeps the longer compatibility deadline used by other Index features.
   const tutorMode=String(options.mode||'')==='tutor';
-  const fastTutor=!complex && tutorMode;
+  const fastTutor=false; // Keep Tutor on streaming for low-latency first output.
+  let sentAnyChunk=false;
   const deadline=Date.now()+(tutorMode ? (complex ? 18000 : 9700) : 29500);
 
   async function requestAttempt(){
@@ -431,13 +432,13 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
         method:'POST',
         headers:{
           'Content-Type':'application/json',
-          'Accept':fastTutor ? 'application/json, text/event-stream' : 'text/event-stream, application/json'
+          'Accept':'text/event-stream, application/json'
         },
         body:JSON.stringify({
           model:'auto',
           messages,
-          stream:!fastTutor,
-          max_tokens:complex ? 1400 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 220 : 480),
+          stream:true,
+          max_tokens:complex ? 1300 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 300 : 480),
           temperature:0
         }),
         signal:controller.signal
@@ -501,7 +502,6 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 
     if(!upstream.body) throw new Error('Vireonix Auto returned an empty stream.');
 
-    let sentAnyChunk=false;
     for await (const chunk of upstream.body){
       if(Date.now()>=deadline) throw new Error('Vireonix Auto request timed out.');
       if(chunk){
