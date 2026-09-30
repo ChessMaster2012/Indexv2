@@ -1364,7 +1364,7 @@ function sanitizeAccountState(input){
   const profile = src.profile && typeof src.profile === 'object' ? src.profile : {};
   const equipped = p.equipped && typeof p.equipped === 'object' ? p.equipped : {};
   const notes = Array.isArray(src.notes) ? src.notes.slice(0, 500) : [];
-  const studySets = Array.isArray(src.studySets) ? src.studySets.slice(0, 300) : [];
+  const studySets = Array.isArray(src.studySets) ? src.studySets.slice(0, 1000) : [];
   const customTopics = src.customTopics && typeof src.customTopics === 'object' ? src.customTopics : {};
   const candidate = {
     version: 2,
