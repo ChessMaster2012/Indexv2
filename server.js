@@ -1580,17 +1580,17 @@ app.put('/api/account/quests', async (req,res)=>{
 // Quest claim is server-authoritative: the quest flag and Battle Pass XP are
 // committed together so a sign-out/reload cannot lose the reward or duplicate it.
 const QUEST_REWARDS = Object.freeze({
-  login:{xp:25,coins:20,packTokens:0},
-  ai:{xp:50,coins:0,packTokens:0},
-  set:{xp:75,coins:10,packTokens:0},
-  lessons:{xp:100,coins:0,packTokens:0},
-  live:{xp:100,coins:15,packTokens:0},
-  ai2:{xp:75,coins:20,packTokens:0},
-  lessons2:{xp:125,coins:25,packTokens:0},
-  packs2:{xp:100,coins:25,packTokens:1},
-  ai10:{xp:150,coins:35,packTokens:1},
-  xp:{xp:75,coins:15,packTokens:0},
-  xp2:{xp:150,coins:30,packTokens:1},
+  login:{xp:25,coins:20,packTokens:0,skinCrates:1},
+  ai:{xp:50,coins:0,packTokens:0,skinCrates:1},
+  set:{xp:75,coins:10,packTokens:0,skinCrates:1},
+  lessons:{xp:100,coins:0,packTokens:0,skinCrates:1},
+  live:{xp:100,coins:15,packTokens:0,skinCrates:1},
+  ai2:{xp:75,coins:20,packTokens:0,skinCrates:1},
+  lessons2:{xp:125,coins:25,packTokens:0,skinCrates:1},
+  packs2:{xp:100,coins:25,packTokens:1,skinCrates:1},
+  ai10:{xp:150,coins:35,packTokens:1,skinCrates:1},
+  xp:{xp:75,coins:15,packTokens:0,skinCrates:1},
+  xp2:{xp:150,coins:30,packTokens:1,skinCrates:1},
   lessons6:{xp:200,coins:40,packTokens:1,skinCrates:1}
 });
 function applyQuestBattlePassRewards(progress){
