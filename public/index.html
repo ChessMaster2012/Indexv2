@@ -1341,6 +1341,7 @@ let state = {
   progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, freePackTokens:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'}, openedPacks:0, liveGames:0 },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
+  membership:{tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,configured:false,plan:null},
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
          session:null, players:[], answeredCount:0, myLastAnswer:null, myChest:null,
          hostSubjectId:null, hostSetId:null, timerInterval:null, config:{questionCount:10,timePerQuestion:20,shuffleQuestions:true,shuffleAnswers:false,showLeaderboard:true,autoAdvance:false,maxPlayers:50,title:''} }
@@ -1642,13 +1643,107 @@ async function loadAccountState(){
     if(Array.isArray(a.notes)) state.notes=a.notes;
     if(Array.isArray(a.studySets)) state.studySets=a.studySets;
     if(a.customTopics && typeof a.customTopics==='object') state.customTopics=a.customTopics;
-    if(a.progress) state.progress={...state.progress,...a.progress,equipped:{...state.progress.equipped,...(a.progress.equipped||{})}}; state.progress.unlockedCosmetics=(state.progress.unlockedCosmetics||[]).filter(id=>!!cosmeticById(id)); state.progress.unlockedCosmetics=Array.from(new Set(['ling-sugarbug',...state.progress.unlockedCosmetics]));
+    if(a.progress) state.progress={...state.progress,...a.progress,equipped:{...state.progress.equipped,...(a.progress.equipped||{})}};
+    await loadMembershipStatus();
+    state.progress.unlockedCosmetics=(state.progress.unlockedCosmetics||[]).filter(id=>!!cosmeticById(id)); state.progress.unlockedCosmetics=Array.from(new Set(['ling-sugarbug',...state.progress.unlockedCosmetics]));
     if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; }
     applyBattlePassRewards();
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
   }catch(e){ showAccountSyncNotice('Could not load saved account data. Please check your connection.'); }
 }
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, freePackTokens:state.progress.freePackTokens||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+async function loadMembershipStatus(showErrors=false){
+  if(!state.account){
+    state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,configured:false,plan:null};
+    return false;
+  }
+  try{
+    const r=await fetch('/api/billing/status',{credentials:'same-origin',cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===401){state.account=null;return false;}
+    if(!r.ok)throw new Error(d.error||'Membership status unavailable.');
+    state.membership={...(d.membership||{}),configured:!!d.configured};
+    return true;
+  }catch(e){
+    if(showErrors)showRewardToast('Could not load membership status right now.');
+    return false;
+  }
+}
+async function openMembership(){
+  if(!state.account){promptAccountForPersistentView('rewards');return;}
+  await loadMembershipStatus(true);
+  let modal=document.getElementById('membership-modal');
+  if(!modal){
+    modal=document.createElement('div');
+    modal.id='membership-modal';
+    modal.className='overlay hidden';
+    document.body.appendChild(modal);
+  }
+  const current=state.membership||{tier:'free',status:'active',configured:false};
+  const plans=[
+    {tier:'free',name:'Free',price:'$0',suffix:'/month',tag:'Core access',copy:'Start studying with the essential Index tools.',features:['Core study tools','AI Tutor','50 saved study sets','100 saved notes','Daily rewards']},
+    {tier:'gold',name:'Gold',price:'$4.99',suffix:'/month',tag:'More room',copy:'More space for your classes and study library.',features:['Everything in Free','250 saved study sets','250 saved notes','Gold membership badge','Higher account limits']},
+    {tier:'diamond',name:'Diamond',price:'$9.99',suffix:'/month',tag:'BEST VALUE',copy:'The largest Index limits for students using it across all their classes.',features:['Everything in Gold','1,000 saved study sets','500 saved notes','Diamond membership badge','Highest account limits']}
+  ];
+  const card=plan=>{
+    const active=current.tier===plan.tier;
+    const paid=plan.tier!=='free';
+    const button=active
+      ? (paid?'<button class="btn btn-ghost membership-action" data-action="manage-membership">Manage Membership</button>':'<button class="btn btn-ghost membership-action" disabled>Current plan</button>')
+      : paid
+        ? '<button class="btn '+(plan.tier==='diamond'?'btn-primary':'btn-ghost')+' membership-action" data-action="start-membership-checkout" data-tier="'+plan.tier+'">Choose '+plan.name+'</button>'
+        : '<button class="btn btn-ghost membership-action" disabled>Included</button>';
+    return '<div class="membership-card '+plan.tier+' '+(active?'active':'')+'"><div class="membership-card-top">'+(plan.tier==='diamond'?'<span class="membership-best">BEST VALUE</span>':'<span class="membership-tag">'+plan.tag+'</span>')+'<span class="membership-current">'+(active?'✓ Current':'')+'</span></div><h3>'+plan.name+'</h3><p>'+plan.copy+'</p><div class="membership-price">'+plan.price+' <span>'+plan.suffix+'</span></div><div class="membership-features">'+plan.features.map(f=>'<div>✓ '+esc(f)+'</div>').join('')+'</div>'+button+'</div>';
+  };
+  modal.innerHTML='<div class="modal membership-modal-card" style="max-width:1120px;width:min(1120px,94vw);padding:0;overflow:hidden;"><div class="membership-head"><div><div class="eyebrow">INDEX MEMBERSHIP</div><h2>Choose how you want to use Index.</h2><p>Start free, then upgrade when you need more room. Payments are handled by Stripe Checkout; Index does not store your card number.</p></div><button class="modal-close" data-action="close-membership">×</button></div><div class="membership-grid">'+plans.map(card).join('')+'</div><div class="membership-foot"><span>🔒 Secure checkout powered by Stripe</span><span>'+(!current.configured?'Stripe checkout still needs to be connected on the server.':'Cancel or manage billing through Stripe.')+'</span></div></div>';
+  modal.classList.remove('hidden');
+  const styleId='membership-style';
+  if(!document.getElementById(styleId)){
+    const style=document.createElement('style');style.id=styleId;
+    style.textContent='.membership-modal-card{background:#fffdf8;border:1px solid #e7e0d7;border-radius:26px;box-shadow:0 30px 90px rgba(23,32,51,.25)}.membership-head{display:flex;justify-content:space-between;gap:20px;padding:28px 30px 20px;background:linear-gradient(135deg,#241b54,#5c49d9 55%,#f65a9c);color:#fff}.membership-head h2{font-family:var(--font-display);font-size:30px;margin:4px 0 6px}.membership-head p{max-width:760px;margin:0;color:rgba(255,255,255,.84);line-height:1.5;font-size:13px}.membership-head .eyebrow{color:#ffe2f0}.membership-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;padding:20px}.membership-card{position:relative;border:2px solid #e5dfd8;border-radius:22px;padding:20px;background:#fff}.membership-card.gold{border-color:#d9bd62}.membership-card.diamond{border-color:#8f86ff;box-shadow:0 12px 28px rgba(99,84,210,.14)}.membership-card.active{box-shadow:0 0 0 3px rgba(47,212,139,.18)}.membership-card-top{display:flex;justify-content:space-between;align-items:center;min-height:22px}.membership-best{background:#6c57e8;color:#fff;padding:5px 9px;border-radius:999px;font-size:9px;font-weight:950;letter-spacing:.1em}.membership-tag{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.1em;color:#796c5f}.membership-current{font-size:10px;font-weight:900;color:#159b68}.membership-card h3{font-family:var(--font-display);font-size:27px;margin:12px 0 3px}.membership-card p{font-size:12px;color:#6d7280;line-height:1.45;min-height:52px;margin:0}.membership-price{font-size:31px;font-weight:950;margin:13px 0}.membership-price span{font-size:12px;color:#777d89;font-weight:800}.membership-features{display:grid;gap:8px;font-size:12px;font-weight:700;color:#424855;min-height:128px;margin-bottom:16px}.membership-action{width:100%}.membership-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:15px 22px;border-top:1px solid #eee7df;color:#777d89;font-size:10px;font-weight:800}.membership-foot span:first-child{color:#47645a}@media(max-width:850px){.membership-grid{grid-template-columns:1fr}.membership-card p,.membership-features{min-height:0}}';
+    document.head.appendChild(style);
+  }
+}
+async function startMembershipCheckout(tier){
+  if(!state.account){openSignin();return;}
+  const btn=document.querySelector('[data-action="start-membership-checkout"][data-tier="'+tier+'"]');
+  if(btn){btn.disabled=true;btn.textContent='Opening secure checkout…';}
+  try{
+    const r=await fetch('/api/billing/checkout',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({tier})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||'Could not start checkout.');
+    if(d.url)window.location.assign(d.url);else throw new Error('Stripe did not return a checkout URL.');
+  }catch(e){
+    showRewardToast(e.message||'Could not start secure checkout.');
+    openMembership();
+  }
+}
+async function openBillingPortal(){
+  if(!state.account)return;
+  try{
+    const r=await fetch('/api/billing/portal',{method:'POST',credentials:'same-origin'});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||'Could not open billing management.');
+    if(d.url)window.location.assign(d.url);
+  }catch(e){showRewardToast(e.message||'Could not open billing management.');}
+}
+async function handleBillingReturn(){
+  const params=new URLSearchParams(window.location.search);
+  const billing=params.get('billing');
+  if(!billing)return;
+  history.replaceState({},'',window.location.pathname);
+  if(!state.account)return;
+  if(billing==='success'){
+    await new Promise(resolve=>setTimeout(resolve,1200));
+    await loadMembershipStatus();
+    showRewardToast(state.membership?.tier==='free'?'Payment received. Stripe is still confirming your membership.':'🎉 Membership activated: '+(state.membership?.plan?.name||state.membership?.tier||'Paid plan')+'.');
+  }else if(billing==='cancelled'){
+    showRewardToast('Checkout was cancelled. No membership change was made.');
+  }else if(billing==='return'){
+    await loadMembershipStatus();
+  }
+}
+
+function persistProgressLocalOnly(){ activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, freePackTokens:state.progress.freePackTokens||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
@@ -2392,7 +2487,7 @@ function renderRewards(){
     </button>
   </aside>`;
   const tabHtml=`<div class="reward-tabs"><button type="button" class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass" onclick="setRewardsTab('battlepass')">🏆 Battle Pass</button><button type="button" class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar" onclick="setRewardsTab('avatar')">🧑 Avatar</button><button type="button" class="reward-tab ${tab==='packs'?'active':''}" data-action="reward-tab" data-tab="packs" onclick="setRewardsTab('packs')">📦 Packs</button><button type="button" class="reward-tab ${tab==='daily'?'active':''}" data-action="reward-tab" data-tab="daily" onclick="setRewardsTab('daily')">🎡 Daily Wheel</button></div>`;
-  const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Teacher-hosted Live Games are the source of coins for cosmetic packs.</p></div><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
+  const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Teacher-hosted Live Games are the source of coins for cosmetic packs.</p></div><button class="btn btn-ghost btn-sm" data-action="open-membership">⭐ Membership</button><div style="display:inline-flex;align-items:center;gap:8px"><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
   let body='';
   if(tab==='battlepass'){
     const bpCards=BP_REWARDS.map(r=>{
@@ -4432,6 +4527,10 @@ document.addEventListener('click', async (e)=>{
   else if(action==='account-prev'){ accountStepPrev(); }
   else if(action==='goto-rewards-from-profile'){ closeSignin(); gotoView('rewards'); }
   else if(action==='account-signout'){ accountSignout(); }
+  else if(action==='open-membership'){ openMembership(); }
+  else if(action==='close-membership'){ document.getElementById('membership-modal')?.classList.add('hidden'); }
+  else if(action==='start-membership-checkout'){ startMembershipCheckout(t.dataset.tier||''); }
+  else if(action==='manage-membership'){ openBillingPortal(); }
   else if(action==='reward-tab'){ state.rewardsTab=t.dataset.tab||'battlepass'; renderRewards(); }
    else if(action==='daily-wheel-spin'){ dailyWheelSpin(); }
   else if(action==='equip-cosmetic'){ equipCosmetic(t.dataset.id); }
@@ -4568,8 +4667,9 @@ async function handleAuthRedirectResult(){
   if(!authError && !complete && !welcome) return;
   history.replaceState({}, '', window.location.pathname);
   await refreshAuthStatus();
-  if(state.account){ await loadAccountState(); await loadAccountCustomization(); }
+  if(state.account){ await loadAccountState(); await loadAccountCustomization(); await loadMembershipStatus(); }
   else resetSignedOutAccountState();
+  await handleBillingReturn();
   if(authError){
     showAuthPanel();
     setAuthMode('login');
