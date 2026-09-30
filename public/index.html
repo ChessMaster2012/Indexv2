@@ -1304,7 +1304,7 @@ let state = {
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, freePackTokens:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'}, openedPacks:0, liveGames:0 },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
@@ -1543,7 +1543,7 @@ function accountStatePayload(){
     notes: Array.isArray(state.notes) ? state.notes : [],
     studySets: Array.isArray(state.studySets) ? state.studySets : [],
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
-    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
+    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||'',bio:state.profile.bio||'',favoriteSubject:state.profile.favoriteSubject||'',studyGoal:state.profile.studyGoal||'',profileAccent:state.profile.profileAccent||'purple',showProgress:state.profile.showProgress!==false,reducedMotion:state.profile.reducedMotion===true},
     quests:(typeof questPayload==='function'?questPayload():undefined)
   };
@@ -1587,7 +1587,7 @@ function clearAccountScopedLocalCache(){
 function resetSignedOutAccountState(){
   // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
   // This prevents one device's old wallet/cosmetics from appearing before authentication.
-  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
+  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
   updateCoinDisplays();
 }
 async function loadAccountState(){
@@ -1833,12 +1833,14 @@ function openRewardPack(kind='study'){
     showRewardToast('The pack opener could not load. Please refresh the page before spending coins.');
     return;
   }
-  if((state.progress.coins||0)<cfg.cost){ alert(`You need ${cfg.cost} coins to open the ${cfg.name}. Earn coins by playing teacher-hosted Live Games.`); return; }
+  const freeToken=Math.max(0,Number(state.progress.freePackTokens)||0);
+  if(freeToken<=0&&(state.progress.coins||0)<cfg.cost){ alert(`You need ${cfg.cost} coins to open the ${cfg.name}, or a free pack token. Complete quests for free packs.`); return; }
   ensureRewardUnlocks();
 
   // Deduct only after the modal exists, so a UI error can never consume coins silently.
   state.rewardPackOpening=true;
-  state.progress.coins-=cfg.cost;
+  if(freeToken>0) state.progress.freePackTokens=freeToken-1;
+  else state.progress.coins-=cfg.cost;
   const reward=rollPack(kind);
   const duplicate=state.progress.unlockedCosmetics.includes(reward.id);
   if(!duplicate) state.progress.unlockedCosmetics.push(reward.id);
@@ -1869,12 +1871,13 @@ function openRewardPack(kind='study'){
     clearInterval(timer);
     opening.classList.remove('is-opening');
     playPackReveal(); celebrate();
-    const bonus=duplicate?Math.min(60,Math.floor(cfg.cost*.4)):0;
-    if(duplicate){ state.progress.coins+=bonus; persistProgress(); updateCoinDisplays(); }
+    const usedFreePack=freeToken>0;
+    const bonus=!usedFreePack&&duplicate?Math.min(60,Math.floor(cfg.cost*.4)):0;
+    if(duplicate&&bonus){ state.progress.coins+=bonus; persistProgress(); updateCoinDisplays(); }
     result.innerHTML=`<div class="pack-result reveal">
       <div class="result-rarity" style="color:${reward.rarity==='Legendary'?'#b26b00':reward.rarity==='Epic'?'#7540ba':reward.rarity==='Rare'?'#1774c8':'#596273'}">${esc(reward.rarity)} ${duplicate?'· Duplicate':''}</div>
       <div class="result-name">${reward.type==='indexling'?indexlingArtHtml(reward):reward.icon} <span>${esc(reward.name)}</span></div>
-      <div class="result-note">${duplicate?`You already own this cosmetic, so ${bonus} coins were returned.`:'New cosmetic unlocked and added to your inventory.'}</div>
+      <div class="result-note">${duplicate?(usedFreePack?'You already own this cosmetic. Your free pack token was used.':`You already own this cosmetic, so ${bonus} coins were returned.`):'New cosmetic unlocked and added to your inventory.'}</div>
       <div style="margin-top:12px"><button class="btn btn-primary" data-action="close-pack-modal">Continue</button></div>
     </div>`;
     state.rewardPackOpening=false;
@@ -2207,8 +2210,8 @@ function renderRewards(){
     body='<div class="daily-wheel-card"><div class="rewards-eyebrow">DAILY REWARD</div><h3>Spin for coins</h3><p class="reward-muted">15 different coin values. The server chooses your reward, then the wheel launches into a rapid spin and smoothly slows to the winning value.</p><div class="daily-wheel-wrap"><div class="daily-wheel-pointer"></div><div id="daily-wheel" class="daily-wheel" style="--wheel-segments:conic-gradient('+stops+')">'+labels+'<div class="daily-wheel-center">INDEX</div></div></div><div id="daily-wheel-result" class="daily-wheel-result">'+(wheelToday?'You already spun today'+(lastReward?' · +🪙 '+lastReward:'')+'.':'')+'</div><div id="daily-wheel-countdown" class="reward-muted">Next spin countdown loading…</div><button class="btn btn-primary" data-action="daily-wheel-spin" '+(wheelToday?'disabled':'')+'>'+(wheelToday?'✓ Already spun today':'🎡 Spin for coins')+'</button><div class="wheel-values">'+values.map(v=>'<span>🪙 '+v+'</span>').join('')+'</div></div>';
     setTimeout(updateDailyWheelCountdown,0);
   } else {
-    const packCard=(kind)=>{const c=packConfig(kind),can=(state.progress.coins||0)>=c.cost&&!state.rewardPackOpening;const contents=packContents(kind);return '<div class="pack-option" data-pack="'+kind+'" style="--pack-accent:'+c.accent+'"><div class="pack-rarity-line" style="background:linear-gradient(90deg,'+c.accent+',#fff)"></div><div class="pack-box">'+indexPackArt(c,kind)+'</div><div class="pack-name" aria-label="'+esc(c.name)+'">'+esc(c.name)+'</div><div class="pack-desc">8 original Indexlings from the '+esc(c.theme||c.name)+' collection.</div><div class="pack-theme-line">'+contents.map(item=>'<span class="mini-ling">'+indexlingArtHtml(item,true)+'</span>').join('')+'</div><div class="pack-count">8 collectibles · '+c.weights.Common+'% Common · '+c.weights.Rare+'% Rare · '+c.weights.Epic+'% Epic · '+c.weights.Legendary+'% Legendary</div><div class="pack-cost"><span class="coin-pill">🪙 '+c.cost+'</span></div><button class="btn '+(can?'btn-primary':'btn-ghost')+'" data-action="open-pack" data-pack="'+kind+'" '+(can?'':'disabled')+'>'+(can?'Open pack':'Not enough coins')+'</button></div>';};
-    body='<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">INDEXLING VAULT</div><div class="pack-showcase-title">Pick a world.</div><div class="pack-showcase-copy">Candy, medieval, robo, ocean, arcade, and cosmic packs each have a different collectible set.</div></div><div class="coin-pill">🪙 <span class="coin-balance">'+(state.progress.coins||0)+'</span></div></div><div class="pack-shelf">'+PACK_ORDER.map(packCard).join('')+'</div></div></div>';
+    const packCard=(kind)=>{const c=packConfig(kind),tokens=Math.max(0,Number(state.progress.freePackTokens)||0),can=(tokens>0||(state.progress.coins||0)>=c.cost)&&!state.rewardPackOpening;const contents=packContents(kind);const buttonText=tokens>0?'Open free pack':can?'Open pack':'Not enough coins';return '<div class="pack-option" data-pack="'+kind+'" style="--pack-accent:'+c.accent+'"><div class="pack-rarity-line" style="background:linear-gradient(90deg,'+c.accent+',#fff)"></div><div class="pack-box">'+indexPackArt(c,kind)+'</div><div class="pack-name" aria-label="'+esc(c.name)+'">'+esc(c.name)+'</div><div class="pack-desc">8 original Indexlings from the '+esc(c.theme||c.name)+' collection.</div><div class="pack-theme-line">'+contents.map(item=>'<span class="mini-ling">'+indexlingArtHtml(item,true)+'</span>').join('')+'</div><div class="pack-count">8 collectibles · '+c.weights.Common+'% Common · '+c.weights.Rare+'% Rare · '+c.weights.Epic+'% Epic · '+c.weights.Legendary+'% Legendary</div><div class="pack-cost"><span class="coin-pill">🪙 '+c.cost+'</span></div><button class="btn '+(can?'btn-primary':'btn-ghost')+'" data-action="open-pack" data-pack="'+kind+'" '+(can?'':'disabled')+'>'+buttonText+'</button></div>';};
+    body='<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">INDEXLING VAULT</div><div class="pack-showcase-title">Pick a world.</div><div class="pack-showcase-copy">Candy, medieval, robo, ocean, arcade, and cosmic packs each have a different collectible set.</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="coin-pill">🪙 <span class="coin-balance">'+(state.progress.coins||0)+'</span></div><div class="coin-pill">🎁 <span>'+(Math.max(0,Number(state.progress.freePackTokens)||0))+'</span> free pack'+((Number(state.progress.freePackTokens)||0)===1?'':'s')+'</div></div></div><div class="pack-shelf">'+PACK_ORDER.map(packCard).join('')+'</div></div></div>';
 
   }
   root.innerHTML=`<div class="rewards-page"><div class="rewards-layout">${rail}<div class="rewards-main">${head}${body}</div></div></div>`;
