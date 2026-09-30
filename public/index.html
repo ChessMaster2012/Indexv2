@@ -1393,7 +1393,14 @@ async function runLocalAi(messages, options={}){
           sawDone=true;
           if(!fullText && data.text) fullText=String(data.text);
         }else if(data?.type==='error'){
-          throw new Error(String(data.error||'Vireonix Auto failed.'));
+          const message=String(data.error||'Vireonix Auto failed.');
+          if(fullText.trim()){
+            // Keep already-streamed Tutor content instead of replacing it with
+            // a timeout/error after the server has delivered useful text.
+            sawDone=true;
+            return;
+          }
+          throw new Error(message);
         }else{
           // Native OpenAI-compatible streaming:
           // choices[0].delta.content is the generated token/chunk.
@@ -2637,7 +2644,10 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
     }});
     state.chat[assistantIndex] = {role:'assistant', text:reply || streamText || "I couldn't come up with an answer — try rephrasing your question."};
     addXP(2);
-  }catch(e){ state.chat[assistantIndex] = {role:'assistant', text: explainAiError(e, 'The tutor')}; }
+  }catch(e){
+    if(streamText.trim()) state.chat[assistantIndex] = {role:'assistant', text:streamText.trim()};
+    else state.chat[assistantIndex] = {role:'assistant', text: explainAiError(e, 'The tutor')};
+  }
   state.chatLoading = false; stopAiWorkStatus(); document.getElementById('tutor-send').disabled = false; renderChatLog();
 }
 
