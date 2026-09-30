@@ -2000,11 +2000,12 @@ function openSkinCrate(){
   if((state.progress.skinCrates||0)<=0){showRewardToast('You do not have a Skin Crate yet.');return;}
   const modal=ensureSkinCrateModal(),track=modal.querySelector('#skin-reel-track'),result=modal.querySelector('#skin-crate-result');
   const winner=rollSkinPair();
+  const wasAlreadyOwned=skinPairOwned(winner.indexling.id,winner.skin.id);
   state.skinCrateOpening=true;
   state.progress.skinCrates=Math.max(0,(state.progress.skinCrates||0)-1);
   const record=skinRecord(winner.indexling.id,winner.skin.id);
   normalizeOwnedSkinInventory();
-  state.progress.unlockedSkins.push(record);
+  if(!wasAlreadyOwned) state.progress.unlockedSkins.push(record);
   persistProgress();
   persistProgressLocalOnly();
   const reels=buildSkinReelItems(winner);
@@ -2025,7 +2026,7 @@ function openSkinCrate(){
     clearInterval(state.skinCrateTick);
     state.skinCrateOpening=false;
     playPackReveal();celebrate();
-    const duplicate=skinPairOwned(winner.indexling.id,winner.skin.id);
+    const duplicate=wasAlreadyOwned;
     result.innerHTML='<div class="skin-crate-result-name">'+winner.skin.icon+' '+esc(winner.skin.name)+'</div><div class="skin-crate-result-meta">Rolled for <strong>'+esc(winner.indexling.name)+'</strong> · '+esc(winner.skin.rarity)+'</div><div class="skin-crate-result-meta">'+(duplicate?'Already owned this Indexling + skin pair.':'Added to your skin collection.')+'</div><div class="skin-crate-actions"><button class="btn btn-primary" data-action="equip-indexling-skin" data-indexling="'+winner.indexling.id+'" data-skin="'+winner.skin.id+'">Equip Skin</button><button class="btn btn-ghost" data-action="close-skin-crate">Keep in Inventory</button></div>';
     renderRewards();
   },5900);
