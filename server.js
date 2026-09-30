@@ -475,7 +475,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           model:'auto',
           messages,
           stream:true,
-          max_tokens:complex ? 750 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420),
+          max_tokens:complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420),
           temperature:0
         }),
         signal:controller.signal
