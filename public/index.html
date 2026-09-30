@@ -1620,6 +1620,7 @@ function clearAccountScopedLocalCache(){
   clearAccountCustomizationMirror();
 }
 function resetSignedOutAccountState(){
+  state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,configured:false,plan:null};
   // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
   // This prevents one device's old wallet/cosmetics from appearing before authentication.
   state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'},openedPacks:0,liveGames:0};
