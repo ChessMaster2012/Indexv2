@@ -76,7 +76,8 @@ function questPayload(){
     baseline:fresh.baseline||appSnapshot(),
     progress:fresh.progress||{},
     claimed:fresh.claimed||{},
-    announced:fresh.announced||{}
+    announced:fresh.announced||{},
+    crateRewardsClaimed:fresh.crateRewardsClaimed||{}
   };
 }
 async function syncQuestToServer(keepalive=false){
@@ -134,7 +135,7 @@ function ensureQuestDay(){
   if(questAccountKey!==k||data.day!==d||!data.baseline){
     // A new Index day starts a completely new set of daily quests.
     // Never carry yesterday's claim/completion flags into today.
-    saveQuestData({day:d,baseline:appSnapshot(),progress:{login:1},claimed:{},announced:{}});
+    saveQuestData({day:d,baseline:appSnapshot(),progress:{login:1},claimed:{},announced:{},crateRewardsClaimed:{}});
     questAccountKey=k;
     scheduleQuestServerSave(true);
   }
@@ -174,7 +175,7 @@ function questRewardText(q){
   if(q.rewardXP)parts.push('+'+q.rewardXP+' XP');
   if(q.rewardCoins)parts.push('+'+q.rewardCoins+' 🪙');
   if(q.rewardPackTokens)parts.push('+'+q.rewardPackTokens+' 🎁 Free Pack');
-  if(q.rewardSkinCrates)parts.push('🧰 Skin Crate · opens now');
+  if(q.rewardSkinCrates)parts.push('+'+q.rewardSkinCrates+' 🧰 Skin Crate'+(q.rewardSkinCrates===1?'':'s'));
   return parts.join(' · ');
 }
 function questSetForDay(){
@@ -260,60 +261,6 @@ function checkQuestCompletions(){
   });
   if(changed){saveQuestData(data);scheduleQuestServerSave(true);}
 }
-function openQuestSkinCrateRoll(){
-  if(!state.account||state.questSkinCrateOpening)return;
-  ensureRewardUnlocks();
-  normalizeOwnedSkinInventory();
-  const root=document.getElementById('view-quests');
-  if(!root)return;
-  let modal=document.getElementById('quest-skin-crate-modal');
-  if(!modal){
-    modal=document.createElement('div');
-    modal.id='quest-skin-crate-modal';
-    modal.className='skin-crate-modal hidden';
-    modal.innerHTML='<div class="skin-crate-card"><div class="skin-crate-head"><h3>🧰 Quest Skin Crate</h3></div><div class="reward-muted">Your quest reward is opening right here in Quests.</div><div class="skin-reel-window"><div class="skin-reel-marker"></div><div class="skin-reel-track" id="quest-skin-reel-track"></div></div><div class="skin-crate-result" id="quest-skin-crate-result"><div class="reward-muted">Rolling…</div></div></div>';
-    root.appendChild(modal);
-  }
-  const track=modal.querySelector('#quest-skin-reel-track'),result=modal.querySelector('#quest-skin-crate-result');
-  const winner=rollSkinPair();
-  const wasAlreadyOwned=skinPairOwned(winner.indexling.id,winner.skin.id);
-  state.questSkinCrateOpening=true;
-  const record=skinRecord(winner.indexling.id,winner.skin.id);
-  if(!wasAlreadyOwned){
-    normalizeOwnedSkinInventory();
-    state.progress.unlockedSkins.push(record);
-    persistProgressLocalOnly();
-  }
-  const reels=buildSkinReelItems(winner);
-  track.innerHTML=reels.map(function(item){
-    return '<div class="skin-reel-item '+skinRarityClass(item.skin.rarity)+'"><div class="skin-reel-ling">'+indexlingArtHtml(item.indexling,true,item.skin)+'</div><div><div class="skin-reel-name">'+esc(item.indexling.name)+' · '+esc(item.skin.name)+'</div><div class="skin-reel-sub">'+esc(item.skin.rarity)+' SKIN</div></div><div class="skin-reel-icon">'+item.skin.icon+'</div></div>';
-  }).join('');
-  result.innerHTML='<div class="reward-muted">Rolling your quest Skin Crate…</div>';
-  modal.classList.remove('hidden');
-  const cards=Array.from(track.querySelectorAll('.skin-reel-item')),selectedIndex=9,selected=cards[selectedIndex];
-  track.style.transition='none';track.style.transform='translateY(0px)';void track.offsetHeight;
-  const wrap=track.parentElement,selectedRect=selected?.getBoundingClientRect(),wrapRect=wrap?.getBoundingClientRect();
-  const offset=selectedRect&&wrapRect?Math.round((wrapRect.top+wrapRect.height/2)-(selectedRect.top+selectedRect.height/2)):0;
-  let tick=0;clearInterval(state.questSkinCrateTick);
-  state.questSkinCrateTick=setInterval(function(){tick++;playPackTick();if(tick>=50)clearInterval(state.questSkinCrateTick);},90);
-  track.style.transition='transform 5.6s cubic-bezier(.035,.8,.08,1)';
-  track.style.transform='translateY('+offset+'px)';
-  setTimeout(function(){
-    clearInterval(state.questSkinCrateTick);
-    state.questSkinCrateOpening=false;
-    playPackReveal();celebrate();
-    persistProgress();
-    persistProgressLocalOnly();
-    syncAccountStateNow();
-    const duplicate=wasAlreadyOwned;
-    result.innerHTML='<div class="skin-crate-result-name">'+winner.skin.icon+' '+esc(winner.skin.name)+'</div><div class="skin-crate-result-meta">Rolled for <strong>'+esc(winner.indexling.name)+'</strong> · '+esc(winner.skin.rarity)+'</div><div class="skin-crate-result-meta">'+(duplicate?'Already owned this Indexling + skin pair.':'Added to your skin collection.')+'</div><div class="skin-crate-actions"><button class="btn btn-primary" data-action="equip-indexling-skin" data-indexling="'+winner.indexling.id+'" data-skin="'+winner.skin.id+'">Equip Skin</button><button class="btn btn-ghost" data-action="close-quest-skin-crate">Continue</button></div>';
-  },5900);
-}
-function closeQuestSkinCrateRoll(){
-  if(state.questSkinCrateOpening)return;
-  document.getElementById('quest-skin-crate-modal')?.classList.add('hidden');
-  if(state.view==='quests')renderQuests();
-}
 function renderQuests(){
   const root=document.getElementById('view-quests');
   if(!root||!state.account)return;
@@ -362,8 +309,6 @@ function wire(){
   ensureView();
   avatarFix();
   document.addEventListener('click',function(e){
-    const closeQuestCrate=e.target.closest('[data-action="close-quest-skin-crate"]');
-    if(closeQuestCrate){ closeQuestSkinCrateRoll(); return; }
     const nav=e.target.closest('[data-view="quests"]');
     if(nav){e.preventDefault();openQuestView();return;}
     const claim=e.target.closest('[data-action="claim-quest"]');
@@ -419,7 +364,6 @@ function wire(){
           if(typeof renderDashboard==='function'&&state.view==='dashboard')renderDashboard();
           renderQuests();
           showRewardToast('🎉 Quest reward · '+(result.rewardText||q.reward));
-          if(result.directSkinCrate) setTimeout(function(){openQuestSkinCrateRoll();},150);
         }).catch(function(err){
           // Do not leave a locally "claimed" quest without its server reward.
           delete data.claimed[id];
