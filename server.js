@@ -490,8 +490,10 @@ async function raceAiProviders(messages,complex){
 }
 
 function aiQuestionIsComplex(question){
-  return /\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step|reason|evaluate)\b/i.test(question)
-    || String(question||'').length>220;
+  const q=String(question||'');
+  return /\b(code|debug|fix|program|javascript|python|prove|derive|analy[sz]e|compare|contrast|essay|research|explain why|step by step|reason|evaluate|why|significance|justify|justification|synthesize|synthesis|interpret|critique|assess|evidence|counterargument|causation|rhetorical|primary source|document-based|AP|advanced placement|SAQ|LEQ|DBQ)\b/i.test(q)
+    || q.length>140
+    || /\b(?:\w+\s+){2,}\b(?:and|or)\b(?:\s+\w+){2,}/i.test(q);
 }
 
 function responseLooksLikeGenericAdvice(text){
