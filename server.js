@@ -253,7 +253,10 @@ function buildAiMessages(messages){
   if(!turns.length) return [];
 
   const question=latestUserQuestion(turns);
-  const writingConstraints=requestedWritingConstraints(turns);
+  const conversationTurns=turns.filter(t=>t.role!=='system');
+  const followUp=isLikelyFollowUp(question);
+  const relevantForConstraints=followUp ? conversationTurns.slice(-8) : conversationTurns.slice(-1);
+  const writingConstraints=requestedWritingConstraints(relevantForConstraints);
   const range=writingConstraints.sentenceRange;
 
   const task=classifyAiTask(question);
@@ -279,8 +282,8 @@ function buildAiMessages(messages){
     'Treat a brand-new question as independent unless the student clearly refers to an earlier turn.',
     'Never substitute a canned example, previous question, or unrelated subject for the latest request.',
     'Answer the latest request directly and start immediately; do not use a long preamble or generic study advice.',
-    'For ordinary school questions, give a clear, useful explanation with the important who/what/when/why details rather than a one-line textbook definition.',
-    'For AP-level work, use precise terminology, multi-step reasoning, evidence, equations, interpretation, and nuance when relevant. Do not oversimplify a difficult question.',
+    'For ordinary school questions, give a clear, useful explanation with the important who/what/when/why details rather than a one-line textbook definition. Aim for a few substantive sentences without unnecessary filler.',
+    'For AP-level work, use your strongest available reasoning through Auto: precise terminology, multi-step reasoning, evidence, equations, interpretation, nuance, and self-contained explanations when relevant. Do not oversimplify a difficult question.',
     'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “what about that?”, “simpler”, or “show the steps”.',
     'Do not invent facts. Distinguish uncertainty when it genuinely exists.',
     'For finished writing requests, produce the requested draft itself.',
@@ -292,8 +295,6 @@ function buildAiMessages(messages){
   // New questions should not carry an entire old chat into Vireonix Auto.
   // Keeping irrelevant turns can increase prompt work and can confuse routing.
   // Genuine follow-ups retain a small recent window so references still resolve.
-  const conversationTurns=turns.filter(t=>t.role!=='system');
-  const followUp=isLikelyFollowUp(question);
   const relevantTurns=followUp ? conversationTurns.slice(-8) : conversationTurns.slice(-1);
 
   return [
