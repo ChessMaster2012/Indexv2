@@ -1678,16 +1678,18 @@ function membershipPlanCardsHtml(current,context){
   const plans=[
     {tier:'free',name:'Basic',price:'$0',suffix:'/month',tag:'START HERE',copy:'The essentials for everyday studying.',features:['Core study tools','AI Tutor','50 saved study sets','50 saved notes','Daily rewards']},
     {tier:'gold',name:'Gold',price:'$4.99',suffix:'/month',tag:'MORE ROOM',copy:'More space for a bigger school library.',features:['Everything in Basic','250 saved study sets','250 saved notes','Gold membership badge','Higher account limits']},
-    {tier:'diamond',name:'Diamond',price:'$9.99',suffix:'/month',tag:'BEST VALUE',copy:'The largest Index limits for students using it across classes.',features:['Everything in Gold','1,000 saved study sets','500 saved notes','Diamond membership badge','Highest account limits']}
+    {tier:'diamond',name:'Diamond',price:'$9.99',suffix:'/month',tag:'BEST VALUE',copy:'Maximum Index capacity for a student using it across classes.',features:['Everything in Gold','1,000 saved study sets','500 saved notes','Diamond membership badge','Highest account limits']}
   ];
   return plans.map(plan=>{
     const active=current.tier===plan.tier;
     const paid=plan.tier!=='free';
-    const button=active
-      ? (paid?'<button class="btn btn-ghost membership-action" data-action="manage-membership">Manage Membership</button>':'<button class="btn btn-ghost membership-action" disabled>Current plan</button>')
-      : paid
-        ? '<button class="btn '+(plan.tier==='diamond'?'btn-primary':'btn-ghost')+' membership-action" data-action="start-membership-checkout" data-tier="'+plan.tier+'">Choose '+plan.name+'</button>'
-        : '<button class="btn btn-ghost membership-action" disabled>Included</button>';
+    const button=context==='onboarding'
+      ? '<button class="btn btn-ghost membership-action" disabled>Review terms below</button>'
+      : active
+        ? (paid?'<button class="btn btn-ghost membership-action" data-action="manage-membership">Manage Membership</button>':'<button class="btn btn-ghost membership-action" disabled>Current plan</button>')
+        : paid
+          ? '<button class="btn '+(plan.tier==='diamond'?'btn-primary':'btn-ghost')+' membership-action" data-action="start-membership-checkout" data-tier="'+plan.tier+'">Choose '+plan.name+'</button>'
+          : '<button class="btn btn-ghost membership-action" disabled>Included</button>';
     const accent=plan.tier==='diamond'?'💎':plan.tier==='gold'?'🥇':'📚';
     return '<article class="membership-card '+plan.tier+' '+(active?'active':'')+'"><div class="membership-card-top"><span class="'+(plan.tier==='diamond'?'membership-best':'membership-tag')+'">'+(plan.tier==='diamond'?'BEST VALUE':plan.tag)+'</span><span class="membership-current">'+(active?'✓ Current':'')+'</span></div><div class="membership-plan-icon">'+accent+'</div><h3>'+plan.name+'</h3><p>'+plan.copy+'</p><div class="membership-price">'+plan.price+' <span>'+plan.suffix+'</span></div><div class="membership-features">'+plan.features.map(f=>'<div>✓ '+esc(f)+'</div>').join('')+'</div>'+button+'</article>';
   }).join('');
