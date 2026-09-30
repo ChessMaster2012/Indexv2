@@ -326,13 +326,14 @@ function buildAiMessages(messages){
   const priorUserTurns=conversationTurns.filter(t=>t.role==='user').slice(0,-1);
   const inheritedComplexity=followUp && priorUserTurns.some(t=>aiQuestionIsComplex(t.content));
   const complexQuestion=aiQuestionIsComplex(question) || inheritedComplexity;
-  const extremeQuestion=/\b(derive|prove|proof|synthesize|synthesis|counterargument|evaluate|critique|research|DBQ|LEQ|SAQ|document-based|AP|advanced placement|thesis|nuance|multiple parts?|comprehensive|in depth|deep dive)\b/i.test(question)
-    || (followUp && priorUserTurns.some(t=>/\b(derive|prove|proof|synthesize|DBQ|LEQ|SAQ|AP|advanced placement|comprehensive|in depth|deep dive)\b/i.test(t.content)))
-    || String(question||'').length>320;
+  const extremeQuestion=/\b(derive|prove|proof|synthesize|synthesis|counterargument|evaluate|critique|research|DBQ|LEQ|SAQ|document-based|thesis|comprehensive|in depth|deep dive)\b/i.test(question)
+    || (followUp && priorUserTurns.some(t=>/\b(derive|prove|proof|synthesize|DBQ|LEQ|SAQ|comprehensive|in depth|deep dive)\b/i.test(t.content)))
+    || String(question||'').length>420
+    || (String(question||'').split(/\n/).length>=10 && String(question||'').length>700);
   const depthRule=complexQuestion
     ? (extremeQuestion
-      ? 'For an extremely difficult or AP-level question, be comprehensive but efficient. Start with the answer immediately, then use logical layers: context/definitions → reasoning or causal chain → strongest evidence/example/equation → implications/significance → important nuance or limitation. For multi-part problems, clearly separate each part. Aim for about 450–650 words or equivalent depth, but never repeat yourself or add filler.'
-      : 'For a difficult or AP-level question, give a complete explanation: start with the answer, then reasoning or causal chain, relevant evidence/example/equation, and an important nuance, consequence, or limitation. Aim for about 350–550 words or equivalent depth. Prioritize correctness and useful detail over repetition.')
+      ? 'For an extremely difficult question, be comprehensive but efficient. Start with the answer, then give the necessary reasoning/evidence/equation, implications, and important nuance. For multi-part problems, clearly separate each part. Aim for about 450–650 words or equivalent depth, with no filler.'
+      : 'For a difficult or AP-level question, solve it completely and efficiently. Start with the answer, then give the key reasoning, evidence, equations, and necessary nuance. For multi-part problems, clearly separate each part. Aim for about 300–500 words or equivalent depth. Do not repeat the prompt.')
     : 'For an ordinary school question, give roughly 3–6 substantive sentences when explanation is requested: answer directly, then explain what happened or how it works, and include a useful example, consequence, or significance when relevant. Avoid a one-line definition.';
   const notationRule='Use precise notation and Unicode symbols when they genuinely clarify the answer: √, ×, ÷, ±, ≤, ≥, ≠, ≈, ∝, Δ, Σ, ∑, ∫, π, α, β, γ, θ, λ, μ, →, ⇒, ↔, ∴, ∵. For math/science, show equations cleanly and define symbols before relying on them. Do not sprinkle symbols randomly.';
   const structureRule=complexQuestion
@@ -349,9 +350,9 @@ function buildAiMessages(messages){
     'Never substitute a canned example, previous question, or unrelated subject for the latest request.',
     'Answer the latest request directly and start immediately; do not use a long preamble, hidden planning, or generic study advice.',
     depthRule,
-    'For AP-level work, use your strongest available reasoning through Auto. Use precise terminology, multi-step reasoning, evidence, equations, interpretation, nuance, and counterarguments when relevant. Do not oversimplify a difficult question.',
-    'For difficult questions, spend response space on reasoning and evidence instead of repeating the prompt or adding filler. Do not expose private chain-of-thought; provide concise, checkable reasoning, intermediate steps, evidence, and conclusions.',
-    'When the question is complex, make the answer self-contained: define specialized terms, show the logical chain, and do not assume the student already knows an unstated step.',
+    'For AP-level work, use strong reasoning through Auto, precise terminology, multi-step reasoning, evidence, equations, interpretation, and nuance when relevant. Do not oversimplify.',
+    'For difficult questions, spend response space on reasoning and evidence instead of repeating the prompt or adding filler. Do not expose private chain-of-thought; provide checkable reasoning and conclusions.',
+    'For complex questions, make the answer self-contained and show the necessary logical steps.',
     'For math/science reasoning, show the important transformation at each step and explain why it is valid; end with the final result and a quick interpretation/check when useful.',
     'Math input may use LaTeX/TeX delimiters and commands such as $...$, \\( ... \\), \\leq, \\sqrt, \\frac, \\pi, \\sum, and superscripts/subscripts. Interpret the mathematical content exactly; the server normalizes common notation into readable Unicode equivalents before sending it to you.',
     'Use prior turns only when they are actually needed to resolve a follow-up such as “explain”, “why?”, “tell me more”, “what about that?”, “simpler”, or “show the steps”.',
@@ -458,7 +459,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   let sentAnyChunk=false;
   // ~10s is the Tutor target; difficult Auto generations get a ~30s fail-safe
   // so a valid deep answer is not discarded just because first-token latency is high.
-  const deadline=Date.now()+(tutorMode ? (complex ? 45000 : 9700) : 29500);
+  const deadline=Date.now()+(tutorMode ? (complex ? 75000 : 9700) : 29500);
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
