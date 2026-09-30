@@ -173,7 +173,10 @@ function normalizeTutorMathInput(value){
     ['\\theta','θ'],['\\lambda','λ'],['\\mu','μ'],['\\sigma','σ'],['\\rho','ρ'],
     ['\\pi','π']
   ];
-  for(const [token,replacement] of commands) s=s.replace(new RegExp(token,'g'),replacement);
+  // Replace complete TeX command tokens only. Using split/join avoids
+  // accidentally changing normal words such as "changes" when converting \\ge,
+  // or "interval" when converting \\int.
+  for(const [token,replacement] of commands) s=s.split(token).join(replacement);
   s=s.replace(/\\sqrt\s*\{([^{}]+)\}/g,'√($1)');
   s=s.replace(/\\sqrt\s*\(([^()]*)\)/g,'√($1)');
   s=s.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,'($1)/($2)');
