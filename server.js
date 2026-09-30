@@ -142,7 +142,7 @@ function aiModerationMessage() {
 // Server-side AI Tutor: the browser talks only to /api/ai/chat.
 // The live answer path uses Vireonix Auto only. There is no alternate provider
 // or fallback model.
-const AI_MAX_INPUT_CHARS = 60000; // Keep substantial follow-up context without creating slow oversized prompts.
+const AI_MAX_INPUT_CHARS = 24000; // Keep useful follow-up context while avoiding oversized prompts that slow Tutor requests.
 
 function normalizeAiMessages(messages){
   const raw=Array.isArray(messages)?messages:[];
@@ -156,13 +156,13 @@ function normalizeAiMessages(messages){
   // Do not impose a turn-count limit. Preserve the newest conversation turns
   // until the large character budget is reached, so long follow-up sessions
   // keep their context instead of abruptly stopping at 20/200 turns.
-  const conversation=raw.filter(m=>m && m.role!=='system').slice(-80);
+  const conversation=raw.filter(m=>m && m.role!=='system').slice(-40);
   for(let i=conversation.length-1;i>=0;i--){
     const m=conversation[i];
     const role=m.role==='assistant'?'assistant':m.role==='user'?'user':'system';
     let content=String(m.content||'').replace(/\u0000/g,'').trim();
     if(!content) continue;
-    content=content.slice(0,6000);
+    content=content.slice(0,4000);
     const room=Math.max(0,AI_MAX_INPUT_CHARS-total);
     if(room<=0) break;
     if(content.length>room) content=content.slice(0,room);
@@ -276,6 +276,8 @@ function buildAiMessages(messages){
     'Do not invent facts. If something is genuinely uncertain, say so.',
     'Do not repeat the same answer merely because a previous turn had a similar topic.',
     'Keep ordinary answers concise, but give enough detail for the student to understand the reasoning.',
+    'For AP-level work, use precise terminology, multi-step reasoning, equations or evidence when relevant, and address the actual difficulty instead of giving a simplified middle-school response.',
+    'Do not waste the response on a long preamble; start solving or explaining immediately.',
     taskRule,
     lengthRule,
     shapeRule
@@ -365,10 +367,11 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
   return text;
 }
 
-async function streamVireonixToResponse(messages,complex,res){
-  // One hard deadline for the complete upstream response. Give slower school-network
-  // requests enough time to finish while still keeping a firm ceiling.
-  const deadline=Date.now()+29500;
+async function streamVireonixToResponse(messages,complex,res,options={}){
+  // Tutor requests have a firm sub-10-second upstream deadline; background AI
+  // generation keeps the longer compatibility deadline used by other Index features.
+  const tutorMode=String(options.mode||'')==='tutor';
+  const deadline=Date.now()+(tutorMode ? 9300 : 29500);
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -385,7 +388,7 @@ async function streamVireonixToResponse(messages,complex,res){
           model:'auto',
           messages,
           stream:true,
-          max_tokens:complex ? 760 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 96 : 320),
+          max_tokens:complex ? 900 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 96 : 280),
           temperature:0
         }),
         signal:controller.signal
@@ -771,18 +774,26 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
+
+    // Tiny deterministic arithmetic/radical questions bypass network latency.
+    // Substantive Tutor questions still go only to Vireonix Auto.
+    const fastAnswer=fastDeterministicTutor(question,messages);
+    if(fastAnswer){
+      return res.json({text:fastAnswer,provider:'Index fast math',model:'deterministic'});
+    }
+
     const complex=aiQuestionIsComplex(question);
 
-    // ONLY Vireonix Auto answers the request. One upstream request, streamed
+    // ONLY Vireonix Auto answers substantive requests. One upstream request, streamed
     // directly through this server so the first generated tokens reach the UI
     // immediately. No fallback model and no second AI request.
     try{
-      await streamVireonixToResponse(messages,complex,res);
+      await streamVireonixToResponse(messages,complex,res,{mode:String(req.body?.intent||'')==='tutor'?'tutor':'background'});
     }catch(e){
       console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
       if(!res.headersSent){
         return res.status(504).json({
-          error:'Vireonix Auto did not answer within the 30-second Tutor limit. No fallback model was used.',
+          error:'Vireonix Auto did not answer within the 10-second Tutor target. No fallback model was used.',
           provider:'Vireonix Auto',
           model:'auto',
           detail:providerFailureLabel(e)
@@ -791,7 +802,7 @@ app.post('/api/ai/chat',async(req,res)=>{
       try{
         res.write('data: '+JSON.stringify({
           type:'error',
-          error:'Vireonix Auto did not answer within the 30-second Tutor limit. No fallback model was used.'
+          error:'Vireonix Auto did not answer within the 10-second Tutor target. No fallback model was used.'
         })+'\\n\\n');
         res.end();
       }catch{}
