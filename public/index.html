@@ -1304,7 +1304,7 @@ let state = {
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, freePackTokens:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, freePackTokens:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'}, openedPacks:0, liveGames:0 },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
@@ -1587,7 +1587,7 @@ function clearAccountScopedLocalCache(){
 function resetSignedOutAccountState(){
   // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
   // This prevents one device's old wallet/cosmetics from appearing before authentication.
-  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
+  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'},openedPacks:0,liveGames:0};
   updateCoinDisplays();
 }
 async function loadAccountState(){
@@ -1600,7 +1600,7 @@ async function loadAccountState(){
     if(!d.state){
       // New account: never import guest wallet/cosmetics into the account.
       // Local notes/study sets can be adopted, but account-owned rewards start at zero.
-      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',frame:'default'},openedPacks:0,liveGames:0};
+      state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'},openedPacks:0,liveGames:0};
       await syncAccountStateNow();
       return;
     }
@@ -1670,19 +1670,15 @@ const REWARD_COSMETICS = [
   {id:'ling-supernova',type:'indexling',name:'Supernova',icon:'✦',shape:'horns',mark:'S',main:'#ff8796',dark:'#8d3947',accent:'#ffe1e5',rarity:'Legendary',pack:'cosmic'}
 ]
 const INDEXLING_SKINS = [
-  {id:'skin-candy',name:'Candy Coat',icon:'🍬',rarity:'Common',main:'#ff9fc7',dark:'#a54872',accent:'#ffe5ef'},
-  {id:'skin-frost',name:'Frosted',icon:'❄',rarity:'Common',main:'#b9e8ff',dark:'#4e81a1',accent:'#e8f8ff'},
-  {id:'skin-leaf',name:'Leafline',icon:'🍃',rarity:'Common',main:'#a5df9f',dark:'#4d8146',accent:'#e6ffe0'},
-  {id:'skin-bronze',name:'Bronze',icon:'●',rarity:'Rare',main:'#d9945d',dark:'#80502e',accent:'#ffe4ce'},
-  {id:'skin-royal',name:'Royal Ink',icon:'♛',rarity:'Rare',main:'#bda4ef',dark:'#65498f',accent:'#f1e8ff'},
-  {id:'skin-ocean',name:'Ocean Glass',icon:'≈',rarity:'Rare',main:'#7dd7e8',dark:'#377782',accent:'#e0ffff'},
-  {id:'skin-arcade',name:'Arcade Glow',icon:'▣',rarity:'Epic',main:'#8f99ff',dark:'#4b55a1',accent:'#e9ebff'},
-  {id:'skin-neon',name:'Neon Current',icon:'ϟ',rarity:'Epic',main:'#75f0bd',dark:'#35775e',accent:'#ddfff0'},
-  {id:'skin-shadow',name:'Shadowbyte',icon:'◆',rarity:'Epic',main:'#69708c',dark:'#2b2e3d',accent:'#dfe2ef'},
-  {id:'skin-prism',name:'Prism Shift',icon:'◇',rarity:'Legendary',main:'#ff9db7',dark:'#91425b',accent:'#ffe4eb'},
-  {id:'skin-gold',name:'Goldcore',icon:'★',rarity:'Legendary',main:'#f0cf64',dark:'#8b6b1c',accent:'#fff1b7'},
-  {id:'skin-cosmos',name:'Cosmic Dust',icon:'✦',rarity:'Legendary',main:'#9a8fff',dark:'#514a98',accent:'#eceaff'}
-];
+  {id:'skin-gold',name:'Gold',icon:'🥇',rarity:'Common',effect:'gold',main:'#f5cf55',dark:'#8b6816',accent:'#fff0a6'},
+  {id:'skin-silver',name:'Silver',icon:'🥈',rarity:'Common',effect:'silver',main:'#d9e1ea',dark:'#68727d',accent:'#ffffff'},
+  {id:'skin-chrome',name:'Chrome',icon:'◈',rarity:'Common',effect:'chrome',main:'#aab4c0',dark:'#39434e',accent:'#f7fbff'},
+  {id:'skin-ruby',name:'Ruby',icon:'♦',rarity:'Rare',effect:'ruby',main:'#e84b68',dark:'#791d34',accent:'#ffd0d8'},
+  {id:'skin-sapphire',name:'Sapphire',icon:'◆',rarity:'Rare',effect:'sapphire',main:'#4f8cff',dark:'#1d397d',accent:'#d5e5ff'},
+  {id:'skin-emerald',name:'Emerald',icon:'◇',rarity:'Rare',effect:'emerald',main:'#39d49b',dark:'#17684d',accent:'#ceffe9'},
+  {id:'skin-lava',name:'Lava',icon:'🌋',rarity:'Epic',effect:'lava',main:'#6f2020',dark:'#2b0d0d',accent:'#ff9a2e'},
+  {id:'skin-ice',name:'Ice / Frost',icon:'❄',rarity:'Epic',effect:'ice',main:'#a8e8ff',dark:'#3d7fa1',accent:'#effcff'}
+
 const BP_REWARDS = Array.from({length:50},(_,i)=>{
   const level=i+1;
   if(level%5===0) return {level,kind:'bundle',skinCrates:5,coins:150,label:'5 Skin Crates + 150 coins',icon:'🧰'};
@@ -1713,14 +1709,57 @@ function indexPackArt(c,kind){
 
 function battlePassLevel(){ return Math.min(50, Math.floor((state.progress.xp||0)/100)+1); }
 function rewardForLevel(level){ return BP_REWARDS.find(r=>r.level===level); }
+function normalizeOwnedSkinInventory(){
+  const src=Array.isArray(state.progress.unlockedSkins)?state.progress.unlockedSkins:[];
+  const out=[],seen=new Set();
+  src.forEach(function(entry){
+    let skinId='',indexlingId='ling-sugarbug',obtainedAt=Date.now();
+    if(typeof entry==='string') skinId=entry;
+    else if(entry&&typeof entry==='object'){
+      skinId=String(entry.skinId||entry.id||'');
+      indexlingId=String(entry.indexlingId||'ling-sugarbug');
+      obtainedAt=Number(entry.obtainedAt)||obtainedAt;
+    }
+    const skin=skinById(skinId),ling=cosmeticById(indexlingId);
+    if(!skin||!ling||ling.type!=='indexling') return;
+    const key=indexlingId+':'+skinId;
+    if(seen.has(key)) return;
+    seen.add(key);
+    out.push({skinId,indexlingId,obtainedAt});
+  });
+  state.progress.unlockedSkins=out;
+}
+function skinRecord(indexlingId,skinId){
+  return {skinId:String(skinId||''),indexlingId:String(indexlingId||'ling-sugarbug'),obtainedAt:Date.now()};
+}
+function getEquippedSkinId(indexlingId){
+  const eq=state.progress.equipped||{};
+  const map=eq.skinByIndexling&&typeof eq.skinByIndexling==='object'?eq.skinByIndexling:{};
+  const mapped=String(map[indexlingId]||'');
+  if(mapped&&skinById(mapped)) return mapped;
+  if(eq.indexling===indexlingId&&eq.indexlingSkin&&skinById(eq.indexlingSkin)) return String(eq.indexlingSkin);
+  return '';
+}
+function getEquippedSkinForIndexling(indexlingId){
+  const id=getEquippedSkinId(indexlingId);
+  return id?skinById(id):null;
+}
 function ensureRewardUnlocks(){
   if(!Array.isArray(state.progress.unlockedCosmetics)) state.progress.unlockedCosmetics=[];
   state.progress.unlockedCosmetics=state.progress.unlockedCosmetics.filter(id=>!!cosmeticById(id));
   if(!state.progress.unlockedCosmetics.includes('ling-sugarbug')) state.progress.unlockedCosmetics.push('ling-sugarbug');
   if(!Array.isArray(state.progress.unlockedSkins)) state.progress.unlockedSkins=[];
-  if(!state.progress.equipped) state.progress.equipped={indexling:'ling-sugarbug',indexlingSkin:''};
-  if(!state.progress.equipped.indexling || !cosmeticById(state.progress.equipped.indexling)) state.progress.equipped.indexling='ling-sugarbug';
+  normalizeOwnedSkinInventory();
+  if(!state.progress.equipped) state.progress.equipped={indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{}};
+  if(!state.progress.equipped.indexling||!cosmeticById(state.progress.equipped.indexling)) state.progress.equipped.indexling='ling-sugarbug';
   if(!('indexlingSkin' in state.progress.equipped)) state.progress.equipped.indexlingSkin='';
+  if(!state.progress.equipped.skinByIndexling||typeof state.progress.equipped.skinByIndexling!=='object') state.progress.equipped.skinByIndexling={};
+  Object.keys(state.progress.equipped.skinByIndexling).forEach(function(id){
+    if(!cosmeticById(id)||!skinById(state.progress.equipped.skinByIndexling[id])) delete state.progress.equipped.skinByIndexling[id];
+  });
+  if(state.progress.equipped.indexlingSkin&&skinById(state.progress.equipped.indexlingSkin)){
+    state.progress.equipped.skinByIndexling[state.progress.equipped.indexling]=state.progress.equipped.indexlingSkin;
+  }
   state.progress.skinCrates=Math.max(0,Math.floor(Number(state.progress.skinCrates)||0));
 }
 
@@ -1978,7 +2017,7 @@ function indexlingFrameStyle(frameId){
 }
 const INDEXLING_FEATURES={"ling-sugarbug":"<path d=\"M24 28q8-8 16 0\"/><circle cx=\"69\" cy=\"29\" r=\"6\" fill=\"none\"/><path d=\"M70 29l4 4\"/>","ling-gumdrop":"<path d=\"M26 55q8-23 24-33q16 10 25 33\"/><circle cx=\"65\" cy=\"47\" r=\"4\"/>","ling-taffy":"<path d=\"M28 34q22 12 44 0\"/><path d=\"M30 67q20-12 40 0\"/>","ling-choco":"<circle cx=\"37\" cy=\"35\" r=\"4\" fill=\"var(--ling-accent)\"/><circle cx=\"62\" cy=\"64\" r=\"5\" fill=\"var(--ling-accent)\"/><path d=\"M28 60l10-10m24-1 9-10\"/>","ling-jellybean":"<path d=\"M28 39q22-18 44 0\"/><circle cx=\"35\" cy=\"66\" r=\"4\" fill=\"var(--ling-accent)\"/><circle cx=\"65\" cy=\"66\" r=\"4\" fill=\"var(--ling-accent)\"/>","ling-caramel":"<path d=\"M27 30q10 10 20 0t26 0\"/><path d=\"M35 70q7 8 14 0t14 0\"/>","ling-sprinkle":"<path d=\"M31 32l9 9m6-14 5 11m7-7 7 10m-28 8 7 9m8-9 5 11\" stroke-linecap=\"round\"/>","ling-lolliking":"<path d=\"M28 24h44\"/><path d=\"M34 20v8m32-8v8\"/><circle cx=\"50\" cy=\"28\" r=\"4\" fill=\"var(--ling-accent)\"/>","ling-squire":"<path d=\"M35 36h30v9H35z\"/><path d=\"M41 40h18\" stroke=\"var(--ling-accent)\" stroke-width=\"4\"/>","ling-bard":"<path d=\"M65 23v33q0 7-7 7\"/><circle cx=\"72\" cy=\"58\" r=\"5\"/>","ling-blacksmith":"<path d=\"M30 34h40\"/><path d=\"M38 24v20m24-20v20\"/>","ling-knight":"<path d=\"M32 31h36v8H32z\"/><path d=\"M50 20v11\"/><path d=\"M42 25h16\"/>","ling-alchemist":"<path d=\"M39 27h22\"/><circle cx=\"50\" cy=\"61\" r=\"8\" fill=\"none\"/><path d=\"M45 56l10 10\"/>","ling-dragonling":"<path d=\"M25 48l-12-9 9 18\"/><path d=\"M75 48l12-9-9 18\"/><path d=\"M46 28l4-8 4 8\"/>","ling-royalmage":"<path d=\"M50 18v19\"/><path d=\"M43 24l7-7 7 7\"/><circle cx=\"50\" cy=\"22\" r=\"3\" fill=\"var(--ling-accent)\"/>","ling-crownling":"<path d=\"M28 28l8 13 7-11 7 12 8-12 7 13\"/><path d=\"M34 43h32\"/>","ling-botlet":"<path d=\"M33 39h34v20H33z\"/><circle cx=\"42\" cy=\"49\" r=\"3\" fill=\"var(--ling-accent)\"/><circle cx=\"58\" cy=\"49\" r=\"3\" fill=\"var(--ling-accent)\"/>","ling-circuit":"<path d=\"M26 55h16V39h17v16h15\"/><circle cx=\"42\" cy=\"39\" r=\"4\" fill=\"var(--ling-accent)\"/>","ling-servo":"<circle cx=\"36\" cy=\"37\" r=\"7\" fill=\"none\"/><circle cx=\"64\" cy=\"37\" r=\"7\" fill=\"none\"/><path d=\"M38 37h24\"/>","ling-drone":"<path d=\"M29 28h14m14 0h14\"/><path d=\"M35 20v10m30-10v10\"/><circle cx=\"50\" cy=\"20\" r=\"4\" fill=\"var(--ling-accent)\"/>","ling-mecha":"<path d=\"M26 45h12m24 0h12\"/><path d=\"M34 64l-7 9m39-9 7 9\"/>","ling-reactor":"<path d=\"M50 30v14m0 16v14M29 52h14m14 0h14\"/><circle cx=\"50\" cy=\"52\" r=\"7\" fill=\"var(--ling-accent)\"/>","ling-cyber":"<path d=\"M28 33h44\"/><path d=\"M34 65h32\"/><circle cx=\"35\" cy=\"49\" r=\"3\" fill=\"var(--ling-accent)\"/><circle cx=\"65\" cy=\"49\" r=\"3\" fill=\"var(--ling-accent)\"/>","ling-overclock":"<path d=\"M27 31l8 8m30 0 8-8m-36 32 8 8m22 0 8-8\"/><path d=\"M38 24q12-7 24 0\"/>","ling-guppy":"<path d=\"M24 51l-12-8 12 20\"/><path d=\"M76 51l12-8-12 20\"/>","ling-coral":"<path d=\"M30 60l-7-10 8 2 1-12 7 11 8-16 4 16 10-9-2 14\"/>","ling-pearl":"<circle cx=\"33\" cy=\"33\" r=\"6\" fill=\"white\" opacity=\".7\"/><path d=\"M67 31q8 7 0 14\"/>","ling-diver":"<circle cx=\"50\" cy=\"42\" r=\"24\" fill=\"none\"/><path d=\"M28 39h44\"/>","ling-kelp":"<path d=\"M29 67q-4-25 7-35m5 38q-2-28 8-39m5 39q4-28-3-40\"/>","ling-kraken":"<path d=\"M24 58q-7 13 2 19m8-19q-4 15 4 21m31-21q8 13-1 20m-8-20q5 15-3 21\"/>","ling-abyssal":"<circle cx=\"28\" cy=\"32\" r=\"5\" fill=\"var(--ling-accent)\"/><circle cx=\"72\" cy=\"32\" r=\"5\" fill=\"var(--ling-accent)\"/><path d=\"M38 68q12 8 24 0\"/>","ling-tideking":"<path d=\"M33 22l5 10 12-12 12 12 5-10\"/><path d=\"M50 18v18\"/>","ling-token":"<path d=\"M38 24v9m24-9v9M31 58h38\"/><circle cx=\"50\" cy=\"35\" r=\"5\" fill=\"var(--ling-accent)\"/>","ling-joystick":"<path d=\"M50 22v16\"/><circle cx=\"50\" cy=\"20\" r=\"6\" fill=\"var(--ling-accent)\"/><path d=\"M38 63h24\"/>","ling-pixel":"<path d=\"M29 35h8v8h-8zm34 0h8v8h-8zM35 63h8v8h-8zm22 0h8v8h-8z\" fill=\"var(--ling-accent)\"/>","ling-glitch":"<path d=\"M24 39h17m18 0h17M30 63h15m10 0h15\"/><path d=\"M42 26l16 48\"/>","ling-synth":"<path d=\"M28 30h16v8H28zM56 30h16v8H56z\"/><path d=\"M34 69h32\"/>","ling-racer":"<path d=\"M34 28h32\"/><path d=\"M28 69h44\"/><path d=\"M39 58h22\" stroke=\"var(--ling-accent)\" stroke-width=\"4\"/>","ling-arcadeboss":"<rect x=\"34\" y=\"30\" width=\"32\" height=\"15\" rx=\"3\" fill=\"var(--ling-accent)\"/><circle cx=\"40\" cy=\"63\" r=\"4\" fill=\"var(--ling-accent)\"/><circle cx=\"60\" cy=\"63\" r=\"4\" fill=\"var(--ling-accent)\"/>","ling-highscore":"<path d=\"M28 30h44M35 69h30\"/><circle cx=\"50\" cy=\"30\" r=\"6\" fill=\"var(--ling-accent)\"/>","ling-comet":"<path d=\"M27 62q-16 4-20 15 11-8 26-7\"/><circle cx=\"76\" cy=\"28\" r=\"5\" fill=\"var(--ling-accent)\"/>","ling-moonlet":"<circle cx=\"33\" cy=\"34\" r=\"5\" fill=\"var(--ling-accent)\"/><circle cx=\"67\" cy=\"62\" r=\"4\" fill=\"var(--ling-accent)\"/>","ling-starling":"<path d=\"M22 50h14m28 0h14M50 22v14m0 28v14\"/>","ling-nebula":"<path d=\"M24 54q15-20 30 0t22 0\"/><circle cx=\"30\" cy=\"28\" r=\"4\" fill=\"var(--ling-accent)\"/>","ling-eclipse":"<circle cx=\"50\" cy=\"52\" r=\"36\" fill=\"none\" stroke=\"var(--ling-accent)\" stroke-width=\"2\" stroke-dasharray=\"3 5\"/>","ling-quasar":"<path d=\"M24 24l12 8m28 0 12-8M24 80l12-8m28 0 12 8\"/>","ling-voidling":"<rect x=\"31\" y=\"31\" width=\"38\" height=\"38\" rx=\"9\" fill=\"none\" stroke=\"var(--ling-accent)\" stroke-width=\"2\"/><path d=\"M40 40l20 20M60 40 40 60\"/>","ling-supernova":"<circle cx=\"50\" cy=\"51\" r=\"38\" fill=\"none\" stroke=\"var(--ling-accent)\" stroke-width=\"2\"/><path d=\"M50 20v12m0 38v12m-31-31h12m38 0h12\"/>"};
 function indexlingArtHtmlBase(c,mini=false,skin=null,frameId=null){
-  const sk=skin||skinById(state.progress?.equipped?.indexlingSkin);
+  const sk=skin||getEquippedSkinForIndexling(c?.id);
   const main=esc(sk?.main||c?.main||'#9bb6d8'),dark=esc(sk?.dark||c?.dark||'#526d8e'),accent=esc(sk?.accent||c?.accent||'#e5eef9');
   const v=INDEXLING_VISUALS[c?.id]||{body:'orb',top:'spark',face:'happy',icon:'✦'};
   const tops={lollipop:'🍭',sprinkle:'✨',bow:'🎀',candyhorn:'🍬',sugarcap:'🧁',taffyloop:'〰',sprinkles:'✦',candyburst:'💥',plume:'🪶',lyre:'🎵',hammer:'⚒',crest:'🛡',goggles:'🥽',wings:'🪽',wizardhat:'🧙',royalplume:'♛',antenna:'📡',coil:'🌀',bolts:'🔩',propeller:'✥',shoulderpad:'🦾',energycoil:'⚡',holoears:'◈',laserhorn:'🔻',fin:'🐟',coralbranch:'🪸',pearlcap:'🫧',bubblehelmet:'🤿',kelpcrest:'🌿',inkspot:'🫧',deepfin:'◒',trident:'🔱',joystick:'🕹',dpad:'🎮',pixelcrown:'▦',glitchantenna:'✚',headphones:'🎧',spoiler:'🏁',arcadebutton:'★',highscore:'🏆',orbit:'🪐',crater:'🌙',starpin:'⭐',cosmicring:'💫',halo:'◐',energyflare:'✦',voidcrown:'◼',flare:'☀'};
@@ -1986,8 +2025,20 @@ function indexlingArtHtmlBase(c,mini=false,skin=null,frameId=null){
     bean:'<ellipse cx="50" cy="53" rx="30" ry="34"/>',drop:'<path d="M50 11C42 25 24 36 24 54c0 18 11 30 26 30s26-12 26-30c0-18-18-29-26-43Z"/>',orb:'<circle cx="50" cy="52" r="34"/>',cube:'<path d="M24 27 50 13 76 27v44L50 85 24 71Z"/>',crown:'<path d="m19 31 12 23 9-19 10 20 11-20 9 19 11-23-5 40c-14 10-38 10-52 0Z"/>',shield:'<path d="M50 10 79 24 74 58c-5 17-16 26-24 29-8-3-19-12-24-29l-5-34Z"/>',flask:'<path d="M39 11h22v20c11 8 16 20 12 35-4 13-14 19-23 19s-19-6-23-19c-4-15 1-27 12-35Z"/>',dragon:'<path d="M24 42c-4-17 10-28 22-23l4-8 4 8c13-5 27 6 22 23l-5 27c-9 13-33 13-42 0Z"/>',helmet:'<path d="M19 49c0-22 12-35 31-35s31 13 31 35l-7 27c-13 7-35 7-48 0Z"/>',drone:'<rect x="22" y="30" width="56" height="40" rx="15"/><path d="M18 20h14M68 20h14M50 30V14"/>',tank:'<rect x="18" y="34" width="64" height="35" rx="12"/><path d="M35 34q15-16 30 0M12 71h23M65 71h23"/>',reactor:'<circle cx="50" cy="52" r="30"/><circle cx="50" cy="52" r="12"/><path d="M50 14v13M50 77v13M12 52h13M75 52h13"/>',spiky:'<path d="m50 8 9 16 20-9-5 20 18 10-18 8 8 21-21-6-11 23-11-23-21 6 8-21-18-8 18-10-5-20 20 9Z"/>',bubble:'<circle cx="50" cy="52" r="35"/><circle cx="74" cy="25" r="9" fill="white" opacity=".25"/>',coral:'<path d="M29 77c-7-13 0-22-4-30-4-8 3-16 9-13-1-10 9-15 14-7 4-10 14-7 15 3 10-7 19 1 13 10 8 2 7 13-1 16 7 7-3 18-12 21Z"/>',shell:'<path d="M19 67c1-33 15-52 31-52s30 19 31 52c-18 10-44 10-62 0Z"/><path d="M50 16v51M35 24c0 19 4 34 9 46M65 24c0 19-4 34-9 46" fill="none"/>',tentacle:'<path d="M20 51c0-21 13-33 30-33s30 12 30 33c0 11-7 15-11 25-4 7-9 2-12-6-3-8-4-11-7-11s-4 3-7 11c-3 8-8 13-12 6-4-10-11-14-11-25Z"/>',abyss:'<path d="M21 66c3-31 14-50 29-50s26 19 29 50c-14 8-44 8-58 0Z"/>',coin:'<circle cx="50" cy="52" r="33"/><circle cx="50" cy="52" r="23" fill="none"/>',pixel:'<path d="M25 20h50v8h7v48h-10v8H28v-8H18V28h7Z"/>',glitch:'<path d="M21 22h49l10 9-7 14 10 9-11 18H25l-9-14 9-12-8-11Z"/>',racer:'<path d="M20 63q2-31 18-40h24q16 9 18 40l-11 8H31Z"/><path d="M10 61h15M75 61h15" fill="none"/>',arcade:'<path d="M23 23h54v45c-9 9-45 9-54 0Z"/><rect x="34" y="33" width="32" height="18" rx="3"/>',planet:'<circle cx="50" cy="51" r="25"/><ellipse cx="50" cy="53" rx="44" ry="14" fill="none"/>',moon:'<path d="M70 17c-20 2-33 17-33 34 0 17 14 30 32 28-13-5-18-18-15-31 3-14 11-24 24-28Z"/>',star:'<path d="m50 8 9 27 28 2-22 17 7 28-22-16-22 16 7-28-22-17 28-2Z"/>',nebula:'<path d="M24 57C12 38 29 17 49 24c13-15 37-2 30 18 11 15-6 35-23 29-14 13-36 3-32-14Z"/>',eclipse:'<circle cx="47" cy="52" r="31"/><circle cx="60" cy="45" r="31" fill="var(--ling-dark)" stroke="var(--ling-dark)"/>',quasar:'<circle cx="50" cy="52" r="24"/><path d="m50 9 7 30 32 13-32 7-7 32-7-32-32-13 32-13Z"/>',void:'<rect x="20" y="20" width="60" height="60" rx="20"/><path d="M32 32l36 36M68 32 32 68" fill="none"/>',supernova:'<path d="m50 6 8 21 20-12-6 21 20 9-20 8 6 23-20-12-8 28-8-28-20 12 6-23-20-8 20-9-6-21 20 12Z"/>'
   };
   const faces={smile:'<circle cx="39" cy="51" r="4"/><circle cx="61" cy="51" r="4"/><path d="M39 61q11 7 22 0"/>',happy:'<circle cx="39" cy="51" r="4"/><circle cx="61" cy="51" r="4"/><path d="M38 60q12 11 24 0"/>',wide:'<circle cx="36" cy="49" r="6"/><circle cx="64" cy="49" r="6"/><path d="M36 61q14 11 28 0"/>',wink:'<circle cx="39" cy="51" r="4"/><path d="M57 51q6-6 11 0"/>',sleepy:'<path d="M34 51q5-4 10 0M56 51q5-4 10 0"/>',star:'<path d="m39 45 2 5 5 1-5 2-2 5-2-5-5-2 5-1Z"/><path d="m61 45 2 5 5 1-5 2-2 5-2-5-5-2 5-1Z"/>',bright:'<circle cx="39" cy="51" r="5" fill="white"/><circle cx="61" cy="51" r="5" fill="white"/>',focused:'<circle cx="39" cy="51" r="4"/><circle cx="61" cy="51" r="4"/><path d="M40 62h20"/>',guard:'<rect x="29" y="44" width="42" height="15" rx="7" fill="#172033"/><circle cx="40" cy="52" r="3" fill="white"/><circle cx="60" cy="52" r="3" fill="white"/>',spark:'<circle cx="50" cy="51" r="8" fill="white"/><path d="M50 42v18M41 51h18"/>',fierce:'<path d="M33 47l12 5M67 47l-12 5M39 62l22-5"/>',mystic:'<circle cx="39" cy="51" r="4" fill="white"/><circle cx="61" cy="51" r="4" fill="white"/><path d="M39 61q11-6 22 0"/>',regal:'<circle cx="39" cy="51" r="4"/><circle cx="61" cy="51" r="4"/><path d="M38 61q12 6 24 0M43 69h14"/>',visor:'<rect x="27" y="44" width="46" height="16" rx="7" fill="#172033"/><circle cx="40" cy="52" r="3" fill="white"/><circle cx="60" cy="52" r="3" fill="white"/>',glow:'<circle cx="50" cy="51" r="9" fill="white"/><circle cx="50" cy="51" r="3"/>',cyclops:'<circle cx="50" cy="51" r="11" fill="white"/><circle cx="50" cy="51" r="4"/>',neon:'<rect x="26" y="44" width="48" height="14" rx="7" fill="#172033"/><path d="M34 51h32" stroke="var(--ling-accent)"/>',static:'<path d="M31 46h13M56 46h13M35 55h24M45 63h22"/>',beat:'<path d="m33 52 8-6 6 10 7-14 7 12 7-6"/>',speed:'<path d="M31 47h15M54 52h15M35 59h23"/>',boss:'<circle cx="39" cy="51" r="4"/><circle cx="61" cy="51" r="4"/><path d="M37 61q13 7 26 0"/>',starface:'<circle cx="39" cy="51" r="3"/><circle cx="61" cy="51" r="3"/><path d="M39 61h22"/>',radiant:'<circle cx="39" cy="51" r="4"/><circle cx="61" cy="51" r="4"/><path d="M37 61q13 9 26 0"/>'};
-  const body=(bodies&&bodies[v.body])||bodies.orb,face=(faces&&faces[v.face])||faces.happy,top=tops[v.top]||String(v.icon||'✦'),feature=INDEXLING_FEATURES[c?.id]||'',frame=frameId?indexlingFrameStyle(frameId):'',cls=mini?' indexling-svg-mini':'',gid=String(c?.id||'indexling').replace(/[^a-z0-9]/gi,'');
-  return '<div class="indexling-svg'+cls+'" style="--ling-main:'+main+';--ling-dark:'+dark+';--ling-accent:'+accent+';'+frame+'"><svg viewBox="0 0 100 100" role="img" aria-label="'+esc(c?.name||'Indexling')+'"><defs><linearGradient id="g-'+gid+'" x1="12%" y1="8%" x2="88%" y2="92%"><stop offset="0%" stop-color="var(--ling-accent)" stop-opacity=".95"/><stop offset="24%" stop-color="var(--ling-main)"/><stop offset="78%" stop-color="var(--ling-main)"/><stop offset="100%" stop-color="var(--ling-dark)"/></linearGradient><filter id="s-'+gid+'" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="2.8" flood-color="#172033" flood-opacity=".22"/></filter></defs><ellipse cx="50" cy="88" rx="25" ry="4.2" fill="#172033" opacity=".12"/><g filter="url(#s-'+gid+')" fill="url(#g-'+gid+')" stroke="var(--ling-dark)" stroke-width="4.3" stroke-linejoin="round">'+body+'</g><path d="M30 32Q42 23 58 25" fill="none" stroke="#fff" stroke-width="5" opacity=".30" stroke-linecap="round"/><g fill="none" stroke="#172033" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+face+'</g><g fill="none" stroke="var(--ling-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+feature+'</g><text x="50" y="16" text-anchor="middle" font-size="15" dominant-baseline="middle">'+top+'</text></svg></div>';
+  const body=(bodies&&bodies[v.body])||bodies.orb,face=(faces&&faces[v.face])||faces.happy,top=tops[v.top]||String(v.icon||'✦'),feature=INDEXLING_FEATURES[c?.id]||'',frame=frameId?indexlingFrameStyle(frameId):'',cls=mini?' indexling-svg-mini':'',gid=String(c?.id||'indexling').replace(/[^a-z0-9]/gi,''),skinEffect=(function(kind){
+    const effects={
+      gold:'<path d="M22 35L78 70" stroke="#fff7cc" stroke-width="8" opacity=".36" stroke-linecap="round"/><path d="M28 29L72 29" stroke="#fff" stroke-width="3" opacity=".48" stroke-linecap="round"/>',
+      silver:'<path d="M20 38L80 68" stroke="#fff" stroke-width="8" opacity=".48" stroke-linecap="round"/><path d="M27 28L71 28" stroke="#fff" stroke-width="3" opacity=".6" stroke-linecap="round"/>',
+      chrome:'<path d="M18 33L82 70" stroke="#fff" stroke-width="6" opacity=".52" stroke-linecap="round"/><path d="M28 42L73 42" stroke="#eef6ff" stroke-width="2" opacity=".7"/>',
+      ruby:'<path d="m50 21 15 23-15 35-15-35Z" fill="#fff" opacity=".13"/><path d="M35 44h30M50 21v58" stroke="#ffd8df" stroke-width="2" opacity=".6"/>',
+      sapphire:'<path d="m50 19 17 25-17 39-17-39Z" fill="#fff" opacity=".15"/><path d="M33 44h34M50 19v64" stroke="#e2edff" stroke-width="2" opacity=".55"/>',
+      emerald:'<path d="m50 20 17 24-17 38-17-38Z" fill="#fff" opacity=".14"/><path d="M34 44h32M50 20v62" stroke="#ddfff0" stroke-width="2" opacity=".55"/>',
+      lava:'<path d="M30 29l12 18-8 20M56 22l-6 24 16 18M43 66l-4 13M68 42l-8 14" stroke="#ff7422" stroke-width="4" opacity=".96" stroke-linecap="round"/><path d="M31 31l10 15m17-22-5 22m14-2-7 12" stroke="#ffd34d" stroke-width="1.8" opacity=".9"/>',
+      ice:'<path d="M26 39l18 8-6 30M74 39l-18 8 6 30M50 23v54M31 61l38-20" stroke="#fff" stroke-width="3" opacity=".55" stroke-linecap="round"/><circle cx="34" cy="31" r="3" fill="#fff" opacity=".75"/><circle cx="67" cy="28" r="4" fill="#fff" opacity=".55"/>'
+    };
+    return effects[kind]||'';
+  })(sk?.effect);
+  return '<div class="indexling-svg'+cls+'" style="--ling-main:'+main+';--ling-dark:'+dark+';--ling-accent:'+accent+';'+frame+'"><svg viewBox="0 0 100 100" role="img" aria-label="'+esc(c?.name||'Indexling')+'"><defs><linearGradient id="g-'+gid+'" x1="12%" y1="8%" x2="88%" y2="92%"><stop offset="0%" stop-color="var(--ling-accent)" stop-opacity=".95"/><stop offset="24%" stop-color="var(--ling-main)"/><stop offset="78%" stop-color="var(--ling-main)"/><stop offset="100%" stop-color="var(--ling-dark)"/></linearGradient><filter id="s-'+gid+'" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="2.8" flood-color="#172033" flood-opacity=".22"/></filter></defs><ellipse cx="50" cy="88" rx="25" ry="4.2" fill="#172033" opacity=".12"/><g filter="url(#s-'+gid+')" fill="url(#g-'+gid+')" stroke="var(--ling-dark)" stroke-width="4.3" stroke-linejoin="round">'+body+'</g><path d="M30 32Q42 23 58 25" fill="none" stroke="#fff" stroke-width="5" opacity=".30" stroke-linecap="round"/><g class="skin-effect" pointer-events="none">${skinEffect}</g><g fill="none" stroke="#172033" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+face+'</g><g fill="none" stroke="var(--ling-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+feature+'</g><text x="50" y="16" text-anchor="middle" font-size="15" dominant-baseline="middle">'+top+'</text></svg></div>';
 }
 /* INDEXLING_ART_UPGRADE_V1
    * Each collectible gets a deliberately different silhouette and object-specific
