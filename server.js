@@ -1367,6 +1367,7 @@ function sanitizeAccountState(input){
       activeDates: Array.isArray(p.activeDates) ? p.activeDates.slice(0, 500) : [],
       lessonsLearned: Array.isArray(p.lessonsLearned) ? p.lessonsLearned.slice(0, 5000) : [],
       coins: Math.max(0, Math.min(100000000, Number(p.coins)||0)),
+      freePackTokens: Math.max(0, Math.min(100000, Math.floor(Number(p.freePackTokens)||0))),
       unlockedCosmetics: Array.isArray(p.unlockedCosmetics) ? p.unlockedCosmetics.slice(0, 500) : [],
       claimedBPLevels: Array.isArray(p.claimedBPLevels) ? p.claimedBPLevels.slice(0, 100) : [],
       skinCrates: Math.max(0, Math.min(1000000, Math.floor(Number(p.skinCrates)||0))),
@@ -1576,40 +1577,93 @@ app.put('/api/account/quests', async (req,res)=>{
 // Quest claim is server-authoritative: the quest flag and Battle Pass XP are
 // committed together so a sign-out/reload cannot lose the reward or duplicate it.
 const QUEST_REWARDS = Object.freeze({
-  ai:50, ai2:75, set:75, lessons:100, lessons2:125,
-  xp:75, xp2:125, packs:75, packs2:100, live:100
+  login:{xp:25,coins:20,packTokens:0},
+  ai:{xp:50,coins:0,packTokens:0},
+  set:{xp:75,coins:10,packTokens:0},
+  lessons:{xp:100,coins:0,packTokens:0},
+  live:{xp:100,coins:15,packTokens:0},
+  ai2:{xp:75,coins:20,packTokens:0},
+  lessons2:{xp:125,coins:25,packTokens:0},
+  packs2:{xp:100,coins:25,packTokens:1},
+  ai10:{xp:150,coins:35,packTokens:1},
+  xp:{xp:75,coins:15,packTokens:0},
+  xp2:{xp:150,coins:30,packTokens:1},
+  lessons6:{xp:200,coins:40,packTokens:1}
 });
 const QUEST_GOALS = Object.freeze({
-  ai:3, ai2:6, set:1, lessons:2, lessons2:4,
-  xp:100, xp2:200, packs:1, packs2:2, live:1
+  login:{goal:1,metric:'login'},
+  ai:{goal:3,metric:'ai'},
+  set:{goal:1,metric:'sets'},
+  lessons:{goal:2,metric:'lessons'},
+  live:{goal:1,metric:'liveGames'},
+  ai2:{goal:6,metric:'ai'},
+  lessons2:{goal:4,metric:'lessons'},
+  packs2:{goal:2,metric:'packs'},
+  ai10:{goal:10,metric:'ai'},
+  xp:{goal:100,metric:'xp'},
+  xp2:{goal:250,metric:'xp'},
+  lessons6:{goal:6,metric:'lessons'}
 });
 app.post('/api/account/quest-claim', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
-    if(SUPABASE_ENABLED){
-      const row=await dbFindUserById(req.user.id);
-      if(row) req.user=dbRowToUser(row);
-    }
+    await refreshAccountUserWithState(req);
     const questId=String(req.body?.questId||'');
-    const rewardXP=Number(QUEST_REWARDS[questId]||0);
-    const goal=Number(QUEST_GOALS[questId]||0);
-    if(!rewardXP||!goal) return res.status(400).json({error:'That quest is not claimable.'});
+    const reward=QUEST_REWARDS[questId];
+    const definition=QUEST_GOALS[questId];
+    if(!reward||!definition) return res.status(400).json({error:'That quest is not claimable.'});
+
     const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
-    const quests=existing.quests&&typeof existing.quests==='object'?existing.quests:null;
+    const currentQuests=existing.quests&&typeof existing.quests==='object'?existing.quests:null;
     const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-    if(!quests||String(quests.day||'')!==today) return res.status(409).json({error:'This quest day has expired. Refresh your quests.'});
-    const claimed=quests.claimed&&typeof quests.claimed==='object'?{...quests.claimed}:{};
-    if(claimed[questId]) return res.status(409).json({error:'This quest has already been claimed.',state:existing,quests});
-    const progress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
-    const questProgress=Number(progress[questId==='live'?'liveGames':questId]||0);
-    if(questProgress<goal) return res.status(409).json({error:'This quest is not complete yet.',progress:questProgress,goal});
-    const updatedProgress={...progress,xp:Math.max(0,Number(progress.xp)||0)+rewardXP};
+    if(!currentQuests||String(currentQuests.day||'')!==today){
+      return res.status(409).json({error:'This quest day has expired. Refresh your quests.'});
+    }
+
+    // Accept the client's freshest counters only as a monotonic update to the
+    // server snapshot. These counters are progress telemetry, not rewards.
+    const reported=req.body?.progress&&typeof req.body.progress==='object'?req.body.progress:{};
+    const existingProgress=currentQuests.progress&&typeof currentQuests.progress==='object'?currentQuests.progress:{};
+    const mergedQuestProgress={...existingProgress};
+    Object.keys({...existingProgress,...reported}).forEach(function(k){
+      mergedQuestProgress[k]=Math.max(0,Number(existingProgress[k])||0,Number(reported[k])||0);
+    });
+
+    const claimed=currentQuests.claimed&&typeof currentQuests.claimed==='object'?{...currentQuests.claimed}:{};
+    if(claimed[questId]) return res.status(409).json({error:'This quest has already been claimed.',state:existing,quests:currentQuests});
+
+    const metric=definition.metric;
+    const questProgress=Math.max(0,Number(mergedQuestProgress[metric])||0);
+    if(questProgress<definition.goal){
+      return res.status(409).json({error:'This quest is not complete yet.',progress:questProgress,goal:definition.goal});
+    }
+
+    const previousProgress=existing.progress&&typeof existing.progress==='object'?existing.progress:{};
+    const updatedProgress={
+      ...previousProgress,
+      xp:Math.max(0,Number(previousProgress.xp)||0)+Number(reward.xp||0),
+      coins:Math.max(0,Number(previousProgress.coins)||0)+Number(reward.coins||0),
+      freePackTokens:Math.max(0,Number(previousProgress.freePackTokens)||0)+Number(reward.packTokens||0)
+    };
     claimed[questId]=Date.now();
-    const updatedQuests={...quests,claimed};
+
+    const updatedQuests={
+      ...currentQuests,
+      progress:mergedQuestProgress,
+      claimed
+    };
     const updated=sanitizeAccountState({...existing,progress:updatedProgress,quests:updatedQuests});
-    req.user.accountData=updated;    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    req.user.accountData=updated;
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
     usersById.set(req.user.id,req.user);
-    res.json({ok:true,rewardXP,state:updated.progress,quests:updated.quests});
+
+    const rewardText=[
+      reward.xp?('+'+reward.xp+' XP'):'',
+      reward.coins?('+'+reward.coins+' coins'):'',
+      reward.packTokens?('+'+reward.packTokens+' free pack'+(reward.packTokens===1?'':'s')+' token'):''
+    ].filter(Boolean).join(' · ');
+
+    res.json({ok:true,rewardXP:reward.xp,rewardCoins:reward.coins,rewardPackTokens:reward.packTokens,rewardText,state:updated,quests:updated.quests});
   }catch(e){
     console.error('Quest claim error:',e.message);
     res.status(503).json({error:'Could not save the quest reward right now. Please try again.'});
