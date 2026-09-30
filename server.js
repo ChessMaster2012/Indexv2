@@ -146,15 +146,15 @@ const AI_MAX_INPUT_CHARS = 24000; // Keep useful follow-up context while avoidin
 
 function normalizeTutorMathInput(value){
   let s=String(value||'').replace(/\r\n?/g,'\n');
-
-  // Accept pasted Markdown + LaTeX exactly as it appears when copied from
-  // formatted study material, but send the provider a clean semantic form.
+  // Pasted chat content can contain an extra escape layer around Markdown/LaTeX.
+  s=s.replace(/\\\\(?=[()[\]])/g,'\\');
+  s=s.replace(/\\(?=#{1,6}\s)/g,'');
+  s=s.replace(/\\\*\\\*/g,'**');
+  s=s.replace(/\\(?=[()[\]])/g,'');
   s=s.replace(/^\s{0,3}#{1,6}\s+/gm,'');
   s=s.replace(/\*\*([^*]+)\*\*/g,'$1');
   s=s.replace(/__([^_]+)__/g,'$1');
-  s=s.replace(/^\s*[-*+]\s+/gm,'');
-  s=s.replace(/^\s*\d+[.)]\s+/gm,'');
-  s=s.replace(/\\\[|\\\]|\\\(|\\\)|\\\\/g,' ');
+  // Preserve the mathematical content while removing common TeX wrappers.
   s=s.replace(/\$\$/g,' ');
   s=s.replace(/\\left\b|\\right\b/g,'');
   s=s.replace(/\\[,;:!]|\\quad\b|\\qquad\b/g,' ');
@@ -162,27 +162,21 @@ function normalizeTutorMathInput(value){
   s=s.replace(/\\text(?:rm|bf|it)?\s*\{([^{}]*)\}/g,'$1');
   s=s.replace(/\\mathrm\s*\{([^{}]*)\}/g,'$1');
   s=s.replace(/\\mathbf\s*\{([^{}]*)\}/g,'$1');
-  s=s.replace(/\\mathit\s*\{([^{}]*)\}/g,'$1');
   const commands=[
     ['\\leqslant','≤'],['\\geqslant','≥'],['\\leq','≤'],['\\geq','≥'],['\\le','≤'],['\\ge','≥'],['\\neq','≠'],
     ['\\approx','≈'],['\\equiv','≡'],['\\propto','∝'],['\\pm','±'],['\\mp','∓'],
     ['\\times','×'],['\\cdot','·'],['\\div','÷'],['\\to','→'],['\\rightarrow','→'],
-    ['\\Rightarrow','⇒'],['\\Leftrightarrow','↔'],['\\leftrightarrow','↔'],
-    ['\\infty','∞'],['\\sum','Σ'],['\\int','∫'],['\\partial','∂'],
-    ['\\Delta','Δ'],['\\Sigma','Σ'],['\\alpha','α'],['\\beta','β'],['\\gamma','γ'],
-    ['\\theta','θ'],['\\lambda','λ'],['\\mu','μ'],['\\sigma','σ'],['\\rho','ρ'],
-    ['\\pi','π']
+    ['\\Rightarrow','⇒'],['\\Leftrightarrow','↔'],['\\leftrightarrow','↔'],['\\infty','∞'],
+    ['\\sum','Σ'],['\\int','∫'],['\\partial','∂'],['\\Delta','Δ'],['\\Sigma','Σ'],
+    ['\\alpha','α'],['\\beta','β'],['\\gamma','γ'],['\\theta','θ'],['\\lambda','λ'],
+    ['\\mu','μ'],['\\sigma','σ'],['\\rho','ρ'],['\\pi','π']
   ];
-  // Replace complete TeX command tokens only. Using split/join avoids
-  // accidentally changing normal words such as "changes" when converting \\ge,
-  // or "interval" when converting \\int.
   for(const [token,replacement] of commands) s=s.split(token).join(replacement);
   s=s.replace(/\\sqrt\s*\{([^{}]+)\}/g,'√($1)');
   s=s.replace(/\\sqrt\s*\(([^()]*)\)/g,'√($1)');
   s=s.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,'($1)/($2)');
   return s.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 }
-
 function normalizeAiMessages(messages){
   const raw=Array.isArray(messages)?messages:[];
   const safe=[]; let total=0;
