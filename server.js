@@ -289,8 +289,11 @@ function buildAiMessages(messages){
       ? `Return between ${writingConstraints.requestedParagraphRange.min} and ${writingConstraints.requestedParagraphRange.max} paragraphs.`
       : '';
 
-  const complexQuestion=aiQuestionIsComplex(question);
-  const extremeQuestion=/\b(derive|prove|proof|synthesize|synthesis|counterargument|evaluate|critique|research|DBQ|LEQ|SAQ|document-based|AP|advanced placement|thesis|nuance|multiple parts?|comprehensive)\b/i.test(question)
+  const priorUserTurns=conversationTurns.filter(t=>t.role==='user').slice(0,-1);
+  const inheritedComplexity=followUp && priorUserTurns.some(t=>aiQuestionIsComplex(t.content));
+  const complexQuestion=aiQuestionIsComplex(question) || inheritedComplexity;
+  const extremeQuestion=/\b(derive|prove|proof|synthesize|synthesis|counterargument|evaluate|critique|research|DBQ|LEQ|SAQ|document-based|AP|advanced placement|thesis|nuance|multiple parts?|comprehensive|in depth|deep dive)\b/i.test(question)
+    || (followUp && priorUserTurns.some(t=>/\b(derive|prove|proof|synthesize|DBQ|LEQ|SAQ|AP|advanced placement|comprehensive|in depth|deep dive)\b/i.test(t.content)))
     || String(question||'').length>320;
   const depthRule=complexQuestion
     ? (extremeQuestion
@@ -430,7 +433,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           model:'auto',
           messages,
           stream:!fastTutor,
-          max_tokens:complex ? 1400 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 220 : 420),
+          max_tokens:complex ? 1400 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 220 : 480),
           temperature:0
         }),
         signal:controller.signal
@@ -837,6 +840,8 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
+    const routeFollowUp=isLikelyFollowUp(question);
+    const priorUsers=messages.filter(m=>m && m.role==='user' && String(m.content||'').trim()).slice(0,-1);
 
     // Tiny deterministic arithmetic/radical questions bypass network latency.
     // Substantive Tutor questions still go only to Vireonix Auto.
@@ -845,7 +850,9 @@ app.post('/api/ai/chat',async(req,res)=>{
       return res.json({text:fastAnswer,provider:'Index fast math',model:'deterministic'});
     }
 
-    const complex=aiQuestionIsComplex(question);
+    // A contextual follow-up inherits the difficulty of the problem it refers to.
+    const complex=aiQuestionIsComplex(question) ||
+      (routeFollowUp && priorUsers.some(m=>aiQuestionIsComplex(m.content)));
 
     // ONLY Vireonix Auto answers substantive requests. One upstream request, streamed
     // directly through this server so the first generated tokens reach the UI
@@ -856,7 +863,9 @@ app.post('/api/ai/chat',async(req,res)=>{
       console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
       if(!res.headersSent){
         return res.status(504).json({
-          error:'Vireonix Auto did not answer within the 10-second Tutor target. No fallback model was used.',
+          error:complex
+            ? 'Vireonix Auto did not complete this deep Tutor response within the extended reasoning window. No fallback model was used.'
+            : 'Vireonix Auto did not answer within the quick Tutor target. No fallback model was used.',
           provider:'Vireonix Auto',
           model:'auto',
           detail:providerFailureLabel(e)
@@ -865,7 +874,9 @@ app.post('/api/ai/chat',async(req,res)=>{
       try{
         res.write('data: '+JSON.stringify({
           type:'error',
-          error:'Vireonix Auto did not answer within the 10-second Tutor target. No fallback model was used.'
+          error:complex
+            ? 'Vireonix Auto did not complete this deep Tutor response within the extended reasoning window. No fallback model was used.'
+            : 'Vireonix Auto did not answer within the quick Tutor target. No fallback model was used.'
         })+'\\n\\n');
         res.end();
       }catch{}
