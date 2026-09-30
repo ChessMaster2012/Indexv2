@@ -2583,7 +2583,7 @@ function renderChatLog(){
 }
 function startAiWorkStatus(complex=false){
   stopAiWorkStatus();
-  state.aiWork={startedAt:Date.now(),timerId:null,estimateSec:complex?13:5,stage:complex?'Working through your question…':'Generating your answer…',complex};
+  state.aiWork={startedAt:Date.now(),timerId:null,estimateSec:complex?9:4,stage:complex?'Deep AP-level reasoning…':'Generating a quick answer…',complex};
   const box=document.getElementById('ai-work-status'); if(box) box.classList.remove('hidden');
   updateAiWorkStatus();
   state.aiWork.timerId=setInterval(updateAiWorkStatus,250);
@@ -2596,11 +2596,13 @@ function updateAiWorkStatus(){
   const stage=document.getElementById('ai-stage'), elapsedEl=document.getElementById('ai-elapsed'), eta=document.getElementById('ai-eta');
   if(stage) stage.textContent=state.aiWork.stage||'Working…';
   if(elapsedEl) elapsedEl.textContent=`${Math.floor(elapsed)}s`;
-  if(eta) eta.textContent=remain>0?`Est. ${remain}s remaining`:(state.aiWork.complex?'Taking longer than estimated…':'Almost done…');
+  if(eta) eta.textContent=remain>0?`Est. ${remain}s remaining`:(state.aiWork.complex?'Finishing deep reasoning…':'Almost done…');
 }
 function estimateAiDifficulty(text){
-  const q=String(text||'').toLowerCase();
-  return /\b(why|explain|analy[sz]e|compare|contrast|derive|prove|evaluate|interpret|how does|how would|step by step|reason|evidence|essay)\b/.test(q) || q.length>180;
+  const q=String(text||'').toLowerCase().trim();
+  const deep=/\b(code|debug|program|prove|derive|analy[sz]e|compare|contrast|essay|research|step by step|reason through|evaluate|significance|justify|synthesize|interpret|critique|assess|evidence|counterargument|causation|rhetorical|primary source|document-based|ap|advanced placement|saq|leq|dbq|thesis|nuance|show your work)\b/.test(q);
+  const multiPart=/\b(?:and|then|while|whereas|although)\b/.test(q) && q.length>90;
+  return deep || multiPart || q.length>180;
 }
 async function sendChat(){
   const ta = document.getElementById('tutor-textarea'); const text = ta.value.trim();
