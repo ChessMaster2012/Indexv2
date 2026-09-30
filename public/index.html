@@ -471,6 +471,40 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .pack-result{padding:17px 10px 3px}.pack-result .result-rarity{font-size:11px;font-weight:950;letter-spacing:.15em;text-transform:uppercase}.pack-result .result-name{font-family:var(--font-display);font-size:28px;margin-top:3px}.pack-result .result-note{font-size:12px;color:var(--ink-soft);margin-top:4px}
 @keyframes packPop{0%{transform:scale(.88);opacity:.2}70%{transform:scale(1.04)}100%{transform:scale(1);opacity:1}}
 .pack-result.reveal{animation:packPop .45s ease}
+.skin-crate-modal{position:fixed;inset:0;z-index:12500;background:rgba(9,6,22,.84);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px}
+.skin-crate-modal.hidden{display:none}
+.skin-crate-card{width:min(700px,96vw);background:#f8f6ff;border-radius:28px;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.45);text-align:center}
+.skin-crate-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.skin-crate-head h3{font-family:var(--font-display);font-size:24px}
+.skin-crate-close{border:none;background:#ece8f6;color:var(--ink);border-radius:10px;width:34px;height:34px;font-size:22px}
+.skin-reel-window{height:310px;position:relative;overflow:hidden;border-radius:22px;background:#171329;border:4px solid #2e2750;box-shadow:inset 0 0 40px rgba(0,0,0,.55),0 12px 30px rgba(0,0,0,.18);margin-top:12px}
+.skin-reel-window:before,.skin-reel-window:after{content:"";position:absolute;left:0;right:0;height:70px;z-index:4;pointer-events:none}
+.skin-reel-window:before{top:0;background:linear-gradient(#171329,transparent)}
+.skin-reel-window:after{bottom:0;background:linear-gradient(transparent,#171329)}
+.skin-reel-marker{position:absolute;z-index:6;left:5%;right:5%;top:50%;height:112px;transform:translateY(-50%);border:2px solid rgba(255,255,255,.92);border-radius:18px;box-shadow:0 0 0 5px rgba(124,92,252,.2),0 0 34px rgba(124,92,252,.35);pointer-events:none}
+.skin-reel-track{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;gap:8px;padding:8px 5%;will-change:transform}
+.skin-reel-item{height:104px;flex:0 0 104px;border-radius:16px;display:grid;grid-template-columns:82px 1fr auto;align-items:center;gap:12px;padding:10px 16px;color:#fff;border:1px solid rgba(255,255,255,.16);background:linear-gradient(135deg,#28213f,#161329);box-shadow:0 7px 18px rgba(0,0,0,.18);text-align:left}
+.skin-reel-item .skin-reel-ling{width:74px;height:74px;display:grid;place-items:center}
+.skin-reel-item .skin-reel-ling .indexling-svg{width:68px;height:68px}
+.skin-reel-item .skin-reel-name{font-weight:950;font-size:14px}
+.skin-reel-item .skin-reel-sub{font-size:10px;opacity:.76;margin-top:4px;text-transform:uppercase;letter-spacing:.12em}
+.skin-reel-item .skin-reel-icon{font-size:28px}
+.skin-reel-common{background:linear-gradient(135deg,#4e5866,#252b34)}
+.skin-reel-rare{background:linear-gradient(135deg,#267fd1,#273e82)}
+.skin-reel-epic{background:linear-gradient(135deg,#963de0,#442078)}
+.skin-crate-result{padding:15px 8px 2px;min-height:92px}
+.skin-crate-result-name{font-family:var(--font-display);font-size:28px;font-weight:800}
+.skin-crate-result-meta{font-size:12px;color:var(--ink-soft);margin-top:3px}
+.skin-crate-actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.skin-inventory-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:12px;margin:10px 0 18px}
+.skin-inventory-card{background:#fff;border:2px solid var(--line);border-radius:18px;padding:14px;display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:center;box-shadow:0 7px 20px rgba(36,31,61,.05)}
+.skin-inventory-card.active{border-color:#2fd48b;background:#f5fffb}
+.skin-inventory-art{width:84px;height:84px;display:grid;place-items:center;background:#f4f1e9;border-radius:15px}
+.skin-inventory-name{font-size:15px;font-weight:900}
+.skin-inventory-sub{font-size:11px;color:var(--ink-soft);margin-top:3px}
+.skin-inventory-actions{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap}
+.skin-tag{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;background:#f1ecff;font-size:10px;font-weight:900}
+@media(max-width:640px){.skin-reel-item{grid-template-columns:64px 1fr auto;padding:8px 10px}.skin-reel-item .skin-reel-ling{width:58px;height:58px}.skin-inventory-card{grid-template-columns:70px 1fr}.skin-inventory-art{width:70px;height:70px}}
 
 .rewards-layout{display:grid;grid-template-columns:76px minmax(0,1fr);gap:14px;align-items:start}
 .rewards-rail{position:sticky;top:18px;display:flex;flex-direction:column;gap:10px}
@@ -1505,7 +1539,7 @@ function loadLocalData(){
   state.notes = lsGet('index-notes', []);
   state.studySets = lsGet('index-studysets', []);
   const p = lsGet('index-progress', {});
-  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0)), unlockedSkins:Array.isArray(p.unlockedSkins)?p.unlockedSkins:[], claimedSkinCrateLevels:Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels:[], equipped:p.equipped||{indexling:'ling-sugarbug',indexlingSkin:''}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
+  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0)), unlockedSkins:Array.isArray(p.unlockedSkins)?p.unlockedSkins:[], claimedSkinCrateLevels:Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels:[], equipped:p.equipped||{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{}}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
   state.customTopics = lsGet('index-customtopics', {});
   state.profile = lsGet('index-profile', {});
   state.district = state.profile.district || '';
@@ -1862,6 +1896,139 @@ function updateCoinDisplays(){
   document.querySelectorAll('.wallet-coins,.coin-balance,.account-coin-value').forEach(el=>{ el.textContent=coins; });
   const accountCoins=document.getElementById('account-coins'); if(accountCoins) accountCoins.textContent=coins;
   renderSidebarBadge();
+}
+const SKIN_CRATE_WEIGHTS=[
+  {id:'skin-gold',weight:26},
+  {id:'skin-silver',weight:18},
+  {id:'skin-chrome',weight:18},
+  {id:'skin-ruby',weight:11},
+  {id:'skin-sapphire',weight:11},
+  {id:'skin-emerald',weight:8},
+  {id:'skin-lava',weight:4},
+  {id:'skin-ice',weight:4}
+];
+function weightedSkinRoll(){
+  let n=randomUnit()*SKIN_CRATE_WEIGHTS.reduce((a,x)=>a+x.weight,0);
+  for(const item of SKIN_CRATE_WEIGHTS){ n-=item.weight;if(n<0)return skinById(item.id); }
+  return skinById('skin-gold');
+}
+function availableSkinIndexlings(){
+  ensureRewardUnlocks();
+  const owned=new Set((state.progress.unlockedCosmetics||[]).filter(id=>!!cosmeticById(id)));
+  const list=REWARD_COSMETICS.filter(c=>c.type==='indexling'&&owned.has(c.id));
+  return list.length?list:[cosmeticById('ling-sugarbug')];
+}
+function skinPairOwned(indexlingId,skinId){
+  normalizeOwnedSkinInventory();
+  return state.progress.unlockedSkins.some(r=>r&&r.indexlingId===indexlingId&&r.skinId===skinId);
+}
+function rollSkinPair(){
+  const lings=availableSkinIndexlings();
+  const candidates=[];
+  lings.forEach(ling=>INDEXLING_SKINS.forEach(sk=>{
+    if(!skinPairOwned(ling.id,sk.id))candidates.push({indexlingId:ling.id,skinId:sk.id});
+  }));
+  if(candidates.length){
+    const pair=candidates[Math.floor(randomUnit()*candidates.length)];
+    return {indexling:cosmeticById(pair.indexlingId),skin:skinById(pair.skinId)};
+  }
+  const indexling=lings[Math.floor(randomUnit()*lings.length)];
+  return {indexling,skin:weightedSkinRoll()};
+}
+function skinRarityClass(r){return 'skin-reel-'+String(r||'Common').toLowerCase();}
+function buildSkinReelItems(winner){
+  const items=[],lings=availableSkinIndexlings();
+  for(let i=0;i<18;i++){
+    const ling=lings[Math.floor(randomUnit()*lings.length)],sk=weightedSkinRoll();
+    items.push({indexling:ling,skin:sk});
+  }
+  items.splice(9,0,winner);
+  return items;
+}
+function ensureSkinCrateModal(){
+  let modal=document.getElementById('skin-crate-modal');
+  if(modal)return modal;
+  modal=document.createElement('div');
+  modal.id='skin-crate-modal';
+  modal.className='skin-crate-modal hidden';
+  modal.innerHTML='<div class="skin-crate-card"><div class="skin-crate-head"><h3>🧰 Skin Crate</h3><button class="skin-crate-close" data-action="close-skin-crate" aria-label="Close">×</button></div><div class="reward-muted">A random Indexling and a random skin are being rolled for your collection.</div><div class="skin-reel-window"><div class="skin-reel-marker"></div><div class="skin-reel-track" id="skin-reel-track"></div></div><div class="skin-crate-result" id="skin-crate-result"><div class="reward-muted">Rolling…</div></div></div>';
+  document.body.appendChild(modal);
+  return modal;
+}
+function closeSkinCrateModal(){
+  if(state.skinCrateOpening)return;
+  document.getElementById('skin-crate-modal')?.classList.add('hidden');
+}
+function equipSkinRecord(indexlingId,skinId){
+  ensureRewardUnlocks();
+  const ling=cosmeticById(indexlingId),sk=skinById(skinId);
+  if(!ling||!sk||!skinPairOwned(ling.id,sk.id))return;
+  const eq=state.progress.equipped||{};
+  if(!eq.skinByIndexling||typeof eq.skinByIndexling!=='object')eq.skinByIndexling={};
+  eq.indexling=ling.id;
+  eq.indexlingSkin=sk.id;
+  eq.skinByIndexling[ling.id]=sk.id;
+  state.progress.equipped=eq;
+  persistProgress();
+  persistProgressLocalOnly();
+  renderProfileSlot();
+  if(state.view==='rewards')renderRewards();
+  showRewardToast('✨ '+sk.name+' equipped on '+ling.name);
+}
+function equipIndexlingSkin(skinId,indexlingId){
+  // Backward-compatible argument order for any old buttons still on the page.
+  if(indexlingId) equipSkinRecord(indexlingId,skinId);
+}
+function unequipIndexlingSkin(indexlingId){
+  ensureRewardUnlocks();
+  const eq=state.progress.equipped||{};
+  if(eq.skinByIndexling&&eq.skinByIndexling[indexlingId])delete eq.skinByIndexling[indexlingId];
+  if(eq.indexling===indexlingId){
+    eq.indexlingSkin='';
+  }
+  state.progress.equipped=eq;
+  persistProgress();
+  persistProgressLocalOnly();
+  renderProfileSlot();
+  if(state.view==='rewards')renderRewards();
+  showRewardToast('Skin removed from '+(cosmeticById(indexlingId)?.name||'Indexling'));
+}
+function openSkinCrate(){
+  if(!state.account){promptAccountForPersistentView('rewards');return;}
+  ensureRewardUnlocks();
+  if(state.skinCrateOpening)return;
+  if((state.progress.skinCrates||0)<=0){showRewardToast('You do not have a Skin Crate yet.');return;}
+  const modal=ensureSkinCrateModal(),track=modal.querySelector('#skin-reel-track'),result=modal.querySelector('#skin-crate-result');
+  const winner=rollSkinPair();
+  state.skinCrateOpening=true;
+  state.progress.skinCrates=Math.max(0,(state.progress.skinCrates||0)-1);
+  const record=skinRecord(winner.indexling.id,winner.skin.id);
+  normalizeOwnedSkinInventory();
+  state.progress.unlockedSkins.push(record);
+  persistProgress();
+  persistProgressLocalOnly();
+  const reels=buildSkinReelItems(winner);
+  track.innerHTML=reels.map(function(item){
+    return '<div class="skin-reel-item '+skinRarityClass(item.skin.rarity)+'"><div class="skin-reel-ling">'+indexlingArtHtml(item.indexling,true,item.skin)+'</div><div><div class="skin-reel-name">'+esc(item.indexling.name)+' · '+esc(item.skin.name)+'</div><div class="skin-reel-sub">'+esc(item.skin.rarity)+' SKIN</div></div><div class="skin-reel-icon">'+item.skin.icon+'</div></div>';
+  }).join('');
+  result.innerHTML='<div class="reward-muted">Rolling for your Indexling + skin…</div>';
+  modal.classList.remove('hidden');
+  const cards=Array.from(track.querySelectorAll('.skin-reel-item')),selectedIndex=9,selected=cards[selectedIndex];
+  track.style.transition='none';track.style.transform='translateY(0px)';void track.offsetHeight;
+  const wrap=track.parentElement,selectedRect=selected?.getBoundingClientRect(),wrapRect=wrap?.getBoundingClientRect();
+  const offset=selectedRect&&wrapRect?Math.round((wrapRect.top+wrapRect.height/2)-(selectedRect.top+selectedRect.height/2)):0;
+  let tick=0;clearInterval(state.skinCrateTick);
+  state.skinCrateTick=setInterval(function(){tick++;playPackTick();if(tick>=50)clearInterval(state.skinCrateTick);},90);
+  track.style.transition='transform 5.6s cubic-bezier(.035,.8,.08,1)';
+  track.style.transform='translateY('+offset+'px)';
+  setTimeout(function(){
+    clearInterval(state.skinCrateTick);
+    state.skinCrateOpening=false;
+    playPackReveal();celebrate();
+    const duplicate=skinPairOwned(winner.indexling.id,winner.skin.id);
+    result.innerHTML='<div class="skin-crate-result-name">'+winner.skin.icon+' '+esc(winner.skin.name)+'</div><div class="skin-crate-result-meta">Rolled for <strong>'+esc(winner.indexling.name)+'</strong> · '+esc(winner.skin.rarity)+'</div><div class="skin-crate-result-meta">'+(duplicate?'Already owned this Indexling + skin pair.':'Added to your skin collection.')+'</div><div class="skin-crate-actions"><button class="btn btn-primary" data-action="equip-indexling-skin" data-indexling="'+winner.indexling.id+'" data-skin="'+winner.skin.id+'">Equip Skin</button><button class="btn btn-ghost" data-action="close-skin-crate">Keep in Inventory</button></div>';
+    renderRewards();
+  },5900);
 }
 function openRewardPack(kind='study'){
   const cfg=packConfig(kind);
@@ -2234,24 +2401,35 @@ function renderRewards(){
         }).join('')+'</div></div>';
       }).join('')+'</section>';
     }).join('');
-    const ownedSkins=(state.progress.unlockedSkins||[]).map(id=>{const sk=skinById(id);if(!sk)return '';const active=eq.indexlingSkin===id;return '<button class="skin-chip '+(active?'skin-chip-active':'')+'" data-action="equip-indexling-skin" data-id="'+id+'">'+sk.icon+' '+esc(sk.name)+(active?' · Equipped':' · Use')+'</button>';}).join('');
-    body='<div class="avatar-stage">'+avatarPreviewHtml()+'<div class="current-collectible">Your equipped Indexling and skin are synced to your account.</div></div><div class="skin-panel"><div><h3>Skin Crates</h3><p class="reward-muted">'+(state.progress.skinCrates||0)+' crates ready · '+(state.progress.unlockedSkins||[]).length+' skins owned.</p></div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>🧰 Open Skin Crate</button></div><div class="owned-skins">'+(ownedSkins||'<span class="reward-muted">No skins yet.</span>')+'</div><div class="panel"><h3>Indexling collection</h3><p class="reward-muted">Grouped by pack, then Common → Rare → Epic → Legendary. Locked Indexlings stay hidden until you unlock them.</p>'+grouped+'</div>';
+    const ownedSkinRecords=(state.progress.unlockedSkins||[]).map(entry=>typeof entry==='string'?{skinId:entry,indexlingId:'ling-sugarbug'}:entry).filter(r=>r&&skinById(r.skinId)&&cosmeticById(r.indexlingId));
+    const ownedSkins=ownedSkinRecords.map(r=>{const sk=skinById(r.skinId),ling=cosmeticById(r.indexlingId),active=getEquippedSkinId(ling.id)===sk.id;return '<div class="skin-chip '+(active?'skin-chip-active':'')+'">'+sk.icon+' '+esc(sk.name)+' · '+esc(ling.name)+(active?' · Equipped':'')+'</div>';}).join('');
+    body='<div class="avatar-stage">'+avatarPreviewHtml()+'<div class="current-collectible">Your equipped Indexling and skin are synced to your account.</div></div><div class="skin-panel"><div><h3>Skin Crates</h3><p class="reward-muted">'+(state.progress.skinCrates||0)+' crates ready · '+ownedSkinRecords.length+' skin assignments owned.</p></div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>🧰 Open Skin Crate</button></div><div class="owned-skins">'+(ownedSkins||'<span class="reward-muted">No skins yet.</span>')+'</div><div class="panel"><h3>Indexling collection</h3><p class="reward-muted">Grouped by pack, then Common → Rare → Epic → Legendary. Locked Indexlings stay hidden until you unlock them.</p>'+grouped+'</div>';
    } else if(tab==='inventory'){
     const groups=[['indexling','Indexlings']];
     const inventoryGroups=groups.map(([type,label])=>{
       const items=REWARD_COSMETICS.filter(c=>c.type===type).map(c=>{
         const ok=unlocked.includes(c.id);
+        const equipped=eq.indexling===c.id;
+        const activeSkin=getEquippedSkinId(c.id);
         return `<div class="inventory-item ${ok?'unlocked':'locked'}">
-          <div class="inventory-art">${c.type==='indexling'?indexlingArtHtml(c,true):c.icon}</div>
+          <div class="inventory-art">${c.type==='indexling'?indexlingArtHtml(c,true,getEquippedSkinForIndexling(c.id)):c.icon}</div>
           ${ok?'':'<div class="inventory-lock">🔒</div>'}
           <div class="inventory-name">${esc(c.name)}</div>
           <div class="inventory-rarity">${esc(c.rarity)}</div>
           <div class="${ok?'inventory-owned':'inventory-locked-label'}">${ok?'✓ Unlocked':'Locked · Open packs or reach the required reward'}</div>
+          ${ok&&activeSkin?'<div class="skin-tag">'+(skinById(activeSkin)?.icon||'✦')+' '+esc(skinById(activeSkin)?.name||'Skin')+'</div>':''}
+          ${ok&&equipped?'<div class="reward-muted" style="margin-top:5px;font-weight:900;">★ Currently selected</div>':''}
         </div>`;
       }).join('');
       return `<div class="inventory-group"><h3>${label}</h3><div class="inventory-grid">${items}</div></div>`;
     }).join('');
-    body=`<div class="panel"><div class="inventory-summary"><div><h3 style="font-size:20px;">🎒 Inventory</h3><p class="reward-muted">Unlocked cosmetics are shown normally. Locked cosmetics have a greyed-out lock overlay until you earn them.</p></div><div class="inventory-count"><strong>${unlocked.length}</strong> / ${REWARD_COSMETICS.length} unlocked · ${state.progress.openedPacks||0} packs opened</div></div><div>${inventoryGroups}</div></div>`;
+    const skinRecords=(state.progress.unlockedSkins||[]).map(entry=>typeof entry==='string'?{skinId:entry,indexlingId:'ling-sugarbug'}:entry).filter(r=>r&&skinById(r.skinId)&&cosmeticById(r.indexlingId));
+    const skinCards=skinRecords.map(function(r){
+      const sk=skinById(r.skinId),ling=cosmeticById(r.indexlingId),active=getEquippedSkinId(ling.id)===sk.id;
+      return '<div class="skin-inventory-card '+(active?'active':'')+'"><div class="skin-inventory-art">'+indexlingArtHtml(ling,true,sk)+'</div><div><div class="skin-inventory-name">'+sk.icon+' '+esc(sk.name)+'</div><div class="skin-inventory-sub">'+esc(ling.name)+' · '+esc(sk.rarity)+'</div><div class="skin-tag" style="margin-top:6px;">'+(active?'★ Equipped':'Skin for '+esc(ling.name))+'</div></div><div class="skin-inventory-actions"><button class="btn '+(active?'btn-dark':'btn-primary')+' btn-sm" data-action="equip-indexling-skin" data-indexling="'+ling.id+'" data-skin="'+sk.id+'">'+(active?'Equipped':'Equip Skin')+'</button>'+(active?'<button class="btn btn-ghost btn-sm" data-action="unequip-indexling-skin" data-indexling="'+ling.id+'">Remove Skin</button>':'')+'</div></div>';
+    }).join('');
+    const skinSection='<div class="panel"><h3>✨ Skin Collection</h3><p class="reward-muted">Each skin belongs to the specific Indexling it was rolled for. You can keep multiple skins and equip or remove them independently.</p>'+(skinCards?'<div class="skin-inventory-grid">'+skinCards+'</div>':'<div class="reward-muted">No Indexling skins yet. Open a Skin Crate to start collecting.</div>')+'</div>';
+    body=`<div class="panel"><div class="inventory-summary"><div><h3 style="font-size:20px;">🎒 Inventory</h3><p class="reward-muted">Your Indexlings, assigned skins, and current equipment are shown here.</p></div><div class="inventory-count"><strong>${unlocked.length}</strong> / ${REWARD_COSMETICS.length} Indexlings · ${skinRecords.length} skins</div></div><div>${inventoryGroups}</div></div>`+skinSection;
   } else if(tab==='daily'){
     const wheelToday=String(state.progress.dailyWheelDate||'')===coinDayStr(), lastReward=Number(state.progress.dailyWheelReward)||0;
     const values=DAILY_WHEEL_VALUES;
@@ -4243,7 +4421,9 @@ document.addEventListener('click', async (e)=>{
    else if(action==='daily-wheel-spin'){ dailyWheelSpin(); }
   else if(action==='equip-cosmetic'){ equipCosmetic(t.dataset.id); }
   else if(action==='open-skin-crate'){ openSkinCrate(); }
-  else if(action==='equip-indexling-skin'){ equipIndexlingSkin(t.dataset.id); }
+  else if(action==='close-skin-crate'){ closeSkinCrateModal(); }
+  else if(action==='equip-indexling-skin'){ equipIndexlingSkin(t.dataset.skin||t.dataset.id||'',t.dataset.indexling||''); }
+  else if(action==='unequip-indexling-skin'){ unequipIndexlingSkin(t.dataset.indexling||''); }
   else if(action==='open-pack'){ openRewardPack(t.dataset.pack||'study'); }
   else if(action==='close-pack-modal'){ closePackModal(); }
   else if(action==='live-goto-hub'){ state.live.screen='hub'; renderLive(); }
