@@ -1,9 +1,10 @@
 # Index Membership / Stripe Setup
 
-Index supports three membership tiers:
+Index supports four membership tiers:
 
 Basic: $0/month — 50 saved study sets, 50 saved notes
 Gold: $4.99/month — 250 saved study sets, 250 saved notes
+Platinum: $7.49/month — 500 saved study sets, 350 saved notes
 Diamond: $9.99/month — 1,000 saved study sets, 500 saved notes
 
 Diamond is displayed as BEST VALUE in the Index membership UI.
@@ -24,16 +25,18 @@ Add these variables to the Render service environment:
   STRIPE_SECRET_KEY=...
   STRIPE_WEBHOOK_SECRET=...
   STRIPE_GOLD_PRICE_ID=...
+  STRIPE_PLATINUM_PRICE_ID=...
   STRIPE_DIAMOND_PRICE_ID=...
 
 Never put STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET in public/index.html, GitHub source, or client-side JavaScript.
 
 ## Stripe products and prices
 
-Create two recurring monthly prices in the authorized Stripe account:
+Create three recurring monthly prices in the authorized Stripe account:
   Gold: $4.99 USD / month
+  Platinum: $7.49 USD / month
   Diamond: $9.99 USD / month
-Use the resulting Stripe Price IDs as STRIPE_GOLD_PRICE_ID and STRIPE_DIAMOND_PRICE_ID.
+Use the resulting Stripe Price IDs as STRIPE_GOLD_PRICE_ID, STRIPE_PLATINUM_PRICE_ID, and STRIPE_DIAMOND_PRICE_ID.
 
 ## Webhook events handled
 
@@ -43,12 +46,12 @@ Use the resulting Stripe Price IDs as STRIPE_GOLD_PRICE_ID and STRIPE_DIAMOND_PR
   customer.subscription.deleted
   invoice.payment_failed
 
-Paid access is derived from verified server-side membership state; browser storage cannot promote an account to Gold or Diamond.
+Paid access is derived from verified server-side membership state; browser storage cannot promote an account to Gold, Platinum, or Diamond.
 
 ## User flow
 
-1. Sign in and open Rewards -> Membership.
-2. Choose Gold or Diamond.
+1. Sign in and open the Membership tab.
+2. Choose Gold, Platinum, or Diamond.
 3. Index creates a Stripe Checkout Session on the server.
 4. Payment is completed on Stripe's hosted checkout page.
 5. Stripe sends a signed webhook to Index.
