@@ -156,18 +156,18 @@ function snap(){
 }
 
 const QUEST_DEFS=[
-  {id:'login',category:'Daily',icon:'🌅',title:'Daily Check-In',desc:'Sign in to Index today.',goal:1,metric:'login',rewardXP:25,rewardCoins:20,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'ai',category:'Daily',icon:'💬',title:'Ask the Tutor',desc:'Ask the AI Tutor 3 times today.',goal:3,metric:'ai',rewardXP:50,rewardCoins:0,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'set',category:'Study',icon:'🗂️',title:'Build Your Deck',desc:'Create 1 study set today.',goal:1,metric:'sets',rewardXP:75,rewardCoins:10,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'lessons',category:'Study',icon:'🎓',title:'Topic Explorer',desc:'Finish 2 topic lessons today.',goal:2,metric:'lessons',rewardXP:100,rewardCoins:0,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'live',category:'Study',icon:'🎮',title:'Live Challenger',desc:'Play 1 Live Game today.',goal:1,metric:'liveGames',rewardXP:100,rewardCoins:15,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'ai2',category:'Challenge',icon:'🧠',title:'Tutor Marathon',desc:'Ask the AI Tutor 6 times today.',goal:6,metric:'ai',rewardXP:75,rewardCoins:20,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'lessons2',category:'Challenge',icon:'📚',title:'Topic Master',desc:'Finish 4 topic lessons today.',goal:4,metric:'lessons',rewardXP:125,rewardCoins:25,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'packs2',category:'Challenge',icon:'📦',title:'Pack Collector',desc:'Open 2 Indexling packs today.',goal:2,metric:'packs',rewardXP:100,rewardCoins:25,rewardPackTokens:1,rewardSkinCrates:1},
-  {id:'ai10',category:'Challenge',icon:'🔥',title:'Tutor Endurance',desc:'Ask the AI Tutor 10 times today.',goal:10,metric:'ai',rewardXP:150,rewardCoins:35,rewardPackTokens:1,rewardSkinCrates:1},
-  {id:'xp',category:'Milestone',icon:'⚡',title:'Momentum',desc:'Earn 100 XP today.',goal:100,metric:'xp',rewardXP:75,rewardCoins:15,rewardPackTokens:0,rewardSkinCrates:1},
-  {id:'xp2',category:'Milestone',icon:'🚀',title:'XP Rush',desc:'Earn 250 XP today.',goal:250,metric:'xp',rewardXP:150,rewardCoins:30,rewardPackTokens:1,rewardSkinCrates:1},
-  {id:'lessons6',category:'Milestone',icon:'🏆',title:'Course Crusher',desc:'Finish 6 topic lessons today.',goal:6,metric:'lessons',rewardXP:200,rewardCoins:40,rewardPackTokens:1,rewardSkinCrates:1}
+  {id:'login',category:'Daily',icon:'🌅',title:'Daily Check-In',desc:'Sign in to Index today.',goal:1,metric:'login',rewardXP:25,rewardCoins:20,rewardPackTokens:0},
+  {id:'ai',category:'Daily',icon:'💬',title:'Ask the Tutor',desc:'Ask the AI Tutor 3 times today.',goal:3,metric:'ai',rewardXP:50,rewardCoins:0,rewardPackTokens:0},
+  {id:'set',category:'Study',icon:'🗂️',title:'Build Your Deck',desc:'Create 1 study set today.',goal:1,metric:'sets',rewardXP:75,rewardCoins:10,rewardPackTokens:0},
+  {id:'lessons',category:'Study',icon:'🎓',title:'Topic Explorer',desc:'Finish 2 topic lessons today.',goal:2,metric:'lessons',rewardXP:100,rewardCoins:0,rewardPackTokens:0},
+  {id:'live',category:'Study',icon:'🎮',title:'Live Challenger',desc:'Play 1 Live Game today.',goal:1,metric:'liveGames',rewardXP:100,rewardCoins:15,rewardPackTokens:0},
+  {id:'ai2',category:'Challenge',icon:'🧠',title:'Tutor Marathon',desc:'Ask the AI Tutor 6 times today.',goal:6,metric:'ai',rewardXP:75,rewardCoins:20,rewardPackTokens:0},
+  {id:'lessons2',category:'Challenge',icon:'📚',title:'Topic Master',desc:'Finish 4 topic lessons today.',goal:4,metric:'lessons',rewardXP:125,rewardCoins:25,rewardPackTokens:0},
+  {id:'packs2',category:'Challenge',icon:'📦',title:'Pack Collector',desc:'Open 2 Indexling packs today.',goal:2,metric:'packs',rewardXP:100,rewardCoins:25,rewardPackTokens:1},
+  {id:'ai10',category:'Challenge',icon:'🔥',title:'Tutor Endurance',desc:'Ask the AI Tutor 10 times today.',goal:10,metric:'ai',rewardXP:150,rewardCoins:35,rewardPackTokens:1},
+  {id:'xp',category:'Milestone',icon:'⚡',title:'Momentum',desc:'Earn 100 XP today.',goal:100,metric:'xp',rewardXP:75,rewardCoins:15,rewardPackTokens:0},
+  {id:'xp2',category:'Milestone',icon:'🚀',title:'XP Rush',desc:'Earn 250 XP today.',goal:250,metric:'xp',rewardXP:150,rewardCoins:30,rewardPackTokens:1},
+  {id:'lessons6',category:'Milestone',icon:'🏆',title:'Course Crusher',desc:'Finish 6 topic lessons today.',goal:6,metric:'lessons',rewardXP:200,rewardCoins:40,rewardPackTokens:1}
 ];
 function questRewardText(q){
   const parts=[];
