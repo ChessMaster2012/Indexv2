@@ -22,10 +22,19 @@ const SUPABASE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 const GOOGLE_CLIENT_ID = String(process.env.GOOGLE_CLIENT_ID || '');
 const GOOGLE_CLIENT_SECRET = String(process.env.GOOGLE_CLIENT_SECRET || '');
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
+const STRIPE_SECRET_KEY = String(process.env.STRIPE_SECRET_KEY || '');
+const STRIPE_WEBHOOK_SECRET = String(process.env.STRIPE_WEBHOOK_SECRET || '');
+const STRIPE_GOLD_PRICE_ID = String(process.env.STRIPE_GOLD_PRICE_ID || '');
+const STRIPE_DIAMOND_PRICE_ID = String(process.env.STRIPE_DIAMOND_PRICE_ID || '');
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({
+  limit: '2mb',
+  verify: (req,res,buf) => {
+    if (req.path === '/api/billing/webhook') req.rawBody = Buffer.from(buf);
+  }
+}));
 
 // Conservative browser/security headers for a student-facing educational site.
 // These do not require extra services and keep camera, microphone, and location
@@ -1362,6 +1371,19 @@ function sanitizeAccountState(input){
     notes,
     studySets,
     customTopics,
+    membership: (() => {
+      const m=src.membership&&typeof src.membership==='object'?src.membership:{};
+      const tier=['free','gold','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
+      const status=['active','trialing','past_due','cancelled','incomplete','unpaid'].includes(String(m.status||''))?String(m.status):'active';
+      return {
+        tier,status,
+        customerId:String(m.customerId||'').slice(0,120),
+        subscriptionId:String(m.subscriptionId||'').slice(0,120),
+        currentPeriodEnd:Math.max(0,Number(m.currentPeriodEnd)||0),
+        cancelAtPeriodEnd:m.cancelAtPeriodEnd===true,
+        updatedAt:Math.max(0,Number(m.updatedAt)||0)
+      };
+    })(),
     progress: {
       xp: Math.max(0, Math.min(100000000, Number(p.xp)||0)),
       activeDates: Array.isArray(p.activeDates) ? p.activeDates.slice(0, 500) : [],
@@ -1507,6 +1529,146 @@ function mergeQuestState(existingQuest,incomingQuest){
   };
 }
 
+
+/* ============================== MEMBERSHIP / BILLING ============================== */
+const MEMBERSHIP_PLANS = Object.freeze({
+  free:{tier:'free',name:'Free',priceCents:0,interval:'month',studySetLimit:50,noteLimit:50,features:['Core study tools','AI Tutor','Up to 50 saved study sets','Up to 50 saved notes','Daily rewards']},
+  gold:{tier:'gold',name:'Gold',priceCents:499,interval:'month',studySetLimit:250,noteLimit:250,features:['Everything in Free','Up to 250 saved study sets','Up to 250 saved notes','Gold membership badge','Higher account limits']},
+  diamond:{tier:'diamond',name:'Diamond',priceCents:999,interval:'month',studySetLimit:1000,noteLimit:500,features:['Everything in Gold','Up to 1,000 saved study sets','Up to 500 saved notes','Diamond membership badge','Highest account limits']}
+});
+function membershipTierForUser(user){
+  const m=user?.accountData?.membership||{};
+  const tier=['free','gold','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
+  const status=String(m.status||'active');
+  return tier!=='free'&&['cancelled','unpaid'].includes(status)?'free':tier;
+}
+function membershipForUser(user){
+  const m=user?.accountData?.membership&&typeof user.accountData.membership==='object'?user.accountData.membership:{};
+  const tier=membershipTierForUser(user);
+  return {tier,status:String(m.status||'active'),customerId:String(m.customerId||''),subscriptionId:String(m.subscriptionId||''),currentPeriodEnd:Math.max(0,Number(m.currentPeriodEnd)||0),cancelAtPeriodEnd:m.cancelAtPeriodEnd===true,plan:MEMBERSHIP_PLANS[tier]};
+}
+function billingClientState(user){
+  const m=membershipForUser(user);
+  return {tier:m.tier,status:m.status,currentPeriodEnd:m.currentPeriodEnd,cancelAtPeriodEnd:m.cancelAtPeriodEnd,plan:m.plan};
+}
+function stripeConfigured(){
+  return Boolean(STRIPE_SECRET_KEY&&STRIPE_WEBHOOK_SECRET&&STRIPE_GOLD_PRICE_ID&&STRIPE_DIAMOND_PRICE_ID);
+}
+async function stripeRequest(endpoint,formFields={}){
+  if(!STRIPE_SECRET_KEY) throw new Error('Stripe is not configured.');
+  const body=new URLSearchParams();
+  Object.entries(formFields).forEach(([k,v])=>{if(v!==undefined&&v!==null)body.set(k,String(v));});
+  const r=await fetch('https://api.stripe.com/v1/'+endpoint,{
+    method:'POST',
+    headers:{
+      authorization:'Basic '+Buffer.from(STRIPE_SECRET_KEY+':').toString('base64'),
+      'content-type':'application/x-www-form-urlencoded'
+    },
+    body
+  });
+  const txt=await r.text();
+  let data={}; try{data=txt?JSON.parse(txt):{};}catch{data={message:txt};}
+  if(!r.ok) throw new Error(data.error?.message||data.message||('Stripe HTTP '+r.status));
+  return data;
+}
+function verifyStripeSignature(rawBody,header){
+  if(!rawBody||!STRIPE_WEBHOOK_SECRET)return false;
+  const parts=String(header||'').split(',').reduce((acc,item)=>{
+    const [k,v]=item.split('=',2); if(k&&v)(acc[k]||(acc[k]=[])).push(v); return acc;
+  },{});
+  const timestamp=Number(parts.t?.[0]||0), signatures=Array.isArray(parts.v1)?parts.v1:[];
+  if(!timestamp||!signatures.length||Math.abs(Date.now()/1000-timestamp)>300)return false;
+  const payload=Buffer.concat([Buffer.from(String(timestamp)+'.'),Buffer.isBuffer(rawBody)?rawBody:Buffer.from(String(rawBody))]);
+  const expected=crypto.createHmac('sha256',STRIPE_WEBHOOK_SECRET).update(payload).digest('hex');
+  return signatures.some(sig=>{try{return sig.length===expected.length&&crypto.timingSafeEqual(Buffer.from(sig),Buffer.from(expected));}catch{return false;}});
+}
+async function saveMembershipForUser(userId,patch){
+  let user=usersById.get(userId)||null;
+  if(SUPABASE_ENABLED){const row=await dbFindUserById(userId);if(row)user=dbRowToUser(row);}
+  if(!user)return false;
+  const existing=user.accountData&&typeof user.accountData==='object'?user.accountData:{};
+  const old=existing.membership&&typeof existing.membership==='object'?existing.membership:{};
+  user.accountData=sanitizeAccountState({...existing,membership:{...old,...patch,updatedAt:Date.now()}});
+  if(SUPABASE_ENABLED)await dbSaveUser(user);else saveUsers();
+  usersById.set(user.id,user);
+  return true;
+}
+app.get('/api/billing/status',async(req,res)=>{
+  if(!req.user)return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,configured:stripeConfigured(),membership:billingClientState(req.user)});
+  }catch(e){res.status(503).json({error:'Could not load membership status right now.'});}
+});
+app.post('/api/billing/checkout',async(req,res)=>{
+  if(!req.user)return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const tier=String(req.body?.tier||'').toLowerCase();
+    if(!['gold','diamond'].includes(tier))return res.status(400).json({error:'Choose Gold or Diamond.'});
+    if(!stripeConfigured())return res.status(503).json({error:'Secure checkout is not configured yet. Add the Stripe secret key, webhook secret, and plan price IDs in Render.'});
+    const current=membershipForUser(req.user);
+    if(current.tier!=='free'&&!['cancelled','unpaid'].includes(current.status))return res.status(409).json({error:'You already have a paid membership. Use Manage Membership to change or cancel it.'});
+    if(!PUBLIC_BASE_URL)return res.status(503).json({error:'PUBLIC_BASE_URL is not configured on the server.'});
+    const priceId=tier==='gold'?STRIPE_GOLD_PRICE_ID:STRIPE_DIAMOND_PRICE_ID;
+    const session=await stripeRequest('checkout/sessions',{
+      mode:'subscription','line_items[0][price]':priceId,'line_items[0][quantity]':1,
+      success_url:PUBLIC_BASE_URL+'/?billing=success',cancel_url:PUBLIC_BASE_URL+'/?billing=cancelled',
+      client_reference_id:String(req.user.id),
+      ...(req.user.email?{customer_email:req.user.email}:{}),
+      'metadata[userId]':String(req.user.id),'metadata[tier]':tier,
+      'subscription_data[metadata][userId]':String(req.user.id),'subscription_data[metadata][tier]':tier,
+      allow_promotion_codes:'true'
+    });
+    res.json({ok:true,url:session.url});
+  }catch(e){
+    console.error('Stripe checkout error:',e.message);
+    res.status(503).json({error:'Secure checkout could not be started. Please try again.'});
+  }
+});
+app.post('/api/billing/portal',async(req,res)=>{
+  if(!req.user)return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const current=membershipForUser(req.user);
+    if(!current.customerId)return res.status(400).json({error:'No Stripe billing account is attached to this Index account yet.'});
+    if(!STRIPE_SECRET_KEY)return res.status(503).json({error:'Stripe is not configured yet.'});
+    if(!PUBLIC_BASE_URL)return res.status(503).json({error:'PUBLIC_BASE_URL is not configured on the server.'});
+    const portal=await stripeRequest('billing_portal/sessions',{customer:current.customerId,return_url:PUBLIC_BASE_URL+'/?billing=return'});
+    res.json({ok:true,url:portal.url});
+  }catch(e){
+    console.error('Stripe portal error:',e.message);
+    res.status(503).json({error:'Could not open Stripe billing management. Please try again.'});
+  }
+});
+app.post('/api/billing/webhook',async(req,res)=>{
+  if(!verifyStripeSignature(req.rawBody,req.headers['stripe-signature']))return res.status(400).send('Invalid signature.');
+  try{
+    const event=req.body||{},object=event.data?.object||{};
+    if(event.type==='checkout.session.completed'){
+      const userId=String(object.metadata?.userId||object.client_reference_id||''),tier=String(object.metadata?.tier||'').toLowerCase();
+      if(userId&&['gold','diamond'].includes(tier)){
+        await saveMembershipForUser(userId,{tier,status:'active',customerId:String(object.customer||''),subscriptionId:String(object.subscription||''),cancelAtPeriodEnd:false});
+      }
+    }else if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
+      const userId=String(object.metadata?.userId||''),priceId=String(object.items?.data?.[0]?.price?.id||'');
+      const tier=String(object.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
+      if(userId&&['gold','diamond'].includes(tier)){
+        const active=!['canceled','unpaid'].includes(String(object.status||''));
+        await saveMembershipForUser(userId,{tier:active?tier:'free',status:String(object.status||'active'),customerId:String(object.customer||''),subscriptionId:String(object.id||''),currentPeriodEnd:Number(object.current_period_end)||0,cancelAtPeriodEnd:object.cancel_at_period_end===true});
+      }
+    }else if(event.type==='invoice.payment_failed'){
+      const userId=String(object.subscription_details?.metadata?.userId||object.metadata?.userId||'');
+      if(userId)await saveMembershipForUser(userId,{status:'past_due'});
+    }
+    res.json({received:true});
+  }catch(e){
+    console.error('Stripe webhook handling error:',e.message);
+    res.status(500).json({error:'Webhook processing failed.'});
+  }
+});
+
 app.get('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try {
@@ -1528,6 +1690,8 @@ app.put('/api/account/state', async (req,res)=>{
     const incomingAccountState=req.body?.state&&typeof req.body.state==='object'?req.body.state:{};
     const existingAccountState=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
     const mergedAccountState={...incomingAccountState};
+    // Membership is server-owned and only changes after verified Stripe events.
+    if(existingAccountState.membership) mergedAccountState.membership=existingAccountState.membership;
     const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
     if(mergedQuests) mergedAccountState.quests=mergedQuests;
     req.user.accountData = sanitizeAccountState(mergedAccountState);
