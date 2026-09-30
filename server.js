@@ -25,6 +25,7 @@ const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/$/, '');
 const STRIPE_SECRET_KEY = String(process.env.STRIPE_SECRET_KEY || '');
 const STRIPE_WEBHOOK_SECRET = String(process.env.STRIPE_WEBHOOK_SECRET || '');
 const STRIPE_GOLD_PRICE_ID = String(process.env.STRIPE_GOLD_PRICE_ID || '');
+const STRIPE_PLATINUM_PRICE_ID = String(process.env.STRIPE_PLATINUM_PRICE_ID || '');
 const STRIPE_DIAMOND_PRICE_ID = String(process.env.STRIPE_DIAMOND_PRICE_ID || '');
 
 const app = express();
@@ -1373,7 +1374,7 @@ function sanitizeAccountState(input){
     customTopics,
     membership: (() => {
       const m=src.membership&&typeof src.membership==='object'?src.membership:{};
-      const tier=['free','gold','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
+      const tier=['free','gold','platinum','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
       const status=['active','trialing','past_due','cancelled','canceled','incomplete','unpaid'].includes(String(m.status||''))?String(m.status):'active';
       return {
         tier,status,
@@ -1533,8 +1534,9 @@ function mergeQuestState(existingQuest,incomingQuest){
 /* ============================== MEMBERSHIP / BILLING ============================== */
 const MEMBERSHIP_PLANS = Object.freeze({
   free:{tier:'free',name:'Basic',priceCents:0,interval:'month',studySetLimit:50,noteLimit:50,features:['Core study tools','AI Tutor','Up to 50 saved study sets','Up to 50 saved notes','Daily rewards']},
-  gold:{tier:'gold',name:'Gold',priceCents:499,interval:'month',studySetLimit:250,noteLimit:250,features:['Everything in Free','Up to 250 saved study sets','Up to 250 saved notes','Gold membership badge','Higher account limits']},
-  diamond:{tier:'diamond',name:'Diamond',priceCents:999,interval:'month',studySetLimit:1000,noteLimit:500,features:['Everything in Gold','Up to 1,000 saved study sets','Up to 500 saved notes','Diamond membership badge','Highest account limits']}
+  gold:{tier:'gold',name:'Gold',priceCents:499,interval:'month',studySetLimit:250,noteLimit:250,features:['Everything in Basic','Up to 250 saved study sets','Up to 250 saved notes','Gold membership badge','Higher account limits']},
+  platinum:{tier:'platinum',name:'Platinum',priceCents:749,interval:'month',studySetLimit:500,noteLimit:350,features:['Everything in Gold','Up to 500 saved study sets','Up to 350 saved notes','Platinum membership badge','Expanded account limits']},
+  diamond:{tier:'diamond',name:'Diamond',priceCents:999,interval:'month',studySetLimit:1000,noteLimit:500,features:['Everything in Platinum','Up to 1,000 saved study sets','Up to 500 saved notes','Diamond membership badge','Highest account limits']}
 });
 function membershipTierForUser(user){
   const m=user?.accountData?.membership||{};
@@ -1552,7 +1554,7 @@ function billingClientState(user){
   return {tier:m.tier,status:m.status,currentPeriodEnd:m.currentPeriodEnd,cancelAtPeriodEnd:m.cancelAtPeriodEnd,plan:m.plan};
 }
 function stripeConfigured(){
-  return Boolean(STRIPE_SECRET_KEY&&STRIPE_WEBHOOK_SECRET&&STRIPE_GOLD_PRICE_ID&&STRIPE_DIAMOND_PRICE_ID);
+  return Boolean(STRIPE_SECRET_KEY&&STRIPE_WEBHOOK_SECRET&&STRIPE_GOLD_PRICE_ID&&STRIPE_PLATINUM_PRICE_ID&&STRIPE_DIAMOND_PRICE_ID);
 }
 async function stripeRequest(endpoint,formFields={}){
   if(!STRIPE_SECRET_KEY) throw new Error('Stripe is not configured.');
@@ -1606,12 +1608,12 @@ app.post('/api/billing/checkout',async(req,res)=>{
   try{
     await refreshAccountUserWithState(req);
     const tier=String(req.body?.tier||'').toLowerCase();
-    if(!['gold','diamond'].includes(tier))return res.status(400).json({error:'Choose Gold or Diamond.'});
+    if(!['gold','platinum','diamond'].includes(tier))return res.status(400).json({error:'Choose Gold, Platinum, or Diamond.'});
     if(!stripeConfigured())return res.status(503).json({error:'Secure checkout is not configured yet. Add the Stripe secret key, webhook secret, and plan price IDs in Render.'});
     const current=membershipForUser(req.user);
     if(current.tier!=='free'&&!['cancelled','unpaid'].includes(current.status))return res.status(409).json({error:'You already have a paid membership. Use Manage Membership to change or cancel it.'});
     if(!PUBLIC_BASE_URL)return res.status(503).json({error:'PUBLIC_BASE_URL is not configured on the server.'});
-    const priceId=tier==='gold'?STRIPE_GOLD_PRICE_ID:STRIPE_DIAMOND_PRICE_ID;
+    const priceId=tier==='gold'?STRIPE_GOLD_PRICE_ID:tier==='platinum'?STRIPE_PLATINUM_PRICE_ID:STRIPE_DIAMOND_PRICE_ID;
     const session=await stripeRequest('checkout/sessions',{
       mode:'subscription','line_items[0][price]':priceId,'line_items[0][quantity]':1,
       success_url:PUBLIC_BASE_URL+'/?billing=success',cancel_url:PUBLIC_BASE_URL+'/?billing=cancelled',
@@ -1648,12 +1650,12 @@ app.post('/api/billing/webhook',async(req,res)=>{
     const event=req.body||{},object=event.data?.object||{};
     if(event.type==='checkout.session.completed'){
       const userId=String(object.metadata?.userId||object.client_reference_id||''),tier=String(object.metadata?.tier||'').toLowerCase();
-      if(userId&&['gold','diamond'].includes(tier)){
+      if(userId&&['gold','platinum','diamond'].includes(tier)){
         await saveMembershipForUser(userId,{tier,status:'active',customerId:String(object.customer||''),subscriptionId:String(object.subscription||''),cancelAtPeriodEnd:false});
       }
     }else if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
       const userId=String(object.metadata?.userId||''),priceId=String(object.items?.data?.[0]?.price?.id||'');
-      const tier=String(object.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
+      const tier=String(object.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_PLATINUM_PRICE_ID?'platinum':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
       if(userId&&['gold','diamond'].includes(tier)){
         const active=!['canceled','unpaid'].includes(String(object.status||''));
         await saveMembershipForUser(userId,{tier:active?tier:'free',status:String(object.status||'active'),customerId:String(object.customer||''),subscriptionId:String(object.id||''),currentPeriodEnd:Number(object.current_period_end)||0,cancelAtPeriodEnd:object.cancel_at_period_end===true});
