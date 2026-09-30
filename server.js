@@ -181,7 +181,16 @@ function latestUserQuestion(messages){
 function isLikelyFollowUp(question){
   const q=String(question||'').trim().toLowerCase();
   if(!q) return false;
-  if(/^(why|how|how so|explain|explain that|explain it|simpler|make it simpler|shorter|more detail|elaborate|clarify|show (?:me )?(?:the )?(?:steps|work)|show your work|what about|and what about|what does that mean|what did you mean|can you explain(?: that| it)?|can you simplify(?: that| it)?)\b[?!.,\s]*$/i.test(q)) return true;
+  const shortFollow=/^(why|how|how so|explain|explain that|explain it|simpler|make it simpler|shorter|more detail|elaborate|clarify|show (?:me )?(?:the )?(?:steps|work)|show your work|what does that mean|what did you mean|can you explain(?: that| it)?|can you simplify(?: that| it)?)\b[?!.,\s]*$/i;
+  if(shortFollow.test(q)) return true;
+  // “What about the other one?” is a follow-up; “What about the Boston Tea Party?”
+  // is usually a new topic. Only treat short/reference-heavy “what about” forms
+  // as contextual follow-ups.
+  if(/^(?:and\s+)?what about\b/i.test(q)){
+    const rest=q.replace(/^(?:and\s+)?what about\b/i,'').replace(/[?!.,]/g,'').trim();
+    if(!rest || rest.length<=28 && /\b(the other|that|it|this|these|those|first|second|above|previous|one)\b/i.test(rest)) return true;
+    return false;
+  }
   if(/\b(that|it|this|these|those|the above|the previous|the other one|the first one|the second one)\b/i.test(q)
       && /^(?:what|why|how|which|does|did|is|are|was|were|can|could|would|should|so)\b/i.test(q)) return true;
   return false;
