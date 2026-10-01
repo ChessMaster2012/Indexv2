@@ -1197,7 +1197,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 
     <section class="view" id="view-games">
       <div class="row">
-        <div><h2 style="font-size:24px;font-weight:600;">Games</h2><p class="lede" style="margin-top:4px;">Turn a study set into a quick solo game.</p></div>
+        <div><h2 style="font-size:24px;font-weight:600;">Games</h2><p class="lede" style="margin-top:4px;">Study Mode plus nine interactive Indexling adventures.</p></div>
         <button class="btn btn-ghost btn-sm hidden" id="games-exit-btn" data-action="exit-game">Exit game</button>
       </div>
       <div id="games-stage"></div>
@@ -3102,17 +3102,18 @@ async function topicBuildAndOpen(subjectId, topic, type){
   }catch(e){ state.courseDetail.topicBusy = null; renderTopicsList(); alert("Couldn't build that — please try again."); }
 }
 async function topicStartGame(mode, topic){
-  const subjectId = state.courseDetail.subjectId;
-  const neededType = mode==='speed' ? 'quiz' : 'flashcards';
-  state.courseDetail.topicBusy = topic; renderTopicsList();
+  const subjectId=state.courseDetail.subjectId;
+  state.courseDetail.topicBusy=topic;renderTopicsList();
   try{
-    let set = findExistingSet(subjectId, topic, neededType);
-    if(!set) set = await buildStudySet({subjectId, topic, type:neededType, count: neededType==='flashcards'?8:6, sourceText:null});
-    state.courseDetail.topicBusy = null;
+    let set=findExistingSet(subjectId,topic,'flashcards');
+    if(!set)set=await buildStudySet({subjectId:subjectId,topic:topic,type:'flashcards',count:8,sourceText:null});
+    state.courseDetail.topicBusy=null;
     switchView('games');
-    if(mode==='match') initMatchGame(set.id); else if(mode==='speed') initSpeedGame(set.id); else initRecallGame(set.id);
+    state.games={active:null,setupType:'study',selectedSetId:set.id};
     renderGames();
-  }catch(e){ state.courseDetail.topicBusy = null; renderTopicsList(); alert("Couldn't start that game — please try again."); }
+  }catch(e){
+    state.courseDetail.topicBusy=null;renderTopicsList();alert("Couldn't start Study mode for that topic. Please try again.");
+  }
 }
 
 /* ============================== SHARED SELECTS ============================== */
@@ -4803,6 +4804,7 @@ document.addEventListener('click', async (e)=>{
   }
   else if(action==='arcade-choose'){ arcadeStart(t.dataset.game); }
   else if(action==='arcade-hub'){ exitGame(); }
+  else if(action==='exit-game'){ exitGame(); }
   else if(action==='arcade-study-pick'){ state.games.selectedSetId=t.dataset.id; renderGames(); }
   else if(action==='arcade-study-start'){ if(state.games.selectedSetId) arcadeStudyStart(state.games.selectedSetId); }
   else if(action==='arcade-study-choice'){ arcadeStudyChoice(parseInt(t.dataset.idx,10)); }
