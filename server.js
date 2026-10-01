@@ -1553,6 +1553,51 @@ function billingClientState(user){
   const m=membershipForUser(user);
   return {tier:m.tier,status:m.status,currentPeriodEnd:m.currentPeriodEnd,cancelAtPeriodEnd:m.cancelAtPeriodEnd,plan:m.plan};
 }
+async function reconcileMembershipFromStripe(user){
+  if(!user||!STRIPE_SECRET_KEY)return false;
+  const existing=membershipForUser(user);
+  const storedCustomerId=String(existing.customerId||'');
+  const customerIds=[];
+  if(storedCustomerId)customerIds.push(storedCustomerId);
+  if(user.email){
+    try{
+      const customers=await stripeGet('customers?email='+encodeURIComponent(String(user.email))+'&limit=10');
+      for(const customer of (customers.data||[]))if(customer?.id&&!customerIds.includes(String(customer.id)))customerIds.push(String(customer.id));
+    }catch(e){
+      console.warn('Stripe customer lookup warning:',e.message);
+    }
+  }
+  let best=null;
+  for(const customerId of customerIds){
+    try{
+      const subs=await stripeGet('subscriptions?customer='+encodeURIComponent(customerId)+'&status=all&limit=10');
+      for(const sub of (subs.data||[])){
+        const priceId=String(sub.items?.data?.[0]?.price?.id||'');
+        const metaUserId=String(sub.metadata?.userId||'');
+        const tier=String(sub.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_PLATINUM_PRICE_ID?'platinum':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
+        if(metaUserId&&metaUserId!==String(user.id))continue;
+        if(!['gold','platinum','diamond'].includes(tier))continue;
+        const active=!['canceled','unpaid','incomplete_expired'].includes(String(sub.status||''));
+        const candidate={sub,tier,active,customerId:String(sub.customer||customerId)};
+        if(!best||((candidate.active&&!best.active)||(Number(sub.created||0)>Number(best.sub.created||0))))best=candidate;
+      }
+    }catch(e){
+      console.warn('Stripe subscription lookup warning:',e.message);
+    }
+  }
+  if(!best)return false;
+  const sub=best.sub;
+  await saveMembershipForUser(String(user.id),{
+    tier:best.active?best.tier:'free',
+    status:String(sub.status||'active'),
+    customerId:String(sub.customer||best.customerId||''),
+    subscriptionId:String(sub.id||''),
+    currentPeriodEnd:Number(sub.current_period_end)||0,
+    cancelAtPeriodEnd:sub.cancel_at_period_end===true
+  });
+  await refreshAccountUserWithState({user});
+  return true;
+}
 function stripeConfigured(){
   return Boolean(STRIPE_SECRET_KEY&&STRIPE_WEBHOOK_SECRET&&STRIPE_GOLD_PRICE_ID&&STRIPE_PLATINUM_PRICE_ID&&STRIPE_DIAMOND_PRICE_ID);
 }
@@ -1611,26 +1656,11 @@ app.get('/api/billing/status',async(req,res)=>{
   try{
     await refreshAccountUserWithState(req);
     if(STRIPE_SECRET_KEY){
-      const stored=membershipForUser(req.user);
-      if(stored.tier!=='free'&&stored.subscriptionId){
-        try{
-          const subscription=await stripeGet('subscriptions/'+encodeURIComponent(stored.subscriptionId));
-          const priceId=String(subscription.items?.data?.[0]?.price?.id||'');
-          const stripeTier=String(subscription.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_PLATINUM_PRICE_ID?'platinum':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
-          const liveTier=['gold','platinum','diamond'].includes(stripeTier)?stripeTier:stored.tier;
-          const active=!['canceled','unpaid','incomplete_expired'].includes(String(subscription.status||''));
-          await saveMembershipForUser(String(req.user.id),{
-            tier:active?liveTier:'free',
-            status:String(subscription.status||stored.status||'active'),
-            customerId:String(subscription.customer||stored.customerId||''),
-            subscriptionId:String(subscription.id||stored.subscriptionId||''),
-            currentPeriodEnd:Number(subscription.current_period_end)||stored.currentPeriodEnd,
-            cancelAtPeriodEnd:subscription.cancel_at_period_end===true
-          });
-          await refreshAccountUserWithState(req);
-        }catch(e){
-          console.warn('Stripe membership reconciliation warning:',e.message);
-        }
+      try{
+        await reconcileMembershipFromStripe(req.user);
+        await refreshAccountUserWithState(req);
+      }catch(e){
+        console.warn('Stripe membership reconciliation warning:',e.message);
       }
     }
     res.set('Cache-Control','no-store');
@@ -1721,6 +1751,15 @@ app.post('/api/billing/confirm-session',async(req,res)=>{
     res.json({ok:true,membership:billingClientState(req.user)});
   }catch(e){
     console.error('Stripe checkout confirmation error:',e.message);
+    try{
+      const recovered=await reconcileMembershipFromStripe(req.user);
+      if(recovered){
+        await refreshAccountUserWithState(req);
+        return res.json({ok:true,membership:billingClientState(req.user),recovered:true});
+      }
+    }catch(recoveryError){
+      console.warn('Stripe checkout recovery warning:',recoveryError.message);
+    }
     res.status(503).json({error:'Payment was completed, but Index could not confirm the membership yet.'});
   }
 });
