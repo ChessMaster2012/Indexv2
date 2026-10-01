@@ -599,6 +599,68 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
 .creator-photo{display:block;width:100%;height:100%;object-fit:cover;object-position:center;border-radius:19px;border:3px solid rgba(255,255,255,.9);background:#fff;}
 .creator-photo-label{position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);white-space:nowrap;padding:6px 10px;border-radius:999px;background:#fff;color:#241f3d;font-size:10px;font-weight:900;box-shadow:0 5px 14px rgba(0,0,0,.2);}
 @media(max-width:700px){.creator-spotlight{flex-direction:column-reverse;margin-left:0;padding:18px}.creator-photo-wrap{width:100%;flex-basis:auto}.creator-photo-ring{width:132px;height:168px}.creator-copy h2{font-size:24px}.creator-copy{text-align:center}.creator-tags{justify-content:center}.creator-photo-label{font-size:9px}}
+
+/* INDEX ARCADE GAME CSS */
+.game-mode-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.game-mode-card{border:2px solid var(--line);border-radius:20px;background:linear-gradient(180deg,#fff,#faf8ff);padding:17px;text-align:left;min-height:182px;transition:transform .15s,box-shadow .15s}
+.game-mode-card:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(36,31,61,.1)}
+.game-mode-card .mode-icon{font-size:30px;display:block;margin-bottom:9px}
+.mode-tag{display:inline-flex;padding:4px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.05em;color:var(--purple-deep)}
+.game-mode-card h3{font-size:17px;margin:7px 0}
+.game-mode-card p{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin:0 0 9px}
+.arcade-shell{background:linear-gradient(135deg,#fff,#fbf9ff);border:2px solid var(--line);border-radius:24px;padding:18px;box-shadow:0 14px 35px rgba(36,31,61,.08)}
+.arcade-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+.arcade-hud{display:flex;gap:7px;flex-wrap:wrap}
+.arcade-pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:10.5px;font-weight:900;color:var(--ink-soft)}
+.arcade-pill b{color:var(--ink)}
+.arcade-char{display:flex;align-items:center;gap:13px;border:2px solid var(--line);border-radius:18px;padding:10px 12px;margin:12px 0;background:linear-gradient(135deg,#faf7ff,#fff)}
+.arcade-char .game-character{width:90px;height:90px;flex:0 0 90px}
+.arcade-char-copy strong{display:block;font-family:var(--font-display);font-size:18px}
+.arcade-char-copy span{font-size:11.5px;color:var(--ink-soft)}
+.arcade-actions{display:flex;gap:8px;flex-wrap:wrap}
+.arcade-center{min-height:220px;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center}
+.game-banner{border:2px solid var(--line);border-radius:18px;background:var(--bg);padding:12px 14px;font-size:12px;line-height:1.5;color:var(--ink-soft)}
+.arcade-options{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+.arcade-opt{border:2px solid var(--line);background:#fff;border-radius:14px;padding:12px;text-align:left;font-weight:800}
+.arcade-opt:hover{border-color:var(--purple)}
+.arcade-opt.good{background:#e9fff5;border-color:var(--green)}
+.arcade-opt.bad{background:#fff0f1;border-color:#ef9ca4}
+.arcade-input{display:flex;gap:8px;margin-top:12px}
+.arcade-input input{flex:1;border:2px solid var(--line);border-radius:13px;padding:11px;font:inherit}
+.td-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;max-width:760px;margin:auto}
+.td-cell{aspect-ratio:1;border:2px solid var(--line);background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;position:relative;padding:0}
+.td-cell.path{background:#eee8ff}
+.td-cell.tower{background:#effff8;border-color:#a9e5ca}
+.td-enemy{position:absolute;font-size:16px}
+.td-hp{position:absolute;left:8%;right:8%;bottom:4px;height:4px;background:#ddd;border-radius:4px}
+.td-hp span{display:block;height:100%;background:#ef6f78}
+.action-arena{height:370px;position:relative;overflow:hidden;border:2px solid var(--line);border-radius:20px;background:radial-gradient(circle,#fff,#eee7ff);touch-action:none}
+.action-entity{position:absolute;transform:translate(-50%,-50%);transition:left .08s linear,top .08s linear}
+.action-enemy{font-size:27px}
+.trial-arena{height:370px;position:relative;overflow:hidden;border:2px solid var(--line);border-radius:20px;background:linear-gradient(#faf8ff,#ece2ff)}
+.trial-ground{position:absolute;left:0;right:0;bottom:0;height:34px;background:#2d2458}
+.trial-platform{position:absolute;height:12px;background:var(--purple);border-radius:99px;box-shadow:0 4px 0 var(--purple-deep)}
+.trial-player{position:absolute;transform:translate(-50%,-50%)}
+.trial-treasure{position:absolute;font-size:31px}
+.arena-grid5{display:grid;grid-template-columns:repeat(5,60px);gap:6px;justify-content:center}
+.arena-grid5 button{width:60px;height:60px;border:2px solid var(--line);border-radius:12px;background:#fff;font-size:22px}
+.arena-grid5 button.move{background:#effff8;border-color:var(--green)}
+.gold-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.gold-card{border:2px solid var(--line);border-radius:16px;background:#fff;padding:13px}
+.gold-bar{height:10px;border-radius:999px;background:var(--line);overflow:hidden;margin:9px 0}
+.gold-bar span{display:block;height:100%;background:var(--yellow)}
+.rogue-hand{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:9px}
+.rogue-card{border:2px solid var(--line);border-radius:16px;background:#fff;padding:13px;min-height:135px;text-align:left}
+.rogue-card:hover{border-color:var(--purple)}
+.rogue-card h4{font-family:var(--font-display);margin:0 0 6px}
+.rogue-card small{color:var(--ink-soft);line-height:1.4}
+.hex-grid6{display:grid;grid-template-columns:repeat(6,46px);gap:6px;justify-content:center}
+.hex-grid6 button{width:46px;height:46px;border:2px solid #fff;border-radius:11px;background:#fff;font-size:21px}
+.hex-grid6 button.sel{outline:3px solid var(--ink)}
+.rhythm-lane2{height:260px;position:relative;border-radius:20px;background:linear-gradient(#201743,#0d091d);border:2px solid var(--line);overflow:hidden}
+.rhythm-target2{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);width:100px;height:24px;border:3px solid #fff;border-radius:999px}
+.rhythm-note2{position:absolute;left:calc(50% - 10px);width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 0 16px rgba(255,255,255,.8)}
+@media(max-width:760px){.game-mode-grid{grid-template-columns:1fr}.arcade-options{grid-template-columns:1fr}.gold-grid{grid-template-columns:1fr}.hex-grid6{grid-template-columns:repeat(6,40px)}.hex-grid6 button{width:40px;height:40px}.arcade-char{align-items:flex-start}.action-arena,.trial-arena{height:320px}.arena-grid5{grid-template-columns:repeat(5,52px)}.arena-grid5 button{width:52px;height:52px}}
 </style>
 <style id="index-rewards-v4">
 .daily-wheel-card{max-width:760px;margin:0 auto;text-align:center;background:#fffdf8;border:1px solid #ddd9cf;border-radius:20px;padding:28px;box-shadow:0 12px 30px rgba(27,32,51,.08)}
@@ -1385,7 +1447,7 @@ let state = {
   viewer:{ setId:null, mode:null, cardsRef:[], flashIndex:0, flashFlipped:false, sessionXP:0, quizIndex:0, quizAnswers:[], quizSubmitted:false },
   learn:{ lesson:null, checkpointChosen:null, checkpointSubmitted:false },
   games:{ active:null, setupType:null, selectedSetId:null },
-  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, freePackTokens:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'}, openedPacks:0, liveGames:0 },
+  progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, freePackTokens:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'}, openedPacks:0, liveGames:0, gameProgress:{} },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
   membership:{tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,lifetimeBadgeTier:'',daysLeft:0,configured:false,plan:null},
@@ -1587,7 +1649,7 @@ function loadLocalData(){
   state.notes = lsGet('index-notes', []);
   state.studySets = lsGet('index-studysets', []);
   const p = lsGet('index-progress', {});
-  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0)), unlockedSkins:Array.isArray(p.unlockedSkins)?p.unlockedSkins:[], claimedSkinCrateLevels:Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels:[], equipped:p.equipped||{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{}}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0 };
+  state.progress = { xp:Number(p.xp)||0, activeDates:Array.isArray(p.activeDates)?p.activeDates:[], lessonsLearned:Array.isArray(p.lessonsLearned)?p.lessonsLearned:[], coins:Number(p.coins)||0, dailyCoinDate:String(p.dailyCoinDate||''), dailyCoinEarned:Number(p.dailyCoinEarned)||0, dailyWheelDate:String(p.dailyWheelDate||''), dailyWheelLastSpinAt:Number(p.dailyWheelLastSpinAt)||0, dailyWheelReward:Number(p.dailyWheelReward)||0, unlockedCosmetics:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics:[], claimedBPLevels:Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[], skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0)), unlockedSkins:Array.isArray(p.unlockedSkins)?p.unlockedSkins:[], claimedSkinCrateLevels:Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels:[], equipped:p.equipped||{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{}}, openedPacks:Number(p.openedPacks)||0, liveGames:Number(p.liveGames)||0, gameProgress:(p.gameProgress&&typeof p.gameProgress==='object')?p.gameProgress:{} };
   state.customTopics = lsGet('index-customtopics', {});
   state.profile = lsGet('index-profile', {});
   state.district = state.profile.district || '';
@@ -1626,7 +1688,7 @@ function accountStatePayload(){
     notes: Array.isArray(state.notes) ? state.notes : [],
     studySets: Array.isArray(state.studySets) ? state.studySets : [],
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
-    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
+    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,gameProgress:state.progress.gameProgress&&typeof state.progress.gameProgress==='object'?state.progress.gameProgress:{},dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||'',bio:state.profile.bio||'',favoriteSubject:state.profile.favoriteSubject||'',studyGoal:state.profile.studyGoal||'',profileAccent:state.profile.profileAccent||'purple',showProgress:state.profile.showProgress!==false,reducedMotion:state.profile.reducedMotion===true},
     quests:(typeof questPayload==='function'?questPayload():undefined)
   };
@@ -1671,7 +1733,7 @@ function resetSignedOutAccountState(){
   state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,lifetimeBadgeTier:'',daysLeft:0,configured:false,plan:null};
   // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
   // This prevents one device's old wallet/cosmetics from appearing before authentication.
-  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'},openedPacks:0,liveGames:0};
+  state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'},openedPacks:0,liveGames:0,gameProgress:{}};
   updateCoinDisplays();
 }
 async function loadAccountState(){
@@ -1866,7 +1928,7 @@ async function handleBillingReturn(){
   }
 }
 
-function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, freePackTokens:state.progress.freePackTokens||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0}); }
+function persistProgressLocalOnly(){ lsSet('index-progress', {xp:state.progress.xp, activeDates:state.progress.activeDates, lessonsLearned:state.progress.lessonsLearned, coins:state.progress.coins||0, freePackTokens:state.progress.freePackTokens||0, dailyCoinDate:state.progress.dailyCoinDate||'', dailyCoinEarned:state.progress.dailyCoinEarned||0, dailyWheelDate:state.progress.dailyWheelDate||'', dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0, dailyWheelReward:state.progress.dailyWheelReward||0, unlockedCosmetics:state.progress.unlockedCosmetics||[], claimedBPLevels:state.progress.claimedBPLevels||[], skinCrates:state.progress.skinCrates||0, unlockedSkins:state.progress.unlockedSkins||[], claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[], equipped:state.progress.equipped||{}, openedPacks:state.progress.openedPacks||0, liveGames:state.progress.liveGames||0, gameProgress:state.progress.gameProgress&&typeof state.progress.gameProgress==='object'?state.progress.gameProgress:{}}); }
 function persistProfileLocalOnly(){ lsSet('index-profile', state.profile); }
 function getPlayerId(){ let id = lsGet('index-mp-playerid', null); if(!id){ id = uid(); lsSet('index-mp-playerid', id); } return id; }
 
