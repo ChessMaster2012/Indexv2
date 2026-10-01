@@ -1540,7 +1540,7 @@ const MEMBERSHIP_PLANS = Object.freeze({
 });
 function membershipTierForUser(user){
   const m=user?.accountData?.membership||{};
-  const tier=['free','gold','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
+  const tier=['free','gold','platinum','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
   const status=String(m.status||'active');
   return tier!=='free'&&['cancelled','unpaid'].includes(status)?'free':tier;
 }
