@@ -5437,631 +5437,476 @@ if(hasCompletedSetup()){
 
 
 
-<script id="commander-learning-economy-v5">
+
+<style id="commander-learning-economy-v6">
+#games-stage:has(.commander-v6-fullscreen){margin:0!important;padding:0!important}
+.commander-v6-fullscreen{position:fixed;inset:0;z-index:10000;display:flex;align-items:stretch;justify-content:center;background:#071321;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+.commander-v6-gate{width:100%;height:100%;overflow:auto;display:flex;align-items:center;justify-content:center;padding:28px;box-sizing:border-box;background:radial-gradient(circle at 20% 10%,rgba(124,92,252,.28),transparent 30%),radial-gradient(circle at 85% 90%,rgba(255,92,168,.2),transparent 32%),linear-gradient(135deg,#08152a,#17143a 52%,#21132f)}
+.commander-v6-card{width:min(900px,100%);max-height:calc(100vh - 56px);overflow:auto;background:rgba(255,255,255,.98);border:2px solid rgba(255,255,255,.35);border-radius:28px;padding:30px;box-shadow:0 28px 90px rgba(0,0,0,.4);color:#241f3d}
+.commander-v6-kicker{font-size:11px;font-weight:950;letter-spacing:.13em;color:#6b4be8;text-transform:uppercase}
+.commander-v6-card h1{font-size:clamp(30px,5vw,48px);margin:6px 0 8px}
+.commander-v6-lead{margin:0;color:#6b6485;line-height:1.55;font-size:14px}
+.commander-v6-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+.commander-v6-stat{border:2px solid #ece6fb;border-radius:16px;padding:12px;background:#faf9ff;font-size:12px;font-weight:800}
+.commander-v6-stat b{display:block;font-size:20px;margin-top:3px;color:#5a3fdb}
+.commander-v6-question{margin-top:18px;border:2px solid #e7e0fb;border-radius:20px;padding:20px;background:#fff}
+.commander-v6-meta{font-size:11px;font-weight:900;color:#7a7197;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.commander-v6-q{font-family:var(--font-display);font-size:22px;line-height:1.3;font-weight:700}
+.commander-v6-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+.commander-v6-option{border:2px solid #e5def7;background:#fff;border-radius:14px;padding:14px;text-align:left;color:#241f3d;font-size:14px;font-weight:800;min-height:62px;transition:.12s}
+.commander-v6-option:hover{border-color:#7c5cfc;background:#f7f4ff;transform:translateY(-1px)}
+.commander-v6-option:disabled{cursor:default;opacity:.65}
+.commander-v6-feedback{margin-top:12px;padding:10px 12px;border-radius:12px;background:#f4f1ff;color:#5a3fdb;font-weight:850;font-size:12px}
+.commander-v6-loading{display:flex;align-items:center;gap:10px;color:#6b6485;font-weight:800;padding:28px 0}
+.commander-v6-spinner{width:18px;height:18px;border:3px solid #e5def7;border-top-color:#7c5cfc;border-radius:50%;animation:commanderV6Spin .7s linear infinite}
+@keyframes commanderV6Spin{to{transform:rotate(360deg)}}
+.commander-v6-error{padding:14px;border-radius:14px;background:#fff0f0;border:1px solid #f2c4c4;color:#9d3030;font-size:13px}
+.commander-v6-error button{margin-top:10px}
+.commander-v6-hint{margin-top:14px;font-size:12px;color:#6b6485;line-height:1.5}
+.commander-v6-battle{width:100%;height:100%;display:flex;background:#071321;overflow:hidden}
+.commander-v6-world{position:relative;flex:1 1 auto;min-width:0;overflow:hidden;background:#0b1830}
+.commander-v6-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.commander-v6-label{position:absolute;top:14px;left:16px;padding:8px 12px;border-radius:12px;background:rgba(10,18,36,.78);color:#fff;font-size:12px;font-weight:900;z-index:3}
+.commander-v6-context{position:absolute;top:14px;right:16px;padding:8px 12px;border-radius:12px;background:rgba(10,18,36,.72);color:#fff;font-size:11px;font-weight:800;z-index:3}
+.commander-v6-panel{width:min(440px,38vw);min-width:330px;height:100%;overflow:auto;background:linear-gradient(180deg,#fff,#f8f6ff);padding:16px;box-sizing:border-box;color:#241f3d}
+.commander-v6-currency{display:flex;justify-content:space-between;gap:8px;padding:12px;border-radius:14px;background:#241f3d;color:#fff}
+.commander-v6-currency div{display:flex;align-items:center;gap:6px;font-weight:900}
+.commander-v6-round{margin:10px 0;font-size:12px;font-weight:900;color:#6b6485}
+.commander-v6-roster{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.commander-v6-roster-card{border:2px solid #e8e1f7;border-radius:15px;background:#fff;padding:8px}
+.commander-v6-roster-card.selected{border-color:#7c5cfc;box-shadow:0 0 0 3px rgba(124,92,252,.12)}
+.commander-v6-roster-card.locked{opacity:.58}
+.commander-v6-select{width:100%;border:0;background:none;padding:0;text-align:left;color:#241f3d}
+.commander-v6-portrait{width:56px;height:56px;display:block;margin:0 auto 4px}
+.commander-v6-name{font-size:12px;font-weight:950;text-align:center}
+.commander-v6-role{font-size:10px;color:#6b6485;text-align:center;margin-top:2px}
+.commander-v6-cost{margin-top:7px;padding:5px 7px;border-radius:8px;background:#fff4c8;color:#765700;font-size:10px;font-weight:950;text-align:center}
+.commander-v6-statsline{font-size:9px;color:#6b6485;line-height:1.45;margin-top:5px;text-align:center}
+.commander-v6-start{width:100%;margin-top:12px}
+@media(max-width:900px){.commander-v6-panel{width:43vw;min-width:285px}.commander-v6-stats{grid-template-columns:1fr}.commander-v6-options{grid-template-columns:1fr}}
+@media(max-width:700px){.commander-v6-battle{flex-direction:column}.commander-v6-world{height:58vh;flex:none}.commander-v6-panel{width:100%;min-width:0;height:42vh}.commander-v6-context{display:none}.commander-v6-roster{grid-template-columns:repeat(3,1fr)}}
+</style>
+
+<script id="commander-learning-economy-v6">
 (function(){
   'use strict';
 
-  const DEPLOY_COSTS = {
-    'ling-sugarbug':5,
-    'ling-squire':10,
-    'ling-bard':15,
-    'ling-knight':20,
-    'ling-alchemist':25,
-    'ling-comet':30,
-    'ling-nebula':35,
-    'ling-voidling':40,
-    'ling-supernova':50
+  const DEPLOY_COSTS_V6={
+    'ling-sugarbug':5,'ling-squire':10,'ling-bard':15,'ling-knight':20,
+    'ling-alchemist':25,'ling-comet':30,'ling-nebula':35,'ling-voidling':40,'ling-supernova':50
   };
+  const CORRECT_REWARD_V6=25;
 
-  function commanderQuestionRequirementV5(g){
-    const wave = Math.max(0, Number(g && g.wave) || 0);
-    /* 1 correct answer for waves 0-14, 2 for 15-29, 3 for 30-44, etc. */
-    return 1 + Math.floor(wave / 15);
+  function g6(){ return state && state.games && state.games.active==='commander' && state.games.phase==='battle' ? state.games : null; }
+  function requirement6(g){ return 1+Math.floor(Math.max(0,Number(g&&g.wave)||0)/15); }
+
+  function stopQuestionWork6(g){
+    if(!g)return;
+    g.questionRequestId=(Number(g.questionRequestId)||0)+1;
+    if(g.questionController){try{g.questionController.abort();}catch(e){} g.questionController=null;}
+    if(g.questionTimer){clearTimeout(g.questionTimer);g.questionTimer=null;}
+    if(g.questionRetryTimer){clearTimeout(g.questionRetryTimer);g.questionRetryTimer=null;}
   }
 
-  function commanderDeployCostV5(id){
-    return DEPLOY_COSTS[id] || 5;
+  function stopBattleLoop6(g){
+    if(!g)return;
+    if(g.spawnTimer){clearInterval(g.spawnTimer);g.spawnTimer=null;}
+    if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
+    g.lastFrame=0;
   }
 
-  function commanderQuestionMetaV5(g){
-    const required = Math.max(1, Number(g.questionRequired) || commanderQuestionRequirementV5(g));
-    return {
-      required,
-      correct: Math.max(0, Number(g.questionCorrectCount) || 0),
-      asked: Math.max(0, Number(g.questionAskedCount) || 0)
-    };
+  function cleanStage6(){
+    const stage=document.getElementById('games-stage');
+    if(!stage)return null;
+    stage.querySelectorAll('.commander-v6-fullscreen').forEach(function(n){n.remove();});
+    stage.innerHTML='';
+    return stage;
   }
 
-  function commanderResetQuestionGateV5(g){
-    g.questionGateOpen = true;
-    g.questionRequired = commanderQuestionRequirementV5(g);
-    g.questionCorrectCount = 0;
-    g.questionAskedCount = 0;
-    g.questionAnswered = false;
-    g.questionError = '';
-    g.questionLoading = false;
-    g.question = null;
-    g.questionFeedback = '';
-  }
-
-  function commanderOpenQuestionGateV5(){
-    const g = state.games;
-    if(!g || g.active!=='commander' || g.phase!=='battle') return;
-    g.running = false;
-    g.waveCoins = 0;
-    commanderResetQuestionGateV5(g);
-    commanderSaveFinal();
-    commanderRenderScreen();
-    commanderLoadQuestionFinal();
-  }
-
-  function commanderPoolQuestionV5(g){
-    const bank = commanderQuestionPoolFinal(g);
-    return bank.length ? bank[Math.floor(Math.random()*bank.length)] : null;
-  }
-
-  async function commanderLoadQuestionV5(){
-    const g = state.games;
-    if(!g || g.active!=='commander' || g.phase!=='battle' || !g.questionGateOpen || g.questionLoading) return;
-    const local = commanderPoolQuestionV5(g);
-    if(local){
-      g.question = local;
-      g.questionLoading = false;
-      g.questionError = '';
-      g.questionFeedback = '';
-      commanderSaveFinal();
-      commanderRenderScreen();
-      return;
-    }
-
-    g.question = null;
-    g.questionLoading = true;
-    g.questionError = '';
-    g.questionFeedback = '';
-    commanderRenderScreen();
-
-    try{
-      const controller = new AbortController();
-      const timer = setTimeout(function(){ controller.abort(); },17000);
-      const response = await fetch('/api/ai/commander-question',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
-        credentials:'same-origin',
-        cache:'no-store',
-        body:JSON.stringify({
-          course:(subjectById(g.subjectId)||{}).name || '',
-          unit:g.unit || '',
-          topic:g.topic || ''
-        }),
-        signal:controller.signal
-      });
-      clearTimeout(timer);
-      const data = await response.json().catch(function(){return {};});
-      if(!response.ok || !data.question) throw new Error(String(data.error || 'The AP question could not be loaded.'));
-      const q=data.question;
-      if(!q.q || !Array.isArray(q.options) || q.options.length!==4) throw new Error('The AP question was incomplete.');
-      g.question={
-        q:String(q.q),
-        options:q.options.map(String),
-        correct:Math.max(0,Math.min(3,Number.isInteger(Number(q.correct))?Number(q.correct):0)),
-        explanation:q.explanation?String(q.explanation):''
-      };
-      g.questionBank=(g.questionBank||[]).concat([g.question]).slice(-24);
-      g.questionError='';
-      g.questionFeedback='';
-    }catch(e){
-      g.questionError=e&&e.name==='AbortError'
-        ? 'The AP question took too long to load.'
-        : String(e.message || 'The AP question could not be loaded.');
-    }finally{
-      g.questionLoading=false;
-      commanderSaveFinal();
-      commanderRenderScreen();
-    }
-  }
-
-  function commanderAnswerGateV5(i){
-    const g=state.games;
-    if(!g || !g.questionGateOpen || !g.question || g.questionLoading) return;
-
-    g.questionAnswered=true;
-    g.questionAskedCount=(Number(g.questionAskedCount)||0)+1;
-
-    if(Number(i)===Number(g.question.correct)){
-      g.questionCorrectCount=(Number(g.questionCorrectCount)||0)+1;
-      g.waveCoins=(Number(g.waveCoins)||0)+25;
-      g.questionFeedback='Correct! +25 deployment coins.';
-      showRewardToast('🪙 +25 deployment coins');
-      const meta=commanderQuestionMetaV5(g);
-
-      if(meta.correct>=meta.required){
-        g.questionGateOpen=false;
-        g.questionAnswered=false;
-        g.questionFeedback='';
-        g.questionError='';
-        commanderSaveFinal();
-        commanderRenderScreen();
-        return;
-      }
-
-      g.questionAnswered=false;
-      g.question=null;
-      commanderSaveFinal();
-      commanderRenderScreen();
-      setTimeout(commanderLoadQuestionFinal,180);
-      return;
-    }
-
-    g.questionFeedback='Not quite. Keep going — the next question is ready.';
-    g.questionAnswered=false;
-    g.question=null;
-    commanderSaveFinal();
-    commanderRenderScreen();
-    setTimeout(commanderLoadQuestionFinal,420);
-  }
-
-  function commanderQuestionGateHtmlV5(){
-    const g=state.games;
-    const meta=commanderQuestionMetaV5(g);
-    const subject=(subjectById(g.subjectId)||{}).name || 'AP';
-    const title=meta.required===1 ? 'Answer to Deploy' : 'Answer More Questions to Deploy';
-    const progress=meta.correct>=meta.required ? meta.required : meta.correct;
-    const header =
-      '<div class="commander-gate-kicker-v5">TROOP COMMANDER · STUDY GATE</div>'+
-      '<h1>'+esc(title)+'</h1>'+
-      '<p class="commander-gate-lead-v5">You cannot enter the defense field until you earn your deployment budget.</p>'+
-      '<div class="commander-gate-stats-v5">'+
-        '<span>✓ Correct: <b>'+progress+'/'+meta.required+'</b></span>'+
-        '<span>🪙 Deployment coins: <b>'+Math.max(0,Number(g.waveCoins)||0)+'</b></span>'+
-        '<span>🌊 Next wave: <b>'+(Math.max(0,Number(g.wave)||0)+1)+'</b></span>'+
-      '</div>';
-
-    let body='';
-    if(g.questionLoading){
-      body='<div class="commander-gate-loading-v5"><div class="commander-gate-spinner-v5"></div><b>Preparing your '+esc(subject)+' question…</b><small>Stay here until you answer correctly.</small></div>';
-    }else if(g.questionError){
-      body='<div class="commander-gate-error-v5"><b>We could not load the question.</b><small>'+esc(g.questionError)+'</small><button class="commander-gate-retry-v5" data-action="commander-retry-question">Try Again</button></div>';
-    }else if(g.question){
-      body=
-        '<div class="commander-gate-meta-v5">'+esc(subject)+' · '+esc(g.unit||'Unit')+(g.topic?' · '+esc(g.topic):'')+'</div>'+
-        '<div class="commander-gate-question-v5">'+esc(g.question.q)+'</div>'+
-        '<div class="commander-gate-options-v5">'+
-          g.question.options.map(function(o,i){
-            return '<button data-action="commander-answer" data-answer="'+i+'"><span>'+String.fromCharCode(65+i)+'</span>'+esc(o)+'</button>';
-          }).join('')+
-        '</div>'+
-        '<div class="commander-gate-hint-v5">'+esc(g.questionFeedback || 'Choose the best answer. A wrong answer gives you another question.')+'</div>';
-    }else{
-      body='<div class="commander-gate-loading-v5"><div class="commander-gate-spinner-v5"></div><b>Loading question…</b></div>';
-    }
-
-    return '<div class="commander-fullscreen commander-question-gate-v5">'+
-      '<div class="commander-gate-card-v5">'+header+body+'</div>'+
-    '</div>';
-  }
-
-  function commanderRosterFinalHtmlV5(){
-    const p=commanderFinalProfile();
-    const sel=state.games.selectedTroop||'ling-sugarbug';
-    const coins=Math.max(0,Number(state.games.waveCoins)||0);
-
-    return '<div class="commander-roster-final commander-roster-v5">'+
-      COMMANDER_TROOPS_FINAL.map(function(r){
-        const own=!!p.owned[r.id];
-        const lvl=Math.max(1,Number(p.levels[r.id])||1);
-        const s=commanderFinalStats(r.id,lvl);
-        const upgrade=commanderFinalCost(r.id);
-        const deploy=commanderDeployCostV5(r.id);
-        const canDeploy=own && coins>=deploy;
-        return '<div class="commander-char-final '+(own&&sel===r.id?'selected ':'')+(!own?'locked':'')+'">'+
-          '<button class="commander-char-select-final commander-char-select-v5" data-action="commander-select-troop" data-troop="'+r.id+'" '+(!own?'disabled':'')+'>'+
-            commanderIndexlingPortraitFinal(r.id)+
-            '<div class="commander-char-name-final">'+esc(r.name)+' · Lv '+lvl+'</div>'+
-            '<div class="commander-char-role-final">'+esc(r.role)+'</div>'+
-            '<div class="commander-char-stats-final">'+
-              '<span>⚔ '+s.damage+' DMG</span>'+
-              '<span>◉ '+s.range+' RNG</span>'+
-              '<span>⚡ '+(Math.round(1000/s.rate*10)/10)+' atk/s</span>'+
-              '<span>✦ '+esc(r.ability)+' · '+s.cooldown+'s</span>'+
-            '</div>'+
-          '</button>'+
-          (own
-            ? '<div class="commander-char-cost-v5">Deploy: <b>'+deploy+' 🪙</b></div><button class="commander-upgrade-final" data-action="commander-upgrade" data-id="'+r.id+'" '+(lvl>=10||p.coins<upgrade?'disabled':'')+'>Upgrade · '+upgrade+' 🪙</button>'
-            : '<div class="commander-char-cost-v5">Unlock: <b>'+r.cost+' 🪙</b></div><button class="commander-upgrade-final" data-action="commander-buy" data-id="'+r.id+'" '+(p.coins<r.cost?'disabled':'')+'>Unlock · '+r.cost+' 🪙</button>')+
-          (!own||!canDeploy ? '<div class="commander-deploy-state-v5">'+(own ? 'Need more deployment coins' : 'Locked')+'</div>' : '')+
-        '</div>';
-      }).join('')+
-    '</div>';
-  }
-
-  function commanderSaveFinalV5(){
-    const g=state.games;
-    if(g.slotIndex===undefined || g.slotIndex===null) return;
-    commanderSlotsFinal()[g.slotIndex]={
-      mapId:g.mapId,
-      round:g.wave,
-      base:g.base,
-      subjectId:g.subjectId||'',
-      unit:g.unit||'',
-      topic:g.topic||'',
-      questionBank:g.questionBank||[],
-      question:g.question||null,
-      questionAnswered:!!g.questionAnswered,
-      questionError:g.questionError||'',
-      questionGateOpen:!!g.questionGateOpen,
-      questionRequired:Math.max(1,Number(g.questionRequired)||commanderQuestionRequirementV5(g)),
-      questionCorrectCount:Math.max(0,Number(g.questionCorrectCount)||0),
-      questionAskedCount:Math.max(0,Number(g.questionAskedCount)||0),
+  function save6(){
+    const g=g6(); if(!g||g.slotIndex===undefined||g.slotIndex===null)return;
+    const slots=commanderSlotsFinal();
+    slots[g.slotIndex]={
+      mapId:g.mapId,round:g.wave,base:g.base,subjectId:g.subjectId||'',unit:g.unit||'',topic:g.topic||'',
+      questionBank:Array.isArray(g.questionBank)?g.questionBank.slice(-24):[],
+      question:null,questionAnswered:false,questionError:g.questionError||'',
+      questionGateOpen:!!g.questionGateOpen,questionRequired:requirement6(g),
+      questionCorrectCount:Number(g.questionCorrectCount)||0,questionAskedCount:Number(g.questionAskedCount)||0,
       waveCoins:Math.max(0,Number(g.waveCoins)||0),
-      towers:g.towers.map(function(t){return{x:t.x,y:t.y,id:t.id,level:t.level};}),
-      savedAt:Date.now()
+      towers:(g.towers||[]).map(function(t){return{x:t.x,y:t.y,id:t.id,level:t.level};}),savedAt:Date.now()
     };
     persistProgress();
   }
 
-  function commanderCanvasClickV5(e){
-    const g=state.games;
-    if(!g || g.active!=='commander' || g.phase!=='battle' || g.questionGateOpen || g.running || g.finished) return;
-    const cv=document.getElementById('commander-map-final');
-    if(!cv) return;
-    const r=cv.getBoundingClientRect();
-    const x=(e.clientX-r.left)/r.width;
-    const y=(e.clientY-r.top)/r.height;
-    if(!commanderCanPlaceFinal(x,y)) return;
-    const id=g.selectedTroop||'ling-sugarbug';
-    const p=commanderFinalProfile();
-    if(!p.owned[id]) return;
-    const cost=commanderDeployCostV5(id);
-    if((Number(g.waveCoins)||0)<cost) return;
-    const lvl=Math.max(1,Number(p.levels[id])||1);
-    g.towers.push({id:id,x:x,y:y,level:lvl,cool:0,abilityReady:Date.now()+1800,recoil:0});
-    g.waveCoins=Math.max(0,Number(g.waveCoins)||0)-cost;
-    commanderSaveFinal();
-    commanderRenderScreen();
-    if(g.waveCoins===0){
-      setTimeout(function(){
-        if(state.games===g && g.active==='commander' && !g.running && !g.finished && !g.questionGateOpen){
-          commanderLaunchFinal();
-        }
-      },450);
+  function makeQuestion6(g){
+    const bank=commanderQuestionPoolFinal(g);
+    return bank.length ? bank[Math.floor(Math.random()*bank.length)] : null;
+  }
+
+  function gateOpen6(g,clearMessage){
+    stopQuestionWork6(g);
+    stopBattleLoop6(g);
+    g.running=false;
+    g.waveCoins=0;
+    g.questionGateOpen=true;
+    g.questionRequired=requirement6(g);
+    g.questionCorrectCount=0;
+    g.questionAskedCount=0;
+    g.questionAnswered=false;
+    g.question=null;
+    g.questionError='';
+    g.questionFeedback=clearMessage||'';
+    save6();
+    render6();
+    loadQuestion6();
+  }
+
+  function gateClose6(g){
+    stopQuestionWork6(g);
+    g.questionGateOpen=false;
+    g.questionAnswered=false;
+    g.questionError='';
+    g.questionFeedback='';
+    save6();
+    render6();
+    mountCanvas6();
+  }
+
+  async function loadQuestion6(){
+    const g=g6();
+    if(!g||!g.questionGateOpen||g.questionLoading)return;
+    const local=makeQuestion6(g);
+    if(local){
+      g.question=local;
+      g.questionLoading=false;
+      g.questionError='';
+      save6();
+      render6();
+      return;
     }
-  }
 
-  function commanderBattleFinalHtmlV5(){
-    const g=state.games;
-    const m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;})||COMMANDER_MAPS_FINAL[0];
-    if(g.questionGateOpen) return commanderQuestionGateHtmlV5();
-    if(g.finished){
-      return '<div class="commander-fullscreen commander-battle-bg-ref"><div class="commander-result-ref">'+
-        '<h1>Base Defeated</h1><p>'+esc(m.name)+' · Round '+g.wave+'</p>'+
-        '<button class="commander-blue-button-ref commander-large-button-ref" data-action="commander-save-slots">Back to Save Slots</button>'+
-      '</div></div>';
-    }
+    const requestId=(Number(g.questionRequestId)||0)+1;
+    g.questionRequestId=requestId;
+    g.questionLoading=true;
+    g.questionError='';
+    g.question=null;
+    save6();
+    render6();
 
-    const coins=Math.max(0,Number(g.waveCoins)||0);
-    const nextCost=Math.min.apply(null,COMMANDER_TROOPS_FINAL.filter(function(r){return commanderFinalProfile().owned[r.id];}).map(function(r){return commanderDeployCostV5(r.id);}).concat([5]));
-    const canStart=coins===0 && !g.running;
-
-    return '<div class="commander-fullscreen commander-battle-bg-ref commander-v5-battle">'+
-      '<main class="commander-battle-world-ref commander-world-v3">'+
-        '<canvas id="commander-map-final" class="commander-map-final-canvas"></canvas>'+
-        '<div class="commander-battle-map-label-ref">'+esc(m.name)+' · '+esc(m.difficulty)+'</div>'+
-        '<div class="commander-battle-context-ref">'+esc((subjectById(g.subjectId)||{}).name||'AP')+' · '+esc(g.unit||'Unit')+(g.topic?' · '+esc(g.topic):'')+'</div>'+
-        '<div class="commander-deployment-banner-v5"><b>DEPLOYMENT COINS</b><strong>🪙 '+coins+'</strong><small>'+(g.running?'Wave is running':'Place Indexlings until your budget reaches 0. The wave then starts automatically.')+'</small></div>'+
-      '</main>'+
-      '<aside class="commander-battle-panel-ref commander-panel-v3 commander-panel-v5">'+
-        '<div class="commander-currency-ref"><div><span>🪙</span><b>'+coins+'</b></div><div><span>♥</span><b>'+Math.max(0,g.base)+'</b></div></div>'+
-        '<div class="commander-round-ref">Wave '+Math.max(1,g.wave+1)+' · '+(g.running?'IN PROGRESS':'DEPLOYMENT')+'</div>'+
-        '<div class="commander-panel-title-ref">Indexlings · hover for stats · click to select</div>'+
-        commanderRosterFinalHtmlV5()+
-        '<div class="commander-deploy-help-v5">'+
-          '<b>How deployment works</b>'+
-          '<span>Correct study answers give 25 deployment coins. Each Indexling costs coins to place. When the budget reaches 0, the wave starts automatically.</span>'+
-        '</div>'+
-        '<button class="commander-start-ref commander-start-v5" data-action="commander-start-wave" '+(!canStart?'disabled':'')+'>'+ (canStart?'▶ Start Wave':'Spend all deployment coins') +'</button>'+
-        '<button class="commander-change-ref" data-action="commander-map-select">Change Map</button>'+
-        '<button class="commander-change-ref" data-action="commander-study-change">Change AP Topic</button>'+
-      '</aside>'+
-    '</div>';
-  }
-
-  function commanderStartWaveV5(){
-    const g=state.games;
-    if(!g || g.questionGateOpen || g.running || g.finished) return;
-    if(Math.max(0,Number(g.waveCoins)||0)!==0) return;
-    commanderLaunchFinal();
-  }
-
-  function commanderStartMapV5(mapId,slotIndex,save){
-    const m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===mapId;});
-    if(!m) return;
-    clearGameTimers();
-
-    const oldState=state.games||{};
-    const hasSave=!!save;
-    state.games={
-      active:'commander',
-      commanderScreen:'battle',
-      phase:'battle',
-      slotIndex:slotIndex,
-      mapId:mapId,
-      subjectId:(save&&save.subjectId)||oldState.subjectId||'biology',
-      unit:(save&&save.unit)||oldState.unit||'',
-      topic:(save&&save.topic)||oldState.topic||'',
-      questionBank:(save&&save.questionBank)||oldState.questionBank||[],
-      question:(save&&save.question)||null,
-      questionAnswered:false,
-      questionError:(save&&save.questionError)||'',
-      questionLoading:false,
-      questionGateOpen:hasSave ? save.questionGateOpen!==false : true,
-      questionRequired:hasSave ? Math.max(1,Number(save.questionRequired)||commanderQuestionRequirementV5({wave:Number(save.round)||0})) : 1,
-      questionCorrectCount:hasSave ? Math.max(0,Number(save.questionCorrectCount)||0) : 0,
-      questionAskedCount:hasSave ? Math.max(0,Number(save.questionAskedCount)||0) : 0,
-      questionFeedback:'',
-      waveCoins:hasSave ? Math.max(0,Number(save.waveCoins)||0) : 0,
-      base:hasSave?Math.max(1,Number(save.base)||100):100,
-      wave:hasSave?Math.max(0,Number(save.round)||0):0,
-      selectedTroop:(save&&save.selectedTroop)||'ling-sugarbug',
-      towers:[],
-      enemies:[],
-      projectiles:[],
-      effects:[],
-      running:false,
-      finished:false,
-      spawnTimer:null,
-      spawnCount:0,
-      spawnTotal:0,
-      lastFrame:0,
-      waveBanner:'',
-      waveBannerUntil:0,
-      hover:null,
-      bardBuffUntil:0,
-      shieldUntil:0
-    };
-
-    if(hasSave && Array.isArray(save.towers)){
-      save.towers.forEach(function(t){
-        if(t.x!==undefined && t.y!==undefined && commanderFinalProfile().owned[t.id]){
-          state.games.towers.push({
-            id:t.id,x:Number(t.x),y:Number(t.y),
-            level:Math.max(1,Number(t.level)||1),
-            cool:0,abilityReady:Date.now()+2000,recoil:0
-          });
-        }
+    const controller=new AbortController();
+    g.questionController=controller;
+    g.questionTimer=setTimeout(function(){try{controller.abort();}catch(e){}},15000);
+    try{
+      const response=await fetch('/api/ai/commander-question',{
+        method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},
+        credentials:'same-origin',cache:'no-store',
+        body:JSON.stringify({course:(subjectById(g.subjectId)||{}).name||'',unit:g.unit||'',topic:g.topic||''}),
+        signal:controller.signal
       });
-    }
-
-    commanderSaveFinal();
-    commanderRenderScreen();
-
-    requestAnimationFrame(function(){
-      const cv=document.getElementById('commander-map-final');
-      if(cv && !state.games.questionGateOpen){
-        if(!cv.dataset.boundV5){
-          cv.dataset.boundV5='1';
-          cv.addEventListener('mousemove',commanderCanvasMoveFinal);
-          cv.addEventListener('mouseleave',function(){state.games.hover=null;});
-          cv.addEventListener('click',commanderCanvasClickV5);
-        }
-        state.games.frame=requestAnimationFrame(commanderLoopFinal);
+      const data=await response.json().catch(function(){return{};});
+      if(requestId!==Number(g.questionRequestId)||state.games!==g||!g.questionGateOpen)return;
+      if(!response.ok||!data.question)throw new Error(String(data.error||'The study question could not be loaded.'));
+      const q=data.question;
+      if(!q.q||!Array.isArray(q.options)||q.options.length!==4)throw new Error('The study question was incomplete.');
+      g.question={q:String(q.q),options:q.options.map(String),correct:Math.max(0,Math.min(3,Number(q.correct)||0)),explanation:q.explanation?String(q.explanation):''};
+      g.questionBank=(g.questionBank||[]).concat([g.question]).slice(-24);
+      g.questionError='';
+    }catch(e){
+      if(requestId!==Number(g.questionRequestId)||state.games!==g||!g.questionGateOpen)return;
+      g.questionError=e&&e.name==='AbortError'?'The study question took too long to load.':String(e.message||'The study question could not be loaded.');
+    }finally{
+      if(requestId===Number(g.questionRequestId)&&state.games===g){
+        g.questionLoading=false;
+        g.questionController=null;
+        if(g.questionTimer){clearTimeout(g.questionTimer);g.questionTimer=null;}
+        save6();
+        render6();
       }
-    });
-
-    if(state.games.questionGateOpen) commanderLoadQuestionFinal();
+    }
   }
 
-  function commanderRenderScreenV5(){
-    const stage=document.getElementById('games-stage');
-    const btn=document.getElementById('games-exit-btn');
-    if(!stage) return;
-    if(btn) btn.classList.add('hidden');
-
-    if(state.games.commanderScreen==='slots'){
-      stage.innerHTML=commanderSaveSlotsHtmlV2();
-      return;
-    }
-    if(state.games.commanderScreen==='setup'){
-      stage.innerHTML=commanderSetupFinalHtml();
-      const s=document.getElementById('commander-subject-final');
-      const u=document.getElementById('commander-unit-final');
-      if(s){
-        s.value=state.games.subjectId||'biology';
-        s.onchange=function(){
-          const sub=subjectById(s.value)||SUBJECTS[0];
-          const us=Array.isArray(sub.units)?sub.units:[];
-          u.innerHTML=us.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');
-          state.games.unit=us[0]||'';
-        };
+  function answer6(i){
+    const g=g6();
+    if(!g||!g.questionGateOpen||g.questionLoading||!g.question)return;
+    if(g.questionAnswered)return;
+    g.questionAnswered=true;
+    g.questionAskedCount=(Number(g.questionAskedCount)||0)+1;
+    const correct=Number(i)===Number(g.question.correct);
+    if(correct){
+      g.questionCorrectCount=(Number(g.questionCorrectCount)||0)+1;
+      g.waveCoins=(Number(g.waveCoins)||0)+CORRECT_REWARD_V6;
+      g.questionFeedback='Correct! +'+CORRECT_REWARD_V6+' deployment coins.';
+      if(g.questionCorrectCount>=requirement6(g)){
+        gateClose6(g);
+        return;
       }
-      if(u) u.value=state.games.unit||'';
-      const t=document.getElementById('commander-topic-final');
-      if(t) t.value=state.games.topic||'';
-      return;
+    }else{
+      g.questionFeedback='Not quite. Here is another question.';
     }
-    if(state.games.commanderScreen==='maps'){
-      stage.innerHTML=commanderMapHtmlFinal();
-      return;
-    }
-    if(state.games.phase==='battle'){
-      stage.innerHTML=commanderBattleFinalHtmlV5();
-      if(state.games.questionGateOpen) return;
-      requestAnimationFrame(function(){
-        const cv=document.getElementById('commander-map-final');
-        if(!cv) return;
-        if(!cv.dataset.boundV5){
-          cv.dataset.boundV5='1';
-          cv.addEventListener('mousemove',commanderCanvasMoveFinal);
-          cv.addEventListener('mouseleave',function(){state.games.hover=null;});
-          cv.addEventListener('click',commanderCanvasClickV5);
-        }
-        commanderDrawSceneFinal();
-      });
-      return;
-    }
-    stage.innerHTML=commanderSaveSlotsHtmlV2();
+    g.questionAnswered=false;
+    g.question=null;
+    save6();
+    render6();
+    if(g.questionRetryTimer)clearTimeout(g.questionRetryTimer);
+    g.questionRetryTimer=setTimeout(function(){
+      if(state.games===g&&g.questionGateOpen&&!g.questionLoading)loadQuestion6();
+    },250);
   }
 
-  /* Install the V5 behavior over the earlier Commander implementations. */
-  commanderSaveFinal=commanderSaveFinalV5;
-  commanderLoadQuestionFinal=commanderLoadQuestionV5;
-  commanderAnswerQuestion=commanderAnswerGateV5;
-  commanderStartWaveV5 && (commanderLaunchFinal=function(){
-    const g=state.games;
-    if(!g || g.questionGateOpen || g.running || g.finished || Math.max(0,Number(g.waveCoins)||0)!==0) return;
+  function startWave6(){
+    const g=g6();
+    if(!g||g.questionGateOpen||g.running||g.finished||Number(g.waveCoins)!==0)return;
     const m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;});
-    if(!m) return;
+    if(!m)return;
+    stopQuestionWork6(g);
     g.wave++;
     g.running=true;
     g.spawnCount=0;
     g.spawnTotal=4+Math.min(9,g.wave);
     g.waveBanner='WAVE '+g.wave;
     g.waveBannerUntil=Date.now()+1000;
-    g.question=null;
-    g.questionAnswered=false;
+    g.enemies=[];
+    g.projectiles=[];
+    g.effects=[];
+    if(g.spawnTimer)clearInterval(g.spawnTimer);
     g.spawnTimer=setInterval(function(){
-      if(state.games!==g || g.active!=='commander' || g.phase!=='battle' || !g.running){
-        clearInterval(g.spawnTimer); g.spawnTimer=null; return;
-      }
-      if(g.spawnCount>=g.spawnTotal){
-        clearInterval(g.spawnTimer); g.spawnTimer=null; return;
-      }
+      if(state.games!==g||g.active!=='commander'||g.phase!=='battle'||!g.running){clearInterval(g.spawnTimer);g.spawnTimer=null;return;}
+      if(g.spawnCount>=g.spawnTotal){clearInterval(g.spawnTimer);g.spawnTimer=null;return;}
       const i=g.spawnCount;
-      const kind=(g.wave%4===0 && i===g.spawnTotal-1)
-        ? 'brute'
-        : (g.wave%3===0 && i%3===0 ? 'elite' : (i%2===0 ? 'raider' : 'runner'));
-      const b=COMMANDER_ENEMIES_FINAL.find(function(x){return x.id===kind;})||COMMANDER_ENEMIES_FINAL[1];
-      const hp=Math.round(b.hp*(m.hp/42)*(1+g.wave*.075));
+      const kind=(g.wave%4===0&&i===g.spawnTotal-1)?'brute':(g.wave%3===0&&i%3===0?'elite':i%2===0?'raider':'runner');
+      const b=COMMANDER_ENEMIES_FINAL.find(function(x){return x.id===kind;})||COMMANDER_ENEMIES_FINAL[0];
       const s=m.route[0];
-      g.enemies.push({
-        id:uid(),wp:0,x:s[0],y:s[1],hp:hp,maxHp:hp,
-        speed:b.speed*m.speed,baseDamage:b.baseDamage,size:b.size,
-        color:b.color,seed:Math.random()*9999,hit:0,slow:1
-      });
+      const hp=Math.round(b.hp*(m.hp/42)*(1+g.wave*.075));
+      g.enemies.push({id:uid(),wp:0,x:s[0],y:s[1],hp:hp,maxHp:hp,speed:b.speed*m.speed,baseDamage:b.baseDamage,size:b.size,color:b.color,seed:Math.random()*9999,hit:0,slow:1});
       g.spawnCount++;
     },m.spawn);
-    commanderSaveFinal();
-  });
-
-  commanderStartMapFinal=commanderStartMapV5;
-  commanderRenderScreen=commanderRenderScreenV5;
-
-  /* The existing update loop calls commanderLoadQuestionFinal after a cleared
-     wave. Our replacement turns that into the next full-screen study gate. */
-  commanderRetryQuestionFinal=function(){ commanderLoadQuestionFinal(); };
-
-  /* Use the V5 renderer for every Commander entry point. */
-  if(typeof commanderOpen==='function'){
-    const openOriginal=commanderOpen;
-    commanderOpen=function(){
-      openOriginal();
-      commanderRenderScreen();
-    };
+    save6();
+    render6();
+    mountCanvas6();
   }
 
-  /* Replace the delegated action hooks used by the main click handler. */
-  const oldActionMarker=window.__commanderV5ActionsInstalled;
-  if(!oldActionMarker){
-    window.__commanderV5ActionsInstalled=true;
-    const previousHandler=window.__indexCommanderV5ActionHook;
-    window.__indexCommanderV5ActionHook=function(action,t){
-      if(action==='commander-answer'){ commanderAnswerGateV5(parseInt(t.dataset.answer,10)); return true; }
-      if(action==='commander-start-wave'){ commanderStartWaveV5(); return true; }
-      if(action==='commander-retry-question'){ commanderRetryQuestionFinal(); return true; }
-      if(action==='commander-select-troop'){
-        if(!state.games.questionGateOpen) { state.games.selectedTroop=t.dataset.troop; commanderRenderScreen(); }
-        return true;
-      }
-      return previousHandler ? previousHandler(action,t) : false;
-    };
+  function finishWave6(){
+    const g=g6(); if(!g)return;
+    stopBattleLoop6(g);
+    g.running=false;
+    g.spawnCount=0;
+    g.waveBanner='WAVE '+g.wave+' CLEARED';
+    g.waveBannerUntil=Date.now()+1100;
+    save6();
+    gateOpen6(g,'Wave cleared. Earn the deployment budget for the next wave.');
   }
 
-  /* Patch the existing delegated game action handler once it is available.
-     The handler is already installed by Index; intercepting at document level
-     avoids changing unrelated game actions. */
-  document.addEventListener('click',function(ev){
-    const t=ev.target.closest && ev.target.closest('[data-action]');
-    if(!t) return;
-    const action=t.dataset.action;
-    if(!/^commander-/.test(action)) return;
+  function loop6(ts){
+    const g=g6();
+    if(!g||g.questionGateOpen||g.finished||!g.running)return;
+    const now=ts||performance.now();
+    const dt=Math.min(.045,(g.lastFrame?now-g.lastFrame:16)/1000);
+    g.lastFrame=now;
+    commanderUpdateFinal(dt);
+    if(!g6()||state.games!==g)return;
+    if(!g.running)return;
+    g.frame=requestAnimationFrame(loop6);
+  }
 
-    if(action==='commander-answer' || action==='commander-start-wave' || action==='commander-retry-question' || action==='commander-select-troop'){
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      if(action==='commander-answer') commanderAnswerGateV5(parseInt(t.dataset.answer,10));
-      else if(action==='commander-start-wave') commanderStartWaveV5();
-      else if(action==='commander-retry-question') commanderRetryQuestionFinal();
-      else if(action==='commander-select-troop' && !state.games.questionGateOpen){
-        state.games.selectedTroop=t.dataset.troop;
-        commanderRenderScreen();
-      }
-    }
-  },true);
-
-})();
-</script>
-
-<script id="commander-learning-economy-v5-fix">
-(function(){
-  'use strict';
-
-  function commanderMountBattleCanvasV5(){
-    const g=state.games;
-    if(!g || g.active!=='commander' || g.phase!=='battle' || g.questionGateOpen || g.finished) return;
+  function mountCanvas6(){
+    const g=g6(); if(!g||g.questionGateOpen||g.finished)return;
     requestAnimationFrame(function(){
-      const cv=document.getElementById('commander-map-final');
-      if(!cv) return;
-      if(!cv.dataset.boundV5){
-        cv.dataset.boundV5='1';
-        cv.addEventListener('mousemove',commanderCanvasMoveFinal);
-        cv.addEventListener('mouseleave',function(){state.games.hover=null;});
-        cv.addEventListener('click',commanderCanvasClickV5);
-      }
-      commanderDrawSceneFinal();
-      if(!g.frame) g.frame=requestAnimationFrame(commanderLoopFinal);
+      const gg=g6(); if(!gg||gg!==g||gg.questionGateOpen||gg.finished)return;
+      const cv=document.getElementById('commander-map-v6');
+      if(!cv)return;
+      cv.onmousemove=commanderCanvasMoveV6;
+      cv.onmouseleave=function(){if(state.games===g){g.hover=null;draw6();}};
+      cv.onclick=commanderCanvasClickV6;
+      draw6();
+      if(g.running&&!g.frame)g.frame=requestAnimationFrame(loop6);
     });
   }
 
-  const previousLoadQuestion=commanderLoadQuestionFinal;
-  commanderLoadQuestionFinal=async function(){
-    const g=state.games;
-    if(!g || g.active!=='commander' || g.phase!=='battle') return;
-
-    /* A cleared wave returns to the study gate. */
-    if(!g.questionGateOpen && !g.running && !g.finished && Math.max(0,Number(g.wave)||0)>0 && Math.max(0,Number(g.waveCoins)||0)===0){
-      g.questionGateOpen=true;
-      g.questionRequired=1+Math.floor(Math.max(0,Number(g.wave)||0)/15);
-      g.questionCorrectCount=0;
-      g.questionAskedCount=0;
-      g.questionAnswered=false;
-      g.questionError='';
-      g.questionFeedback='';
-      g.question=null;
-      commanderSaveFinal();
-      commanderRenderScreen();
+  function draw6(){
+    const g=g6(),m=g&&COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;}),cv=document.getElementById('commander-map-v6');
+    if(!g||!m||!cv)return;
+    const ctx=cv.getContext('2d'),r=cv.getBoundingClientRect(),d=Math.min(2,window.devicePixelRatio||1);
+    if(!r.width||!r.height)return;
+    cv.width=Math.max(1,Math.floor(r.width*d));cv.height=Math.max(1,Math.floor(r.height*d));ctx.setTransform(d,0,0,d,0,0);
+    commanderDrawMapBackgroundFinal(ctx,m,r.width,r.height);
+    const pts=m.route.map(function(p){return{x:p[0]*r.width,y:p[1]*r.height};});
+    ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=57;ctx.strokeStyle='rgba(255,255,255,.24)';ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();ctx.lineWidth=39;ctx.strokeStyle=m.path;ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();ctx.lineWidth=5;ctx.strokeStyle='rgba(255,255,255,.28)';ctx.setLineDash([17,18]);ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();ctx.setLineDash([]);ctx.restore();
+    const st=pts[0],en=pts[pts.length-1];
+    ctx.fillStyle='#8754c2';ctx.beginPath();ctx.arc(st.x,st.y,31+Math.sin(Date.now()*.005)*4,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#e7d5ff';ctx.lineWidth=5;ctx.stroke();
+    ctx.fillStyle='#4e356d';ctx.fillRect(en.x-34,en.y-34,68,68);ctx.fillStyle='#fff';ctx.font='900 11px Arial';ctx.textAlign='center';ctx.fillText('BASE',en.x,en.y+4);
+    (g.towers||[]).forEach(function(t){commanderDrawIndexlingFinal(ctx,t.x*r.width,t.y*r.height,t.id,29,t.level,Date.now()<t.recoil);});
+    (g.enemies||[]).forEach(function(e){const x=e.x*r.width,y=e.y*r.height;commanderDrawEnemyFinal(ctx,Object.assign({},e,{x:x,y:y}));const bw=e.size*1.8;ctx.fillStyle='rgba(35,25,45,.62)';ctx.fillRect(x-bw/2,y-e.size-10,bw,5);ctx.fillStyle='#71dd8e';ctx.fillRect(x-bw/2,y-e.size-10,bw*Math.max(0,e.hp/e.maxHp),5);});
+    (g.projectiles||[]).forEach(function(q){const x=q.x*r.width,y=q.y*r.height,px=q.prevX*r.width,py=q.prevY*r.height,a=Math.atan2(y-py,x-px);ctx.save();ctx.translate(x,y);ctx.rotate(a);ctx.strokeStyle=q.color;ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-18,0);ctx.lineTo(5,0);ctx.stroke();ctx.fillStyle=q.color;ctx.beginPath();ctx.arc(5,0,5,0,Math.PI*2);ctx.fill();ctx.restore();});
+    (g.effects||[]).forEach(function(z){const x=z.x*r.width,y=z.y*r.height,rr=(z.radius||.05)*r.width;ctx.globalAlpha=Math.max(.05,z.life/z.maxLife);ctx.fillStyle=z.color||'#fff';ctx.beginPath();ctx.arc(x,y,rr,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;});
+    if(g.hover){
+      const x=g.hover.x*r.width,y=g.hover.y*r.height,l=Math.max(1,Number(commanderFinalProfile().levels[g.selectedTroop||'ling-sugarbug'])||1),st=commanderFinalStats(g.selectedTroop||'ling-sugarbug',l),rr=st.range*Math.min(1.42,r.width/850);
+      ctx.fillStyle=g.hover.valid?'rgba(51,214,139,.18)':'rgba(238,79,92,.18)';ctx.beginPath();ctx.arc(x,y,rr,0,Math.PI*2);ctx.fill();ctx.strokeStyle=g.hover.valid?'#33d68b':'#ee4f5c';ctx.lineWidth=4;ctx.stroke();commanderDrawIndexlingFinal(ctx,x,y,g.selectedTroop||'ling-sugarbug',29,l,false);
+      ctx.fillStyle='#fff';ctx.font='900 10px Arial';ctx.fillText(g.hover.valid?'PLACE':'BLOCKED',x,y+48);
     }
-    if(g.questionGateOpen) return previousLoadQuestion();
-  };
+    if(g.waveBannerUntil>Date.now()){ctx.fillStyle='rgba(124,49,25,.96)';ctx.strokeStyle='#f0bf8a';ctx.lineWidth=4;ctx.font='900 38px Arial';ctx.fillRect(r.width/2-210,r.height/2-50,420,84);ctx.strokeRect(r.width/2-210,r.height/2-50,420,84);ctx.fillStyle='#fff';ctx.fillText(g.waveBanner,r.width/2,r.height/2+10);}
+  }
 
-  const previousAnswer=commanderAnswerQuestion;
-  commanderAnswerQuestion=function(i){
-    const g=state.games;
-    if(g && g.questionGateOpen){
-      const before=g.questionGateOpen;
-      commanderAnswerGateV5(i);
-      if(before && g && !g.questionGateOpen) commanderMountBattleCanvasV5();
-      return;
+  function commanderCanvasMoveV6(e){
+    const g=g6(); if(!g||g.questionGateOpen||g.running||g.finished)return;
+    const cv=e.currentTarget,r=cv.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+    g.hover={x:x,y:y,valid:commanderCanPlaceFinal(x,y)&&Number(g.waveCoins)>0};
+    draw6();
+  }
+
+  function commanderCanvasClickV6(e){
+    const g=g6(); if(!g||g.questionGateOpen||g.running||g.finished)return;
+    if(!g.hover||!g.hover.valid)return;
+    const cv=e.currentTarget,r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+    const id=g.selectedTroop||'ling-sugarbug',p=commanderFinalProfile(),cost=DEPLOY_COSTS_V6[id]||5;
+    if(!p.owned[id]||Number(g.waveCoins)<cost)return;
+    if(!commanderCanPlaceFinal(x,y))return;
+    const lvl=Math.max(1,Number(p.levels[id])||1);
+    g.towers.push({id:id,x:x,y:y,level:lvl,cool:0,abilityReady:Date.now()+1800,recoil:0});
+    g.waveCoins=Math.max(0,Number(g.waveCoins)-cost);
+    g.hover=null;
+    save6();
+    render6();
+    if(g.waveCoins===0){
+      setTimeout(function(){
+        if(state.games===g&&g.active==='commander'&&g.phase==='battle'&&!g.running&&!g.finished&&!g.questionGateOpen)startWave6();
+      },180);
     }
-    if(typeof previousAnswer==='function') previousAnswer(i);
-  };
+  }
 
-  /* Make the first successful answer immediately open the playable deployment field. */
-  const previousStartMap=commanderStartMapFinal;
-  commanderStartMapFinal=function(mapId,slotIndex,save){
-    previousStartMap(mapId,slotIndex,save);
-    if(state.games && !state.games.questionGateOpen) commanderMountBattleCanvasV5();
-  };
+  function portrait6(id){
+    return commanderIndexlingPortraitFinal(id).replace('class="commander-indexling-portrait-v3"','class="commander-v6-portrait"');
+  }
 
-  window.__commanderMountBattleCanvasV5=commanderMountBattleCanvasV5;
+  function roster6(){
+    const g=g6(),p=commanderFinalProfile(),coins=Math.max(0,Number(g.waveCoins)||0),sel=g.selectedTroop||'ling-sugarbug';
+    return '<div class="commander-v6-roster">'+COMMANDER_TROOPS_FINAL.map(function(r){
+      const own=!!p.owned[r.id],lvl=Math.max(1,Number(p.levels[r.id])||1),s=commanderFinalStats(r.id,lvl),cost=DEPLOY_COSTS_V6[r.id]||5,can=own&&coins>=cost&&!g.running;
+      return '<div class="commander-v6-roster-card '+(own&&sel===r.id?'selected':'')+' '+(!own?'locked':'')+'">'+
+        '<button class="commander-v6-select" data-action="commander-v6-select" data-troop="'+r.id+'" '+(!own?'disabled':'')+' title="'+esc(r.name)+' · '+esc(r.role)+' · '+s.damage+' DMG · '+s.range+' range · '+(Math.round(1000/s.rate*10)/10)+' atk/s">'+
+        portrait6(r.id)+'<div class="commander-v6-name">'+esc(r.name)+' · Lv '+lvl+'</div><div class="commander-v6-role">'+esc(r.role)+'</div>'+
+        '<div class="commander-v6-cost">Deploy '+cost+' 🪙 · '+(can?'READY':'NEEDS '+cost+' 🪙')+'</div>'+
+        '<div class="commander-v6-statsline">DMG '+s.damage+' · RNG '+s.range+' · '+(Math.round(1000/s.rate*10)/10)+' atk/s · '+esc(r.ability)+'</div></button></div>';
+    }).join('')+'</div>';
+  }
+
+  function gateHtml6(){
+    const g=g6(),meta={required:requirement6(g),correct:Number(g.questionCorrectCount)||0},subject=(subjectById(g.subjectId)||{}).name||'AP Course';
+    let body='';
+    if(g.questionLoading)body='<div class="commander-v6-loading"><span class="commander-v6-spinner"></span>Preparing your next question…</div>';
+    else if(g.questionError)body='<div class="commander-v6-error"><b>Couldn’t load the question.</b><br>'+esc(g.questionError)+'<br><button class="btn btn-primary btn-sm" data-action="commander-v6-retry">Try Again</button></div>';
+    else if(g.question)body='<div class="commander-v6-question"><div class="commander-v6-meta">'+esc(subject)+' · '+esc(g.unit||'Course overview')+(g.topic?' · '+esc(g.topic):'')+'</div><div class="commander-v6-q">'+esc(g.question.q)+'</div><div class="commander-v6-options">'+g.question.options.map(function(o,i){return '<button class="commander-v6-option" data-action="commander-v6-answer" data-answer="'+i+'">'+String.fromCharCode(65+i)+'. '+esc(o)+'</button>';}).join('')+'</div></div>';
+    else body='<div class="commander-v6-loading"><span class="commander-v6-spinner"></span>Preparing your next question…</div>';
+    return '<div class="commander-v6-fullscreen commander-v6-gate"><div class="commander-v6-card">'+
+      '<div class="commander-v6-kicker">TROOP COMMANDER · STUDY GATE</div>'+
+      '<h1>'+(meta.required===1?'Answer to Deploy':'Answer More Questions to Deploy')+'</h1>'+
+      '<p class="commander-v6-lead">The defense field is locked until you earn the deployment budget. Wrong answers do not give coins, and another question appears automatically.</p>'+
+      '<div class="commander-v6-stats"><div class="commander-v6-stat">Correct answers<b>'+meta.correct+' / '+meta.required+'</b></div><div class="commander-v6-stat">Deployment coins<b>'+Math.max(0,Number(g.waveCoins)||0)+'</b></div><div class="commander-v6-stat">Next wave<b>'+(Math.max(0,Number(g.wave)||0)+1)+'</b></div></div>'+
+      body+
+      '<div class="commander-v6-hint">Each correct answer adds '+CORRECT_REWARD_V6+' deployment coins. Place Indexlings until the deployment budget reaches 0; the next wave then starts automatically. The required correct-answer count increases every 15 waves.</div>'+
+      (g.questionFeedback?'<div class="commander-v6-feedback">'+esc(g.questionFeedback)+'</div>':'')+
+      '</div></div>';
+  }
+
+  function battleHtml6(){
+    const g=g6(),m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;})||COMMANDER_MAPS_FINAL[0],p=commanderFinalProfile();
+    if(g.finished)return '<div class="commander-v6-fullscreen commander-v6-battle"><div style="margin:auto;text-align:center;color:#fff"><h1>Base Defeated</h1><p>'+esc(m.name)+' · Wave '+g.wave+'</p><button class="btn btn-primary" data-action="commander-save-slots">Back to Save Slots</button></div></div>';
+    return '<div class="commander-v6-fullscreen commander-v6-battle">'+
+      '<main class="commander-v6-world"><canvas id="commander-map-v6" class="commander-v6-canvas"></canvas><div class="commander-v6-label">'+esc(m.name)+' · '+esc(m.difficulty)+'</div><div class="commander-v6-context">'+esc((subjectById(g.subjectId)||{}).name||'AP')+' · '+esc(g.unit||'Course overview')+(g.topic?' · '+esc(g.topic):'')+'</div></main>'+
+      '<aside class="commander-v6-panel"><div class="commander-v6-currency"><div>🪙 Deployment <b>'+Math.max(0,Number(g.waveCoins)||0)+'</b></div><div>♥ Base <b>'+Math.max(0,g.base)+'</b></div></div>'+
+      '<div class="commander-v6-round">Wave '+Math.max(0,g.wave)+' · '+(g.running?'IN PROGRESS':'READY')+'</div>'+
+      '<div style="font-size:11px;font-weight:950;color:#6b6485;margin-bottom:7px">INDEXLINGS · click a card to select · hover for stats</div>'+
+      roster6()+
+      '<button class="btn btn-primary commander-v6-start commander-v6-start-wave" data-action="commander-v6-start" '+(Number(g.waveCoins)===0&&!g.running?'':'disabled')+'>▶ Start Wave</button>'+
+      '<div style="font-size:11px;color:#6b6485;line-height:1.45;margin-top:8px">'+(Number(g.waveCoins)>0?'Place Indexlings with the deployment budget. The wave starts automatically when it reaches 0.':'Deployment budget is empty; the wave is ready to start.')+'</div>'+
+      '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" data-action="commander-study-change">Change AP Topic</button>'+
+      '<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:7px" data-action="commander-save-slots">Back to Save Slots</button>'+
+      '</aside></div>';
+  }
+
+  function render6(){
+    const g=g6(),stage=document.getElementById('games-stage'),exit=document.getElementById('games-exit-btn');
+    if(!stage||!g)return;
+    if(exit)exit.classList.add('hidden');
+    stage.innerHTML=g.questionGateOpen?gateHtml6():battleHtml6();
+    if(!g.questionGateOpen&&!g.finished)mountCanvas6();
+  }
+
+  function startMap6(mapId,slotIndex,save){
+    const m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===mapId;});
+    if(!m)return;
+    clearGameTimers();
+    stopQuestionWork6(state.games);
+    const oldSave=save||{};
+    const g={
+      active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slotIndex,mapId:mapId,
+      subjectId:oldSave.subjectId||state.games.subjectId||'biology',unit:oldSave.unit||state.games.unit||'',topic:oldSave.topic||state.games.topic||'',
+      questionBank:Array.isArray(oldSave.questionBank)?oldSave.questionBank.slice(-24):[],
+      question:null,questionAnswered:false,questionLoading:false,questionError:'',
+      questionFeedback:'',questionGateOpen:true,questionRequired:0,questionCorrectCount:0,questionAskedCount:0,
+      questionRequestId:0,questionController:null,questionTimer:null,questionRetryTimer:null,waveCoins:0,
+      base:oldSave?Math.max(1,Number(oldSave.base)||100):100,wave:oldSave?Math.max(0,Number(oldSave.round)||0):0,
+      selectedTroop:'ling-sugarbug',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnTimer:null,spawnCount:0,spawnTotal:0,lastFrame:0,waveBanner:'',waveBannerUntil:0,hover:null,bardBuffUntil:0,shieldUntil:0
+    };
+    if(oldSave&&Array.isArray(oldSave.towers))oldSave.towers.forEach(function(t){if(t.x!==undefined&&t.y!==undefined&&commanderFinalProfile().owned[t.id])g.towers.push({id:t.id,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),cool:0,abilityReady:Date.now()+2000,recoil:0});});
+    state.games=g;
+    if(oldSave&&oldSave.questionGateOpen===false&&Number(oldSave.waveCoins)>0){
+      g.questionGateOpen=false;g.waveCoins=Math.max(0,Number(oldSave.waveCoins)||0);g.questionRequired=requirement6(g);g.questionCorrectCount=Math.max(0,Number(oldSave.questionCorrectCount)||0);
+    }else{
+      g.questionGateOpen=true;g.questionRequired=requirement6(g);
+    }
+    save6();
+    render6();
+    if(g.questionGateOpen)loadQuestion6(); else mountCanvas6();
+  }
+
+  function open6(){
+    clearGameTimers();
+    state.games={active:'commander',commanderScreen:'slots',phase:'menu',slotIndex:null};
+    commanderRenderScreen();
+  }
+
+  function selectTroop6(id){
+    const g=g6();if(!g||g.questionGateOpen)return;
+    const p=commanderFinalProfile();if(!p.owned[id])return;
+    g.selectedTroop=id;render6();
+  }
+
+  function changeTopic6(){
+    const g=g6();if(!g)return;
+    stopQuestionWork6(g);stopBattleLoop6(g);
+    state.games={active:'commander',commanderScreen:'setup',phase:'select-topic',slotIndex:g.slotIndex,subjectId:g.subjectId||'biology',unit:g.unit||'',topic:g.topic||'',questionBank:g.questionBank||[],setupLoading:false,setupError:''};
+    commanderRenderScreen();
+  }
+
+  function install6(){
+    commanderSaveFinal=save6;
+    commanderStartMapFinal=startMap6;
+    commanderRenderScreen=render6;
+    commanderOpen=open6;
+    commanderAnswerQuestion=answer6;
+    commanderLoadQuestionFinal=loadQuestion6;
+    commanderRetryQuestionFinal=loadQuestion6;
+    commanderLaunchFinal=startWave6;
+    commanderStartWaveV5=startWave6;
+    commanderAnswerGateV5=answer6;
+    commanderNextQuestionFinal=function(){};
+    window.__commanderV6Installed=true;
+  }
+
+  install6();
+
+  document.addEventListener('click',function(ev){
+    const t=ev.target.closest&&ev.target.closest('[data-action]');
+    if(!t)return;
+    const action=t.dataset.action;
+    if(action==='commander-v6-answer'){ev.preventDefault();ev.stopImmediatePropagation();answer6(parseInt(t.dataset.answer,10));return;}
+    if(action==='commander-v6-retry'){ev.preventDefault();ev.stopImmediatePropagation();loadQuestion6();return;}
+    if(action==='commander-v6-start'){ev.preventDefault();ev.stopImmediatePropagation();startWave6();return;}
+    if(action==='commander-v6-select'){ev.preventDefault();ev.stopImmediatePropagation();selectTroop6(t.dataset.troop);return;}
+    if(action==='commander-study-change'){ev.preventDefault();ev.stopImmediatePropagation();changeTopic6();return;}
+    if(action==='commander-save-slots'){ev.preventDefault();ev.stopImmediatePropagation();stopQuestionWork6(state.games);stopBattleLoop6(state.games);commanderBackToSlots();return;}
+  },true);
 })();
 </script>
 </body>
