@@ -2844,6 +2844,10 @@ function membershipDaysLeftLocal(){
   if(m.tier==='free'||!Number(m.currentPeriodEnd)) return 0;
   return Math.max(0,Math.ceil((Number(m.currentPeriodEnd)-Math.floor(Date.now()/1000))/86400));
 }
+function currentAccountTypeLabel(){
+  const tier=String(state.membership?.tier||'free').toLowerCase();
+  return tier==='free'?'Basic':(state.membership?.plan?.name||membershipTierName(tier));
+}
 function membershipEndDate(ts){
   if(!Number(ts)) return '';
   try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric'}).format(new Date(Number(ts)*1000));}catch(e){return new Date(Number(ts)*1000).toLocaleDateString();}
@@ -2856,11 +2860,14 @@ function renderDashboardMembershipCard(){
   const active=m.tier&&m.tier!=='free'&&Number(m.currentPeriodEnd)>0;
   const days=active?membershipDaysLeftLocal():0;
   const badgeTier=m.lifetimeBadgeTier||(active?m.tier:'');
+  const hasEndedPeriod=Number(m.currentPeriodEnd)>0&&Number(m.currentPeriodEnd)<=Math.floor(Date.now()/1000);
   const badgeHtml=badgeTier?'<span class="profile-member-badge">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
   if(active&&days>0){
     root.innerHTML='<div class="membership-status-card active"><div class="membership-status-main"><div class="membership-status-kicker">⭐ Current membership</div><div class="membership-status-title">'+esc(m.plan?.name||membershipTierName(m.tier))+' · '+days+' day'+(days===1?'':'s')+' left</div><div class="membership-status-sub">Ends '+esc(membershipEndDate(m.currentPeriodEnd))+' · No automatic renewal</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">View membership</button></div></div>';
-  }else if(badgeTier){
+  }else if(badgeTier&&hasEndedPeriod){
     root.innerHTML='<div class="membership-status-card expired"><div class="membership-status-main"><div class="membership-status-kicker">🏁 Membership period ended</div><div class="membership-status-title">Basic</div><div class="membership-status-sub">Your paid access has ended. Your membership badge stays on your account.</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">Membership</button></div></div>';
+  }else if(badgeTier){
+    root.innerHTML='<div class="membership-status-card expired"><div class="membership-status-main"><div class="membership-status-kicker">⭐ Membership badge</div><div class="membership-status-title">Basic</div><div class="membership-status-sub">Your paid membership is not currently active. Your '+esc(membershipTierName(badgeTier))+' member badge stays on your account.</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">Membership</button></div></div>';
   }else{
     root.innerHTML='';
   }
@@ -2924,7 +2931,7 @@ function renderProfileSlot(){
     const art=ling?indexlingArtHtml(ling,true,skin,null):'<span style="font-size:18px">👤</span>';
     const frameStyle=typeof indexlingFrameStyle==='function'?indexlingFrameStyle(frame):'';
     const badgeTier=state.membership?.lifetimeBadgeTier||(state.membership?.tier&&state.membership.tier!=='free'?state.membership.tier:'');
-    const badgeHtml=badgeTier?'<span class="profile-member-badge">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
+    const badgeHtml=badgeTier?'<span class="profile-member-badge">💎 '+esc(membershipTierName(badgeTier))+'</span>':'';
     el.innerHTML='<button type="button" class="profile-btn" data-action="open-signin"><span class="profile-indexling-frame" style="'+frameStyle+'"><span class="profile-indexling-art">'+art+'</span></span><span style="min-width:0;display:flex;flex-direction:column;gap:2px;"><span class="profile-name-label" title="'+esc(name||'Your account')+'">'+esc(name||'Your account')+'</span>'+badgeHtml+'</span></button>';
   }else{
     el.innerHTML='<button type="button" class="signin-btn" data-action="open-signin">👋 Sign in</button>';
@@ -4205,7 +4212,7 @@ async function openSignin(){
     document.getElementById('signin-modal-title').textContent = 'Your account';
     document.getElementById('account-username').value = state.account.username || '';
     document.getElementById('account-first').value = state.account.firstName || '';
-    document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''}`;
+    document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''} · Account type: ${currentAccountTypeLabel()}`;
     const ai=levelInfo(state.progress.xp); document.getElementById('account-level').textContent=ai.level; document.getElementById('account-xp').textContent=state.progress.xp||0; document.getElementById('account-coins').textContent=state.progress.coins||0; document.getElementById('account-cosmetics').textContent=(state.progress.unlockedCosmetics||[]).length; document.getElementById('account-profile-name').textContent=displayName()||'Your profile'; const aeq=state.progress?.equipped||{}; const aling=cosmeticById(aeq.indexling); const askin=(typeof skinById==='function')?skinById(aeq.indexlingSkin):null; const ap=document.getElementById('account-avatar-preview'); if(ap) ap.innerHTML=aling&&typeof indexlingArtHtml==='function'?indexlingArtHtml(aling,true,askin,aeq.frame||'default'):'👤'; hydrateAccountCustomizer(); applyAccountProfilePreferences(); bindAccountCustomizerAutosave(); renderAccountSetupStep(1);
   }else{
     document.getElementById('account-panel').classList.add('hidden');
@@ -4277,7 +4284,7 @@ async function authSubmit(){
       document.getElementById('signin-modal-title').textContent = 'Complete your profile';
       document.getElementById('account-username').value=d.user.username||'';
       document.getElementById('account-first').value=''; document.getElementById('account-last').value='';
-      document.getElementById('account-contact').textContent = `@${d.user.username} · ${d.user.email}`;
+      document.getElementById('account-contact').textContent = `@${d.user.username} · ${d.user.email} · Account type: ${currentAccountTypeLabel()}`;
       await loadAccountCustomization();
       hydrateAccountCustomizer(); applyAccountProfilePreferences(); bindAccountCustomizerAutosave(); renderAccountSetupStep(1);
       setTimeout(()=>openNewUserMembershipPrompt(true),250);
@@ -4819,7 +4826,7 @@ async function handleAuthRedirectResult(){
     document.getElementById('signin-modal-title').textContent = complete || !state.account.firstName ? 'Complete your profile' : 'Your account';
     document.getElementById('account-username').value = state.account.username || '';
     document.getElementById('account-first').value = state.account.firstName || '';
-    document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''}`;
+    document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''} · Account type: ${currentAccountTypeLabel()}`;
     if(complete || !state.account.firstName){
       document.getElementById('auth-complete-banner').classList.remove('hidden');
       document.getElementById('auth-complete-banner').textContent = 'Google connected! Choose your username and display name, then save your profile.';
