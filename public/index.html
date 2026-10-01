@@ -6759,6 +6759,12 @@ document.addEventListener('click',function(e){
   if(b){e.preventDefault();e.stopImmediatePropagation();var gu=state.games,iu=Number(b.dataset.index),tu=gu&&gu.towers&&gu.towers[iu],pp=commanderFinalProfile();if(tu){var uc=commanderFinalCost(tu.id);if(pp.coins>=uc&&tu.level<10){pp.coins-=uc;tu.level++;tu.maxHp+=15;tu.hp=tu.maxHp;commanderSaveFinal();persistProgress();renderCommanderStable();}}return;}
 },true);
 
+/* INDEX COMMANDER MAP BRIDGE 2026-10-01 */
+window.__indexCommanderStartMap=function(mapId,slotIndex){
+  if(typeof commanderStartMapFinal==='function') return commanderStartMapFinal(mapId,slotIndex);
+  return false;
+};
+
 })();
 </script>
 
@@ -6777,14 +6783,13 @@ window.__commanderMapClickFix=true;
 document.addEventListener('click',function(e){
   var b=e.target&&e.target.closest?e.target.closest('[data-action="commander-map"]'):null;
   if(!b)return;
-  var g=state&&state.games;
+  var g=(typeof state!=='undefined'&&state)?state.games:null;
   if(!g||g.active!=='commander')return;
   var mapId=b.dataset.map;
   if(!mapId)return;
   e.preventDefault();
   e.stopImmediatePropagation();
-  if(typeof commanderStartMapFinal==='function') commanderStartMapFinal(mapId,g.slotIndex);
-  else if(typeof commanderStartMap==='function') commanderStartMap(mapId,g.slotIndex);
+  if(typeof window.__indexCommanderStartMap==='function') window.__indexCommanderStartMap(mapId,g.slotIndex);
 },true);
 })();
 </script>
