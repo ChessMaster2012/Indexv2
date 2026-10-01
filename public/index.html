@@ -1755,65 +1755,23 @@ function choosePaidMembershipOptions(){
 async function startMembershipCheckout(tier){
   if(!state.account){openSignin();return;}
   const btn=document.querySelector('[data-action="start-membership-checkout"][data-tier="'+tier+'"]');
-  if(btn){btn.disabled=true;btn.textContent='Opening secure checkout…';}
+  if(btn){btn.disabled=true;btn.textContent='Updating membership…';}
   try{
     const r=await fetch('/api/billing/checkout',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({tier})});
     const d=await r.json().catch(()=>({}));
-    if(!r.ok)throw new Error(d.error||'Could not start checkout.');
+    if(!r.ok)throw new Error(d.error||'Could not change membership.');
     if(d.switched&&d.membership){
       state.membership={...(state.membership||{}),...(d.membership||{})};
       renderMembershipPage();
       showRewardToast('🎉 Membership switched to '+(state.membership?.plan?.name||tier)+'.');
       return;
     }
-    if(d.url)window.location.assign(d.url);else throw new Error('Stripe did not return a checkout URL.');
-  }catch(e){
-    showRewardToast(e.message||'Could not start secure checkout.');
-    renderMembershipPage();
-  }
-}
-async function openBillingPortal(){
-  if(!state.account)return;
-  try{
-    const r=await fetch('/api/billing/portal',{method:'POST',credentials:'same-origin'});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok)throw new Error(d.error||'Could not open billing management.');
     if(d.url)window.location.assign(d.url);
-  }catch(e){showRewardToast(e.message||'Could not open billing management.');}
-}
-async function handleBillingReturn(){
-  const params=new URLSearchParams(window.location.search);
-  const billing=params.get('billing');
-  if(!billing)return;
-  history.replaceState({},'',window.location.pathname);
-  if(!state.account)return;
-  if(billing==='success'){
-    await new Promise(resolve=>setTimeout(resolve,1200));
-    await loadMembershipStatus();
-    renderMembershipPage();
-    showRewardToast(state.membership?.tier==='free'?'Payment received. Stripe is still confirming your membership.':'🎉 Membership activated: '+(state.membership?.plan?.name||state.membership?.tier||'Paid plan')+'.');
-  }else if(billing==='cancelled'){
-    await loadMembershipStatus();
-    renderMembershipPage();
-    showRewardToast('Checkout was cancelled. No membership change was made.');
-  }else if(billing==='return'){
-    await loadMembershipStatus();
-    renderMembershipPage();
-  }
-}
-
-async function startMembershipCheckout(tier){
-  if(!state.account){openSignin();return;}
-  const btn=document.querySelector('[data-action="start-membership-checkout"][data-tier="'+tier+'"]');
-  if(btn){btn.disabled=true;btn.textContent='Opening secure checkout…';}
-  try{
-    const r=await fetch('/api/billing/checkout',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({tier})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok)throw new Error(d.error||'Could not start checkout.');
-    if(d.url)window.location.assign(d.url);else throw new Error('Stripe did not return a checkout URL.');
+    else throw new Error('Stripe did not return a checkout URL.');
   }catch(e){
-    showRewardToast(e.message||'Could not start secure checkout.');
-    openMembership();
+    showRewardToast(e.message||'Could not change membership.');
+    await loadMembershipStatus();
+    renderMembershipPage();
   }
 }
 async function openBillingPortal(){
@@ -1848,6 +1806,8 @@ async function handleBillingReturn(){
     renderMembershipPage();
     showRewardToast(confirmed&&state.membership?.tier!=='free'?'🎉 Membership activated: '+(state.membership?.plan?.name||state.membership?.tier||'Paid plan')+'.':'Payment received. Stripe is still confirming your membership.');
   }else if(billing==='cancelled'){
+    await loadMembershipStatus();
+    renderMembershipPage();
     showRewardToast('Checkout was cancelled. No membership change was made.');
   }else if(billing==='return'){
     await loadMembershipStatus();
