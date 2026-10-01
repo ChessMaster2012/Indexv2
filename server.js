@@ -82,7 +82,7 @@ app.use(express.static(PUBLIC_DIR, {
   setHeaders: (res, filePath) => {
     const ext = path.extname(filePath).toLowerCase();
     if (ext === '.html' || ext === '.js' || ext === '.json') {
-      res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     } else if (['.jpg', '.jpeg', '.png', '.webp', '.gif', '.ico', '.svg'].includes(ext)) {
       res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
     } else {
