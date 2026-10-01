@@ -6316,6 +6316,7 @@ if(typeof oldSave==='function'){
           questionBank:g.questionBank||[],towers:(g.towers||[]).map(function(t){return{x:t.x,y:t.y,id:t.id,level:t.level};}),
           waveCoins:g.waveCoins||0,questionGateOpen:!!g.questionGateOpen,questionCorrectCount:g.questionCorrectCount||0,
           questionAskedCount:g.questionAskedCount||0,lessonPathId:g.lessonPathId||'',lessonIndex:Number(g.lessonIndex)||0,lessonTotal:Number(g.lessonTotal)||0,
+          lessonMastered:g.lessonMastered||{},mixedQuestionOrder:g.mixedQuestionOrder||null,mixedQuestionCursor:Number(g.mixedQuestionCursor)||0,
           savedAt:Date.now()
         });
         persistProgress();
@@ -6358,6 +6359,13 @@ function nextMixedQuestion(g,info){
   var q=g.mixedQuestionOrder[g.mixedQuestionCursor++];
   return q||info.all[0];
 }
+function lessonQuestionKey(q){return String(q&&q.q||'').trim();}
+function nextUnmasteredLessonQuestion(g,info){
+  if(!info||!info.pool||!info.pool.length)return null;
+  if(!g.lessonMastered||typeof g.lessonMastered!=='object')g.lessonMastered={};
+  var open=info.pool.filter(function(q){return !g.lessonMastered[lessonQuestionKey(q)];});
+  return (open.length?shuffleCopy(open):shuffleCopy(info.pool))[0]||null;
+}
 
 window.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('.commander-gate-option-v8');
@@ -6373,17 +6381,30 @@ window.addEventListener('click',function(e){
     g.waveCoins=(g.waveCoins||0)+25;
     showRewardToast('🪙 +25 deployment coins');
     var need=typeof req==='function'?req(g.wave):1;
+    var lessonFinished=false;
+    if(g.lessonPathId&&g.lessonIndex){
+      var lessonInfo=commanderQuestionPoolForLesson(g);
+      if(lessonInfo){
+        if(!g.lessonMastered||typeof g.lessonMastered!=='object')g.lessonMastered={};
+        g.lessonMastered[lessonQuestionKey(g.question)]=true;
+        var masteredCount=Object.keys(g.lessonMastered).length;
+        lessonFinished=masteredCount>=lessonInfo.pool.length;
+      }
+    }
     if(g.questionCorrectCount>=need){
       g.questionGateOpen=false;g.question=null;g.selectedTroop=null;
-      if(g.lessonPathId&&g.lessonIndex){
+      if(g.lessonPathId&&g.lessonIndex&&lessonFinished){
         var info=commanderQuestionPoolForLesson(g);
         if(info){
           markLessonComplete(info.pathId,g.lessonIndex);
+          g.lessonMastered={};
           if(pathCompleted(info.pathId)>=info.total){
             g.lessonIndex=0;
+            g.mixedQuestionOrder=null;g.mixedQuestionCursor=0;
             showRewardToast('📚 All lessons complete — mixed review unlocked!');
           }else{
             g.lessonIndex=Math.min(info.total,g.lessonIndex+1);
+            showRewardToast('📖 Lesson '+g.lessonIndex+' unlocked.');
           }
         }
       }
@@ -6395,7 +6416,7 @@ window.addEventListener('click',function(e){
     showRewardToast('Keep going — no deployment coins for that answer.');
   }
   var info2=commanderQuestionPoolForLesson(g);
-  var nextQ=info2&&info2.lesson===0?nextMixedQuestion(g,info2):null;
+  var nextQ=info2&&info2.lesson===0?nextMixedQuestion(g,info2):nextUnmasteredLessonQuestion(g,info2);
   var pool=info2&&info2.pool?shuffleCopy(info2.pool):[];
   if(nextQ)g.question=nextQ;
   else{
