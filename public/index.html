@@ -4039,7 +4039,7 @@ function commanderSetupFinalHtml(){
   var err=state.games.setupError?'<div class="commander-setup-error-final"><span class="commander-error-mark-final">!</span><div><b>We couldn’t prepare the questions yet.</b><small>'+esc(state.games.setupError)+'</small></div></div>':'';
   return '<div class="commander-fullscreen commander-ocean-ref commander-study-shell-final"><button class="commander-back-ref commander-back-final" data-action="commander-save-slots">Back</button><section class="commander-study-card-final"><div class="commander-study-kicker-final">TROOP COMMANDER</div><h1>Choose Your Study Mission</h1><p class="commander-study-lead-final">Pick the AP course, unit, and optional topic that will power the questions in your defense.</p><div class="commander-reward-pill-final">✓ Correct answer = <strong>+5 Commander coins</strong></div><div class="commander-form-final"><div class="commander-field-final"><label for="commander-subject-final">AP Course</label><select id="commander-subject-final">'+opts+'</select></div><div class="commander-field-final"><label for="commander-unit-final">Unit</label><select id="commander-unit-final">'+units.map(function(u){return '<option value="'+esc(u)+'">'+esc(u)+'</option>';}).join('')+'</select></div><div class="commander-field-final commander-field-wide-final"><label for="commander-topic-final">Specific Topic <span>optional</span></label><input id="commander-topic-final" placeholder="e.g. Natural selection, Federalist 10, derivatives"></div></div><div class="commander-study-helper-final"><span>📚</span><div><b>Your questions stay on this selection</b><small>Matching saved quizzes are used first. Otherwise Commander prepares an AP-aligned question set for this exact course and unit.</small></div></div>'+err+'<button class="commander-blue-button-ref commander-continue-final" data-action="commander-study-continue" '+(state.games.setupLoading?'disabled':'')+'>'+(state.games.setupLoading?'Preparing questions…':'Continue to Map Selection')+'</button></section></div>';
 }
-function commanderMapHtmlFinal(){return '<div class="commander-fullscreen commander-ocean-ref"><button type="button" class="commander-back-ref" data-action="commander-study-back">Back</button><div class="commander-wood-title-ref commander-map-title-v3">Choose a Map</div><div class="commander-map-grid-final-v3">'+COMMANDER_MAPS_FINAL.map(function(m){return '<button type="button" class="commander-map-card-final-v3" data-action="commander-map" data-map="'+m.id+'" onclick="if(this.dataset.launched)return false;this.dataset.launched=\'1\';return window.__indexCommanderStartMap ? window.__indexCommanderStartMap(this.dataset.map) : false"><div class="commander-map-art-final-v3">'+commanderMapPreviewFinalV3(m)+'</div><div class="commander-map-name-final-v3">'+esc(m.name)+'</div><div class="commander-map-diff-final-v3">'+esc(m.difficulty)+'</div><div class="commander-map-desc-final-v3">'+esc(m.desc)+'</div></button>';}).join('')+'</div></div>';}
+function commanderMapHtmlFinal(){return '<div class="commander-fullscreen commander-ocean-ref"><button type="button" class="commander-back-ref" data-action="commander-study-back">Back</button><div class="commander-wood-title-ref commander-map-title-v3">Choose a Map</div><div class="commander-map-grid-final-v3">'+COMMANDER_MAPS_FINAL.map(function(m){return '<button type="button" class="commander-map-card-final-v3" data-action="commander-map" data-map="'+m.id+'"><div class="commander-map-art-final-v3">'+commanderMapPreviewFinalV3(m)+'</div><div class="commander-map-name-final-v3">'+esc(m.name)+'</div><div class="commander-map-diff-final-v3">'+esc(m.difficulty)+'</div><div class="commander-map-desc-final-v3">'+esc(m.desc)+'</div></button>';}).join('')+'</div></div>';}
 function commanderMapPreviewFinalV3(m){var p=m.route.map(function(v){return(v[0]*220)+','+(v[1]*180);}).join(' '),d=m.detail.map(function(line){return '<polyline points="'+line.map(function(v){return(v[0]*220)+','+(v[1]*180);}).join(' ')+'" fill="none" stroke="rgba(30,50,55,.28)" stroke-width="12" stroke-linecap="round"/>';}).join(''),rocks=m.rocks.map(function(o){return '<circle cx="'+o[0]*220+'" cy="'+o[1]*180+'" r="'+Math.max(3,o[2]*220)+'" fill="rgba(255,255,255,.18)" stroke="rgba(20,30,35,.16)" stroke-width="2"/>';}).join('');return '<svg viewBox="0 0 220 180" preserveAspectRatio="none"><rect width="220" height="180" fill="'+m.bg+'"/><rect x="7" y="7" width="206" height="166" rx="13" fill="'+m.land+'"/><g>'+d+rocks+'</g><polyline points="'+p+'" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><polyline points="'+p+'" fill="none" stroke="'+m.path+'" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/><polyline points="'+p+'" fill="none" stroke="rgba(255,255,255,.48)" stroke-width="2.5" stroke-dasharray="8 7" stroke-linecap="round"/><circle cx="'+m.route[0][0]*220+'" cy="'+m.route[0][1]*180+'" r="10" fill="#41d39a" stroke="#fff" stroke-width="3"/><text x="'+m.route[0][0]*220+'" y="'+(m.route[0][1]*180+4)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#0c4a39">S</text><rect x="'+(m.route[m.route.length-1][0]*220-11)+'" y="'+(m.route[m.route.length-1][1]*180-11)+'" width="22" height="22" rx="5" fill="#f45f72" stroke="#fff" stroke-width="3"/><text x="'+m.route[m.route.length-1][0]*220+'" y="'+(m.route[m.route.length-1][1]*180+4)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">B</text></svg>';}
 function commanderDrawMapBackgroundFinal(ctx,m,w,h){
  ctx.fillStyle=m.bg;ctx.fillRect(0,0,w,h);ctx.fillStyle=m.land;ctx.fillRect(15,12,w-30,h-24);
@@ -5055,6 +5055,15 @@ document.addEventListener('click', async (e)=>{
   }
 
   const action = t.dataset.action;
+  if(action==='commander-map'){
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    const mapId=t.dataset.map;
+    if(!mapId || !state.games || state.games.active!=='commander' || state.games.commanderScreen!=='maps') return;
+    if(typeof commanderStartMapFinal==='function') commanderStartMapFinal(mapId,state.games.slotIndex);
+    else if(typeof commanderStartMap==='function') commanderStartMap(mapId,state.games.slotIndex);
+    return;
+  }
   if(action==='goto'){ switchView(t.dataset.view); }
   else if(action==='open-district'){ openDistrict(); }
   else if(action==='open-county-settings'){ showCountyGate(); }
@@ -6759,38 +6768,9 @@ document.addEventListener('click',function(e){
   if(b){e.preventDefault();e.stopImmediatePropagation();var gu=state.games,iu=Number(b.dataset.index),tu=gu&&gu.towers&&gu.towers[iu],pp=commanderFinalProfile();if(tu){var uc=commanderFinalCost(tu.id);if(pp.coins>=uc&&tu.level<10){pp.coins-=uc;tu.level++;tu.maxHp+=15;tu.hp=tu.maxHp;commanderSaveFinal();persistProgress();renderCommanderStable();}}return;}
 },true);
 
-/* INDEX COMMANDER MAP BRIDGE 2026-10-01 v3 — self-contained launcher */
-window.__indexCommanderStartMap=function(mapId,slotIndex){
-  try{
-    var fn=window.commanderStartMapFinal;
-    if(typeof fn!=='function')fn=window.commanderStartMap;
-    if(typeof fn!=='function')return false;
-    fn(mapId,slotIndex);
-    return true;
-  }catch(err){
-    try{console.error('Commander final map launch failed',err);}catch(e){}
-    return false;
-  }
-}
-
 })();
 </script>
 
-
-<script id="commander-map-click-router-v4">
-/* INDEX COMMANDER MAP CLICK ROUTER 2026-10-01 v4 — authoritative capture handler */
-document.addEventListener('click',function(e){
-  var b=e.target&&e.target.closest?e.target.closest('.commander-map-card-final-v3'):null;
-  var stage=document.getElementById('games-stage');
-  if(!b||!stage||!stage.contains(b))return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  if(b.dataset.launched)return;
-  b.dataset.launched='1';
-  var fn=window.__indexCommanderStartMap;
-  if(typeof fn==='function')fn(b.dataset.map);
-},true);
-</script>
 
 <style id="commander-map-click-fix-style">
 .commander-map-grid-final-v3{position:relative;z-index:100000!important;pointer-events:auto!important;}
