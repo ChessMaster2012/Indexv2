@@ -1822,17 +1822,30 @@ async function openBillingPortal(){
 async function handleBillingReturn(){
   const params=new URLSearchParams(window.location.search);
   const billing=params.get('billing');
+  const sessionId=params.get('session_id');
   if(!billing)return;
   history.replaceState({},'',window.location.pathname);
   if(!state.account)return;
   if(billing==='success'){
-    await new Promise(resolve=>setTimeout(resolve,1200));
-    await loadMembershipStatus();
-    showRewardToast(state.membership?.tier==='free'?'Payment received. Stripe is still confirming your membership.':'🎉 Membership activated: '+(state.membership?.plan?.name||state.membership?.tier||'Paid plan')+'.');
+    let confirmed=false;
+    if(sessionId){
+      try{
+        const r=await fetch('/api/billing/confirm-session',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({sessionId})});
+        confirmed=r.ok;
+      }catch(e){}
+    }
+    for(let attempt=0;attempt<6;attempt++){
+      await loadMembershipStatus();
+      if(state.membership?.tier&&state.membership.tier!=='free'){confirmed=true;break;}
+      await new Promise(resolve=>setTimeout(resolve,1500));
+    }
+    renderMembershipPage();
+    showRewardToast(confirmed&&state.membership?.tier!=='free'?'🎉 Membership activated: '+(state.membership?.plan?.name||state.membership?.tier||'Paid plan')+'.':'Payment received. Stripe is still confirming your membership.');
   }else if(billing==='cancelled'){
     showRewardToast('Checkout was cancelled. No membership change was made.');
   }else if(billing==='return'){
     await loadMembershipStatus();
+    renderMembershipPage();
   }
 }
 
