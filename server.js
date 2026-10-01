@@ -946,6 +946,52 @@ app.post('/api/ai/chat',async(req,res)=>{
   }
 });
 
+app.post('/api/ai/commander-bank',async(req,res)=>{
+  try{
+    const course=String(req.body?.course||'').trim();
+    const unit=String(req.body?.unit||'').trim();
+    const topic=String(req.body?.topic||'').trim();
+    if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
+    const userPrompt=[
+      'Create 10 AP-level multiple-choice questions for a student.',
+      'HARD CURRICULUM BOUNDARY: ONLY AP '+course+' UNIT "'+unit+'".',
+      topic ? 'Optional topic focus: "'+topic+'". This narrows the selected unit and never replaces it.' : '',
+      'Do not use material from other units.',
+      'Cover several major concepts from this unit.',
+      'Return ONLY valid JSON in exactly this shape:',
+      '{"questions":[{"q":"question","options":["choice A","choice B","choice C","choice D"],"correct":0,"explanation":"brief explanation"}]}',
+      'The correct field must be an integer from 0 to 3. No markdown. No commentary outside JSON.'
+    ].filter(Boolean).join(' ');
+    const messages=[
+      {role:'system',content:'You are Index AP study-material generator. Follow the requested AP course and unit exactly. Return only valid JSON. Do not add markdown or commentary.'},
+      {role:'user',content:userPrompt}
+    ];
+    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+    const raw=await callVireonix(messages,true,65000);
+    let cleaned=String(raw||'').trim();
+    const starts=[cleaned.indexOf('{'),cleaned.indexOf('[')].filter(i=>i>=0);
+    if(starts.length){
+      const start=Math.min.apply(Math,starts);
+      const end=Math.max(cleaned.lastIndexOf('}'),cleaned.lastIndexOf(']'));
+      if(end>start) cleaned=cleaned.slice(start,end+1);
+    }
+    let data;
+    try{data=JSON.parse(cleaned);}catch(e){
+      return res.status(502).json({error:'Vireonix Auto returned invalid JSON for the Commander question set.',provider:'Vireonix Auto',model:'auto'});
+    }
+    const questions=Array.isArray(data?.questions)?data.questions.filter(q=>
+      q&&typeof q.q==='string'&&q.q.trim()&&Array.isArray(q.options)&&q.options.length===4&&q.options.every(o=>typeof o==='string'&&o.trim())&&Number.isInteger(Number(q.correct))&&Number(q.correct)>=0&&Number(q.correct)<=3
+    ).slice(0,20).map(q=>({
+      q:q.q.trim(),options:q.options.map(o=>String(o).trim()),correct:Number(q.correct),explanation:q.explanation?String(q.explanation):''
+    })):[];
+    if(!questions.length) return res.status(502).json({error:'Vireonix Auto returned no usable Commander questions.',provider:'Vireonix Auto',model:'auto'});
+    return res.json({questions,provider:'Vireonix Auto',model:'auto'});
+  }catch(e){
+    console.warn('[AI] Commander question-bank generation failed:',e?.message||e);
+    return res.status(Number(e?.status)||504).json({error:'Vireonix Auto could not prepare the Commander question set right now.',provider:'Vireonix Auto',model:'auto',detail:providerFailureLabel(e)});
+  }
+});
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
