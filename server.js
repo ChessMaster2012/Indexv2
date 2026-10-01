@@ -442,7 +442,7 @@ function providerRetryable(error){
     /AbortError|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
 }
 
-async function callVireonix(messages,complex=false,timeoutMs=12000){
+async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOverride=null){
   const data=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
     method:'POST',
     headers:{
@@ -452,7 +452,7 @@ async function callVireonix(messages,complex=false,timeoutMs=12000){
     body:JSON.stringify({
       model:'auto',
       messages,
-      max_tokens: complex ? 1200 : 700,
+      max_tokens: maxTokensOverride || (complex ? 1200 : 700),
       temperature: 0
     })
   },timeoutMs);
@@ -946,6 +946,38 @@ app.post('/api/ai/chat',async(req,res)=>{
   }
 });
 
+
+function parseCommanderQuestionJson(rawText){
+  let s=String(rawText||'').replace(/^\\uFEFF/,'').trim();
+  if(!s)return null;
+  s=s.replace(/^\`\`\`(?:json)?/i,'').replace(/\`\`\`$/,'').trim();
+  const first=s.indexOf('{');
+  if(first<0)return null;
+  let depth=0,inString=false,escaped=false,end=-1;
+  for(let i=first;i<s.length;i++){
+    const ch=s[i];
+    if(inString){
+      if(escaped){escaped=false;continue;}
+      if(ch==='\\\\'){escaped=true;continue;}
+      if(ch==='"')inString=false;
+      continue;
+    }
+    if(ch==='"'){inString=true;continue;}
+    if(ch==='{')depth++;
+    else if(ch==='}'){
+      depth--;
+      if(depth===0){end=i;break;}
+    }
+  }
+  if(end<0)return null;
+  const candidate=s.slice(first,end+1).trim();
+  try{return JSON.parse(candidate);}catch{}
+  // Remove trailing commas before } or ] — a common model formatting mistake.
+  const repaired=candidate.replace(/,\s*([}\]])/g,'$1');
+  try{return JSON.parse(repaired);}catch{}
+  return null;
+}
+
 app.post('/api/ai/commander-bank',async(req,res)=>{
   try{
     const course=String(req.body?.course||'').trim();
@@ -959,7 +991,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       'Do not use material from other units.',
       'Cover several major concepts from this unit.',
       'Return ONLY valid JSON in exactly this shape:',
-      '{"questions":[{"q":"question","options":["choice A","choice B","choice C","choice D"],"correct":0,"explanation":"brief explanation"}]}',
+      '{"questions":[{"q":"question","options":["choice A","choice B","choice C","choice D"],"correct":0,"explanation":"brief"}]}',
       'The correct field must be an integer from 0 to 3. No markdown. No commentary outside JSON.'
     ].filter(Boolean).join(' ');
     const messages=[
@@ -967,17 +999,14 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       {role:'user',content:userPrompt}
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
-    const raw=await callVireonix(messages,true,65000);
-    let cleaned=String(raw||'').trim();
-    const starts=[cleaned.indexOf('{'),cleaned.indexOf('[')].filter(i=>i>=0);
-    if(starts.length){
-      const start=Math.min.apply(Math,starts);
-      const end=Math.max(cleaned.lastIndexOf('}'),cleaned.lastIndexOf(']'));
-      if(end>start) cleaned=cleaned.slice(start,end+1);
-    }
-    let data;
-    try{data=JSON.parse(cleaned);}catch(e){
-      return res.status(502).json({error:'Vireonix Auto returned invalid JSON for the Commander question set.',provider:'Vireonix Auto',model:'auto'});
+    const raw=await callVireonix(messages,true,65000,2400);
+    const data=parseCommanderQuestionJson(raw);
+    if(!data){
+      return res.status(502).json({
+        error:'Vireonix Auto did not return a complete JSON question set for Commander.',
+        provider:'Vireonix Auto',
+        model:'auto'
+      });
     }
     const questions=Array.isArray(data?.questions)?data.questions.filter(q=>
       q&&typeof q.q==='string'&&q.q.trim()&&Array.isArray(q.options)&&q.options.length===4&&q.options.every(o=>typeof o==='string'&&o.trim())&&Number.isInteger(Number(q.correct))&&Number(q.correct)>=0&&Number(q.correct)<=3
