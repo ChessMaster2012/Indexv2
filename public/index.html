@@ -3490,12 +3490,12 @@ async function buildStudySet({subjectId, topic, unit, type, count, sourceText, r
   if(type==='flashcards'){
     prompt = (sourceText
       ? `You are a study-tool generator for AP students. Create exactly ${count} flashcards for AP ${subj.name} based on this student's notes below. Keep each "front" under 10 words and each "back" under 30 words, accurate and exam-relevant.\n\nNOTES:\n${sourceText}`
-      : `You are a study-tool generator for AP students. Create exactly ${count} flashcards for the AP ${subj.name} topic "${focus}". Keep each "front" under 10 words and each "back" under 30 words, accurate and exam-relevant.`)
+      : `You are an AP curriculum-aligned study-set generator. Create exactly ${count} flashcards ONLY about the selected AP ${subj.name} unit: "${unit || focus}".${topic ? ` The student's optional focus is "${topic}", so use it only to narrow the selected unit, never to replace the unit.` : ''} Treat the selected unit as a hard boundary. Use concepts, vocabulary, processes, examples, relationships, and skills that belong specifically to that unit. Do NOT reuse generic vocabulary from another unit just because it is related to the course. Before writing the cards, silently identify the unit's major concepts and distribute the cards across them. Keep each "front" under 10 words and each "back" under 30 words. Accurate and exam-relevant.`)
       + `\n\nReply with ONLY JSON, no markdown fences, exactly this shape: {"cards":[{"front":"...","back":"..."}]}`;
   }else{
     prompt = (sourceText
       ? `You are a study-tool generator for AP students. Create exactly ${count} multiple-choice practice questions for AP ${subj.name} based on this student's notes below. Each question needs exactly 4 options, one correct, concise wording.\n\nNOTES:\n${sourceText}`
-      : `You are a study-tool generator for AP students. Create exactly ${count} multiple-choice practice questions for the AP ${subj.name} topic "${focus}". Each question needs exactly 4 options, one correct, concise wording.`)
+      : `You are an AP curriculum-aligned study-set generator. Create exactly ${count} multiple-choice practice questions ONLY about the selected AP ${subj.name} unit: "${unit || focus}".${topic ? ` The student's optional focus is "${topic}", so use it only to narrow the selected unit, never to replace the unit.` : ''} Treat the selected unit as a hard boundary. Every question and answer must test knowledge or skills belonging specifically to that unit, not a generic course topic or another unit. Silently identify the unit's major concepts first and distribute questions across them. Each question needs exactly 4 options, one correct, concise wording.`)
       + `\n\nReply with ONLY JSON, no markdown fences, exactly this shape: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"..."}]} where "correct" is the zero-based index of the right option. Do not return an empty questions array.`;
   }
   let parsed = await askJSON(prompt);
@@ -3503,7 +3503,7 @@ async function buildStudySet({subjectId, topic, unit, type, count, sourceText, r
   if(type==='flashcards'){
     let cards = normalizeGeneratedCards(parsed);
     if(!cards.length){
-      const retryPrompt = `Create ${count} flashcards about AP ${subj.name}, topic "${topic}". Return ONLY valid JSON in this exact shape: {"cards":[{"front":"short prompt","back":"the answer"}]}. Every card needs a non-empty front AND a non-empty back. Never return an empty array.`;
+      const retryPrompt = `Create ${count} flashcards ONLY for AP ${subj.name} unit "${unit || focus}"${topic ? ` with optional focus "${topic}"` : ''}. The unit is a hard boundary: do not use content from other units or generic repeated course vocabulary. Return ONLY valid JSON in this exact shape: {"cards":[{"front":"short prompt","back":"the answer"}]}. Every card needs a non-empty front AND a non-empty back. Never return an empty array.`;
       parsed = await askJSON(retryPrompt);
       cards = normalizeGeneratedCards(parsed);
     }
@@ -3513,7 +3513,7 @@ async function buildStudySet({subjectId, topic, unit, type, count, sourceText, r
   else{
     let questions = normalizeGeneratedQuestions(parsed);
     if(!questions.length){
-      const retryPrompt = `Create 4 easy multiple-choice quiz questions about AP ${subj.name}, topic "${topic}". Return ONLY valid JSON in this exact shape: {"questions":[{"q":"question","options":["option 1","option 2","option 3","option 4"],"correct":0,"explanation":"brief explanation"}]}. Every option must be non-empty text. The correct value must be 0, 1, 2, or 3. Never return an empty array.`;
+      const retryPrompt = `Create 4 multiple-choice quiz questions ONLY for AP ${subj.name} unit "${unit || focus}"${topic ? ` with optional focus "${topic}"` : ''}. The unit is a hard boundary: do not use content from other units or generic repeated course vocabulary. Return ONLY valid JSON in this exact shape: {"questions":[{"q":"question","options":["option 1","option 2","option 3","option 4"],"correct":0,"explanation":"brief explanation"}]}. Every option must be non-empty text. The correct value must be 0, 1, 2, or 3. Never return an empty array.`;
       parsed = await askJSON(retryPrompt);
       questions = normalizeGeneratedQuestions(parsed);
     }
