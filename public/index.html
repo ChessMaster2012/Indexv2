@@ -6164,7 +6164,7 @@ window.renderStudySets=renderStudySetsPatched;
 function patchBuilderUi(){
   var count=document.getElementById('builder-count');
   if(count){
-    count.innerHTML='<option value="8">8 per lesson</option><option value="10" selected>10 per lesson</option><option value="12">12 per lesson</option>';
+    count.innerHTML='<option value="8" selected>8 per lesson</option><option value="10">10 per lesson</option><option value="12">12 per lesson</option>';
   }
   var type=document.getElementById('builder-type');
   if(type&&type.parentElement)type.parentElement.insertAdjacentHTML('afterend','<div class="field" id="lesson-path-info"><label>Topic coverage</label><div style="font-size:12px;color:var(--ink-soft);font-weight:700;line-height:1.45;padding:9px 2px;">From a topic, Index builds 5 lessons that stay on the same unit/topic. Each lesson has its own focus; after all lessons, Commander can use the complete mixed question bank.</div></div>');
@@ -6349,6 +6349,16 @@ var markLessonComplete=H.markLessonComplete;
 var shuffleCopy=H.shuffleCopy;
 var gateLesson=H.gateLesson;
 
+function nextMixedQuestion(g,info){
+  if(!info||info.lesson!==0||!info.all||!info.all.length)return null;
+  if(!Array.isArray(g.mixedQuestionOrder)||g.mixedQuestionCursor>=g.mixedQuestionOrder.length){
+    g.mixedQuestionOrder=shuffleCopy(info.all);
+    g.mixedQuestionCursor=0;
+  }
+  var q=g.mixedQuestionOrder[g.mixedQuestionCursor++];
+  return q||info.all[0];
+}
+
 window.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('.commander-gate-option-v8');
   if(!b)return;
@@ -6385,11 +6395,15 @@ window.addEventListener('click',function(e){
     showRewardToast('Keep going — no deployment coins for that answer.');
   }
   var info2=commanderQuestionPoolForLesson(g);
+  var nextQ=info2&&info2.lesson===0?nextMixedQuestion(g,info2):null;
   var pool=info2&&info2.pool?shuffleCopy(info2.pool):[];
-  if(!pool.length){
-    try{pool=shuffleCopy(commanderQuestionPoolFinal(g)||[]);}catch(err){pool=[];}
+  if(nextQ)g.question=nextQ;
+  else{
+    if(!pool.length){
+      try{pool=shuffleCopy(commanderQuestionPoolFinal(g)||[]);}catch(err){pool=[];}
+    }
+    if(pool.length)g.question=pool[Math.floor(Math.random()*pool.length)];
   }
-  if(pool.length)g.question=pool[Math.floor(Math.random()*pool.length)];
   if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
   commanderRenderScreen();
 },true);
@@ -6397,9 +6411,19 @@ window.addEventListener('click',function(e){
 window.__indexLessonGateRenderer=function(g){
   var info=commanderQuestionPoolForLesson(g);
   if(info&&info.pool&&info.pool.length){
-    var current=g.question;
-    var valid=current&&info.pool.some(function(q){return q.q===current.q;});
-    if(!valid)g.question=shuffleCopy(info.pool)[0];
+    if(info.lesson===0){
+      if(!Array.isArray(g.mixedQuestionOrder)||!g.mixedQuestionOrder.length){
+        g.mixedQuestionOrder=shuffleCopy(info.all);
+        g.mixedQuestionCursor=0;
+        g.question=nextMixedQuestion(g,info);
+      }else if(!g.question){
+        g.question=nextMixedQuestion(g,info);
+      }
+    }else{
+      var current=g.question;
+      var valid=current&&info.pool.some(function(q){return q.q===current.q;});
+      if(!valid)g.question=shuffleCopy(info.pool)[0];
+    }
   }
   return gateLesson(g);
 };
@@ -6423,8 +6447,12 @@ if(typeof commanderUpdateFinal==='function'){
     if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen){
       var info=commanderQuestionPoolForLesson(g);
       if(info&&info.pool&&info.pool.length){
-        var valid=g.question&&info.pool.some(function(q){return q.q===g.question.q;});
-        if(!valid)g.question=shuffleCopy(info.pool)[0];
+        if(info.lesson===0){
+          if(!g.question)g.question=nextMixedQuestion(g,info);
+        }else{
+          var valid=g.question&&info.pool.some(function(q){return q.q===g.question.q;});
+          if(!valid)g.question=shuffleCopy(info.pool)[0];
+        }
       }
     }
     return out;
