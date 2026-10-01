@@ -3486,16 +3486,16 @@ function normalizeCheckpoint(cp){
   return { q: q.slice(0,400), options: options.map(o=>o.slice(0,200)), correct, explanation: String(cp.explanation||'').slice(0,400) };
 }
 async function buildStudySet({subjectId, topic, unit, type, count, sourceText, reminderAt}){
-  const subj = subjectById(subjectId); let prompt;
+  const subj = subjectById(subjectId); const focus = unit && topic ? unit+' — '+topic : (unit || topic); let prompt;
   if(type==='flashcards'){
     prompt = (sourceText
       ? `You are a study-tool generator for AP students. Create exactly ${count} flashcards for AP ${subj.name} based on this student's notes below. Keep each "front" under 10 words and each "back" under 30 words, accurate and exam-relevant.\n\nNOTES:\n${sourceText}`
-      : `You are a study-tool generator for AP students. Create exactly ${count} flashcards for the AP ${subj.name} topic "${topic}". Keep each "front" under 10 words and each "back" under 30 words, accurate and exam-relevant.`)
+      : `You are a study-tool generator for AP students. Create exactly ${count} flashcards for the AP ${subj.name} topic "${focus}". Keep each "front" under 10 words and each "back" under 30 words, accurate and exam-relevant.`)
       + `\n\nReply with ONLY JSON, no markdown fences, exactly this shape: {"cards":[{"front":"...","back":"..."}]}`;
   }else{
     prompt = (sourceText
       ? `You are a study-tool generator for AP students. Create exactly ${count} multiple-choice practice questions for AP ${subj.name} based on this student's notes below. Each question needs exactly 4 options, one correct, concise wording.\n\nNOTES:\n${sourceText}`
-      : `You are a study-tool generator for AP students. Create exactly ${count} multiple-choice practice questions for the AP ${subj.name} topic "${topic}". Each question needs exactly 4 options, one correct, concise wording.`)
+      : `You are a study-tool generator for AP students. Create exactly ${count} multiple-choice practice questions for the AP ${subj.name} topic "${focus}". Each question needs exactly 4 options, one correct, concise wording.`)
       + `\n\nReply with ONLY JSON, no markdown fences, exactly this shape: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"..."}]} where "correct" is the zero-based index of the right option. Do not return an empty questions array.`;
   }
   let parsed = await askJSON(prompt);
@@ -3544,7 +3544,7 @@ async function generateStudySet(){
   }
   statusEl.innerHTML = `<div class="loading-line"><span class="spinner"></span> Building your ${type==='flashcards'?'flashcards':'quiz'}…</div>`;
   try{
-    const setObj = await buildStudySet({subjectId, topic:customTopic, unit, type, count, sourceText, reminderAt});
+    const setObj = await buildStudySet({subjectId, topic:source==='notes'?topicLabel:customTopic, unit, type, count, sourceText, reminderAt});
     statusEl.innerHTML = `<div class="loading-line" style="color:var(--green-deep);">Done — "${esc(setObj.title)}" is ready. 🎉</div>`;
     renderStudySets(); openStudySetViewer(setObj.id);
   }catch(e){ statusEl.innerHTML = `<div class="error-note">Couldn't build that study set. Please try again.</div>`; }
