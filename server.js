@@ -978,6 +978,31 @@ function parseCommanderQuestionJson(rawText){
   return null;
 }
 
+
+app.post('/api/ai/commander-question',async(req,res)=>{
+  try{
+    const course=String(req.body?.course||'').trim();
+    const unit=String(req.body?.unit||'').trim();
+    const topic=String(req.body?.topic||'').trim();
+    if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
+    const userPrompt=['Create ONE AP-level multiple-choice question ONLY about AP '+course+' UNIT "'+unit+'".',topic?'Focus specifically on "'+topic+'".':'','Use only concepts from this unit.','Return ONLY JSON in exactly this shape: {"question":{"q":"question","options":["A","B","C","D"],"correct":0}}.','The correct field must be an integer 0-3. No markdown or commentary.'].filter(Boolean).join(' ');
+    const messages=[
+      {role:'system',content:'You are Index AP study-material generator. Follow the selected AP course and unit exactly. Return only valid JSON.'},
+      {role:'user',content:userPrompt}
+    ];
+    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+    const raw=await callVireonix(messages,false,15000,700);
+    const data=parseCommanderQuestionJson(raw);
+    const q=data?.question || (Array.isArray(data?.questions)?data.questions[0]:null);
+    if(!q || typeof q.q!=='string' || !Array.isArray(q.options) || q.options.length!==4 || !q.options.every(o=>typeof o==='string'&&o.trim()) || !Number.isInteger(Number(q.correct)) || Number(q.correct)<0 || Number(q.correct)>3){
+      return res.status(502).json({error:'Vireonix Auto returned an unusable AP question.',provider:'Vireonix Auto',model:'auto'});
+    }
+    return res.json({question:{q:q.q.trim(),options:q.options.map(o=>String(o).trim()),correct:Number(q.correct),explanation:q.explanation?String(q.explanation):''},provider:'Vireonix Auto',model:'auto'});
+  }catch(e){
+    console.warn('[AI] Commander single-question generation failed:',e?.message||e);
+    return res.status(Number(e?.status)||504).json({error:'Vireonix Auto could not prepare the Commander question right now.',provider:'Vireonix Auto',model:'auto',detail:providerFailureLabel(e)});
+  }
+});
 app.post('/api/ai/commander-bank',async(req,res)=>{
   try{
     const course=String(req.body?.course||'').trim();
