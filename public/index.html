@@ -15,6 +15,18 @@
   --radius:18px; --font-display:'Fredoka', sans-serif; --font-ui:'Nunito', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 *{box-sizing:border-box;}
+.membership-status-card-shell{margin:0 0 22px;}
+.membership-status-card{display:flex;justify-content:space-between;align-items:center;gap:18px;flex-wrap:wrap;background:linear-gradient(135deg,#fff9e9,#f8f5ff);border:2px solid var(--line);border-radius:20px;padding:16px 18px;box-shadow:0 8px 24px rgba(36,31,61,.06);}
+.membership-status-card.active{border-color:#d8cfff;}
+.membership-status-card.expired{border-color:#dfe3ea;background:#fff;}
+.membership-status-main{min-width:0;flex:1;}
+.membership-status-kicker{font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;color:var(--purple-deep);}
+.membership-status-title{font-family:var(--font-display);font-size:22px;font-weight:700;margin-top:3px;}
+.membership-status-sub{font-size:12px;color:var(--ink-soft);margin-top:4px;line-height:1.45;}
+.membership-status-side{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.profile-member-badge{display:inline-flex;align-items:center;gap:4px;font-size:9px;font-weight:950;letter-spacing:.03em;padding:4px 7px;border-radius:999px;background:#fff4c8;color:#765700;border:1px solid #e7cc68;white-space:nowrap;}
+@media(max-width:680px){.membership-status-side{width:100%;}.membership-status-side .btn{flex:1;justify-content:center;}}
+
 html,body{margin:0;padding:0;height:100%;}
 body{font-family:var(--font-ui);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
 button{font-family:inherit;cursor:pointer;}
@@ -988,6 +1000,7 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
       </div>
       </div>
       <div class="progress-banner" id="progress-banner"></div>
+      <div class="membership-status-card-shell" id="membership-status-card"></div>
       <div class="personal-banner">
         <div><h3 id="personal-greeting">Your study command center</h3><p id="personal-subtitle">Choose your county or school district to personalize your experience and see the correct local review information.</p></div>
         <button class="district-chip" data-action="open-district">📍 <span id="district-chip-text">Choose county</span> ✎</button>
@@ -1346,7 +1359,7 @@ let state = {
   progress:{ xp:0, activeDates:[], lessonsLearned:[], coins:0, dailyCoinDate:'', dailyCoinEarned:0, freePackTokens:0, unlockedCosmetics:['ling-sugarbug'], claimedBPLevels:[], skinCrates:0, unlockedSkins:[], claimedSkinCrateLevels:[], equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'}, openedPacks:0, liveGames:0 },
   courseDetail:{ subjectId:null, expandedTopic:null, topicBusy:null, playPickerTopic:null },
   customTopics:{}, profile:{}, district:'', county:'', aiEnabled:true, account:null,
-  membership:{tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,configured:false,plan:null},
+  membership:{tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,lifetimeBadgeTier:'',daysLeft:0,configured:false,plan:null},
   live:{ role:null, screen:'hub', code:null, hostToken:null, playerId:null, mode:'trivia',
          session:null, players:[], answeredCount:0, myLastAnswer:null, myChest:null,
          hostSubjectId:null, hostSetId:null, timerInterval:null, config:{questionCount:10,timePerQuestion:20,shuffleQuestions:true,shuffleAnswers:false,showLeaderboard:true,autoAdvance:false,maxPlayers:50,title:''} }
@@ -1625,7 +1638,7 @@ function clearAccountScopedLocalCache(){
   clearAccountCustomizationMirror();
 }
 function resetSignedOutAccountState(){
-  state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,configured:false,plan:null};
+  state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,lifetimeBadgeTier:'',daysLeft:0,configured:false,plan:null};
   // Notes/study sets/profile remain local until sign-in, but rewards are account-owned.
   // This prevents one device's old wallet/cosmetics from appearing before authentication.
   state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:0,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'},openedPacks:0,liveGames:0};
@@ -1659,7 +1672,7 @@ async function loadAccountState(){
 }
 async function loadMembershipStatus(showErrors=false){
   if(!state.account){
-    state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,configured:false,plan:null};
+    state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,lifetimeBadgeTier:'',daysLeft:0,configured:false,plan:null};
     return false;
   }
   try{
@@ -1667,7 +1680,9 @@ async function loadMembershipStatus(showErrors=false){
     const d=await r.json().catch(()=>({}));
     if(r.status===401){state.account=null;return false;}
     if(!r.ok)throw new Error(d.error||'Membership status unavailable.');
-    state.membership={...(d.membership||{}),configured:!!d.configured};
+    state.membership={tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false,lifetimeBadgeTier:'',daysLeft:0,configured:!!d.configured,...(d.membership||{})};
+    renderProfileSlot();
+    renderDashboardMembershipCard();
     return true;
   }catch(e){
     if(showErrors)showRewardToast('Could not load membership status right now.');
@@ -1704,9 +1719,13 @@ function membershipPageStyle(){
 function renderMembershipPage(){
   const root=document.getElementById('membership-stage');if(!root)return;
   membershipPageStyle();
-  const current=state.membership||{tier:'free',status:'active',configured:false};
+  const current=state.membership||{tier:'free',status:'active',configured:false,lifetimeBadgeTier:'',daysLeft:0};
   const paid=current.tier!=='free';
-  root.innerHTML='<div class="membership-page"><section class="membership-hero"><div class="eyebrow" style="color:#ffe2f0">INDEX MEMBERSHIP</div><h2>Pick the plan that fits your studying.</h2><p>Basic gives you the core Index experience. Gold adds more room, Platinum expands it further, and Diamond gives you the highest account limits.</p><div class="membership-current-banner"><div><span style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em">Current plan</span><br><strong>'+esc(current.plan?.name|| (current.tier==='free'?'Basic':current.tier))+'</strong></div><div><button class="btn btn-ghost btn-sm" data-action="'+(paid?'manage-membership':'refresh-membership')+'">'+(paid?'Manage billing':'Refresh membership status')+'</button></div></div></section><div class="membership-grid-page">'+membershipPlanCardsHtml(current,'page')+'</div><div class="membership-trust"><span>🔒 Stripe-hosted secure checkout</span><span>💳 Index never stores card numbers</span><span>☁️ Membership follows your signed-in account</span><span>🛑 Change or cancel through Stripe</span></div><div class="membership-legal">Paid memberships are optional. Review the <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> before purchasing. Paid purchases must be made by an authorized adult/payment account holder.</div></div>';
+  const days=paid?membershipDaysLeftLocal():0;
+  const badgeTier=current.lifetimeBadgeTier||(paid?current.tier:'');
+  const badgeHtml=badgeTier?'<span class="profile-member-badge">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
+  const periodHtml=paid&&Number(current.currentPeriodEnd)?'<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">'+days+' day'+(days===1?'':'s')+' left · ends '+esc(membershipEndDate(current.currentPeriodEnd))+' · <b style="color:var(--green-deep)">auto-renewal off</b></div>':'';
+  root.innerHTML='<div class="membership-page"><section class="membership-hero"><div class="eyebrow" style="color:#ffe2f0">INDEX MEMBERSHIP</div><h2>Pick the plan that fits your studying.</h2><p>Basic gives you the core Index experience. Gold adds more room, Platinum expands it further, and Diamond gives you the highest account limits.</p><div class="membership-current-banner"><div><span style="font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.1em">Current plan</span><br><strong>'+esc(current.plan?.name|| (current.tier==='free'?'Basic':current.tier))+'</strong>'+periodHtml+'</div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="'+(paid?'manage-membership':'refresh-membership')+'">'+(paid?'Billing':'Refresh membership status')+'</button></div></div></section><div class="membership-grid-page">'+membershipPlanCardsHtml(current,'page')+'</div><div class="membership-trust"><span>🔒 Stripe-hosted secure checkout</span><span>💳 Index never stores card numbers</span><span>☁️ Membership follows your signed-in account</span><span>🛑 Ends automatically at period end</span></div><div class="membership-legal">Paid memberships are optional. Review the <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> before purchasing. Paid purchases are handled on Stripe by an authorized adult/payment account holder.</div></div>';
 }
 function openMembership(){
   if(!state.account){promptAccountForPersistentView('membership');return;}
@@ -1728,7 +1747,7 @@ function openNewUserMembershipPrompt(force=false){
   const modal=document.createElement('div');
   modal.id='membership-onboarding-modal';
   modal.className='overlay';
-  modal.innerHTML='<div class="modal membership-onboard-card"><div class="membership-onboard-head"><div class="eyebrow" style="color:#ffe2f0">WELCOME TO INDEX</div><h2>Choose your membership.</h2><p>Start with Basic or choose a paid plan for more account capacity. You can review the full terms before making a paid purchase.</p></div><div class="membership-onboard-body"><div class="membership-grid-page">'+membershipPlanCardsHtml({tier:'free'},'onboarding')+'</div><div class="membership-onboard-terms"><strong>Before you continue</strong><br>Basic is free. Gold, Platinum, and Diamond are recurring monthly memberships. Paid checkout happens on Stripe hosted payment. Index does not ask you to type card details into the Index site. Paid memberships must be purchased by an authorized adult/payment account holder. By continuing, you agree to the <a href="/terms.html" target="_blank" rel="noopener">Index Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</div><label class="membership-consent"><input type="checkbox" id="membership-consent-general"> <span>I have read the membership information and understand that paid plans are optional and recurring monthly subscriptions.</span></label><label class="membership-consent"><input type="checkbox" id="membership-consent-adult"> <span>I understand that any paid membership purchase must be made by an authorized adult/payment account holder.</span></label><div class="membership-onboard-actions"><button class="btn btn-ghost" data-action="membership-choose-basic">Continue with Basic</button><button class="btn btn-primary" data-action="membership-choose-paid">Continue to paid options</button></div><div id="membership-onboard-status"></div></div></div>';
+  modal.innerHTML='<div class="modal membership-onboard-card"><div class="membership-onboard-head"><div class="eyebrow" style="color:#ffe2f0">WELCOME TO INDEX</div><h2>Choose your membership.</h2><p>Start with Basic or choose a paid plan for more account capacity. Paid plans run for the current monthly period and do not automatically renew.</p></div><div class="membership-onboard-body"><div class="membership-grid-page">'+membershipPlanCardsHtml({tier:'free'},'onboarding')+'</div><div class="membership-onboard-terms"><strong>Before you continue</strong><br>Basic is free. Gold, Platinum, and Diamond are monthly paid memberships that end automatically at the end of the paid period and do not automatically renew. Paid checkout happens on Stripe hosted payment. Index does not ask you to type card details into the Index site. Paid memberships must be purchased by an authorized adult/payment account holder. By continuing, you agree to the <a href="/terms.html" target="_blank" rel="noopener">Index Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</div><label class="membership-consent"><input type="checkbox" id="membership-consent-general"> <span>I have read the membership information and understand that paid plans are optional, monthly, and do not automatically renew.</span></label><label class="membership-consent"><input type="checkbox" id="membership-consent-adult"> <span>I understand that any paid membership purchase must be made by an authorized adult/payment account holder.</span></label><div class="membership-onboard-actions"><button class="btn btn-ghost" data-action="membership-choose-basic">Continue with Basic</button><button class="btn btn-primary" data-action="membership-choose-paid">Continue to paid options</button></div><div id="membership-onboard-status"></div></div></div>';
   document.body.appendChild(modal);
 }
 function closeMembershipOnboarding(){
@@ -1763,6 +1782,8 @@ async function startMembershipCheckout(tier){
     if(d.switched&&d.membership){
       state.membership={...(state.membership||{}),...(d.membership||{})};
       renderMembershipPage();
+      renderProfileSlot();
+      renderDashboardMembershipCard();
       showRewardToast('🎉 Membership switched to '+(state.membership?.plan?.name||tier)+'.');
       return;
     }
@@ -2814,6 +2835,36 @@ function switchView(view){
 }
 
 /* ============================== DASHBOARD ============================== */
+function membershipTierName(tier){
+  const names={gold:'Gold',platinum:'Platinum',diamond:'Diamond'};
+  return names[String(tier||'').toLowerCase()]||'Member';
+}
+function membershipDaysLeftLocal(){
+  const m=state.membership||{};
+  if(m.tier==='free'||!Number(m.currentPeriodEnd)) return 0;
+  return Math.max(0,Math.ceil((Number(m.currentPeriodEnd)-Math.floor(Date.now()/1000))/86400));
+}
+function membershipEndDate(ts){
+  if(!Number(ts)) return '';
+  try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',year:'numeric'}).format(new Date(Number(ts)*1000));}catch(e){return new Date(Number(ts)*1000).toLocaleDateString();}
+}
+function renderDashboardMembershipCard(){
+  const root=document.getElementById('membership-status-card');
+  if(!root)return;
+  if(!state.account){root.innerHTML='';return;}
+  const m=state.membership||{};
+  const active=m.tier&&m.tier!=='free'&&Number(m.currentPeriodEnd)>0;
+  const days=active?membershipDaysLeftLocal():0;
+  const badgeTier=m.lifetimeBadgeTier||(active?m.tier:'');
+  const badgeHtml=badgeTier?'<span class="profile-member-badge">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
+  if(active&&days>0){
+    root.innerHTML='<div class="membership-status-card active"><div class="membership-status-main"><div class="membership-status-kicker">⭐ Current membership</div><div class="membership-status-title">'+esc(m.plan?.name||membershipTierName(m.tier))+' · '+days+' day'+(days===1?'':'s')+' left</div><div class="membership-status-sub">Ends '+esc(membershipEndDate(m.currentPeriodEnd))+' · No automatic renewal</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">View membership</button></div></div>';
+  }else if(badgeTier){
+    root.innerHTML='<div class="membership-status-card expired"><div class="membership-status-main"><div class="membership-status-kicker">🏁 Membership period ended</div><div class="membership-status-title">Basic</div><div class="membership-status-sub">Your paid access has ended. Your membership badge stays on your account.</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">Membership</button></div></div>';
+  }else{
+    root.innerHTML='';
+  }
+}
 function renderDashboard(){
   const lvl = levelInfo(state.progress.xp); const streak = computeStreak(); const due = getDueCards().length;
   const greeting = document.getElementById('personal-greeting');
@@ -2830,6 +2881,7 @@ function renderDashboard(){
     <div class="pb-item"><b>${due}</b>cards due today</div>
     <div class="pb-item"><b>🪙 ${state.progress.coins||0}</b>coins</div>
     <button class="btn btn-dark btn-sm" data-action="goto" data-view="rewards">🏆 Rewards</button>`;
+  renderDashboardMembershipCard();
   document.getElementById('stat-row').innerHTML = `
     <div class="stat"><div class="stat-num">${state.notes.length}</div><div class="stat-label">Notes saved</div></div>
     <div class="stat"><div class="stat-num">${state.studySets.length}</div><div class="stat-label">Study sets built</div></div>
@@ -2871,7 +2923,9 @@ function renderProfileSlot(){
     const frame=eq.frame||'default';
     const art=ling?indexlingArtHtml(ling,true,skin,null):'<span style="font-size:18px">👤</span>';
     const frameStyle=typeof indexlingFrameStyle==='function'?indexlingFrameStyle(frame):'';
-    el.innerHTML='<button type="button" class="profile-btn" data-action="open-signin"><span class="profile-indexling-frame" style="'+frameStyle+'"><span class="profile-indexling-art">'+art+'</span></span><span class="profile-name-label" title="'+esc(name||'Your account')+'">'+esc(name||'Your account')+'</span></button>';
+    const badgeTier=state.membership?.lifetimeBadgeTier||(state.membership?.tier&&state.membership.tier!=='free'?state.membership.tier:'');
+    const badgeHtml=badgeTier?'<span class="profile-member-badge">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
+    el.innerHTML='<button type="button" class="profile-btn" data-action="open-signin"><span class="profile-indexling-frame" style="'+frameStyle+'"><span class="profile-indexling-art">'+art+'</span></span><span style="min-width:0;display:flex;flex-direction:column;gap:2px;"><span class="profile-name-label" title="'+esc(name||'Your account')+'">'+esc(name||'Your account')+'</span>'+badgeHtml+'</span></button>';
   }else{
     el.innerHTML='<button type="button" class="signin-btn" data-action="open-signin">👋 Sign in</button>';
   }
