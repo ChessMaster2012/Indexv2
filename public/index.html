@@ -6762,50 +6762,16 @@ document.addEventListener('click',function(e){
 /* INDEX COMMANDER MAP BRIDGE 2026-10-01 v3 — self-contained launcher */
 window.__indexCommanderStartMap=function(mapId,slotIndex){
   try{
-    var g0=(typeof state!=='undefined'&&state)?state.games:null;
-    if(slotIndex==null&&g0)slotIndex=g0.slotIndex;
-    var maps=(typeof COMMANDER_MAPS_FINAL!=='undefined'&&Array.isArray(COMMANDER_MAPS_FINAL))?COMMANDER_MAPS_FINAL:[];
-    if(!maps.some(function(x){return x.id===mapId;}))return false;
-    if(typeof clearGameTimers==='function')clearGameTimers();
-    var prev=g0||{},oldSave=null;
-    try{
-      if(slotIndex!=null&&typeof commanderSlotsFinal==='function'){
-        var slots=commanderSlotsFinal();
-        if(Array.isArray(slots))oldSave=slots[slotIndex]||null;
-      }
-    }catch(e){}
-    state.games={
-      active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slotIndex,mapId:mapId,
-      subjectId:(oldSave&&oldSave.subjectId)||prev.subjectId||'biology',
-      unit:(oldSave&&oldSave.unit)||prev.unit||'',topic:(oldSave&&oldSave.topic)||prev.topic||'',
-      questionBank:(oldSave&&Array.isArray(oldSave.questionBank)?oldSave.questionBank:(Array.isArray(prev.questionBank)?prev.questionBank:[])),
-      question:null,questionAnswered:false,questionError:'',questionLoading:false,questionGateOpen:true,
-      questionRequired:1,waveCoins:0,questionCorrectCount:0,questionAskedCount:0,
-      base:oldSave?Math.max(1,Number(oldSave.base)||100):100,
-      wave:oldSave?Math.max(0,Number(oldSave.round)||0):0,
-      selectedTroop:null,towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,
-      spawnTimer:null,spawnCount:0,spawnTotal:0,lastFrame:0,waveBanner:'',waveBannerUntil:0,hover:null,
-      bardBuffUntil:0,shieldUntil:0,
-      lessonPathId:oldSave&&oldSave.lessonPathId||'',lessonIndex:Number(oldSave&&oldSave.lessonIndex)||0,
-      lessonTotal:Number(oldSave&&oldSave.lessonTotal)||0,lessonMastered:oldSave&&oldSave.lessonMastered||{},
-      mixedQuestionOrder:oldSave&&oldSave.mixedQuestionOrder||null,mixedQuestionCursor:Number(oldSave&&oldSave.mixedQuestionCursor)||0
-    };
-    if(oldSave&&Array.isArray(oldSave.towers))oldSave.towers.forEach(function(t){
-      if(t&&t.x!==undefined&&t.y!==undefined&&typeof commanderFinalProfile==='function'&&commanderFinalProfile().owned[t.id]){
-        state.games.towers.push({id:t.id,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),cool:0,abilityReady:Date.now()+2000,recoil:0});
-      }
-    });
-    if(typeof commanderRenderScreen==='function')commanderRenderScreen();
-    if(typeof commanderLoadQuestionFinal==='function'&&!state.games.question){
-      try{commanderLoadQuestionFinal();}catch(e){}
-    }
-    if(typeof commanderSaveFinal==='function')commanderSaveFinal(state.games);
+    var fn=window.commanderStartMapFinal;
+    if(typeof fn!=='function')fn=window.commanderStartMap;
+    if(typeof fn!=='function')return false;
+    fn(mapId,slotIndex);
     return true;
   }catch(err){
-    try{console.error('Commander map launch failed',err);}catch(e){}
+    try{console.error('Commander final map launch failed',err);}catch(e){}
     return false;
   }
-};
+}
 
 })();
 </script>
