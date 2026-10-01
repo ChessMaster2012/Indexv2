@@ -6328,5 +6328,115 @@ if(typeof oldSave==='function'){
 })();
 </script>
 
+
+<script id="index-lesson-path-v1-fix">
+(function(){
+'use strict';
+if(window.__indexLessonPathV1Fix)return;
+window.__indexLessonPathV1Fix=true;
+
+window.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('.commander-gate-option-v8');
+  if(!b)return;
+  var g=window.state&&state.games;
+  if(!g||g.active!=='commander'||!g.questionGateOpen)return;
+  e.preventDefault();e.stopImmediatePropagation();
+  var idx=Number(b.dataset.answer);
+  if(idx<0||idx>3||!g.question)return;
+  g.questionAskedCount=(g.questionAskedCount||0)+1;
+  if(idx===Number(g.question.correct)){
+    g.questionCorrectCount=(g.questionCorrectCount||0)+1;
+    g.waveCoins=(g.waveCoins||0)+25;
+    showRewardToast('🪙 +25 deployment coins');
+    var need=typeof req==='function'?req(g.wave):1;
+    if(g.questionCorrectCount>=need){
+      g.questionGateOpen=false;g.question=null;g.selectedTroop=null;
+      if(g.lessonPathId&&g.lessonIndex){
+        var info=commanderQuestionPoolForLesson(g);
+        if(info){
+          markLessonComplete(info.pathId,g.lessonIndex);
+          if(pathCompleted(info.pathId)>=info.total){
+            g.lessonIndex=0;
+            showRewardToast('📚 All lessons complete — mixed review unlocked!');
+          }else{
+            g.lessonIndex=Math.min(info.total,g.lessonIndex+1);
+          }
+        }
+      }
+      if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
+      commanderRenderScreen();
+      return;
+    }
+  }else{
+    showRewardToast('Keep going — no deployment coins for that answer.');
+  }
+  var info2=commanderQuestionPoolForLesson(g);
+  var pool=info2&&info2.pool?shuffleCopy(info2.pool):[];
+  if(!pool.length){
+    try{pool=shuffleCopy(commanderQuestionPoolFinal(g)||[]);}catch(err){pool=[];}
+  }
+  if(pool.length)g.question=pool[Math.floor(Math.random()*pool.length)];
+  if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
+  commanderRenderScreen();
+},true);
+
+window.__indexLessonGateRenderer=function(g){
+  var info=commanderQuestionPoolForLesson(g);
+  if(info&&info.pool&&info.pool.length){
+    var current=g.question;
+    var valid=current&&info.pool.some(function(q){return q.q===current.q;});
+    if(!valid)g.question=shuffleCopy(info.pool)[0];
+  }
+  return gateLesson(g);
+};
+if(typeof commanderRenderScreen==='function'){
+  var oldRender=commanderRenderScreen;
+  commanderRenderScreen=function(){
+    var g=state.games;
+    if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen){
+      var stage=document.getElementById('games-stage');
+      if(stage){stage.innerHTML=window.__indexLessonGateRenderer(g);return;}
+    }
+    return oldRender.apply(this,arguments);
+  };
+}
+
+if(typeof commanderUpdateFinal==='function'){
+  var oldUpdate=commanderUpdateFinal;
+  commanderUpdateFinal=function(dt){
+    var g=state.games;
+    var out=oldUpdate.apply(this,arguments);
+    if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen){
+      var info=commanderQuestionPoolForLesson(g);
+      if(info&&info.pool&&info.pool.length){
+        var valid=g.question&&info.pool.some(function(q){return q.q===g.question.q;});
+        if(!valid)g.question=shuffleCopy(info.pool)[0];
+      }
+    }
+    return out;
+  };
+}
+
+if(typeof commanderStartMap==='function'){
+  var priorStart=commanderStartMap;
+  commanderStartMap=function(mapId,slot,old){
+    var out=priorStart.apply(this,arguments),g=state.games;
+    if(g&&g.active==='commander'){
+      var info=commanderQuestionPoolForLesson(g);
+      if(info){
+        g.lessonPathId=info.pathId;g.lessonTotal=info.total;
+        if(old&&old.lessonIndex!==undefined)g.lessonIndex=Number(old.lessonIndex)||1;
+        else g.lessonIndex=info.completed>=info.total?0:Math.max(1,Number(g.lessonIndex)||1);
+        var pool=shuffleCopy(info.pool);
+        if(pool.length)g.question=pool[0];
+      }
+      if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
+    }
+    return out;
+  };
+}
+})();
+</script>
+
 </body>
 </html>
