@@ -274,11 +274,16 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .builder-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
 .builder-row .field{flex:1;min-width:180px;margin-bottom:0;}
 .sets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;}
-.set-card{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:16px 17px;display:flex;flex-direction:column;gap:7px;text-align:left;transition:transform .12s;}
-.set-card:hover{transform:translateY(-3px);}
+.set-card{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:0;display:flex;flex-direction:column;overflow:hidden;text-align:left;transition:transform .12s,box-shadow .12s;}
+.set-card:hover{transform:translateY(-3px);box-shadow:0 10px 22px rgba(36,31,61,.09);}
+.set-card-open{width:100%;padding:16px 17px 12px;border:0;background:none;color:inherit;display:flex;flex-direction:column;gap:7px;text-align:left;}
+.set-card-open:hover{background:rgba(124,92,252,.025);}
+.set-card-delete{width:calc(100% - 24px);margin:0 12px 12px;padding:7px 10px;border:1px solid #f0c4c4;border-radius:10px;background:#fff7f7;color:#a22b2b;font-size:11px;font-weight:900;text-align:center;}
+.set-card-delete:hover{background:#ffeaea;border-color:#e39a9a;}
 .set-kind{font-size:11px;font-weight:800;letter-spacing:0.03em;text-transform:uppercase;color:var(--purple);}
 .set-title{font-family:var(--font-display);font-weight:600;font-size:15.5px;}
 .set-meta{font-size:12px;color:var(--ink-soft);font-weight:600;}
+.app-footer{margin-top:28px;padding:18px 16px 28px;text-align:center;color:var(--ink-soft);font-size:11px;line-height:1.8;}
 .viewer-wrap{max-width:640px;margin:0 auto;}
 .viewer-progress{text-align:center;font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;font-weight:700;}
 .flash-stage{perspective:1400px;margin-bottom:16px;}
@@ -1151,16 +1156,15 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
       </div>
       <div id="live-stage"></div>
     </section>
-  </main>
-</div>
-
-<div style="text-align:center;padding:18px 16px 28px;color:var(--ink-soft);font-size:11px;line-height:1.8;">
-  <span>Index is an independent study tool and is not affiliated with or endorsed by MCPS.</span><br>
-  <a href="/mcps-review.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;"><span id="local-review-footer">Local Review</span></a>
-  <a href="/privacy.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Privacy Policy</a>
-  <a href="/terms.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Terms</a>
-  <a href="/contact.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Contact</a>
-  <button data-action="open-conduct" style="background:none;border:0;color:var(--purple);font-weight:800;cursor:pointer;margin:0 7px;">Student conduct</button>
+  <div class="app-footer">
+    <span>Index is an independent study tool and is not affiliated with or endorsed by MCPS.</span><br>
+    <a href="/mcps-review.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;"><span id="local-review-footer">Local Review</span></a>
+    <a href="/privacy.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Privacy Policy</a>
+    <a href="/terms.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Terms</a>
+    <a href="/contact.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Contact</a>
+    <button data-action="open-conduct" style="background:none;border:0;color:var(--purple);font-weight:800;cursor:pointer;margin:0 7px;">Student conduct</button>
+  </div>
+</main>
 </div>
 
 <div class="overlay hidden" id="privacy-modal">
@@ -3406,8 +3410,19 @@ function renderStudySets(){
     const subj=subjectById(s.subjectId), count=s.type==='flashcards'?s.cards.length:s.questions.length, rem=studySetReminderState(s);
     const unitIndex=s.unit?(subj?.units||[]).indexOf(s.unit)+1:0;
     const unitLabel=s.unit?' · Unit '+unitIndex+': '+esc(s.unit):'', topicLabel=s.topic?' · '+esc(s.topic):'';
-    return '<button class="set-card" data-action="open-set" data-id="'+s.id+'"><span class="set-kind">'+(s.type==='flashcards'?'Flashcards':'Quiz')+'</span><span class="set-title">'+esc(s.title)+'</span><span class="set-meta">'+(subj?esc(subj.name):'')+unitLabel+topicLabel+' · '+count+' '+(s.type==='flashcards'?'cards':'questions')+'</span>'+(rem.label?'<span class="set-card-due '+rem.kind+'">'+rem.label+'</span>':'')+'</button>';
+    return '<div class="set-card"><button class="set-card-open" data-action="open-set" data-id="'+s.id+'"><span class="set-kind">'+(s.type==='flashcards'?'Flashcards':'Quiz')+'</span><span class="set-title">'+esc(s.title)+'</span><span class="set-meta">'+(subj?esc(subj.name):'')+unitLabel+topicLabel+' · '+count+' '+(s.type==='flashcards'?'cards':'questions')+'</span>'+(rem.label?'<span class="set-card-due '+rem.kind+'">'+rem.label+'</span>':'')+'</button><button class="set-card-delete" data-action="delete-set" data-id="'+s.id+'" type="button">🗑️ Delete</button></div>';
   }).join('')+'</div>';
+}
+function deleteStudySet(id){
+  const set = state.studySets.find(x=>x.id===id);
+  if(!set) return;
+  const label = set.title || 'this study set';
+  if(!window.confirm('Delete "'+label+'"? This will remove the study set from your saved sets.')) return;
+  state.studySets = state.studySets.filter(x=>x.id!==id);
+  if(state.viewer?.setId===id) closeViewer();
+  persistSets();
+  renderStudySets();
+  showRewardToast('🗑️ Study set deleted.');
 }
 function renderBuilderNoteList(){
   const subjectId = document.getElementById('builder-subject-notes').value || SUBJECTS[0].id;
@@ -4635,6 +4650,7 @@ document.addEventListener('click', async (e)=>{
   else if(action==='send-chat'){ sendChat(); }
   else if(action==='clear-chat'){ state.chat=[]; renderChatLog(); }
   else if(action==='open-set'){ openStudySetViewer(t.dataset.id); }
+  else if(action==='delete-set'){ deleteStudySet(t.dataset.id); }
   else if(action==='close-viewer'){ closeViewer(); }
   else if(action==='open-smart-review'){ openSmartReview(); }
   else if(action==='generate-set'){ generateStudySet(); }
