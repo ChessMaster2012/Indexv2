@@ -6208,7 +6208,7 @@ function patchBuilderUi(){
 }
 patchBuilderUi();
 
-async function commanderQuestionPoolForLesson(g){
+function commanderQuestionPoolForLesson(g){
   var pathSetsArr=state.studySets.filter(function(s){
     return s.lessonPathId&&s.subjectId===g.subjectId&&(s.unit||'')===(g.unit||'')&&(s.topic||'')===(g.topic||'')&&s.type==='quiz';
   });
@@ -6370,6 +6370,10 @@ window.__indexLessonPathHelpers={
   shuffleCopy:shuffleCopy,
   gateLesson:gateLesson
 };
+window.commanderQuestionPoolForLesson=commanderQuestionPoolForLesson;
+window.pathCompleted=pathCompleted;
+window.markLessonComplete=markLessonComplete;
+window.shuffleCopy=shuffleCopy;
 })();
 </script>
 
