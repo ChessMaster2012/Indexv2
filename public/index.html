@@ -6770,26 +6770,53 @@ window.__indexCommanderStartMap=function(mapId,slotIndex){
 
 
 <style id="commander-map-click-fix-style">
-.commander-map-card-final-v3{position:relative;z-index:5;pointer-events:auto!important;cursor:pointer!important;}
-.commander-map-card-ref{position:relative;z-index:5;pointer-events:auto!important;cursor:pointer!important;}
+.commander-map-grid-final-v3{position:relative;z-index:100000!important;pointer-events:auto!important;}
+.commander-map-card-final-v3,
+.commander-map-card-ref{
+  position:relative!important;
+  z-index:100001!important;
+  pointer-events:auto!important;
+  cursor:pointer!important;
+  touch-action:manipulation!important;
+  -webkit-tap-highlight-color:rgba(76,163,255,.25);
+}
+.commander-map-card-final-v3:active{transform:scale(.985);}
 </style>
 <script id="commander-map-click-fix">
 (function(){
 'use strict';
-/* INDEX COMMANDER MAP CLICK FIX 2026-10-01 */
-if(window.__commanderMapClickFix)return;
-window.__commanderMapClickFix=true;
+/* INDEX COMMANDER MAP CLICK FIX 2026-10-01 v2 */
+if(window.__commanderMapClickFixV2)return;
+window.__commanderMapClickFixV2=true;
 
-document.addEventListener('click',function(e){
-  var b=e.target&&e.target.closest?e.target.closest('[data-action="commander-map"]'):null;
+function launchMapButton(b){
   if(!b)return;
   var g=(typeof state!=='undefined'&&state)?state.games:null;
   if(!g||g.active!=='commander')return;
   var mapId=b.dataset.map;
   if(!mapId)return;
+  if(b.dataset.launching==='1')return;
+  b.dataset.launching='1';
+  setTimeout(function(){b.dataset.launching='';},350);
+  if(typeof window.__indexCommanderStartMap==='function'){
+    window.__indexCommanderStartMap(mapId,g.slotIndex);
+  }
+}
+
+document.addEventListener('pointerup',function(e){
+  var b=e.target&&e.target.closest?e.target.closest('[data-action="commander-map"]'):null;
+  if(!b)return;
   e.preventDefault();
   e.stopImmediatePropagation();
-  if(typeof window.__indexCommanderStartMap==='function') window.__indexCommanderStartMap(mapId,g.slotIndex);
+  launchMapButton(b);
+},true);
+
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest?e.target.closest('[data-action="commander-map"]'):null;
+  if(!b)return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  launchMapButton(b);
 },true);
 })();
 </script>
