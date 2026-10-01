@@ -5930,5 +5930,32 @@ if(hasCompletedSetup()){
   },true);
 })();
 </script>
+
+<style id="commander-learning-economy-v7-style">
+#games-stage:has(.commander-v6-fullscreen){position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;margin:0!important;padding:0!important;overflow:hidden!important;z-index:10000!important;isolation:isolate!important;background:#071321!important}
+#games-stage:has(.commander-v6-fullscreen)>.commander-v6-fullscreen{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-width:0!important;min-height:0!important;margin:0!important;z-index:1!important}
+.commander-v6-fullscreen{box-sizing:border-box!important}
+body:has(#games-stage .commander-v6-fullscreen){overflow:hidden!important}
+</style>
+<script id="commander-learning-economy-v7">
+(function(){
+'use strict';
+function cleanup(){
+ const stage=document.getElementById('games-stage'); if(!stage)return;
+ document.querySelectorAll('.commander-v6-fullscreen').forEach(function(n){if(!stage.contains(n))n.remove();});
+ const owned=[...stage.querySelectorAll(':scope>.commander-v6-fullscreen')];
+ if(owned.length>1)owned.slice(0,-1).forEach(function(n){n.remove();});
+}
+const stage=document.getElementById('games-stage');
+if(stage)new MutationObserver(cleanup).observe(stage,{childList:true});
+if(!window.__commanderV7Installed){
+ window.__commanderV7Installed=true;
+ const oldRender=window.commanderRenderScreen;
+ if(typeof oldRender==='function')window.commanderRenderScreen=function(){cleanup();const r=oldRender.apply(this,arguments);cleanup();return r;};
+ document.addEventListener('click',function(e){if(e.target.closest&&e.target.closest('[data-action="commander-save-slots"]'))setTimeout(cleanup,0);},true);
+}
+cleanup();
+})();
+</script>
 </body>
 </html>

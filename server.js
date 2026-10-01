@@ -218,6 +218,16 @@ function normalizeAiMessages(messages){
   return [...systemTurns,...safe];
 }
 
+function tutorDateAnswer(question){
+  const q=String(question||'').trim().toLowerCase();
+  if(!q)return '';
+  const asksToday=/\b(what(?:'s| is)?\s+(?:the\s+)?(?:date|day)\s+(?:today|right now)|what\s+day\s+is\s+it|today(?:'s| is the)?\s+date|current\s+date|what(?:'s| is)?\s+today|what\s+is\s+the\s+current\s+year)\b/i.test(q)
+    || /^date\s*(?:today)?\??$/i.test(q)
+    || /^today\??$/i.test(q);
+  if(!asksToday)return '';
+  return new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(new Date());
+}
+
 function latestUserQuestion(messages){
   return [...messages].reverse().find(m=>m.role==='user')?.content?.trim()||'';
 }
@@ -914,6 +924,11 @@ app.post('/api/ai/chat',async(req,res)=>{
 
     // Tiny deterministic arithmetic/radical questions bypass network latency.
     // Substantive Tutor questions still go only to Vireonix Auto.
+    const dateAnswer=tutorDateAnswer(question);
+    if(dateAnswer){
+      return res.json({text:'Today is '+dateAnswer+'.',provider:'Index date',model:'server-clock'});
+    }
+
     const fastAnswer=fastDeterministicTutor(question,messages);
     if(fastAnswer){
       return res.json({text:fastAnswer,provider:'Index fast math',model:'deterministic'});
