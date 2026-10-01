@@ -763,6 +763,20 @@ function fastDeterministicTutor(question,messages=[]){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
 
+  // Date questions are deterministic and should never depend on Vireonix Auto.
+  // Use the same Eastern Time basis as the Tutor system prompt so "today" is
+  // authoritative and cannot fall back to an outdated model date.
+  const dateQuestion=/^(?:what(?:'s| is)\\s+)?(?:today(?:'s)?\\s+date|the\\s+date\\s+today|current\\s+date|today|what\\s+day\\s+is\\s+(?:it|today)|what\\s+date\\s+is\\s+(?:it|today)|current\\s+year)\\??$/i;
+  if(dateQuestion.test(q)){
+    const now=new Date();
+    const date=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(now);
+    if(/current\\s+year/i.test(q)){
+      const year=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric'}).format(now);
+      return 'The current year is '+year+'.';
+    }
+    return 'Today is '+date+'.';
+  }
+
   // Common radical requests should never depend on a cloud provider.
   const root=l.match(/^(?:what\s+is\s+)?(?:the\s+)?(?:square\s+root\s+of\s+|sqrt\s*|root\s+)(-?\d+(?:\.\d+)?)\??$/i);
   if(root){
