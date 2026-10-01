@@ -6729,7 +6729,22 @@ function damageDeployedStable(){
   if(changed){commanderSaveFinal();commanderRenderScreen();}
 }
 var oldUpdateStable=commanderUpdateFinal;
-commanderUpdateFinal=function(dt){oldUpdateStable(dt);damageDeployedStable();};
+commanderUpdateFinal=function(dt){
+  var g=state.games,wasRunning=!!(g&&g.running);
+  oldUpdateStable(dt);
+  damageDeployedStable();
+  if(g&&g.active==='commander'&&g.phase==='battle'&&!g.finished&&wasRunning&&!g.running){
+    g.questionGateOpen=true;
+    g.questionFeedback=null;
+    g.questionCorrectCount=0;
+    g.questionAskedCount=0;
+    g.selectedTroop=null;
+    if(!g.question)selectNextQuestion(g);
+    commanderSaveFinal(g);
+    commanderRenderScreen();
+    if(!g.question&&!g.questionLoading)commanderLoadQuestionFinal();
+  }
+};
 
 document.addEventListener('click',function(e){
   var b=e.target.closest&&e.target.closest('[data-action="commander-answer-v4"]');
