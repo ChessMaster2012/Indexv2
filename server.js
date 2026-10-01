@@ -1610,6 +1610,29 @@ app.get('/api/billing/status',async(req,res)=>{
   if(!req.user)return res.status(401).json({error:'Not signed in.'});
   try{
     await refreshAccountUserWithState(req);
+    if(STRIPE_SECRET_KEY){
+      const stored=membershipForUser(req.user);
+      if(stored.tier!=='free'&&stored.subscriptionId){
+        try{
+          const subscription=await stripeGet('subscriptions/'+encodeURIComponent(stored.subscriptionId));
+          const priceId=String(subscription.items?.data?.[0]?.price?.id||'');
+          const stripeTier=String(subscription.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_PLATINUM_PRICE_ID?'platinum':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
+          const liveTier=['gold','platinum','diamond'].includes(stripeTier)?stripeTier:stored.tier;
+          const active=!['canceled','unpaid','incomplete_expired'].includes(String(subscription.status||''));
+          await saveMembershipForUser(String(req.user.id),{
+            tier:active?liveTier:'free',
+            status:String(subscription.status||stored.status||'active'),
+            customerId:String(subscription.customer||stored.customerId||''),
+            subscriptionId:String(subscription.id||stored.subscriptionId||''),
+            currentPeriodEnd:Number(subscription.current_period_end)||stored.currentPeriodEnd,
+            cancelAtPeriodEnd:subscription.cancel_at_period_end===true
+          });
+          await refreshAccountUserWithState(req);
+        }catch(e){
+          console.warn('Stripe membership reconciliation warning:',e.message);
+        }
+      }
+    }
     res.set('Cache-Control','no-store');
     res.json({ok:true,configured:stripeConfigured(),membership:billingClientState(req.user)});
   }catch(e){res.status(503).json({error:'Could not load membership status right now.'});}
