@@ -6812,5 +6812,365 @@ document.addEventListener('click',function(e){
 .commander-map-card-final-v3,.commander-map-card-ref{position:relative!important;z-index:100001!important;pointer-events:auto!important;cursor:pointer!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(76,163,255,.25);}
 .commander-map-card-final-v3:active{transform:scale(.985);}
 </style>
+<style id="commander-authoritative-v5-css">
+#games-stage:has(.commander-authoritative-root){
+  position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;
+  margin:0!important;padding:0!important;z-index:30000!important;overflow:hidden!important;
+  background:#071321!important;pointer-events:auto!important;
+}
+body:has(.commander-authoritative-root){overflow:hidden!important}
+.commander-authoritative-root{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;font-family:var(--font-ui)!important;color:#fff;background:#071321;overflow:hidden}
+.commander-auth-gate{height:100%;display:flex;align-items:center;justify-content:center;padding:28px;box-sizing:border-box;background:radial-gradient(circle at 50% 10%,rgba(80,180,255,.22),transparent 34%),linear-gradient(145deg,#071321,#142a40 60%,#0b1726);overflow:auto}
+.commander-auth-card{width:min(980px,94vw);max-height:calc(100vh - 56px);overflow:auto;background:#f7f9fc;color:#102033;border:3px solid #d8e3ed;border-radius:28px;padding:30px;box-shadow:0 30px 90px rgba(0,0,0,.42);box-sizing:border-box}
+.commander-auth-top{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}
+.commander-auth-kicker{font-size:10px;font-weight:950;letter-spacing:.16em;color:#315d8f;text-transform:uppercase}
+.commander-auth-card h1{font:950 clamp(34px,5vw,58px) var(--font-display);line-height:.98;margin:6px 0 10px;color:#162745}
+.commander-auth-sub{font-size:13px;line-height:1.55;color:#516276;max-width:730px}
+.commander-auth-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:11px;margin:20px 0}
+.commander-auth-stat{padding:14px;border-radius:16px;background:#fff;border:2px solid #d3dfeb}
+.commander-auth-stat b{display:block;font:950 25px var(--font-display);color:#162745}
+.commander-auth-stat span{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:#61758b}
+.commander-auth-question{padding:22px;border-radius:22px;background:#142337;color:#fff;border:2px solid #2e4762;box-shadow:0 14px 32px rgba(15,31,48,.17)}
+.commander-auth-meta{font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#79b9e8}
+.commander-auth-question h2{font-size:clamp(21px,3vw,30px);line-height:1.32;margin:10px 0 16px}
+.commander-auth-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.commander-auth-option{min-height:68px;border:2px solid #536b83;border-radius:14px;background:#22364d;color:#fff;padding:11px 13px;text-align:left;font-weight:900;cursor:pointer}
+.commander-auth-option:hover{background:#2c4865;border-color:#8bd9ff}
+.commander-auth-option .letter{display:inline-grid;place-items:center;width:29px;height:29px;border-radius:9px;background:#75d6ff;color:#102033;margin-right:8px}
+.commander-auth-option.correct{background:#dff9eb!important;border-color:#2abb7b!important;color:#155d40!important}
+.commander-auth-option.correct .letter{background:#2abb7b!important;color:#fff!important}
+.commander-auth-option.incorrect{background:#ffe1e5!important;border-color:#ea5b67!important;color:#7b222b!important}
+.commander-auth-option.incorrect .letter{background:#ea5b67!important;color:#fff!important}
+.commander-auth-feedback{margin-top:12px;border-radius:14px;padding:12px;background:#fff;border:2px solid #d6e1ea;color:#22364d}
+.commander-auth-feedback.correct{border-color:#2abb7b;background:#f1fff7}
+.commander-auth-feedback.wrong{border-color:#ea5b67;background:#fff4f5}
+.commander-auth-feedback b{display:block;font-size:13px}
+.commander-auth-feedback p{font-size:11px;line-height:1.5;margin:5px 0 0}
+.commander-auth-feedback button{margin-top:9px;width:100%;border:0;border-radius:10px;padding:10px;background:#275f95;color:#fff;font-weight:950;cursor:pointer}
+.commander-auth-note{margin-top:12px;font-size:10px;line-height:1.45;color:#5b6d80}
+.commander-auth-exit{border:2px solid #b9cad9;background:#e6edf3;color:#18304a;border-radius:11px;padding:8px 12px;font-weight:950;cursor:pointer}
+.commander-auth-battle{display:grid;grid-template-columns:250px minmax(0,1fr) 365px;height:100%;background:#071321}
+.commander-auth-side-left{padding:13px;background:linear-gradient(180deg,#182d45,#102033);border-right:1px solid rgba(255,255,255,.1);overflow:auto}
+.commander-auth-side-right{padding:13px;background:linear-gradient(180deg,#101a29,#0b1220);border-left:1px solid rgba(255,255,255,.1);overflow:auto}
+.commander-auth-title{font-size:10px;font-weight:950;letter-spacing:.12em;text-transform:uppercase;color:#9cc5e4;margin:3px 3px 9px}
+.commander-auth-wallet{display:flex;gap:7px;margin-bottom:10px}
+.commander-auth-wallet>div{flex:1;padding:9px;border-radius:11px;background:#1a2c41;border:1px solid rgba(255,255,255,.1)}
+.commander-auth-wallet b{display:block;font:950 21px var(--font-display)}
+.commander-auth-wallet span{display:block;font-size:8px;color:#91aac0;text-transform:uppercase;font-weight:900}
+.commander-auth-active{display:grid;gap:8px}
+.commander-auth-active-card{padding:9px;border-radius:13px;background:#fff;color:#142033;border:1px solid #d2dee8;box-shadow:0 5px 16px rgba(0,0,0,.15)}
+.commander-auth-active-head{display:flex;gap:8px;align-items:center}
+.commander-auth-active-art{width:44px;height:44px;flex:0 0 44px;display:grid;place-items:center;border-radius:11px;background:#eef5fb;overflow:hidden}
+.commander-auth-active-art svg{width:42px!important;height:42px!important}
+.commander-auth-active-name{font-size:11px;font-weight:950;line-height:1.15}
+.commander-auth-active-sub{font-size:8.5px;color:#66798d;margin-top:2px}
+.commander-auth-health{height:6px;background:#d8e3eb;border-radius:99px;overflow:hidden;margin:8px 0}
+.commander-auth-health span{display:block;height:100%;background:#31c88b}
+.commander-auth-active-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.commander-auth-active-actions button{border:1px solid #cbd7e1;border-radius:8px;background:#f7fafc;color:#263b50;padding:5px 2px;font-size:8px;font-weight:900;cursor:pointer}
+.commander-auth-active-actions button:hover{background:#eaf3fa;border-color:#80a1bc}
+.commander-auth-empty{font-size:10px;line-height:1.5;color:#7891a6;padding:5px}
+.commander-auth-world{position:relative;min-width:0;overflow:hidden;background:#0b1830}
+.commander-auth-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
+.commander-auth-unit-layer{position:absolute;inset:0;pointer-events:none;z-index:7}
+.commander-auth-unit{position:absolute;transform:translate(-50%,-50%);display:grid;place-items:center}
+.commander-auth-unit.tower{width:58px;height:58px}
+.commander-auth-unit.tower svg{width:54px!important;height:54px!important;filter:drop-shadow(0 5px 7px rgba(0,0,0,.35))}
+.commander-auth-unit.enemy{width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.55);background:#d85c70;box-shadow:0 4px 10px rgba(0,0,0,.28);color:#fff;font-size:13px;font-weight:950}
+.commander-auth-unit.enemy.runner{background:#5e9fdf}.commander-auth-unit.enemy.elite{background:#8b6bd4}.commander-auth-unit.enemy.brute{width:44px;height:44px;background:#b65263}
+.commander-auth-unit-hp{position:absolute;left:50%;top:-8px;transform:translateX(-50%);width:44px;height:4px;border-radius:99px;background:rgba(20,20,30,.65);overflow:hidden}
+.commander-auth-unit-hp span{display:block;height:100%;background:#36d78f}
+.commander-auth-map-label{position:absolute;left:14px;top:13px;z-index:10;background:rgba(8,17,31,.82);border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:8px 11px}
+.commander-auth-map-label b{display:block;font-size:13px}.commander-auth-map-label span{font-size:8px;color:#a9c0d4}
+.commander-auth-selected{margin-bottom:9px;padding:8px 10px;border-radius:10px;background:#18283d;border:1px solid #38526c;color:#d9eaf8;font-size:9px;font-weight:850}
+.commander-auth-roster{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.commander-auth-troop{border:1px solid rgba(255,255,255,.1);border-radius:13px;background:#172537;color:#fff;padding:7px;text-align:left;cursor:pointer;min-width:0}
+.commander-auth-troop:hover{background:#20344a;border-color:#6ebde6}
+.commander-auth-troop.selected{border:2px solid #5bd6ff;background:#18394a}
+.commander-auth-troop.locked{opacity:.5;cursor:not-allowed}
+.commander-auth-troop-art{height:48px;display:grid;place-items:center}.commander-auth-troop-art svg{width:46px!important;height:46px!important}
+.commander-auth-troop-name{font-size:9.5px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.commander-auth-troop-role{font-size:7.5px;color:#90a5b9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.commander-auth-troop-stats{font-size:7px;color:#cbd9e5;line-height:1.35;margin-top:4px}
+.commander-auth-unlock{margin-top:5px;font-size:7.5px;color:#ffd56a;font-weight:950}
+.commander-auth-round{padding:8px 9px;border-radius:10px;background:#192b41;color:#bad2e5;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.commander-auth-start{width:100%;border:0;border-radius:11px;padding:11px;background:linear-gradient(135deg,#34ca8b,#2da6dd);color:#072033;font-weight:950;cursor:pointer;margin-top:8px}
+.commander-auth-change{width:49%;display:inline-block;margin-top:7px;border:0;background:none;color:#90a8bd;font-size:8px;font-weight:900;cursor:pointer}
+.commander-auth-change:hover{color:#fff}
+.commander-auth-budget{padding:8px 10px;border-radius:11px;background:#1a2c41;border:1px solid #324c65;color:#d5e6f4;font-size:9px;margin-bottom:8px}
+@media(max-width:900px){.commander-auth-battle{grid-template-columns:1fr 320px}.commander-auth-side-left{display:none}}
+@media(max-width:700px){.commander-auth-battle{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 46vh}.commander-auth-side-right{border-left:0;border-top:1px solid rgba(255,255,255,.1)}.commander-auth-options{grid-template-columns:1fr}.commander-auth-stats{grid-template-columns:1fr 1fr}}
+</style>
+
+<script id="commander-authoritative-v5">
+(function(){
+'use strict';
+if(window.__commanderAuthoritativeV5)return;
+window.__commanderAuthoritativeV5=true;
+
+var FALLBACK=[
+ {q:'Natural selection acts directly on which level?',options:['Genotypes only','Phenotypes','Species names','Mutations only'],correct:1,explanation:'Natural selection changes the frequency of traits associated with phenotypes that affect survival or reproduction.'},
+ {q:'Which process produces most ATP during aerobic cellular respiration?',options:['Glycolysis','Oxidative phosphorylation','Fermentation','DNA replication'],correct:1,explanation:'Most ATP in aerobic cellular respiration is produced during oxidative phosphorylation.'},
+ {q:'What is the main function of an enzyme?',options:['Store DNA','Lower activation energy','Produce chromosomes','Destroy ATP'],correct:1,explanation:'Enzymes catalyze reactions by lowering activation energy.'},
+ {q:'Which structure contains most eukaryotic DNA?',options:['Ribosome','Nucleus','Golgi apparatus','Lysosome'],correct:1,explanation:'Most eukaryotic DNA is contained in the nucleus.'}
+];
+
+function troopDef(id){return COMMANDER_TROOPS_FINAL.find(function(x){return x.id===id;})||COMMANDER_TROOPS_FINAL[0];}
+function troopArt(id){
+  try{
+    var l=cosmeticById(id)||cosmeticById('ling-sugarbug'),sk=getEquippedSkinForIndexling(id);
+    return typeof indexlingArtHtml==='function'?indexlingArtHtml(l,true,sk):commanderIndexlingPortraitFinal(id);
+  }catch(e){return commanderIndexlingPortraitFinal(id);}
+}
+function profile(){return commanderFinalProfile();}
+function pool(g){
+  try{
+    if(typeof window.commanderQuestionPoolForLesson==='function'){
+      var lp=window.commanderQuestionPoolForLesson(g);
+      if(lp&&lp.pool&&lp.pool.length)return lp.lesson===0?lp.all:lp.pool;
+    }
+  }catch(e){}
+  try{
+    var p=commanderQuestionPoolFinal(g);if(p&&p.length)return p;
+  }catch(e){}
+  return FALLBACK;
+}
+function pickQuestion(g,exclude){
+  var p=pool(g).filter(function(q){return !exclude||q.q!==exclude;});
+  if(!p.length)p=pool(g);
+  var q=p[Math.floor(Math.random()*p.length)]||FALLBACK[0];
+  return {q:String(q.q),options:(q.options||[]).map(String).slice(0,4),correct:Math.max(0,Math.min(3,Number(q.correct)||0)),explanation:String(q.explanation||'')};
+}
+function save(g){
+  if(!g||g.slotIndex==null)return;
+  commanderSlotsFinal()[g.slotIndex]={
+    mapId:g.mapId,round:g.wave,base:g.base,subjectId:g.subjectId||'',unit:g.unit||'',topic:g.topic||'',
+    questionBank:g.questionBank||[],question:g.question||null,questionGateOpen:!!g.questionGateOpen,
+    questionCorrectCount:g.questionCorrectCount||0,questionAskedCount:g.questionAskedCount||0,
+    questionFeedback:g.questionFeedback||null,selectedTroop:g.selectedTroop||null,
+    towers:(g.towers||[]).map(function(t){return{id:t.id,x:t.x,y:t.y,level:t.level,hp:t.hp,maxHp:t.maxHp};}),
+    lessonPathId:g.lessonPathId||'',lessonIndex:Number(g.lessonIndex)||0,lessonTotal:Number(g.lessonTotal)||0,
+    lessonMastered:g.lessonMastered||{},mixedQuestionOrder:g.mixedQuestionOrder||null,mixedQuestionCursor:Number(g.mixedQuestionCursor)||0,
+    savedAt:Date.now()
+  };
+  persistProgress();
+}
+function clearRunTimers(g){
+  if(g&&g.spawnTimer){clearTimeout(g.spawnTimer);g.spawnTimer=null;}
+  if(g&&g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
+  if(typeof clearGameTimers==='function')clearGameTimers();
+}
+function canPlace(g,x,y){
+  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});if(!m||g.running||g.finished)return false;
+  if(x<.035||x>.965||y<.05||y>.95)return false;
+  for(var i=0;i<m.route.length-1;i++)if(commanderDistanceFinal(x,y,m.route[i][0],m.route[i][1],m.route[i+1][0],m.route[i+1][1])<.07)return false;
+  for(var j=0;j<m.detail.length;j++)for(var k=0;k<m.detail[j].length-1;k++)if(commanderDistanceFinal(x,y,m.detail[j][k][0],m.detail[j][k][1],m.detail[j][k+1][0],m.detail[j][k+1][1])<.045)return false;
+  for(var q=0;q<m.rocks.length;q++){var o=m.rocks[q];if(Math.hypot(x-o[0],y-o[1])<o[2]+.035)return false;}
+  for(var t=0;t<g.towers.length;t++)if(Math.hypot(x-g.towers[t].x,y-g.towers[t].y)<.075)return false;
+  return true;
+}
+function renderGate(g){
+  var q=g.question||FALLBACK[0],fb=g.questionFeedback,s=subjectById(g.subjectId),need=1;
+  var opts=(q.options||[]).map(function(o,i){
+    var cls='commander-auth-option';
+    if(fb&&i===Number(q.correct))cls+=' correct';
+    if(fb&&i===Number(fb.chosen)&&i!==Number(q.correct))cls+=' incorrect';
+    return '<button class="'+cls+'" '+(fb?'disabled':'')+' onclick="return window.__commanderAnswerFinal('+i+',event)"><span class="letter">'+String.fromCharCode(65+i)+'</span><span>'+esc(o)+'</span></button>';
+  }).join('');
+  var feedback='';
+  if(fb){
+    var correct=!!fb.correct;
+    feedback='<div class="commander-auth-feedback '+(correct?'correct':'wrong')+'"><b>'+(correct?'Correct! Deployment unlocked.':'Not quite — the correct answer is highlighted in green.')+'</b><p>'+esc(fb.explanation||q.explanation||'Review the highlighted answer, then continue.')+'</p><button onclick="return window.__commanderContinueFinal(event)">'+(correct?'Enter Battlefield →':'Next Question →')+'</button></div>';
+  }
+  return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer the study question before deploying. Correct answers earn +25 deployment coins. A wrong answer does not block you—you can review the answer and move to a new question.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitFinal(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>'+((g.questionCorrectCount||0) + (fb&&fb.correct?0:0))+'/'+need+'</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>'+((g.lessonIndex||0)?'Lesson '+g.lessonIndex+' / '+(g.lessonTotal||LESSONS):'Mixed review')+'</b><span>Study progression</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">Correct answers are shown in green, incorrect selections in red, and the next question is generated from the selected study material.</div></div></div>';
+}
+function renderActive(g){
+  var p=profile();
+  if(!g.towers.length)return '<div class="commander-auth-empty">No Indexlings deployed yet.<br><br>Select an Indexling on the right, then click a green build area on the map.</div>';
+  return g.towers.map(function(t,i){
+    var r=troopDef(t.id),hp=Math.max(0,Number(t.hp||0)),max=Math.max(1,Number(t.maxHp||100)),pct=Math.max(0,Math.min(100,hp/max));
+    var up=commanderFinalCost(t.id);
+    return '<div class="commander-auth-active-card"><div class="commander-auth-active-head"><div class="commander-auth-active-art">'+troopArt(t.id)+'</div><div><div class="commander-auth-active-name">'+esc(r.name)+' · Lv '+t.level+'</div><div class="commander-auth-active-sub">'+esc(r.role)+' · '+Math.ceil(hp)+'/'+max+' HP</div></div></div><div class="commander-auth-health"><span style="width:'+pct+'%"></span></div><div class="commander-auth-active-actions"><button onclick="return window.__commanderHealFinal('+i+',event)">Heal · 10 🪙</button><button onclick="return window.__commanderUpgradeActiveFinal('+i+',event)">Upgrade · '+up+' 🪙</button><button onclick="return window.__commanderSellFinal('+i+',event)">Sell</button></div></div>';
+  }).join('');
+}
+function renderRoster(g){
+  var p=profile(),sel=g.selectedTroop||'';
+  return COMMANDER_TROOPS_FINAL.map(function(r){
+    var own=!!p.owned[r.id],lvl=Math.max(1,Number(p.levels[r.id])||1),st=commanderFinalStats(r.id,lvl);
+    return '<button class="commander-auth-troop '+(sel===r.id?'selected ':'')+(!own?'locked':'')+'" '+(!own?'disabled':'')+' onclick="return window.__commanderSelectFinal(\''+r.id+'\',event)"><div class="commander-auth-troop-art">'+troopArt(r.id)+'</div><div class="commander-auth-troop-name">'+esc(r.name)+' · Lv '+lvl+'</div><div class="commander-auth-troop-role">'+esc(r.role)+'</div><div class="commander-auth-troop-stats">⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · ⚡ '+(Math.round(1000/st.rate*10)/10)+' atk/s<br>✦ '+esc(r.ability)+'</div><div class="commander-auth-unlock">'+(own?'Deploy · '+(r.cost||0)+' 🪙':'Locked · '+r.cost+' 🪙')+'</div></button>';
+  }).join('');
+}
+function battleHtml(g){
+  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;})||COMMANDER_MAPS_FINAL[0],p=profile();
+  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>🪙 '+p.coins+'</b><span>Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+renderActive(g)+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas" onclick="return window.__commanderCanvasFinal(event)"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexlings · hover for stats · click to select</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+g.waveCoins+'</b> · Placements spend this budget.</div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div><div class="commander-auth-roster">'+renderRoster(g)+'</div><button class="commander-auth-start" onclick="return window.__commanderStartWaveFinal(event)" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
+}
+function draw(g){
+  var cv=document.getElementById('commander-auth-canvas'),m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});
+  if(!cv||!m)return;
+  var r=cv.getBoundingClientRect();if(!r.width||!r.height)return;
+  var d=Math.min(2,window.devicePixelRatio||1);cv.width=Math.floor(r.width*d);cv.height=Math.floor(r.height*d);
+  var ctx=cv.getContext('2d');ctx.setTransform(d,0,0,d,0,0);
+  commanderDrawMapBackgroundFinal(ctx,m,r.width,r.height);
+  var pts=m.route.map(function(v){return{x:v[0]*r.width,y:v[1]*r.height};});
+  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=64;ctx.strokeStyle='rgba(255,255,255,.22)';ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();
+  ctx.lineWidth=44;ctx.strokeStyle=m.path;ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();
+  ctx.lineWidth=5;ctx.strokeStyle='rgba(255,255,255,.42)';ctx.setLineDash([18,15]);ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();ctx.setLineDash([]);ctx.restore();
+  var st=pts[0],en=pts[pts.length-1];ctx.fillStyle='#35d59c';ctx.beginPath();ctx.arc(st.x,st.y,26+Math.sin(Date.now()*.006)*3,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ecfff8';ctx.lineWidth=4;ctx.stroke();ctx.fillStyle='#ef6473';ctx.fillRect(en.x-27,en.y-27,54,54);ctx.fillStyle='#fff';ctx.font='950 10px Arial';ctx.textAlign='center';ctx.fillText('BASE',en.x,en.y+4);
+  if(g.selectedTroop&&g.cursor){var lvl=Math.max(1,Number(profile().levels[g.selectedTroop])||1),stt=commanderFinalStats(g.selectedTroop,lvl),rad=stt.range/850*r.width;ctx.fillStyle=g.cursor.valid?'rgba(49,211,143,.15)':'rgba(234,91,103,.15)';ctx.beginPath();ctx.arc(g.cursor.x*r.width,g.cursor.y*r.height,rad,0,Math.PI*2);ctx.fill();ctx.strokeStyle=g.cursor.valid?'#31d38f':'#ea5b67';ctx.lineWidth=3;ctx.stroke();}
+  (g.projectiles||[]).forEach(function(q){ctx.fillStyle=q.color||'#fff';ctx.beginPath();ctx.arc(q.x*r.width,q.y*r.height,4,0,Math.PI*2);ctx.fill();});
+  (g.effects||[]).forEach(function(z){ctx.globalAlpha=Math.max(.05,z.life/z.maxLife);ctx.fillStyle=z.color||'#fff';ctx.beginPath();ctx.arc(z.x*r.width,z.y*r.height,(z.radius||.04)*r.width,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;});
+  renderUnits(g,r);
+}
+function renderUnits(g,r){
+  var layer=document.getElementById('commander-auth-unit-layer');if(!layer)return;
+  var towers=(g.towers||[]).map(function(t){return '<div class="commander-auth-unit tower" style="left:'+(t.x*100)+'%;top:'+(t.y*100)+'%;">'+troopArt(t.id)+'</div>';}).join('');
+  var enemies=(g.enemies||[]).map(function(e){var cls='enemy '+(e.kind||'raider');var hp=Math.max(0,Math.min(100,e.hp/e.maxHp*100));return '<div class="commander-auth-unit '+cls+'" style="left:'+(e.x*100)+'%;top:'+(e.y*100)+'%;">'+(e.kind==='runner'?'⚡':e.kind==='brute'?'◆':e.kind==='elite'?'✦':'●')+'<div class="commander-auth-unit-hp"><span style="width:'+hp+'%"></span></div></div>';}).join('');
+  layer.innerHTML=towers+enemies;
+}
+function render(){
+  var stage=document.getElementById('games-stage');if(!stage)return;
+  if(!state.games||state.games.active!=='commander'){return renderGames();}
+  var g=state.games;
+  if(g.phase!=='battle'){stage.innerHTML=commanderSaveSlotsHtmlV2();return;}
+  if(g.questionGateOpen){stage.innerHTML=renderGate(g);return;}
+  stage.innerHTML=battleHtml(g);
+  requestAnimationFrame(function(){draw(g);});
+}
+function startMap(mapId,slot,saveData){
+  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===mapId;});if(!m)return;
+  var prev=state.games||{};clearRunTimers(prev);
+  var old=saveData&&typeof saveData==='object'?saveData:null;
+  var g={
+    active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,
+    subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',
+    questionBank:old&&old.questionBank||prev.questionBank||[],question:null,questionGateOpen:true,questionCorrectCount:0,questionAskedCount:0,
+    questionFeedback:null,waveCoins:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,
+    selectedTroop:null,towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,
+    lessonPathId:old&&old.lessonPathId||'',lessonIndex:Number(old&&old.lessonIndex)||0,lessonTotal:Number(old&&old.lessonTotal)||0,lessonMastered:old&&old.lessonMastered||{},mixedQuestionOrder:old&&old.mixedQuestionOrder||null,mixedQuestionCursor:Number(old&&old.mixedQuestionCursor)||0
+  };
+  if(old&&Array.isArray(old.towers))old.towers.forEach(function(t){if(t&&t.x!=null&&t.y!=null&&profile().owned[t.id])g.towers.push({id:t.id,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),hp:Number(t.hp||100),maxHp:Number(t.maxHp||100),cool:0,abilityReady:performance.now()+1800,recoil:0});});
+  g.question=pickQuestion(g);
+  try{
+    var info=window.commanderQuestionPoolForLesson(g);
+    if(info){g.lessonPathId=info.pathId;g.lessonTotal=info.total;g.lessonIndex=info.lesson||0;}
+  }catch(e){}
+  state.games=g;save(g);render();
+}
+function spawnEnemy(g){
+  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});if(!m)return;
+  var i=g.spawnCount,kind=(g.wave%4===0&&i===g.spawnTotal-1)?'brute':(g.wave%3===0&&i%3===0?'elite':i%2===0?'raider':'runner');
+  var b=COMMANDER_ENEMIES_FINAL.find(function(x){return x.id===kind;})||COMMANDER_ENEMIES_FINAL[0];
+  var hp=Math.round(b.hp*(m.hp/42)*(1+g.wave*.075));
+  var s=m.route[0],next=m.route[1],dx=next[0]-s[0],dy=next[1]-s[1];
+  g.enemies.push({id:uid(),wp:0,x:s[0],y:s[1],hp:hp,maxHp:hp,speed:b.speed*m.speed,baseDamage:b.baseDamage,size:b.size,color:b.color,kind:kind,seed:Math.random()*9999,slow:1,hit:0,rot:Math.atan2(dy,dx)});
+  g.spawnCount++;
+}
+function launch(g){
+  if(!g||g.running||g.finished||g.questionGateOpen)return false;
+  g.wave++;g.running=true;g.spawnCount=0;g.spawnTotal=5+Math.min(10,g.wave);g.enemies=[];g.projectiles=[];g.effects=[];g.waveBanner='ROUND '+g.wave;g.waveBannerUntil=Date.now()+850;g.lastFrame=performance.now();g.nextSpawnAt=g.lastFrame+120;save(g);render();
+  return true;
+}
+function update(g,dt,now){
+  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});if(!m||!g.running)return;
+  while(g.spawnCount<g.spawnTotal&&now>=g.nextSpawnAt){spawnEnemy(g);g.nextSpawnAt+=Math.max(260,m.spawn);}
+  g.enemies.forEach(function(e){
+    var tar=m.route[Math.min(e.wp+1,m.route.length-1)],dx=tar[0]-e.x,dy=tar[1]-e.y,d=Math.hypot(dx,dy)||1,step=e.speed*dt*.18*(e.slow||1);
+    if(d<=step){e.x=tar[0];e.y=tar[1];e.wp++;if(e.wp>=m.route.length-1){e.hp=0;g.base=Math.max(0,g.base-e.baseDamage);}}
+    else{e.x+=dx/d*step;e.y+=dy/d*step;}
+    e.slow=1;e.hit=Math.max(0,(e.hit||0)-dt*1000);
+  });
+  var p=profile();
+  g.towers.forEach(function(t){
+    var st=commanderFinalStats(t.id,t.level);t.cool=Math.max(0,(t.cool||0)-dt*1000);
+    var target=null,bd=Infinity;
+    g.enemies.forEach(function(e){if(e.hp<=0)return;var d=Math.hypot(e.x-t.x,e.y-t.y);if(d<=st.range/850&&d<bd){target=e;bd=d;}});
+    if(target&&t.cool<=0){
+      g.projectiles.push({x:t.x,y:t.y,tx:target.id,prevX:t.x,prevY:t.y,speed:.72,damage:st.damage,color:st.shot,life:1200});
+      t.cool=st.rate;t.recoil=now+120;
+      if(now>=(t.abilityReady||0)){t.abilityReady=now+st.cooldown*1000;g.effects.push({x:target.x,y:target.y,life:280,maxLife:280,radius:.035,color:st.shot});}
+    }
+  });
+  g.projectiles.forEach(function(q){var e=g.enemies.find(function(x){return x.id===q.tx&&x.hp>0;});if(!e){q.life=0;return;}q.prevX=q.x;q.prevY=q.y;var dx=e.x-q.x,dy=e.y-q.y,d=Math.hypot(dx,dy)||1,step=q.speed*dt;if(d<=step){e.hp-=q.damage;e.hit=160;q.life=0;}else{q.x+=dx/d*step;q.y+=dy/d*step;}q.life-=dt*1000;});
+  g.effects.forEach(function(z){z.life-=dt*1000;});
+  g.effects=g.effects.filter(function(z){return z.life>0;});g.projectiles=g.projectiles.filter(function(q){return q.life>0;});g.enemies=g.enemies.filter(function(e){return e.hp>0;});
+  if(g.base<=0){g.running=false;g.finished=true;save(g);render();return;}
+  if(g.spawnCount>=g.spawnTotal&&g.enemies.length===0){
+    g.running=false;g.waveBanner='ROUND '+g.wave+' CLEARED';g.waveBannerUntil=Date.now()+1100;g.questionGateOpen=true;g.questionCorrectCount=0;g.questionAskedCount=0;g.waveCoins=0;g.questionFeedback=null;g.question=pickQuestion(g);save(g);render();return;
+  }
+}
+function loop(now){
+  var g=state.games;if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
+  var dt=Math.min(.05,(g.lastFrame?now-g.lastFrame:16)/1000);g.lastFrame=now;
+  update(g,dt,now);draw(g);
+  if(state.games===g&&!g.questionGateOpen&&!g.finished)g.frame=requestAnimationFrame(loop);
+}
+function place(g,x,y){
+  var id=g.selectedTroop;if(!id||!canPlace(g,x,y))return;
+  var r=troopDef(id),p=profile(),cost=Math.max(0,Number(r.cost)||0);
+  if((g.waveCoins||0)<cost){showRewardToast('Not enough deployment coins for '+r.name+'.');return;}
+  var lvl=Math.max(1,Number(p.levels[id])||1);
+  g.waveCoins-=cost;g.towers.push({id:id,x:x,y:y,level:lvl,hp:100+(lvl-1)*15,maxHp:100+(lvl-1)*15,cool:0,abilityReady:performance.now()+1800,recoil:0});g.selectedTroop=null;save(g);render();draw(g);
+}
+window.__commanderAnswerFinal=function(i,e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  var g=state.games;if(!g||!g.questionGateOpen||g.questionFeedback||!g.question)return false;
+  var q=g.question;var correct=Number(i)===Number(q.correct);
+  g.questionAskedCount=(g.questionAskedCount||0)+1;
+  if(correct){g.questionCorrectCount=(g.questionCorrectCount||0)+1;g.waveCoins=(g.waveCoins||0)+25;}
+  g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};
+  save(g);render();return false;
+};
+window.__commanderContinueFinal=function(e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  var g=state.games;if(!g||!g.questionFeedback)return false;
+  if(g.questionFeedback.correct){
+    g.questionGateOpen=false;g.questionFeedback=null;g.question=null;g.selectedTroop=null;save(g);render();
+    g.lastFrame=performance.now();g.frame=requestAnimationFrame(loop);
+  }else{
+    var old=g.question&&g.question.q;g.questionFeedback=null;g.question=pickQuestion(g,old);save(g);render();
+  }
+  return false;
+};
+window.__commanderExitFinal=function(e){if(e){e.preventDefault();e.stopPropagation();}clearRunTimers(state.games);state.games={active:null,setupType:null,commanderScreen:null};renderGames();return false;};
+window.__commanderSelectFinal=function(id,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.questionGateOpen||g.running)return false;var p=profile();if(!p.owned[id]){showRewardToast('Unlock this Indexling first.');return false;}g.selectedTroop=(g.selectedTroop===id?null:id);render();return false;};
+window.__commanderCanvasFinal=function(e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  var g=state.games,cv=document.getElementById('commander-auth-canvas');if(!g||!cv||g.questionGateOpen||g.running)return false;
+  var r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;place(g,x,y);return false;
+};
+window.__commanderStartWaveFinal=function(e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  var g=state.games;if(!g||g.questionGateOpen||g.running||g.finished)return false;
+  launch(g);g.frame=requestAnimationFrame(loop);return false;
+};
+window.__commanderHealFinal=function(i,e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  var g=state.games,t=g&&g.towers&&g.towers[i],p=profile();if(!t||t.hp>=t.maxHp||p.coins<10)return false;
+  p.coins-=10;t.hp=t.maxHp;save(g);persistProgress();render();return false;
+};
+window.__commanderUpgradeActiveFinal=function(i,e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  var g=state.games,t=g&&g.towers&&g.towers[i],p=profile(),cost=t?commanderFinalCost(t.id):999;
+  if(!t||p.coins<cost||t.level>=10)return false;
+  p.coins-=cost;t.level++;t.maxHp+=15;t.hp=t.maxHp;p.levels[t.id]=Math.max(Number(p.levels[t.id])||1,t.level);save(g);persistProgress();render();return false;
+};
+window.__commanderSellFinal=function(i,e){
+  if(e){e.preventDefault();e.stopPropagation();}
+  var g=state.games,t=g&&g.towers&&g.towers[i];if(!t)return false;
+  var r=troopDef(t.id),p=profile(),refund=Math.max(5,Math.floor(Number(r.cost||20)*.55));p.coins+=refund;g.towers.splice(i,1);save(g);persistProgress();render();return false;
+};
+window.__commanderChangeMapFinal=function(e){if(e){e.preventDefault();e.stopPropagation();}clearRunTimers(state.games);commanderBackToMaps();return false;};
+window.__commanderChangeTopicFinal=function(e){if(e){e.preventDefault();e.stopPropagation();}clearRunTimers(state.games);commanderBackToSetupFinalPolished();return false;};
+window.commanderRenderScreen=render;
+window.commanderStartMapFinal=startMap;
+window.commanderStartMap=startMap;
+window.commanderLaunchFinal=function(){return launch(state.games);};
+window.commanderLaunchWave=window.commanderLaunchFinal;
+window.commanderUpdateFinal=function(dt){var g=state.games;if(!g||g.questionGateOpen||!g.running)return;update(g,Number(dt)||0,performance.now());};
+window.commanderLoopFinal=loop;
+window.commanderSaveFinal=save;
+
+})();
+</script>
 </body>
 </html>
