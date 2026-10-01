@@ -6442,8 +6442,9 @@ window.__indexLessonGateRenderer=function(g){
       }
     }else{
       var current=g.question;
+      var mastered=g.lessonMastered&&current&&g.lessonMastered[lessonQuestionKey(current)];
       var valid=current&&info.pool.some(function(q){return q.q===current.q;});
-      if(!valid)g.question=shuffleCopy(info.pool)[0];
+      if(!valid||mastered)g.question=nextUnmasteredLessonQuestion(g,info)||shuffleCopy(info.pool)[0];
     }
   }
   return gateLesson(g);
@@ -6490,6 +6491,9 @@ if(typeof commanderStartMap==='function'){
         g.lessonPathId=info.pathId;g.lessonTotal=info.total;
         if(old&&old.lessonIndex!==undefined)g.lessonIndex=Number(old.lessonIndex)||1;
         else g.lessonIndex=info.completed>=info.total?0:Math.max(1,Number(g.lessonIndex)||1);
+        g.lessonMastered=old&&old.lessonMastered&&typeof old.lessonMastered==='object'?old.lessonMastered:{};
+        g.mixedQuestionOrder=old&&Array.isArray(old.mixedQuestionOrder)?old.mixedQuestionOrder:null;
+        g.mixedQuestionCursor=old?Number(old.mixedQuestionCursor)||0:0;
         var pool=shuffleCopy(info.pool);
         if(pool.length)g.question=pool[0];
       }
