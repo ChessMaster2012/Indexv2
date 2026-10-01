@@ -3770,16 +3770,154 @@ function arcadeStudyChoice(i){var g=state.games;if(g.feedback||g.done)return;var
 function arcadeStudyRecall(){var g=state.games;if(g.feedback||g.done)return;var value=(document.getElementById('arcade-study-input')||{}).value||'',r=g.rounds[g.index],correct=normalizeAnswer(value)===normalizeAnswer(r.card.front)&&normalizeAnswer(value)!=='';g.chosen=value;g.feedback=correct?'correct':'wrong';if(correct){g.correct++;g.points+=12;}else g.points+=2;renderGames();arcadeStudyNext();}
 function arcadeStudyHtml(){var g=state.games,total=Math.max(1,g.rounds.length);if(g.done)return arcadeFrame('Study Mode','Session complete.','<span class="arcade-pill">✓ <b>'+g.correct+'/'+total+'</b></span><span class="arcade-pill">⭐ <b>'+g.points+'</b></span>','<div class="arcade-center"><div class="stat-num">'+g.correct+'/'+total+'</div><p>Five-minute session complete.</p><button class="btn btn-primary" data-action="arcade-study-replay">Study again</button></div>');var r=g.rounds[g.index],prompt=r.kind==='recall'?r.card.back:(r.q?r.q.q:r.card.front),body='';if(r.kind==='recall'){body='<div class="arcade-input"><input id="arcade-study-input" autocomplete="off" placeholder="Type the term from memory" '+(g.feedback?'disabled':'')+'><button class="btn btn-primary" data-action="arcade-study-recall" '+(g.feedback?'disabled':'')+'>Check</button></div>'+(g.feedback?'<div class="game-banner" style="margin-top:9px;">'+(g.feedback==='correct'?'Correct!':'Answer: '+esc(r.card.front))+'</div>':'');}else{var o=r.q?r.q.options:r.options,ci=r.q?r.q.correct:r.correct;body='<div class="arcade-options">'+o.map(function(x,i){return '<button class="arcade-opt '+(g.feedback?(i===ci?'good':i===g.chosen?'bad':''):'')+'" data-action="arcade-study-choice" data-idx="'+i+'" '+(g.feedback?'disabled':'')+'>'+esc(x)+'</button>';}).join('')+'</div>';}return arcadeFrame('Study Mode','Fast trivia + recall in a five-minute run.','<span class="arcade-pill">⏱ <b id="arcade-study-time">'+g.timeLeft+'</b>s</span><span class="arcade-pill">✓ <b>'+g.correct+'</b></span><span class="arcade-pill">⭐ <b>'+g.points+'</b></span>','<div class="study-progress"><div class="study-progress-fill" style="width:'+Math.min(100,g.index/Math.max(1,total)*100)+'%"></div></div><div class="study-question">'+esc(prompt)+'</div>'+body);}
 
-const ARCADE_TROOPS=[{id:'scout',icon:'🏹',name:'Scout',cost:0,range:1.8,damage:2,rate:600},{id:'guardian',icon:'🛡️',name:'Guardian',cost:15,range:1.5,damage:4,rate:850},{id:'caster',icon:'🔮',name:'Arc Caster',cost:25,range:2.7,damage:7,rate:1150}];
-function arcadeCommanderStart(){clearGameTimers();state.games={active:'commander',coins:35,base:10,wave:0,selectedTroop:'scout',towers:[],enemies:[],running:false,spawnTimer:null,timerId:null,finished:false};}
-function arcadeCommanderLaunch(){
-  var g=state.games;if(g.running||g.finished)return;g.wave++;g.running=true;var spawned=0,count=4+g.wave;
-  g.spawnTimer=setInterval(function(){if(g.active!=='commander'){clearInterval(g.spawnTimer);g.spawnTimer=null;return;}if(spawned>=count){clearInterval(g.spawnTimer);g.spawnTimer=null;return;}var max=8+g.wave*4;g.enemies.push({id:uid(),hp:max,maxHp:max,pos:0,speed:.07+g.wave*.008,icon:g.wave%4===0?'👹':g.wave%3===0?'👺':'👾'});spawned++;},450);
-  g.timerId=setInterval(function(){if(g.active!=='commander')return;g.enemies.forEach(function(e){e.pos+=e.speed;});g.towers.forEach(function(t){t.cool=(t.cool||0)-300;if(t.cool<=0){var tr=Math.floor(t.cell/8),tc=t.cell%8,target=g.enemies.filter(function(e){return Math.hypot(tc-e.pos,tr-3)<=t.range;}).sort(function(a,b){return b.pos-a.pos;})[0];if(target){target.hp-=t.damage;t.cool=t.rate;}}});var leaked=g.enemies.filter(function(e){return e.pos>=8;});if(leaked.length){g.base-=leaked.length;g.enemies=g.enemies.filter(function(e){return e.pos<8;});}g.enemies=g.enemies.filter(function(e){return e.hp>0;});if(g.base<=0){g.running=false;g.finished=true;clearGameTimers();renderGames();return;}if(!g.enemies.length&&!g.spawnTimer){g.running=false;g.coins+=8;addXP(12+g.wave*3);persistProgress();renderGames();}else arcadeCommanderBoard();},300);
+
+const ARCADE_TROOPS=[
+{id:'scout',icon:'&#127923;',name:'Scout',cost:0,range:7,damage:2,rate:720,body:'#d6a04d',trim:'#674321',projectile:'#ffd166'},
+{id:'guardian',icon:'&#128737;',name:'Guardian',cost:15,range:7,damage:4,rate:920,body:'#9aacc5',trim:'#4f6077',projectile:'#edf5ff'},
+{id:'caster',icon:'&#128302;',name:'Arc Caster',cost:25,range:9,damage:7,rate:1120,body:'#895cc6',trim:'#42276f',projectile:'#72efff'}
+];
+const ARCADE_COMMANDER_MAPS=[
+{id:'meadow',name:'Meadow Outpost',difficulty:'Easy',desc:'Open grassland and slow waves.',sky:'#88d6ff',ground:'#5b9453',path:'#b89960',detail:'#d8f29b',enemySpeed:.78,hpMult:.86,spawnMs:620,route:[[-16,-5],[-11,-5],[-8,3],[-2,3],[2,-3],[8,-3],[14,2]],pads:[[-13,3],[-10,-8],[-6,0],[-1,7],[4,-8],[9,1],[13,7]]},
+{id:'crystal',name:'Crystal Caverns',difficulty:'Normal',desc:'Tighter turns and tougher enemies.',sky:'#574e88',ground:'#302949',path:'#77648f',detail:'#7bddff',enemySpeed:1,hpMult:1.12,spawnMs:500,route:[[-16,4],[-12,4],[-9,-2],[-4,-2],[-1,4],[4,4],[8,-4],[14,-4],[16,0]],pads:[[-13,-4],[-10,8],[-6,4],[-3,-7],[2,8],[6,0],[10,7],[14,-8]]},
+{id:'lava',name:'Lava Citadel',difficulty:'Hard',desc:'Fast waves and high-health enemies.',sky:'#592630',ground:'#3e2421',path:'#765044',detail:'#ff9945',enemySpeed:1.28,hpMult:1.44,spawnMs:420,route:[[-17,-6],[-12,-6],[-9,2],[-4,2],[-1,-5],[4,-5],[7,5],[12,5],[16,0]],pads:[[-14,2],[-10,-2],[-6,7],[-2,0],[2,7],[6,-2],[10,8],[14,-7],[17,4]]}
+];
+function commanderPickerHtml(){
+ return arcadeFrame('Troop Commander','Choose your 3D battlefield before entering. Each difficulty changes enemy speed, health, and wave pacing.','',
+ '<div class="commander-map-grid">'+ARCADE_COMMANDER_MAPS.map(function(m){
+  return '<button class="commander-map-card" data-action="arcade-command-map" data-map="'+m.id+'"><div class="commander-map-preview" style="background:linear-gradient(180deg,'+m.sky+','+m.ground+');"><span style="position:absolute;left:9px;bottom:8px;background:rgba(22,17,42,.6);color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:900;">3D - '+m.difficulty+'</span></div><h4>'+m.name+'</h4><div class="commander-map-meta"><strong>'+m.difficulty+'</strong> - '+m.desc+'</div></button>';
+ }).join('')+'</div>');
 }
-function arcadeCommanderPlace(cell){var g=state.games;if(g.running||g.finished||Math.floor(cell/8)===3||g.towers.some(function(t){return t.cell===cell;}))return;var tr=ARCADE_TROOPS.find(function(x){return x.id===g.selectedTroop;})||ARCADE_TROOPS[0];if(g.coins<tr.cost)return;g.coins-=tr.cost;g.towers.push({cell:cell,cool:0,id:tr.id,icon:tr.icon,name:tr.name,range:tr.range,damage:tr.damage,rate:tr.rate});renderGames();}
-function arcadeCommanderBoard(){var g=state.games,root=document.getElementById('arcade-commander-board');if(!root)return;root.innerHTML=Array.from({length:48},function(_,i){var row=Math.floor(i/8),col=i%8,t=g.towers.find(function(x){return x.cell===i;}),enemyList=row===3?g.enemies.filter(function(e){return Math.floor(e.pos)===col;}):[];return '<button class="td-cell '+(row===3?'path ':'')+(t?' tower':'')+'" data-action="arcade-command-place" data-cell="'+i+'">'+(t?t.icon:'')+enemyList.map(function(e){return '<span class="td-enemy">'+e.icon+'<span class="td-hp"><span style="width:'+Math.max(0,e.hp/e.maxHp*100)+'%"></span></span></span>';}).join('')+'</button>';}).join('');var a=document.getElementById('arcade-commander-wave'),b=document.getElementById('arcade-commander-base'),co=document.getElementById('arcade-commander-coins');if(a)a.textContent=g.wave;if(b)b.textContent=Math.max(0,g.base);if(co)co.textContent=g.coins;}
-function arcadeCommanderHtml(){var g=state.games;if(g.finished)return arcadeFrame('Troop Commander','The base fell at wave '+g.wave+'.','','<div class="arcade-center"><div class="stat-num">'+Math.max(0,g.base)+'/10</div><p>Rebuild your defense and try the next run.</p><button class="btn btn-primary" data-action="arcade-command-restart">Restart</button></div>');return arcadeFrame('Troop Commander','Build around the purple route and stop incoming waves.','<span class="arcade-pill">🛡 <b id="arcade-commander-base">'+g.base+'</b></span><span class="arcade-pill">🪙 <b id="arcade-commander-coins">'+g.coins+'</b></span><span class="arcade-pill">🌊 <b id="arcade-commander-wave">'+g.wave+'</b></span>','<div class="arcade-actions" style="margin-bottom:10px;">'+ARCADE_TROOPS.map(function(t){return '<button class="btn '+(g.selectedTroop===t.id?'btn-primary':'btn-ghost')+' btn-sm" data-action="arcade-command-select" data-troop="'+t.id+'">'+t.icon+' '+t.name+' · '+t.cost+'</button>';}).join('')+'<button class="btn btn-primary btn-sm" data-action="arcade-command-wave" '+(g.running?'disabled':'')+'>Start Wave</button></div><div id="arcade-commander-board" class="td-grid"></div>');}
+function cMatMul(a,b){
+ var o=new Float32Array(16);
+ for(var r=0;r<4;r++)for(var col=0;col<4;col++)o[col*4+r]=a[r]*b[col*4]+a[4+r]*b[col*4+1]+a[8+r]*b[col*4+2]+a[12+r]*b[col*4+3];
+ return o;
+}
+function cPerspective(fov,aspect,near,far){
+ var f=1/Math.tan(fov/2),nf=1/(near-far),m=new Float32Array(16);
+ m[0]=f/aspect;m[5]=f;m[10]=(far+near)*nf;m[11]=-1;m[14]=2*far*near*nf;return m;
+}
+function cLookAt(e,c,u){
+ var z=[e[0]-c[0],e[1]-c[1],e[2]-c[2]],zn=Math.hypot(z[0],z[1],z[2])||1;z=z.map(function(v){return v/zn;});
+ var x=[u[1]*z[2]-u[2]*z[1],u[2]*z[0]-u[0]*z[2],u[0]*z[1]-u[1]*z[0]],xn=Math.hypot(x[0],x[1],x[2])||1;x=x.map(function(v){return v/xn;});
+ var y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]],m=new Float32Array(16);
+ m[0]=x[0];m[4]=x[1];m[8]=x[2];m[12]=-(x[0]*e[0]+x[1]*e[1]+x[2]*e[2]);
+ m[1]=y[0];m[5]=y[1];m[9]=y[2];m[13]=-(y[0]*e[0]+y[1]*e[1]+y[2]*e[2]);
+ m[2]=z[0];m[6]=z[1];m[10]=z[2];m[14]=-(z[0]*e[0]+z[1]*e[1]+z[2]*e[2]);m[15]=1;return m;
+}
+function cModel(x,y,z,sx,sy,sz,r){
+ var co=Math.cos(r||0),si=Math.sin(r||0),m=new Float32Array(16);
+ m[0]=co*sx;m[2]=si*sx;m[5]=sy;m[8]=-si*sz;m[10]=co*sz;m[12]=x;m[13]=y;m[14]=z;m[15]=1;return m;
+}
+function cCube(){
+ var faces=[[[0,0,1],[-.5,-.5,.5,.5,-.5,.5,.5,.5,.5,-.5,.5,.5]],[[0,0,-1],[-.5,-.5,-.5,-.5,.5,-.5,.5,.5,-.5,.5,-.5,-.5]],[[1,0,0],[.5,-.5,.5,.5,-.5,-.5,.5,.5,-.5,.5,.5,.5]],[[-1,0,0],[-.5,-.5,-.5,-.5,-.5,.5,-.5,.5,.5,-.5,.5,-.5]],[[0,1,0],[-.5,.5,.5,.5,.5,.5,.5,.5,-.5,-.5,.5,-.5]],[[0,-1,0],[-.5,-.5,-.5,.5,-.5,-.5,.5,-.5,.5,-.5,-.5,.5]]],p=[],n=[];
+ faces.forEach(function(f){var q=f[0],v=f[1],tris=[[0,1,2],[0,2,3]];tris.forEach(function(t){t.forEach(function(k){p.push(v[k*3],v[k*3+1],v[k*3+2]);n.push(q[0],q[1],q[2]);});});});return{p:new Float32Array(p),n:new Float32Array(n)};
+}
+function cSphere(){
+ var p=[],n=[],rows=8,cols=12;
+ for(var r=0;r<rows;r++){var a1=r*Math.PI/rows,a2=(r+1)*Math.PI/rows;
+  for(var cc=0;cc<cols;cc++){var b1=cc*2*Math.PI/cols,b2=(cc+1)*2*Math.PI/cols;
+   var vs=[[Math.sin(a1)*Math.cos(b1),Math.cos(a1),Math.sin(a1)*Math.sin(b1)],[Math.sin(a2)*Math.cos(b1),Math.cos(a2),Math.sin(a2)*Math.sin(b1)],[Math.sin(a2)*Math.cos(b2),Math.cos(a2),Math.sin(a2)*Math.sin(b2)],[Math.sin(a1)*Math.cos(b2),Math.cos(a1),Math.sin(a1)*Math.sin(b2)]],tris=[[0,1,2],[0,2,3]];
+   tris.forEach(function(t){t.forEach(function(k){var v=vs[k];p.push(v[0],v[1],v[2]);n.push(v[0],v[1],v[2]);});});
+  }
+ }return{p:new Float32Array(p),n:new Float32Array(n)};
+}
+function cColor(s){return[parseInt(s.slice(1,3),16)/255,parseInt(s.slice(3,5),16)/255,parseInt(s.slice(5,7),16)/255];}
+function commanderInitGL(){
+ var cv=document.getElementById('commander-3d-canvas'),gl=cv&&cv.getContext('webgl',{antialias:true,alpha:false});if(!gl)return null;
+ var vs='attribute vec3 aP;attribute vec3 aN;uniform mat4 uMVP;uniform mat4 uM;varying vec3 vN;void main(){vN=mat3(uM)*aN;gl_Position=uMVP*vec4(aP,1.0);}';
+ var fs='precision mediump float;uniform vec4 uC;varying vec3 vN;void main(){vec3 N=normalize(vN);vec3 L=normalize(vec3(-.5,1.0,.35));float light=.35+.65*max(dot(N,L),0.0);gl_FragColor=vec4(uC.rgb*light,uC.a);}';
+ function shader(type,src){var s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+ var p=gl.createProgram();gl.attachShader(p,shader(gl.VERTEX_SHADER,vs));gl.attachShader(p,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error('Commander WebGL link failed');
+ gl.useProgram(p);gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.clearColor(.025,.035,.065,1);
+ var data={cube:cCube(),sphere:cSphere()},buf={};
+ Object.keys(data).forEach(function(k){var bp=gl.createBuffer(),bn=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,bp);gl.bufferData(gl.ARRAY_BUFFER,data[k].p,gl.STATIC_DRAW);gl.bindBuffer(gl.ARRAY_BUFFER,bn);gl.bufferData(gl.ARRAY_BUFFER,data[k].n,gl.STATIC_DRAW);buf[k]={p:bp,n:bn,count:data[k].p.length/3};});
+ return{gl:gl,p:gl.getAttribLocation(p,'aP'),n:gl.getAttribLocation(p,'aN'),mvp:gl.getUniformLocation(p,'uMVP'),m:gl.getUniformLocation(p,'uM'),c:gl.getUniformLocation(p,'uC'),buf:buf,aspect:1};
+}
+function commanderMesh(ctx,type,m,color,alpha){
+ var gl=ctx.gl,b=ctx.buf[type],rgb=cColor(color);gl.bindBuffer(gl.ARRAY_BUFFER,b.p);gl.enableVertexAttribArray(ctx.p);gl.vertexAttribPointer(ctx.p,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,b.n);gl.enableVertexAttribArray(ctx.n);gl.vertexAttribPointer(ctx.n,3,gl.FLOAT,false,0,0);gl.uniformMatrix4fv(ctx.mvp,false,cMatMul(ctx.vp,m));gl.uniformMatrix4fv(ctx.m,false,m);gl.uniform4f(ctx.c,rgb[0],rgb[1],rgb[2],alpha===undefined?1:alpha);gl.drawArrays(gl.TRIANGLES,0,b.count);
+}
+function commanderTroopModel(ctx,t){
+ var wob=Math.sin((performance.now()||0)*.006)*.025,r=t.rot||0;
+ commanderMesh(ctx,'cube',cModel(t.x,.62+wob,t.z,1.05,.85,.88,r),t.body);
+ commanderMesh(ctx,'cube',cModel(t.x,1.37+wob,t.z,.82,.48,.82,r),t.trim);
+ commanderMesh(ctx,'sphere',cModel(t.x,1.75+wob,t.z,.5,.5,.5,0),t.body);
+ commanderMesh(ctx,'cube',cModel(t.x-.28,.34,t.z,.2,.6,.22,r),t.trim);
+ commanderMesh(ctx,'cube',cModel(t.x+.28,.34,t.z,.2,.6,.22,r),t.trim);
+ commanderMesh(ctx,'cube',cModel(t.x+.58,1.02,t.z+.28,.14,.14,1.08,r),t.trim);
+ if(t.id==='guardian')commanderMesh(ctx,'cube',cModel(t.x-.62,1.03,t.z,.28,.7,.12,r),t.projectile);
+ if(t.id==='caster')commanderMesh(ctx,'sphere',cModel(t.x,1.02,t.z+.58,.19,.19,.19,0),t.projectile);
+}
+function commanderEnemyModel(ctx,e){
+ var hit=e.hit>0,body=hit?'#ffffff':'#d85f68',trim=hit?'#ffe7e7':'#74323a',r=e.rot||0,s=e.kind==='brute'?1.2:1;
+ commanderMesh(ctx,'cube',cModel(e.x,.65,e.z,1*s,.84*s,.88*s,r),body);
+ commanderMesh(ctx,'cube',cModel(e.x,1.35*s,e.z,.76*s,.44*s,.76*s,r),trim);
+ commanderMesh(ctx,'sphere',cModel(e.x,1.7*s,e.z,.47*s,.47*s,.47*s,0),body);
+ commanderMesh(ctx,'cube',cModel(e.x-.45,1.12,e.z,.12,.25,.42,r),trim);
+ commanderMesh(ctx,'cube',cModel(e.x+.45,1.12,e.z,.12,.25,.42,r),trim);
+ if(e.kind==='brute')commanderMesh(ctx,'cube',cModel(e.x-.58,1.22,e.z,.18,.82,.18,r),trim);
+}
+function commanderResize(){
+ var g=state.games,cv=document.getElementById('commander-3d-canvas');if(!cv)return;var rect=cv.getBoundingClientRect(),d=Math.min(2,window.devicePixelRatio||1);cv.width=Math.max(1,Math.floor(rect.width*d));cv.height=Math.max(1,Math.floor(rect.height*d));if(!g.gl)g.gl=commanderInitGL();if(g.gl)g.gl.aspect=cv.width/cv.height;
+}
+function commanderProjectScreen(p){
+ var aspect=state.games.gl&&state.games.gl.aspect||1,proj=cPerspective(1.02,aspect,.1,70),view=cLookAt([21,17,24],[0,0,1],[0,1,0]),vp=cMatMul(proj,view),m=vp,cx=m[0]*p.x+m[4]*p.y+m[8]*p.z+m[12],cy=m[1]*p.x+m[5]*p.y+m[9]*p.z+m[13],cw=m[3]*p.x+m[7]*p.y+m[11]*p.z+m[15];if(cw<=0)return null;return{x:cx/cw*.5+.5,y:1-(cy/cw*.5+.5)};
+}
+function commanderPlace(cell){
+ var g=state.games;if(g.running||g.finished||g.towers.some(function(t){return t.cell===cell;}))return;
+ var troop=ARCADE_TROOPS.find(function(x){return x.id===g.selectedTroop;})||ARCADE_TROOPS[0];if(g.command<troop.cost)return;
+ var map=ARCADE_COMMANDER_MAPS.find(function(m){return m.id===g.mapId;}),p=map.pads[cell];if(!p)return;
+ g.command-=troop.cost;g.towers.push({cell:cell,id:troop.id,icon:troop.icon,name:troop.name,range:troop.range,damage:troop.damage,rate:troop.rate,body:troop.body,trim:troop.trim,projectile:troop.projectile,x:p[0],z:p[1],rot:0,cool:0});persistProgress();renderGames();
+}
+function commanderCanvasClick(e){
+ var cv=document.getElementById('commander-3d-canvas'),rect=cv.getBoundingClientRect(),mx=(e.clientX-rect.left)/rect.width,my=(e.clientY-rect.top)/rect.height,map=ARCADE_COMMANDER_MAPS.find(function(m){return m.id===state.games.mapId;}),best=-1,bd=.065;
+ map.pads.forEach(function(p,i){if(state.games.towers.some(function(t){return t.cell===i;}))return;var q=commanderProjectScreen({x:p[0],y:.05,z:p[1]});if(q){var d=Math.hypot(q.x-mx,q.y-my);if(d<bd){bd=d;best=i;}}});if(best>=0)commanderPlace(best);
+}
+function commanderWaveBanner(show,text){var el=document.getElementById('commander-wave-banner');if(!el)return;el.textContent=text||'';el.classList.toggle('show',!!show);if(show){void el.offsetWidth;setTimeout(function(){if(el)el.classList.remove('show');},1000);}}
+function commanderStartMap(id){
+ var map=ARCADE_COMMANDER_MAPS.find(function(m){return m.id===id;});if(!map)return;clearGameTimers();
+ state.games={active:'commander',phase:'battle',mapId:id,command:40,base:10,wave:0,selectedTroop:'scout',towers:[],enemies:[],projectiles:[],running:false,finished:false,spawnTimer:null,spawnCount:0,spawnTotal:0,lastFrame:0,gl:null,frame:null};
+ requestAnimationFrame(function(){renderGames();commanderResize();var cv=document.getElementById('commander-3d-canvas');if(cv&&!cv.dataset.bound){cv.dataset.bound='1';cv.addEventListener('click',commanderCanvasClick);}state.games.frame=requestAnimationFrame(commanderRenderLoop);});
+}
+function commanderFire(t,e){
+ var dx=e.x-t.x,dz=e.z-t.z,dist=Math.hypot(dx,dz)||1;state.games.projectiles.push({id:uid(),x:t.x,y:1.45,z:t.z,tx:e.id,source:t.cell,speed:14,dx:dx/dist,dy:(1-1.45)/dist,dz:dz/dist,life:dist/14,color:t.projectile});t.rot=Math.atan2(dz,dx);
+}
+function commanderTarget(t){
+ var best=null,bd=Infinity;state.games.enemies.forEach(function(e){var d=Math.hypot(e.x-t.x,e.z-t.z);if(e.hp>0&&d<=t.range&&d<bd){best=e;bd=d;}});return best;
+}
+function commanderUpdate(dt){
+ var g=state.games;if(g.active!=='commander'||g.phase!=='battle'||g.finished)return;var map=ARCADE_COMMANDER_MAPS.find(function(m){return m.id===g.mapId;});
+ if(g.running){
+  g.enemies.forEach(function(e){var next=map.route[Math.min(e.wp+1,map.route.length-1)],dx=next[0]-e.x,dz=next[1]-e.z,d=Math.hypot(dx,dz)||1,step=e.speed*dt;e.rot=Math.atan2(dz,dx);e.hit=Math.max(0,e.hit-dt*1000);if(d<=step){e.x=next[0];e.z=next[1];e.wp++;if(e.wp>=map.route.length-1){e.hp=0;g.base--;}}else{e.x+=dx/d*step;e.z+=dz/d*step;}});
+  g.towers.forEach(function(t){t.cool=Math.max(0,t.cool-dt*1000);if(t.cool<=0){var e=commanderTarget(t);if(e){commanderFire(t,e);t.cool=t.rate;}}});
+  g.projectiles.forEach(function(q){var e=g.enemies.find(function(x){return x.id===q.tx&&x.hp>0;});if(!e){q.life=0;return;}var dx=e.x-q.x,dy=1-e.y,dz=e.z-q.z,d=Math.hypot(dx,dy,dz)||1,step=q.speed*dt;if(d<=step){var src=g.towers.find(function(t){return t.cell===q.source;});e.hp-=src?src.damage:2;e.hit=140;q.life=0;}else{q.x+=dx/d*step;q.y+=dy/d*step;q.z+=dz/d*step;}q.life-=dt;});
+  g.enemies=g.enemies.filter(function(e){return e.hp>0;});g.projectiles=g.projectiles.filter(function(q){return q.life>0;});
+  if(g.base<=0){g.running=false;g.finished=true;clearGameTimers();renderGames();return;}
+  if(g.spawnCount>=g.spawnTotal&&!g.spawnTimer&&g.enemies.length===0){g.running=false;g.command+=10;persistProgress();commanderWaveBanner(true,'WAVE '+g.wave+' CLEARED');renderGames();}
+ }
+}
+function commanderLaunchWave(){
+ var g=state.games;if(g.running||g.finished)return;var map=ARCADE_COMMANDER_MAPS.find(function(m){return m.id===g.mapId;});g.wave++;g.running=true;g.spawnCount=0;g.spawnTotal=3+g.wave;
+ g.spawnTimer=setInterval(function(){if(g.active!=='commander'||g.phase!=='battle'){clearInterval(g.spawnTimer);g.spawnTimer=null;return;}if(g.spawnCount>=g.spawnTotal){clearInterval(g.spawnTimer);g.spawnTimer=null;return;}var kind=(g.wave%4===0&&g.spawnCount===g.spawnTotal-1)?'brute':'grunt',hp=Math.round((kind==='brute'?16:9)+g.wave*2.4)*map.hpMult,start=map.route[0];g.enemies.push({id:uid(),wp:0,x:start[0],z:start[1],hp:hp,maxHp:hp,speed:(kind==='brute'?.62:1)*map.enemySpeed*(1+g.wave*.012),kind:kind,rot:0,hit:0});g.spawnCount++;},map.spawnMs);
+ commanderWaveBanner(true,'WAVE '+g.wave+' - INCOMING');
+}
+function commanderRenderLoop(ts){
+ var g=state.games;if(g.active!=='commander'||g.phase!=='battle')return;var now=ts||performance.now(),dt=Math.min(.05,(g.lastFrame?now-g.lastFrame:16)/1000);g.lastFrame=now;commanderUpdate(dt);if(g.gl)commanderDrawScene();g.frame=requestAnimationFrame(commanderRenderLoop);
+}
+function commanderDrawScene(){
+ var g=state.games,map=ARCADE_COMMANDER_MAPS.find(function(m){return m.id===g.mapId;}),ctx=g.gl;if(!map||!ctx)return;var gl=ctx.gl,cv=document.getElementById('commander-3d-canvas');gl.viewport(0,0,cv.width,cv.height);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+ var proj=cPerspective(1.02,ctx.aspect||1,.1,70),view=cLookAt([21,17,24],[0,0,1],[0,1,0]);ctx.vp=cMatMul(proj,view);
+ for(var x=-20;x<=20;x+=4)for(var z=-10;z<=18;z+=4){var tile=((x+z)/4)%2===0?(map.id==='lava'?'#422823':map.id==='crystal'?'#2b2748':'#355933'):(map.id==='lava'?'#4c2e27':map.id==='crystal'?'#332e51':'#41683b');commanderMesh(ctx,'cube',cModel(x,-.7,z,3.8,.35,3.8,0),tile);}
+ for(var i=0;i<map.route.length-1;i++){var a=map.route[i],b=map.route[i+1],mx=(a[0]+b[0])/2,mz=(a[1]+b[1])/2,dx=b[0]-a[0],dz=b[1]-a[1],len=Math.hypot(dx,dz),rot=Math.atan2(dz,dx);commanderMesh(ctx,'cube',cModel(mx,-.32,mz,len,.26,2.15,rot),map.path);}
+ var end=map.route[map.route.length-1],start=map.route[0];commanderMesh(ctx,'cube',cModel(end[0]+1.3,.2,end[1],2.4,1.25,2.4,0),'#4e347f');commanderMesh(ctx,'sphere',cModel(start[0]-1.3,.9,start[1],1.0,1.0,1.0,0),map.detail);
+ map.pads.forEach(function(p,i){var occupied=g.towers.some(function(t){return t.cell===i;});commanderMesh(ctx,'cube',cModel(p[0],-.01,p[1],1.45,.12,1.45,0),occupied?'#58c99e':'#8271d7');if(!occupied)commanderMesh(ctx,'sphere',cModel(p[0],.17,p[1],.16,.16,.16,0),map.detail);});
+ g.towers.forEach(function(t){commanderTroopModel(ctx,t);});g.enemies.forEach(function(e){commanderEnemyModel(ctx,e);});g.projectiles.forEach(function(q){commanderMesh(ctx,'sphere',cModel(q.x,q.y,q.z,.2,.2,.2,0),q.color);});
+}
+function arcadeCommanderHtml(){
+ var g=state.games,map=ARCADE_COMMANDER_MAPS.find(function(m){return m.id===g.mapId;});
+ if(g.finished)return arcadeFrame('Troop Commander',map.name+' - '+map.difficulty+' - run ended','','<div class="arcade-center"><div class="stat-num">Base '+Math.max(0,g.base)+'/10</div><p>Reached wave '+g.wave+'.</p><button class="btn btn-primary" data-action="arcade-command-restart">Choose another map</button></div>');
+ return arcadeFrame('Troop Commander',map.name+' - '+map.difficulty+' - 3D tower defense','<span class="arcade-pill">&#128737; <b id="arcade-commander-base">'+g.base+'</b></span><span class="arcade-pill">&#9881; <b id="arcade-commander-command">'+g.command+'</b> Command</span><span class="arcade-pill">&#127922; <b>'+g.wave+'</b></span>',
+ '<div class="commander-3d-shell"><canvas id="commander-3d-canvas" class="commander-3d-canvas"></canvas><div class="commander-3d-hud"><span class="arcade-pill">'+esc(map.name)+' - '+esc(map.difficulty)+'</span><span class="arcade-pill">Click glowing pads to deploy</span></div><div id="commander-wave-banner" class="commander-wave-banner">WAVE</div></div><div class="commander-controls"><div class="commander-troop-pick">'+ARCADE_TROOPS.map(function(t){return '<button class="btn '+(g.selectedTroop===t.id?'btn-primary':'btn-ghost')+' btn-sm" data-action="arcade-command-select" data-troop="'+t.id+'">'+t.icon+' '+t.name+' - '+t.cost+' Command</button>';}).join('')+'</div><button class="btn btn-primary" data-action="arcade-command-wave" '+(g.running?'disabled':'')+'>Start Wave</button><button class="btn btn-ghost" data-action="arcade-command-change-map">Change Map</button></div><div class="commander-help">Native WebGL 3D troops, 3D projectiles, live 3D enemies, projectile impact damage, and a wave animation are all handled locally in the browser.</div>');
+}
 
 function arcadeGauntletStart(){clearGameTimers();var s=arcadeCharacterStats();state.games={active:'gauntlet',x:50,y:50,hp:5+s.vitality,score:0,timeLeft:60,enemies:[],attackCooldown:0,lastSpawn:0,finished:false,timerId:null,enemyTimer:null,raf:null};state.games.timerId=setInterval(function(){var g=state.games;if(g.active!=='gauntlet'||g.finished)return;g.timeLeft--;if(g.timeLeft<=0)arcadeGauntletFinish();},1000);state.games.enemyTimer=setInterval(arcadeGauntletTick,100);}
 function arcadeGauntletFinish(){var g=state.games;if(g.finished)return;g.finished=true;clearGameTimers();var gp=arcadeGameProgress();gp.gauntlet.best=Math.max(Number(gp.gauntlet.best)||0,g.score);persistProgress();addXP(Math.max(5,Math.floor(g.score/2)));renderGames();}
