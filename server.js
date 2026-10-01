@@ -1685,10 +1685,23 @@ app.post('/api/billing/checkout',async(req,res)=>{
       const updated=await stripeRequest('subscriptions/'+encodeURIComponent(current.subscriptionId),{
         'items[0][id]':String(item.id),
         'items[0][price]':priceId,
-        proration_behavior:'create_prorations',
+        // A plan change must never grant a higher tier before the price
+        // difference has been paid. always_invoice creates the prorated
+        // invoice immediately; pending_if_incomplete keeps the old plan
+        // active if that invoice cannot be paid.
+        proration_behavior:'always_invoice',
+        payment_behavior:'pending_if_incomplete',
         'metadata[userId]':String(req.user.id),
         'metadata[tier]':tier
       });
+      if(updated.pending_update){
+        return res.status(402).json({error:'Payment is required to change your membership. Your current plan is still active.',paymentRequired:true});
+      }
+      const updatedPriceId=String(updated.items?.data?.[0]?.price?.id||'');
+      const updatedTier=String(updated.metadata?.tier||(updatedPriceId===STRIPE_DIAMOND_PRICE_ID?'diamond':updatedPriceId===STRIPE_PLATINUM_PRICE_ID?'platinum':updatedPriceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
+      if(updatedTier!==tier){
+        return res.status(409).json({error:'Stripe did not confirm the requested membership change. Your current plan is still active.'});
+      }
       await saveMembershipForUser(String(req.user.id),{
         tier,
         status:String(updated.status||'active'),
@@ -1791,8 +1804,15 @@ app.post('/api/billing/webhook',async(req,res)=>{
       const userId=String(object.metadata?.userId||''),priceId=String(object.items?.data?.[0]?.price?.id||'');
       const tier=String(object.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_PLATINUM_PRICE_ID?'platinum':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
       if(userId&&['gold','platinum','diamond'].includes(tier)){
-        const active=!['canceled','unpaid'].includes(String(object.status||''));
-        await saveMembershipForUser(userId,{tier:active?tier:'free',status:String(object.status||'active'),customerId:String(object.customer||''),subscriptionId:String(object.id||''),currentPeriodEnd:Number(object.current_period_end)||0,cancelAtPeriodEnd:object.cancel_at_period_end===true});
+        // During an unpaid subscription update Stripe can expose the new
+        // metadata before the new price is actually active. Never grant the
+        // new tier while a pending update is waiting for payment.
+        if(object.pending_update){
+          console.log('Stripe subscription update is pending payment; retaining current Index membership.');
+        }else{
+          const active=!['canceled','unpaid'].includes(String(object.status||''));
+          await saveMembershipForUser(userId,{tier:active?tier:'free',status:String(object.status||'active'),customerId:String(object.customer||''),subscriptionId:String(object.id||''),currentPeriodEnd:Number(object.current_period_end)||0,cancelAtPeriodEnd:object.cancel_at_period_end===true});
+        }
       }
     }else if(event.type==='invoice.payment_failed'){
       const userId=String(object.subscription_details?.metadata?.userId||object.metadata?.userId||'');
