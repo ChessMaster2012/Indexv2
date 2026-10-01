@@ -1622,9 +1622,32 @@ app.post('/api/billing/checkout',async(req,res)=>{
     if(!['gold','platinum','diamond'].includes(tier))return res.status(400).json({error:'Choose Gold, Platinum, or Diamond.'});
     if(!stripeConfigured())return res.status(503).json({error:'Secure checkout is not configured yet. Add the Stripe secret key, webhook secret, and plan price IDs in Render.'});
     const current=membershipForUser(req.user);
-    if(current.tier!=='free'&&!['cancelled','unpaid'].includes(current.status))return res.status(409).json({error:'You already have a paid membership. Use Manage Membership to change or cancel it.'});
-    if(!PUBLIC_BASE_URL)return res.status(503).json({error:'PUBLIC_BASE_URL is not configured on the server.'});
     const priceId=tier==='gold'?STRIPE_GOLD_PRICE_ID:tier==='platinum'?STRIPE_PLATINUM_PRICE_ID:STRIPE_DIAMOND_PRICE_ID;
+    if(current.tier!=='free'&&!['cancelled','unpaid'].includes(current.status)){
+      if(tier===current.tier)return res.status(409).json({error:'You already have this membership.'});
+      if(!current.subscriptionId||!current.customerId)return res.status(409).json({error:'Your paid membership is missing its Stripe billing information. Use Manage Membership to open Stripe billing.'});
+      const subscription=await stripeGet('subscriptions/'+encodeURIComponent(current.subscriptionId));
+      const item=subscription.items?.data?.[0];
+      if(!item?.id)return res.status(409).json({error:'Stripe could not find the current membership item.'});
+      const updated=await stripeRequest('subscriptions/'+encodeURIComponent(current.subscriptionId),{
+        'items[0][id]':String(item.id),
+        'items[0][price]':priceId,
+        proration_behavior:'create_prorations',
+        'metadata[userId]':String(req.user.id),
+        'metadata[tier]':tier
+      });
+      await saveMembershipForUser(String(req.user.id),{
+        tier,
+        status:String(updated.status||'active'),
+        customerId:String(updated.customer||current.customerId),
+        subscriptionId:String(updated.id||current.subscriptionId),
+        currentPeriodEnd:Number(updated.current_period_end)||current.currentPeriodEnd,
+        cancelAtPeriodEnd:updated.cancel_at_period_end===true
+      });
+      await refreshAccountUserWithState(req);
+      return res.json({ok:true,switched:true,membership:billingClientState(req.user)});
+    }
+    if(!PUBLIC_BASE_URL)return res.status(503).json({error:'PUBLIC_BASE_URL is not configured on the server.'});
     const session=await stripeRequest('checkout/sessions',{
       mode:'subscription','line_items[0][price]':priceId,'line_items[0][quantity]':1,
       success_url:PUBLIC_BASE_URL+'/?billing=success&session_id={CHECKOUT_SESSION_ID}',cancel_url:PUBLIC_BASE_URL+'/?billing=cancelled',
