@@ -6505,5 +6505,247 @@ if(typeof commanderStartMap==='function'){
 })();
 </script>
 
+
+<style id="commander-stability-patch-style">
+/* INDEX COMMANDER STABILITY PATCH 2026-10-01 */
+.commander-battle-layout-v4{display:grid;grid-template-columns:245px minmax(0,1fr) 345px;min-height:100vh;width:100%;background:#102033;}
+.commander-side-v4{background:linear-gradient(180deg,#182d45,#102033);color:#fff;padding:14px;border-right:1px solid rgba(255,255,255,.1);overflow:auto;}
+.commander-side-v4.right{border-right:0;border-left:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg,#f7fbff,#eaf1f7);color:#142033;}
+.commander-side-title-v4{font-weight:950;letter-spacing:.06em;text-transform:uppercase;font-size:11px;color:#9fc7e8;margin:2px 4px 9px;}
+.commander-side-v4.right .commander-side-title-v4{color:#47647d;}
+.commander-deployed-v4{display:grid;gap:8px;}
+.commander-deployed-card-v4{background:#fff;border:1px solid #d7e2ec;border-radius:13px;padding:9px;color:#142033;box-shadow:0 4px 12px rgba(20,32,51,.08);}
+.commander-deployed-head-v4{display:flex;align-items:center;gap:8px;}
+.commander-deployed-art-v4{width:42px;height:42px;flex:0 0 42px;border-radius:11px;background:#eef5fb;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.commander-deployed-art-v4 svg{width:38px;height:38px;}
+.commander-deployed-name-v4{font-weight:950;font-size:12px;line-height:1.15;}
+.commander-deployed-sub-v4{font-size:9.5px;color:#64798c;margin-top:2px;}
+.commander-health-v4{height:7px;background:#dbe5ed;border-radius:999px;overflow:hidden;margin:8px 0 7px;}
+.commander-health-v4 span{display:block;height:100%;background:#35c98a;border-radius:999px;transition:width .18s;}
+.commander-deployed-actions-v4{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;}
+.commander-deployed-actions-v4 button{border:1px solid #cad8e4;background:#fff;border-radius:8px;padding:6px 4px;font-size:9.5px;font-weight:900;color:#263c50;}
+.commander-deployed-actions-v4 button:hover{border-color:#6a8caf;background:#f4f9fd;}
+.commander-empty-v4{font-size:11px;color:#71879a;line-height:1.45;padding:5px 4px;}
+.commander-char-final{position:relative;}
+.commander-hover-info-v4{display:none;position:absolute;left:calc(100% + 8px);top:4px;width:210px;z-index:40;background:#101d2c;color:#fff;border:1px solid #55728f;border-radius:12px;padding:9px;box-shadow:0 12px 28px rgba(0,0,0,.24);pointer-events:none;}
+.commander-char-final:hover .commander-hover-info-v4{display:block;}
+.commander-hover-info-v4 b{font-size:11px;}
+.commander-hover-grid-v4{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px;font-size:9.5px;color:#c9d8e5;}
+.commander-feedback-v4{margin-top:9px;border-radius:13px;padding:11px;background:#fff;border:2px solid #dce5ed;}
+.commander-feedback-v4.wrong{border-color:#ef6b72;background:#fff5f5;}
+.commander-feedback-v4 .feedback-title-v4{font-weight:950;font-size:12px;}
+.commander-feedback-v4.wrong .feedback-title-v4{color:#b52e37;}
+.commander-feedback-v4 .feedback-explain-v4{font-size:11px;line-height:1.45;color:#43576a;margin-top:5px;}
+.commander-feedback-v4 .continue-v4{margin-top:8px;width:100%;border:0;border-radius:9px;background:#275f95;color:#fff;padding:9px;font-weight:950;}
+.commander-gate-options-v4 .commander-gate-option-v8.correct-v4{background:#dff9eb!important;border-color:#31b978!important;color:#125d3d!important;}
+.commander-gate-options-v4 .commander-gate-option-v8.incorrect-v4{background:#ffe0e3!important;border-color:#e85c66!important;color:#7b2028!important;}
+.commander-gate-options-v4 .commander-gate-option-v8.correct-v4 .letter{background:#27b875!important;color:#fff!important;}
+.commander-gate-options-v4 .commander-gate-option-v8.incorrect-v4 .letter{background:#df5660!important;color:#fff!important;}
+.commander-gate-v4 .commander-gate-card-v8{max-width:920px!important;}
+@media(max-width:1100px){.commander-battle-layout-v4{grid-template-columns:1fr 320px}.commander-side-v4.left{display:none;}}
+@media(max-width:760px){.commander-battle-layout-v4{grid-template-columns:1fr}.commander-side-v4.right{border-left:0;border-top:1px solid #d7e2ec;}.commander-hover-info-v4{left:auto;right:0;top:100%;}}
+</style>
+<script id="commander-stability-patch">
+(function(){
+'use strict';
+if(window.__commanderStabilityPatch)return;
+window.__commanderStabilityPatch=true;
+
+function troopById(id){return COMMANDER_TROOPS_FINAL.find(function(x){return x.id===id;})||COMMANDER_TROOPS_FINAL[0];}
+function troopLevel(id){return Math.max(1,Number(commanderFinalProfile().levels[id])||1);}
+function troopStats(id){return commanderFinalStats(id,troopLevel(id));}
+function troopArt(id){var l=cosmeticById(id)||cosmeticById('ling-sugarbug');return commanderIndexlingPortraitFinal(id);}
+
+function deployedHtml(g){
+  if(!g.towers||!g.towers.length)return '<div class="commander-empty-v4">No Indexlings deployed yet.<br>Select an Indexling on the right, then click a valid build area on the map.</div>';
+  return g.towers.map(function(t,i){
+    var r=troopById(t.id),hp=Math.max(0,Number(t.hp===undefined?t.maxHp||100:t.hp)),max=Math.max(1,Number(t.maxHp||100));
+    var pct=Math.max(0,Math.min(100,hp/max));
+    return '<div class="commander-deployed-card-v4"><div class="commander-deployed-head-v4"><div class="commander-deployed-art-v4">'+troopArt(t.id)+'</div><div><div class="commander-deployed-name-v4">'+esc(r.name)+' · Lv '+t.level+'</div><div class="commander-deployed-sub-v4">'+esc(r.role)+' · '+Math.ceil(hp)+'/'+max+' HP</div></div></div><div class="commander-health-v4"><span style="width:'+pct+'%"></span></div><div class="commander-deployed-actions-v4"><button data-action="commander-heal" data-index="'+i+'">Heal · '+(t.healCost||10)+' 🪙</button><button data-action="commander-upgrade-deployed" data-index="'+i+'">Upgrade</button><button data-action="commander-sell" data-index="'+i+'">Sell</button></div></div>';
+  }).join('');
+}
+
+function rosterFinalV4(){
+  var p=commanderFinalProfile(),sel=state.games.selectedTroop||'',coins=p.coins||0;
+  return '<div class="commander-roster-final">'+COMMANDER_TROOPS_FINAL.map(function(r){
+    var own=!!p.owned[r.id],lvl=troopLevel(r.id),s=commanderFinalStats(r.id,lvl),cost=commanderFinalCost(r.id);
+    return '<div class="commander-char-final '+(own&&sel===r.id?'selected':'')+' '+(!own?'locked':'')+'"><button class="commander-char-select-final" data-action="commander-select-troop" data-troop="'+r.id+'" '+(!own?'disabled':'')+'>'+commanderIndexlingPortraitFinal(r.id)+'<div class="commander-char-name-final">'+esc(r.name)+' · Lv '+lvl+'</div><div class="commander-char-role-final">'+esc(r.role)+'</div><div class="commander-char-stats-final"><span>⚔ '+s.damage+' DMG</span><span>◉ '+s.range+' RNG</span><span>⚡ '+(Math.round(1000/s.rate*10)/10)+' atk/s</span><span>✦ '+esc(r.ability)+'</span></div></button><div class="commander-hover-info-v4"><b>'+esc(r.name)+' · '+esc(r.role)+'</b><div class="commander-hover-grid-v4"><span>Damage: '+s.damage+'</span><span>Range: '+s.range+'</span><span>Attack: '+(Math.round(1000/s.rate*10)/10)+'/s</span><span>Ability: '+esc(r.ability)+'</span><span>Cooldown: '+s.cooldown+'s</span><span>Level: '+lvl+'</span></div></div>'+(own?'<button class="commander-upgrade-final" data-action="commander-upgrade" data-id="'+r.id+'" '+(lvl>=10||coins<cost?'disabled':'')+'>Upgrade · '+cost+' 🪙</button>':'<button class="commander-upgrade-final" data-action="commander-buy" data-id="'+r.id+'" '+(coins<r.cost?'disabled':'')+'>Unlock · '+r.cost+' 🪙</button>')+'</div>';
+  }).join('')+'</div>';
+}
+
+function battleV4(){
+  var g=state.games,m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;})||COMMANDER_MAPS_FINAL[0],p=commanderFinalProfile();
+  if(g.finished)return '<div class="commander-fullscreen commander-battle-bg-ref"><div class="commander-result-ref"><h1>Base Defeated</h1><p>'+esc(m.name)+' · Round '+g.wave+'</p><button class="commander-blue-button-ref commander-large-button-ref" data-action="commander-save-slots">Back to Save Slots</button></div></div>';
+  return '<div class="commander-fullscreen commander-battle-bg-ref commander-battle-layout-v4"><aside class="commander-side-v4 left"><div class="commander-side-title-v4">Troops Deployed</div><div class="commander-deployed-v4">'+deployedHtml(g)+'</div></aside><main class="commander-battle-world-ref commander-world-v3"><canvas id="commander-map-final" class="commander-map-final-canvas"></canvas><div class="commander-battle-map-label-ref">'+esc(m.name)+' · '+esc(m.difficulty)+'</div><div class="commander-battle-context-ref">'+esc((subjectById(g.subjectId)||{}).name||'AP')+' · '+esc(g.unit||'Unit')+(g.topic?' · '+esc(g.topic):'')+'</div></main><aside class="commander-side-v4 right commander-panel-v3"><div class="commander-currency-ref"><div><span>🪙</span><b>'+p.coins+'</b></div><div><span>♥</span><b>'+Math.max(0,g.base)+'</b></div></div><div class="commander-round-ref">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div><div class="commander-panel-title-ref">Indexlings · hover for stats · click to select</div>'+rosterFinalV4()+commanderQuestionHtmlFinal()+'<button class="commander-start-ref" data-action="commander-start-wave" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-change-ref" data-action="commander-map-select">Change Map</button><button class="commander-change-ref" data-action="commander-study-change">Change AP Topic</button></aside></div>';
+}
+
+function feedbackGateHtml(g){
+  var q=g.question||{},info=commanderQuestionPoolForLesson(g),s=subjectById(g.subjectId),need=typeof req==='function'?req(g.wave):1;
+  var pathInfo=info;
+  var label=pathInfo?(pathInfo.lesson?('Lesson '+pathInfo.lesson+' of '+pathInfo.total):'Mixed review'):('Course review');
+  var focus=pathInfo&&pathInfo.lesson?((state.studySets.find(function(x){return x.lessonPathId===pathInfo.pathId&&x.lessonNumber===pathInfo.lesson&&x.type==='quiz';})||{}).lessonFocus||g.topic||g.unit||'Selected topic'):(g.topic||g.unit||'Selected topic');
+  var fb=g.questionFeedback;
+  var opts=Array.isArray(q.options)?q.options.map(function(o,j){
+    var cls='commander-gate-option-v8';
+    if(fb){if(j===Number(q.correct))cls+=' correct-v4';else if(j===Number(fb.chosen))cls+=' incorrect-v4';}
+    return '<button class="'+cls+'" data-action="commander-answer-v4" data-answer="'+j+'" '+(fb?'disabled':'')+'><span class="letter">'+String.fromCharCode(65+j)+'</span><span>'+esc(o)+'</span></button>';
+  }).join(''):'';
+  var explanation=fb?'<div class="commander-feedback-v4 wrong"><div class="feedback-title-v4">Not quite</div><div class="feedback-explain-v4">'+esc(fb.explanation||q.explanation||'The correct answer is highlighted in green. Review the explanation, then continue.')+'</div><button class="continue-v4" data-action="commander-continue-question">Continue →</button></div>':'';
+  return '<div class="commander-v4 commander-gate-v4"><div class="commander-gate-card-v8"><div class="commander-gate-top-v8"><div><div class="commander-gate-kicker-v8">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-gate-sub-v8">Complete each lesson in order. Correct answers earn +25 deployment coins. Wrong answers do not add coins; the explanation stays visible until you continue.</div></div><button class="commander-gate-close-v8" data-action="commander-save-slots">Exit</button></div><div class="commander-gate-stats-v8"><div class="commander-gate-stat-v8"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-gate-stat-v8"><b>'+g.questionCorrectCount+'/'+need+'</b><span>Correct needed</span></div><div class="commander-gate-stat-v8"><b>'+((g.lessonIndex||0)?'Lesson '+g.lessonIndex+' / '+(g.lessonTotal||LESSONS):'Mixed review')+'</b><span>Study progression</span></div></div><div class="commander-lesson-strip-v9"><strong>'+esc(s?s.name:'AP Course')+'</strong><span>· '+esc(g.unit||'Course review')+'</span><span>· '+esc(label)+'</span></div><div class="commander-gate-question-v8"><div class="commander-question-support-v9"><span>Question '+((g.questionAskedCount||0)+1)+'</span><span>+25 coins for correct</span><span>'+((pathInfo&&pathInfo.lesson?((pathInfo.pool||[]).length+' lesson questions'):'Full mixed bank'))+'</span></div><div class="commander-gate-meta-v8">'+esc(focus)+'</div><h2>'+esc(q.q||'Loading question…')+'</h2><span class="commander-answer-label-v9">Choose the correct answer</span><div class="commander-gate-options-v4">'+opts+'</div>'+explanation+'</div><div class="commander-gate-note-v8">'+(fb?'The correct answer is green and your selected incorrect answer is red.':'Answer correctly to unlock the wave. If you miss it, you will get a short explanation and can continue to another question.')+'</div></div></div>';
+}
+
+function selectNextQuestion(g){
+  var info=commanderQuestionPoolForLesson(g);
+  if(!info||!info.pool||!info.pool.length)return;
+  var q=null;
+  if(info.lesson===0){
+    if(!Array.isArray(g.mixedQuestionOrder)||g.mixedQuestionCursor>=g.mixedQuestionOrder.length){g.mixedQuestionOrder=shuffleCopy(info.all);g.mixedQuestionCursor=0;}
+    q=g.mixedQuestionOrder[g.mixedQuestionCursor++]||info.all[0];
+  }else{
+    if(!g.lessonMastered||typeof g.lessonMastered!=='object')g.lessonMastered={};
+    var open=info.pool.filter(function(x){return !g.lessonMastered[String(x.q||'').trim()];});
+    q=(open.length?shuffleCopy(open):shuffleCopy(info.pool))[0]||info.pool[0];
+  }
+  g.question=q;g.questionFeedback=null;
+}
+
+function nextQuestionAfterWrong(g){
+  g.questionAskedCount=(g.questionAskedCount||0)+1;
+  selectNextQuestion(g);
+  commanderSaveFinal(g);
+  commanderRenderScreen();
+}
+
+function answerV4(idx){
+  var g=state.games;if(!g||g.active!=='commander'||!g.questionGateOpen||!g.question)return;
+  if(g.questionFeedback)return;
+  var q=g.question,choice=Number(idx);
+  if(choice===Number(q.correct)){
+    g.questionAskedCount=(g.questionAskedCount||0)+1;
+    g.questionCorrectCount=(g.questionCorrectCount||0)+1;
+    g.waveCoins=(g.waveCoins||0)+25;
+    if(g.lessonPathId&&g.lessonIndex){
+      var info=commanderQuestionPoolForLesson(g);
+      if(info){if(!g.lessonMastered||typeof g.lessonMastered!=='object')g.lessonMastered={};g.lessonMastered[String(q.q||'').trim()]=true;}
+    }
+    var need=typeof req==='function'?req(g.wave):1;
+    if(g.questionCorrectCount>=need){
+      g.questionGateOpen=false;g.question=null;g.questionFeedback=null;g.selectedTroop=null;
+      commanderSaveFinal(g);commanderRenderScreen();return;
+    }
+    commanderSaveFinal(g);selectNextQuestion(g);commanderRenderScreen();return;
+  }
+  g.questionFeedback={chosen:choice,explanation:q.explanation||'The correct answer is highlighted in green because it matches the answer stored for this AP question.'};
+  commanderSaveFinal(g);commanderRenderScreen();
+}
+
+function continueV4(){
+  var g=state.games;if(!g||!g.questionFeedback)return;
+  nextQuestionAfterWrong(g);
+}
+
+function renderCommanderStable(){
+  var stage=document.getElementById('games-stage');if(!stage)return;
+  if(state.games.phase==='battle'&&state.games.questionGateOpen){stage.innerHTML=feedbackGateHtml(state.games);return;}
+  if(state.games.phase==='battle'){stage.innerHTML=battleV4();requestAnimationFrame(function(){
+    var cv=document.getElementById('commander-map-final');if(!cv)return;
+    if(!cv.dataset.boundV4){cv.dataset.boundV4='1';cv.addEventListener('mousemove',function(e){commanderCanvasMoveFinal(e);});cv.addEventListener('mouseleave',function(){state.games.hover=null;commanderDrawSceneFinal();});cv.addEventListener('click',function(e){commanderCanvasClickFinal(e);});
+    }
+    commanderDrawSceneFinal();
+  });return;}
+  if(state.games.commanderScreen==='slots'){stage.innerHTML=commanderSaveSlotsHtmlV2();return;}
+  if(state.games.commanderScreen==='setup'){stage.innerHTML=commanderSetupFinalHtml();var s=document.getElementById('commander-subject-final'),u=document.getElementById('commander-unit-final');if(s){s.value=state.games.subjectId||'biology';s.onchange=function(){var sub=subjectById(s.value)||SUBJECTS[0],us=Array.isArray(sub.units)?sub.units:[];u.innerHTML=us.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');state.games.unit=us[0]||'';};}if(u)u.value=state.games.unit||'';var tt=document.getElementById('commander-topic-final');if(tt)tt.value=state.games.topic||'';return;}
+  if(state.games.commanderScreen==='maps'){stage.innerHTML=commanderMapHtmlFinal();return;}
+  stage.innerHTML=commanderSaveSlotsHtmlV2();
+}
+
+commanderRenderScreen=renderCommanderStable;
+
+var oldStartStable=commanderStartMapFinal;
+commanderStartMapFinal=function(mapId,slotIndex,save){
+  oldStartStable.apply(this,arguments);
+  var g=state.games;
+  if(g&&g.active==='commander'){
+    g.selectedTroop=null;
+    g.questionGateOpen=true;
+    g.questionFeedback=null;
+    g.questionCorrectCount=0;
+    g.questionAskedCount=0;
+    g.waveCoins=0;
+    g.lessonMastered=g.lessonMastered||{};
+    if(g.towers)g.towers.forEach(function(t){t.maxHp=Number(t.maxHp)||100;t.hp=Number(t.hp===undefined?t.maxHp:t.hp);t.healCost=10;});
+    commanderRenderScreen();
+  }
+};
+
+var oldLaunchStable=commanderLaunchFinal;
+commanderLaunchFinal=function(){
+  var g=state.games;
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.running||g.finished)return;
+  /* Start Wave is never tied to spending coins. Coins are only for troop actions. */
+  g.questionGateOpen=false;
+  g.questionFeedback=null;
+  g.selectedTroop=null;
+  oldLaunchStable.apply(this,arguments);
+  g.towers=(g.towers||[]).filter(function(t){return t&&t.hp>0;});
+  commanderRenderScreen();
+  if(g.frame==null)g.frame=requestAnimationFrame(commanderLoopFinal);
+};
+
+var oldMoveStable=commanderCanvasMoveFinal;
+commanderCanvasMoveFinal=function(e){
+  var cv=document.getElementById('commander-map-final');if(!cv)return;
+  var g=state.games;
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||!g.selectedTroop){g.hover=null;commanderDrawSceneFinal();return;}
+  oldMoveStable(e);
+};
+
+var oldClickStable=commanderCanvasClickFinal;
+commanderCanvasClickFinal=function(e){
+  var g=state.games;if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||!g.selectedTroop)return;
+  oldClickStable(e);
+  g.towers=(g.towers||[]).filter(function(t){return t&&t.hp>0;});
+  g.towers.forEach(function(t){t.maxHp=Number(t.maxHp)||100;t.hp=Number(t.hp===undefined?t.maxHp:t.hp);t.healCost=Number(t.healCost)||10;});
+  commanderSaveFinal();commanderRenderScreen();
+};
+
+function damageDeployedStable(){
+  var g=state.games;if(!g||g.active!=='commander'||g.phase!=='battle'||!g.running)return;
+  var now=Date.now(),changed=false;
+  (g.enemies||[]).forEach(function(e){
+    e.commanderAttackReady=Number(e.commanderAttackReady)||0;
+    (g.towers||[]).forEach(function(t){
+      var d=Math.hypot(e.x-t.x,e.y-t.y);
+      if(e.hp>0&&t.hp>0&&d<.055&&now>=e.commanderAttackReady){
+        t.hp=Math.max(0,t.hp-(Number(e.baseDamage)||3));
+        e.commanderAttackReady=now+850;
+        changed=true;
+      }
+    });
+  });
+  var before=(g.towers||[]).length;
+  g.towers=(g.towers||[]).filter(function(t){return t.hp>0;});
+  if(g.towers.length!==before)changed=true;
+  if(changed){commanderSaveFinal();commanderRenderScreen();}
+}
+var oldUpdateStable=commanderUpdateFinal;
+commanderUpdateFinal=function(dt){oldUpdateStable(dt);damageDeployedStable();};
+
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('[data-action="commander-answer-v4"]');
+  if(b){e.preventDefault();e.stopImmediatePropagation();answerV4(Number(b.dataset.answer));return;}
+  b=e.target.closest&&e.target.closest('[data-action="commander-continue-question"]');
+  if(b){e.preventDefault();e.stopImmediatePropagation();continueV4();return;}
+  b=e.target.closest&&e.target.closest('[data-action="commander-heal"]');
+  if(b){e.preventDefault();e.stopImmediatePropagation();var g=state.games,i=Number(b.dataset.index),t=g&&g.towers&&g.towers[i],p=commanderFinalProfile();if(t&&t.hp<t.maxHp&&p.coins>=Number(t.healCost||10)){p.coins-=Number(t.healCost||10);t.hp=t.maxHp;commanderSaveFinal();persistProgress();renderCommanderStable();}return;}
+  b=e.target.closest&&e.target.closest('[data-action="commander-sell"]');
+  if(b){e.preventDefault();e.stopImmediatePropagation();var gs=state.games,is=Number(b.dataset.index),tt=gs&&gs.towers&&gs.towers[is];if(tt){var rr=troopById(tt.id),refund=Math.max(5,Math.floor(Number(rr.cost||20)*.55));commanderFinalProfile().coins+=refund;gs.towers.splice(is,1);commanderSaveFinal();persistProgress();renderCommanderStable();}return;}
+  b=e.target.closest&&e.target.closest('[data-action="commander-upgrade-deployed"]');
+  if(b){e.preventDefault();e.stopImmediatePropagation();var gu=state.games,iu=Number(b.dataset.index),tu=gu&&gu.towers&&gu.towers[iu],pp=commanderFinalProfile();if(tu){var uc=commanderFinalCost(tu.id);if(pp.coins>=uc&&tu.level<10){pp.coins-=uc;tu.level++;tu.maxHp+=15;tu.hp=tu.maxHp;commanderSaveFinal();persistProgress();renderCommanderStable();}}return;}
+},true);
+
+})();
+</script>
+
 </body>
 </html>
