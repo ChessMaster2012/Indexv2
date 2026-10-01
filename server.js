@@ -1375,9 +1375,10 @@ function sanitizeAccountState(input){
     membership: (() => {
       const m=src.membership&&typeof src.membership==='object'?src.membership:{};
       const tier=['free','gold','platinum','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
-      const status=['active','trialing','past_due','cancelled','canceled','incomplete','unpaid'].includes(String(m.status||''))?String(m.status):'active';
+      const status=['active','trialing','past_due','cancelled','canceled','incomplete','incomplete_expired','unpaid'].includes(String(m.status||''))?String(m.status):'active';
+      const lifetimeBadgeTier=['gold','platinum','diamond'].includes(String(m.lifetimeBadgeTier||''))?String(m.lifetimeBadgeTier):'';
       return {
-        tier,status,
+        tier,status,lifetimeBadgeTier,
         customerId:String(m.customerId||'').slice(0,120),
         subscriptionId:String(m.subscriptionId||'').slice(0,120),
         currentPeriodEnd:Math.max(0,Number(m.currentPeriodEnd)||0),
@@ -1538,20 +1539,34 @@ const MEMBERSHIP_PLANS = Object.freeze({
   platinum:{tier:'platinum',name:'Platinum',priceCents:749,interval:'month',studySetLimit:500,noteLimit:350,features:['Everything in Gold','Up to 500 saved study sets','Up to 350 saved notes','Platinum membership badge','Expanded account limits']},
   diamond:{tier:'diamond',name:'Diamond',priceCents:999,interval:'month',studySetLimit:1000,noteLimit:500,features:['Everything in Platinum','Up to 1,000 saved study sets','Up to 500 saved notes','Diamond membership badge','Highest account limits']}
 });
+const MEMBERSHIP_BADGE_RANK = Object.freeze({gold:1,platinum:2,diamond:3});
+function highestMembershipBadgeTier(...tiers){
+  let best='';
+  for(const value of tiers){
+    const tier=String(value||'').toLowerCase();
+    if(MEMBERSHIP_BADGE_RANK[tier] && MEMBERSHIP_BADGE_RANK[tier] > (MEMBERSHIP_BADGE_RANK[best]||0)) best=tier;
+  }
+  return best;
+}
 function membershipTierForUser(user){
   const m=user?.accountData?.membership||{};
   const tier=['free','gold','platinum','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
   const status=String(m.status||'active');
-  return tier!=='free'&&['cancelled','unpaid'].includes(status)?'free':tier;
+  const currentPeriodEnd=Math.max(0,Number(m.currentPeriodEnd)||0);
+  const expired=tier!=='free'&&currentPeriodEnd>0&&currentPeriodEnd<=Math.floor(Date.now()/1000);
+  return tier!=='free'&&(expired||['cancelled','canceled','unpaid','incomplete_expired'].includes(status))?'free':tier;
 }
 function membershipForUser(user){
   const m=user?.accountData?.membership&&typeof user.accountData.membership==='object'?user.accountData.membership:{};
   const tier=membershipTierForUser(user);
-  return {tier,status:String(m.status||'active'),customerId:String(m.customerId||''),subscriptionId:String(m.subscriptionId||''),currentPeriodEnd:Math.max(0,Number(m.currentPeriodEnd)||0),cancelAtPeriodEnd:m.cancelAtPeriodEnd===true,plan:MEMBERSHIP_PLANS[tier]};
+  const currentPeriodEnd=Math.max(0,Number(m.currentPeriodEnd)||0);
+  const daysLeft=tier!=='free'&&currentPeriodEnd>0?Math.max(0,Math.ceil((currentPeriodEnd-Math.floor(Date.now()/1000))/86400)):0;
+  const lifetimeBadgeTier=highestMembershipBadgeTier(m.lifetimeBadgeTier,m.tier);
+  return {tier,status:String(m.status||'active'),customerId:String(m.customerId||''),subscriptionId:String(m.subscriptionId||''),currentPeriodEnd,cancelAtPeriodEnd:m.cancelAtPeriodEnd===true,lifetimeBadgeTier,daysLeft,plan:MEMBERSHIP_PLANS[tier]};
 }
 function billingClientState(user){
   const m=membershipForUser(user);
-  return {tier:m.tier,status:m.status,currentPeriodEnd:m.currentPeriodEnd,cancelAtPeriodEnd:m.cancelAtPeriodEnd,plan:m.plan};
+  return {tier:m.tier,status:m.status,currentPeriodEnd:m.currentPeriodEnd,cancelAtPeriodEnd:m.cancelAtPeriodEnd,lifetimeBadgeTier:m.lifetimeBadgeTier,daysLeft:m.daysLeft,plan:m.plan};
 }
 async function reconcileMembershipFromStripe(user){
   if(!user||!STRIPE_SECRET_KEY)return false;
@@ -1586,7 +1601,10 @@ async function reconcileMembershipFromStripe(user){
     }
   }
   if(!best)return false;
-  const sub=best.sub;
+  let sub=best.sub;
+  if(best.active && ['active','trialing','past_due'].includes(String(sub.status||'')) && !sub.cancel_at_period_end){
+    sub=await stripeRequest('subscriptions/'+encodeURIComponent(String(sub.id)),{cancel_at_period_end:'true'});
+  }
   await saveMembershipForUser(String(user.id),{
     tier:best.active?best.tier:'free',
     status:String(sub.status||'active'),
@@ -1646,7 +1664,10 @@ async function saveMembershipForUser(userId,patch){
   if(!user)return false;
   const existing=user.accountData&&typeof user.accountData==='object'?user.accountData:{};
   const old=existing.membership&&typeof existing.membership==='object'?existing.membership:{};
-  user.accountData=sanitizeAccountState({...existing,membership:{...old,...patch,updatedAt:Date.now()}});
+  const nextBadge=highestMembershipBadgeTier(old.lifetimeBadgeTier,patch?.lifetimeBadgeTier,patch?.tier);
+  const membershipPatch={...patch};
+  if(nextBadge)membershipPatch.lifetimeBadgeTier=nextBadge;
+  user.accountData=sanitizeAccountState({...existing,membership:{...old,...membershipPatch,updatedAt:Date.now()}});
   if(SUPABASE_ENABLED)await dbSaveUser(user);else saveUsers();
   usersById.set(user.id,user);
   return true;
@@ -1692,7 +1713,8 @@ app.post('/api/billing/checkout',async(req,res)=>{
         proration_behavior:'always_invoice',
         payment_behavior:'pending_if_incomplete',
         'metadata[userId]':String(req.user.id),
-        'metadata[tier]':tier
+        'metadata[tier]':tier,
+        cancel_at_period_end:'true'
       });
       if(updated.pending_update){
         return res.status(402).json({error:'Payment is required to change your membership. Your current plan is still active.',paymentRequired:true});
@@ -1744,10 +1766,13 @@ app.post('/api/billing/confirm-session',async(req,res)=>{
     }
     const tier=String(session.metadata?.tier||'').toLowerCase();
     if(!['gold','platinum','diamond'].includes(tier))return res.status(400).json({error:'Checkout session has an invalid membership tier.'});
-    let patch={tier,status:'active',customerId:String(session.customer||''),subscriptionId:String(session.subscription||''),cancelAtPeriodEnd:false};
+    let patch={tier,status:'active',customerId:String(session.customer||''),subscriptionId:String(session.subscription||''),cancelAtPeriodEnd:true};
     if(session.subscription){
       try{
-        const subscription=await stripeGet('subscriptions/'+encodeURIComponent(String(session.subscription)));
+        let subscription=await stripeGet('subscriptions/'+encodeURIComponent(String(session.subscription)));
+        if(['active','trialing','past_due'].includes(String(subscription.status||'')) && !subscription.cancel_at_period_end){
+          subscription=await stripeRequest('subscriptions/'+encodeURIComponent(String(session.subscription)),{cancel_at_period_end:'true'});
+        }
         const subTier=String(subscription.metadata?.tier||(subscription.items?.data?.[0]?.price?.id===STRIPE_DIAMOND_PRICE_ID?'diamond':subscription.items?.data?.[0]?.price?.id===STRIPE_PLATINUM_PRICE_ID?'platinum':subscription.items?.data?.[0]?.price?.id===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
         if(['gold','platinum','diamond'].includes(subTier))patch.tier=subTier;
         patch.status=String(subscription.status||'active');
@@ -1798,7 +1823,22 @@ app.post('/api/billing/webhook',async(req,res)=>{
     if(event.type==='checkout.session.completed'){
       const userId=String(object.metadata?.userId||object.client_reference_id||''),tier=String(object.metadata?.tier||'').toLowerCase();
       if(userId&&['gold','platinum','diamond'].includes(tier)){
-        await saveMembershipForUser(userId,{tier,status:'active',customerId:String(object.customer||''),subscriptionId:String(object.subscription||''),cancelAtPeriodEnd:false});
+        let patch={tier,status:'active',customerId:String(object.customer||''),subscriptionId:String(object.subscription||''),cancelAtPeriodEnd:true};
+        if(object.subscription){
+          let subscription=await stripeGet('subscriptions/'+encodeURIComponent(String(object.subscription)));
+          if(['active','trialing','past_due'].includes(String(subscription.status||'')) && !subscription.cancel_at_period_end){
+            subscription=await stripeRequest('subscriptions/'+encodeURIComponent(String(object.subscription)),{cancel_at_period_end:'true'});
+          }
+          const subPriceId=String(subscription.items?.data?.[0]?.price?.id||'');
+          const subTier=String(subscription.metadata?.tier||(subPriceId===STRIPE_DIAMOND_PRICE_ID?'diamond':subPriceId===STRIPE_PLATINUM_PRICE_ID?'platinum':subPriceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
+          if(['gold','platinum','diamond'].includes(subTier))patch.tier=subTier;
+          patch.status=String(subscription.status||'active');
+          patch.customerId=String(subscription.customer||object.customer||'');
+          patch.subscriptionId=String(subscription.id||object.subscription||'');
+          patch.currentPeriodEnd=Number(subscription.current_period_end)||0;
+          patch.cancelAtPeriodEnd=subscription.cancel_at_period_end===true;
+        }
+        await saveMembershipForUser(userId,patch);
       }
     }else if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
       const userId=String(object.metadata?.userId||''),priceId=String(object.items?.data?.[0]?.price?.id||'');
