@@ -5984,5 +5984,349 @@ var launch=commanderLaunchFinal;commanderLaunchFinal=function(){var g=state.game
 var click=commanderCanvasClickFinal;commanderCanvasClickFinal=function(e){var g=state.games;if(!g||g.questionGateOpen||g.running||g.finished)return;var cv=document.getElementById('commander-map-final'),r=cv&&cv.getBoundingClientRect();if(!r)return;var x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;if(!commanderCanPlaceFinal(x,y))return;var id=g.selectedTroop;if(!id){showRewardToast('Select an Indexling first.');return;}var p=commanderFinalProfile(),cost=C[id]||10;if(!p.owned[id]||(g.waveCoins||0)<cost)return;var lvl=Math.max(1,Number(p.levels[id])||1);g.waveCoins-=cost;g.towers.push({id:id,x:x,y:y,level:lvl,cool:0,abilityReady:Date.now()+1800,recoil:0});g.selectedTroop=null;save(g);commanderRenderScreen();if(g.waveCoins===0)setTimeout(function(){if(state.games===g&&!g.running&&!g.finished&&!g.questionGateOpen)commanderLaunchFinal();},250);};
 var upd=commanderUpdateFinal;commanderUpdateFinal=function(dt){var g=state.games,was=g&&g.running,w=g&&g.wave;upd.apply(this,arguments);if(!g||g.active!=='commander'||g.phase!=='battle'||g.finished)return;if(w>0&&was&&!g.running&&g.wave===w&&String(g.waveBanner||'').indexOf('CLEARED')>=0)setTimeout(function(){if(state.games!==g||g.finished)return;g.questionGateOpen=true;g.waveCoins=0;g.questionCorrectCount=0;g.questionAskedCount=0;g.questionRequired=req(g.wave);var p=bank(g);g.question=p[Math.floor(Math.random()*p.length)];save(g);commanderRenderScreen();},80);};
 commanderNewSlot=function(i){clearGameTimers();state.games={active:'commander',commanderScreen:'setup',phase:'select-topic',slotIndex:i,subjectId:'biology',unit:(subjectById('biology')||{}).units?.[0]||'',topic:'',questionBank:[],setupLoading:false,setupError:''};commanderRenderScreen();};
-commanderContinueSlot=function(i){var s=commanderSlotsFinal()[i];if(s)startMap(s.mapId,i,s);};window.__commanderV8Installed=true;})();</script></body>
+commanderContinueSlot=function(i){var s=commanderSlotsFinal()[i];if(s)startMap(s.mapId,i,s);};window.__commanderV8Installed=true;})();</script>
+<style id="index-lesson-path-v1">
+/* High-contrast Commander study gate */
+.commander-gate-v8{background:radial-gradient(circle at 50% 0%,#315d8f 0,#14283d 38%,#09121f 100%)!important}
+.commander-gate-card-v8{background:#f7f9fc!important;color:#102033!important;border:3px solid #d7e0ea!important}
+.commander-gate-kicker-v8{color:#244fb8!important}
+.commander-gate-sub-v8{color:#425466!important;font-weight:700!important}
+.commander-gate-close-v8{background:#dfe7f0!important;color:#132238!important;border:2px solid #aebdcb!important}
+.commander-gate-stat-v8{background:#fff!important;border:2px solid #c9d5e2!important}
+.commander-gate-stat-v8 b{color:#102033!important}
+.commander-gate-stat-v8 span{color:#405269!important}
+.commander-gate-question-v8{background:#ffffff!important;color:#102033!important;border:3px solid #c7d4e1!important;box-shadow:0 16px 34px rgba(16,32,51,.15)!important}
+.commander-gate-meta-v8{color:#315d8f!important;font-size:11px!important}
+.commander-gate-question-v8 h2{color:#102033!important;font-weight:900!important}
+.commander-gate-options-v8{gap:12px!important}
+.commander-gate-option-v8{background:#f9fbfd!important;color:#102033!important;border:3px solid #9eafc1!important;box-shadow:0 4px 0 #d1dbe5!important;font-weight:900!important}
+.commander-gate-option-v8:hover{background:#eaf2ff!important;color:#0b1d35!important;border-color:#315d8f!important;transform:translateY(-1px)!important}
+.commander-gate-option-v8 .letter{background:#315d8f!important;color:#fff!important;border:2px solid #23476e!important;flex:0 0 auto}
+.commander-gate-note-v8{background:#eaf2f8!important;color:#24384d!important;border:2px solid #bfd0df!important;font-weight:750!important}
+.commander-gate-note-v8 b{color:#173e79!important}
+.commander-lesson-strip-v9{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px;padding:11px 14px;border-radius:14px;background:#e8f1ff;border:2px solid #b6cbed;color:#18375f;font-size:12px;font-weight:850}
+.commander-lesson-strip-v9 strong{color:#0f2f61}
+.commander-question-support-v9{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.commander-question-support-v9 span{display:inline-flex;align-items:center;padding:6px 9px;border-radius:999px;background:#eef3f7;border:1px solid #c6d3df;color:#294158;font-size:10px;font-weight:900}
+.commander-answer-label-v9{display:block;margin:0 0 9px;color:#31465c;font-size:11px;font-weight:950;text-transform:uppercase;letter-spacing:.09em}
+@media(max-width:700px){
+ .commander-gate-card-v8{padding:20px!important;max-height:calc(100vh - 24px)!important}
+ .commander-gate-stats-v8{grid-template-columns:1fr!important}
+ .commander-gate-option-v8{padding:13px!important;font-size:14px!important}
+}
+/* Study-path cards */
+.study-path-card-v9{border:2px solid #d7dff0;border-radius:18px;background:linear-gradient(145deg,#fff,#f7f9ff);padding:15px 16px;margin:10px 0}
+.study-path-card-v9 .path-kicker{font-size:10px;font-weight:950;letter-spacing:.1em;text-transform:uppercase;color:#315d8f}
+.study-path-card-v9 .path-title{font-family:var(--font-display);font-size:16px;font-weight:800;margin:3px 0}
+.study-path-card-v9 .path-meta{font-size:12px;color:var(--ink-soft);line-height:1.45}
+.study-path-card-v9 .path-progress{height:8px;border-radius:999px;background:#e5eaf1;overflow:hidden;margin-top:10px}
+.study-path-card-v9 .path-progress>span{display:block;height:100%;background:linear-gradient(90deg,var(--purple),var(--blue));border-radius:999px}
+</style>
+<script id="index-lesson-path-v1-script">
+(function(){
+'use strict';
+if(window.__indexLessonPathV1)return;
+window.__indexLessonPathV1=true;
+
+var LESSONS=5;
+var CARDS_PER_LESSON=8;
+var QUESTIONS_PER_LESSON=8;
+
+function normText(v,max){return String(v==null?'':v).trim().slice(0,max);}
+function validLesson(x){
+  if(!x||typeof x!=='object')return null;
+  var title=normText(x.title||x.name,90), focus=normText(x.focus||x.coverage,220);
+  var cards=Array.isArray(x.cards)?x.cards.map(function(c){
+    if(!c||typeof c!=='object')return null;
+    var front=normText(c.front||c.term||c.question,180),back=normText(c.back||c.definition||c.answer,450);
+    return front&&back?{front:front,back:back}:null;
+  }).filter(Boolean):[];
+  var qs=Array.isArray(x.questions)?x.questions.map(function(q){
+    if(!q||typeof q!=='object')return null;
+    var opts=Array.isArray(q.options)?q.options.map(function(o){return normText(o,180)}):[];
+    var correct=Number(q.correct);
+    var text=normText(q.q||q.question,420);
+    if(!text||opts.length!==4||opts.some(function(o){return !o})||correct<0||correct>3)return null;
+    return {q:text,options:opts,correct:correct,explanation:normText(q.explanation||q.reason,450)};
+  }).filter(Boolean):[];
+  return title&&focus&&cards.length>=6&&qs.length>=6?{title:title,focus:focus,cards:cards.slice(0,CARDS_PER_LESSON),questions:qs.slice(0,QUESTIONS_PER_LESSON)}:null;
+}
+function makePathId(subjectId,unit,topic){return 'path-'+subjectId+'-'+(unit||'course')+'-'+(topic||unit||'topic').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80)+'-'+Date.now();}
+function matchingPath(s,subjectId,unit,topic){
+  return s&&s.lessonPathId&&s.subjectId===subjectId&&(s.unit||'')===(unit||'')&&(s.topic||'')===(topic||'');
+}
+function pathSets(pathId){return state.studySets.filter(function(s){return s.lessonPathId===pathId;}).sort(function(a,b){return (a.lessonNumber||0)-(b.lessonNumber||0)||a.type.localeCompare(b.type);});}
+function pathAllQuestions(pathId){
+  var out=[];
+  pathSets(pathId).forEach(function(s){if(s.type==='quiz'&&Array.isArray(s.questions))s.questions.forEach(function(q){if(q&&q.q&&Array.isArray(q.options)&&q.options.length===4)out.push({q:q.q,options:q.options.slice(),correct:Number(q.correct)||0,explanation:q.explanation||'',lessonNumber:s.lessonNumber||1,lessonTitle:s.lessonTitle||''});});});
+  return out;
+}
+function pathAllCards(pathId){
+  var out=[];
+  pathSets(pathId).forEach(function(s){if(s.type==='flashcards'&&Array.isArray(s.cards))s.cards.forEach(function(c){if(c&&c.front&&c.back)out.push(c);});});
+  return out;
+}
+function pathCompleted(pathId){
+  var p=state.progress.lessonPaths&&state.progress.lessonPaths[pathId];
+  return p&&p.completedLessons?Object.keys(p.completedLessons).filter(function(k){return p.completedLessons[k];}).length:0;
+}
+function ensurePathProgress(){
+  if(!state.progress.lessonPaths||typeof state.progress.lessonPaths!=='object')state.progress.lessonPaths={};
+}
+function markLessonComplete(pathId,n){
+  ensurePathProgress();
+  if(!state.progress.lessonPaths[pathId])state.progress.lessonPaths[pathId]={completedLessons:{},randomIndex:0};
+  state.progress.lessonPaths[pathId].completedLessons[String(n)]=true;
+  persistProgress();
+}
+function shuffleCopy(a){
+  var b=Array.isArray(a)?a.slice():[];
+  for(var i=b.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=b[i];b[i]=b[j];b[j]=t;}
+  return b;
+}
+async function generateLessonPath(){
+  var subjectId=(document.getElementById('builder-subject-topic')||{}).value||'biology';
+  var unit=(document.getElementById('builder-unit-topic')||{}).value||'';
+  var topic=((document.getElementById('builder-topic-input')||{}).value||'').trim();
+  var reminderDays=Number((document.getElementById('builder-reminder')||{}).value||0);
+  var status=document.getElementById('builder-status');
+  var subj=subjectById(subjectId)||{name:'AP course'};
+  if(!unit){if(status)status.innerHTML='<div class="error-note">Choose a unit first.</div>';return;}
+  if(!state.aiEnabled){if(status)status.innerHTML='<div class="error-note">'+esc(localAiUnavailableMessage)+'</div>';return;}
+  var focus=topic||unit;
+  if(status)status.innerHTML='<div class="loading-line"><span class="spinner"></span> Building a complete '+LESSONS+'-lesson path for '+esc(focus)+'…</div>';
+  var prompt='You are building a complete AP study path. The selected course is AP '+subj.name+', unit "'+unit+'", with the exact focus "'+focus+'". The unit/topic is a hard boundary. Create exactly '+LESSONS+' lessons that collectively cover the major concepts, vocabulary, processes, examples, relationships, and exam skills needed for this exact selection. Do not drift into another unit. Do not make all lessons repeat the same basic definitions. Each lesson must have a distinct coverage focus, while all lessons together should cover the selected topic thoroughly. For EACH lesson return 8 concise flashcards and 8 four-option multiple-choice questions. The questions must be answerable from the lesson coverage. Keep flashcard backs under 55 words and question explanations under 70 words. Return ONLY JSON in this shape: {"lessons":[{"title":"Lesson 1 title","focus":"What this lesson covers","cards":[{"front":"...","back":"..."}],"questions":[{"q":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}]}]}.';
+  try{
+    var parsed=await askJSON(prompt);
+    var raw=Array.isArray(parsed)?parsed:(parsed&&parsed.lessons)||[];
+    var lessons=raw.map(validLesson).filter(Boolean).slice(0,LESSONS);
+    if(lessons.length<LESSONS)throw new Error('incomplete lesson path');
+    var pathId=makePathId(subjectId,unit,topic);
+    var base=Date.now(), reminderAt=reminderDays>0?base+reminderDays*86400000:0;
+    lessons.forEach(function(l,idx){
+      var n=idx+1;
+      var common={lessonPathId:pathId,lessonNumber:n,lessonTotal:LESSONS,lessonTitle:l.title,lessonFocus:l.focus,unit:unit,topic:topic,subjectId:subjectId,createdAt:base+idx,title:subj.name+' — '+unit+' — Lesson '+n+': '+l.title,reminderAt:reminderAt,reminderCompleted:false};
+      var fs=Object.assign({},common,{id:uid(),type:'flashcards',cards:l.cards});ensureCardMeta(fs);
+      var qs=Object.assign({},common,{id:uid(),type:'quiz',questions:l.questions,attempts:[]});
+      state.studySets.push(fs,qs);
+    });
+    ensurePathProgress();state.progress.lessonPaths[pathId]={completedLessons:{},randomIndex:0};
+    persistSets();persistProgress();renderStudySets();
+    if(status)status.innerHTML='<div class="loading-line" style="color:var(--green-deep);">Done — '+LESSONS+' lessons were created for this topic, with '+(LESSONS*CARDS_PER_LESSON)+' flashcards and '+(LESSONS*QUESTIONS_PER_LESSON)+' practice questions. 🎉</div>';
+    var first=state.studySets.find(function(s){return s.lessonPathId===pathId&&s.lessonNumber===1&&s.type===(document.getElementById('builder-type')||{}).value;});
+    if(first)openStudySetViewer(first.id);
+  }catch(e){
+    console.error('lesson path generation failed',e);
+    if(status)status.innerHTML='<div class="error-note">Couldn’t build the complete lesson path. Please try again.</div>';
+  }
+}
+function renderPathCards(){
+  var container=document.getElementById('sets-list');if(!container)return;
+  var groups={};
+  state.studySets.forEach(function(s){if(!s.lessonPathId)return;if(!groups[s.lessonPathId])groups[s.lessonPathId]={pathId:s.lessonPathId,subjectId:s.subjectId,unit:s.unit,topic:s.topic,total:s.lessonTotal||LESSONS,sets:[]};groups[s.lessonPathId].sets.push(s);});
+  Object.keys(groups).forEach(function(id){groups[id].sets.sort(function(a,b){return(a.lessonNumber||0)-(b.lessonNumber||0)||a.type.localeCompare(b.type);});});
+  var old=container.querySelectorAll('.study-path-card-v9');old.forEach(function(n){n.remove();});
+}
+function pathOverviewHtml(pathId){
+  var sets=pathSets(pathId), any=sets[0];if(!any)return '';
+  var done=pathCompleted(pathId),total=any.lessonTotal||LESSONS,subj=subjectById(any.subjectId);
+  var cards=pathAllCards(pathId).length,qs=pathAllQuestions(pathId).length;
+  var pct=Math.round(Math.min(100,done/total*100));
+  var lessonButtons=[];
+  for(var i=1;i<=total;i++){
+    var fs=sets.find(function(s){return s.lessonNumber===i&&s.type==='flashcards';});
+    var q=sets.find(function(s){return s.lessonNumber===i&&s.type==='quiz';});
+    var complete=state.progress.lessonPaths&&state.progress.lessonPaths[pathId]&&state.progress.lessonPaths[pathId].completedLessons&&state.progress.lessonPaths[pathId].completedLessons[String(i)];
+    lessonButtons.push('<div class="study-path-card-v9"><div class="path-kicker">Lesson '+i+' of '+total+(complete?' · Complete':'')+'</div><div class="path-title">'+esc((fs&&fs.lessonTitle)||('Lesson '+i))+'</div><div class="path-meta">'+esc((fs&&fs.lessonFocus)||'Focused coverage')+' · '+(fs?fs.cards.length:0)+' flashcards · '+(q?q.questions.length:0)+' questions</div><div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px;">'+(fs?'<button class="btn btn-ghost btn-sm" data-action="open-set" data-id="'+fs.id+'">📚 Flashcards</button>':'')+(q?'<button class="btn btn-primary btn-sm" data-action="open-set" data-id="'+q.id+'">📝 Quiz</button>':'')+'</div></div>');
+  }
+  return '<div class="study-path-card-v9" data-path-overview="'+esc(pathId)+'"><div class="path-kicker">Complete Topic Study Path</div><div class="path-title">'+esc((subj?subj.name:'Course')+' — '+(any.topic||any.unit))+'</div><div class="path-meta">'+total+' lessons · '+cards+' flashcards · '+qs+' practice questions. Complete the lessons in order, then review the full mixed bank.</div><div class="path-progress"><span style="width:'+pct+'%"></span></div><div style="font-size:11px;font-weight:850;color:#31506f;margin-top:7px;">'+done+' of '+total+' lessons completed</div>'+lessonButtons.join('')+'</div>';
+}
+function renderStudySetsPatched(){
+  var container=document.getElementById('sets-list');if(!container)return;
+  var query=(document.getElementById('sets-search')?.value||'').trim().toLowerCase();
+  var course=(document.getElementById('sets-course-filter')?.value||'');
+  var status=(document.getElementById('sets-status-filter')?.value||'');
+  var sort=(document.getElementById('sets-sort')?.value||'recent');
+  var normal=[...state.studySets].filter(function(s){if(s.lessonPathId)return false;var subj=subjectById(s.subjectId),hay=((s.title||'')+' '+(s.unit||'')+' '+(s.topic||'')+' '+(subj?.name||'')).toLowerCase(),rem=studySetReminderState(s);return(!query||hay.includes(query))&&(!course||s.subjectId===course)&&(!status||(status==='due'&&(rem.kind==='overdue'||rem.kind==='upcoming'))||(status==='done'&&rem.kind==='done'));});
+  normal.sort(function(x,y){if(sort==='due')return(Number(x.reminderAt)||Infinity)-(Number(y.reminderAt)||Infinity);if(sort==='course')return String(subjectById(x.subjectId)?.name||'').localeCompare(String(subjectById(y.subjectId)?.name||''))||y.createdAt-x.createdAt;if(sort==='name')return String(x.title||'').localeCompare(String(y.title||''));return y.createdAt-x.createdAt;});
+  var groups={};
+  state.studySets.filter(function(s){if(!s.lessonPathId)return false;var subj=subjectById(s.subjectId),hay=((s.title||'')+' '+(s.unit||'')+' '+(s.topic||'')+' '+(subj?.name||'')).toLowerCase(),rem=studySetReminderState(s);return(!query||hay.includes(query))&&(!course||s.subjectId===course)&&(!status||(status==='due'&&(rem.kind==='overdue'||rem.kind==='upcoming'))||(status==='done'&&rem.kind==='done'));}).forEach(function(s){if(!groups[s.lessonPathId])groups[s.lessonPathId]={id:s.lessonPathId,latest:s.createdAt,first:s};groups[s.lessonPathId].latest=Math.max(groups[s.lessonPathId].latest,s.createdAt);});
+  var html=normal.map(function(s){var subj=subjectById(s.subjectId),count=s.type==='flashcards'?s.cards.length:s.questions.length,rem=studySetReminderState(s),unitIndex=s.unit?(subj?.units||[]).indexOf(s.unit)+1:0;return '<div class="set-card"><button class="set-card-open" data-action="open-set" data-id="'+s.id+'"><span class="set-kind">'+(s.type==='flashcards'?'Flashcards':'Quiz')+'</span><span class="set-title">'+esc(s.title)+'</span><span class="set-meta">'+(subj?esc(subj.name):'')+(s.unit?' · Unit '+unitIndex+': '+esc(s.unit):'')+(s.topic?' · '+esc(s.topic):'')+' · '+count+' '+(s.type==='flashcards'?'cards':'questions')+'</span>'+(rem.label?'<span class="set-card-due '+rem.kind+'">'+rem.label+'</span>':'')+'</button><button class="set-card-delete" data-action="delete-set" data-id="'+s.id+'" type="button">🗑️ Delete</button></div>';}).join('');
+  html+=Object.keys(groups).sort(function(a,b){return groups[b].latest-groups[a].latest;}).map(function(id){return pathOverviewHtml(id);}).join('');
+  var all=[...state.studySets],due=all.filter(function(s){var r=studySetReminderState(s);return r.kind==='overdue'||r.kind==='upcoming';}).length,reviewed=all.filter(function(s){return studySetReminderState(s).kind==='done';}).length;
+  var summary=document.getElementById('sets-summary');if(summary)summary.innerHTML='<span class="chip"><span class="dot"></span>'+all.length+' total</span><span class="chip"><span class="dot"></span>'+due+' scheduled/due</span><span class="chip"><span class="dot"></span>'+reviewed+' reviewed</span>';
+  if(!html){container.innerHTML='<div class="empty-state"><h3>No matching study sets</h3><p>Try a different course, filter, or search.</p></div>';return;}
+  container.innerHTML=html;
+}
+var originalRenderStudySets=window.renderStudySets;
+window.renderStudySets=renderStudySetsPatched;
+
+function patchBuilderUi(){
+  var count=document.getElementById('builder-count');
+  if(count){
+    count.innerHTML='<option value="8">8 per lesson</option><option value="10" selected>10 per lesson</option><option value="12">12 per lesson</option>';
+  }
+  var type=document.getElementById('builder-type');
+  if(type&&type.parentElement)type.parentElement.insertAdjacentHTML('afterend','<div class="field" id="lesson-path-info"><label>Topic coverage</label><div style="font-size:12px;color:var(--ink-soft);font-weight:700;line-height:1.45;padding:9px 2px;">From a topic, Index builds 5 lessons that stay on the same unit/topic. Each lesson has its own focus; after all lessons, Commander can use the complete mixed question bank.</div></div>');
+}
+patchBuilderUi();
+
+async function commanderQuestionPoolForLesson(g){
+  var pathSetsArr=state.studySets.filter(function(s){
+    return s.lessonPathId&&s.subjectId===g.subjectId&&(s.unit||'')===(g.unit||'')&&(s.topic||'')===(g.topic||'')&&s.type==='quiz';
+  });
+  if(!pathSetsArr.length)return null;
+  var pathId=pathSetsArr[0].lessonPathId;
+  var all=pathAllQuestions(pathId);
+  if(!all.length)return null;
+  var total=(pathSetsArr[0].lessonTotal||LESSONS);
+  var completed=pathCompleted(pathId);
+  var lesson=Number(g.lessonIndex||1);
+  if(completed<total)lesson=Math.max(1,Math.min(total,lesson));
+  else lesson=0;
+  var pool=lesson?all.filter(function(q){return Number(q.lessonNumber)===lesson}:all;
+  if(!pool.length)pool=all;
+  return {pool:pool,pathId:pathId,total:total,lesson:lesson,completed:completed,all:all};
+}
+
+var oldBank=window.bank;
+window.bank=function(g){
+  var info=commanderQuestionPoolForLesson(g);
+  if(info){
+    var shuffled=shuffleCopy(info.pool);
+    g.lessonPathId=info.pathId;g.lessonTotal=info.total;g.lessonIndex=info.lesson||0;
+    g.lessonQuestionCursor=0;
+    return shuffled;
+  }
+  try{
+    var p=window.commanderQuestionPoolFinal?window.commanderQuestionPoolFinal(g):[];
+    if(p&&p.length)return shuffleCopy(p);
+  }catch(e){}
+  return [];
+};
+
+function answerLesson(i){
+  var g=state.games;if(!g||g.active!=='commander'||!g.questionGateOpen||!g.question)return;
+  var idx=Number(i);if(idx<0||idx>3)return;
+  g.questionAskedCount=(g.questionAskedCount||0)+1;
+  if(idx===Number(g.question.correct)){
+    g.questionCorrectCount=(g.questionCorrectCount||0)+1;
+    g.waveCoins=(g.waveCoins||0)+25;
+    showRewardToast('🪙 +25 deployment coins');
+    var need=typeof req==='function'?req(g.wave):1;
+    if(g.questionCorrectCount>=need){
+      g.questionGateOpen=false;g.question=null;g.selectedTroop=null;
+      if(g.lessonPathId&&g.lessonIndex){
+        var info=commanderQuestionPoolForLesson(g);
+        if(info){
+          var needed=info.total;
+          markLessonComplete(info.pathId,g.lessonIndex);
+          g.lessonCompletedThisWave=true;
+          if(pathCompleted(info.pathId)>=needed){g.lessonIndex=0;showRewardToast('📚 All lessons complete — mixed review unlocked!');}
+          else g.lessonIndex=Math.min(needed,g.lessonIndex+1);
+        }
+      }
+      if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
+      commanderRenderScreen();return;
+    }
+  }else{
+    showRewardToast('Keep going — no deployment coins for that answer.');
+  }
+  var p=window.bank?window.bank(g):[];
+  if(!p.length){
+    var fallback=[];
+    try{fallback=(window.commanderQuestionPoolFinal?window.commanderQuestionPoolFinal(g):[])||[];}catch(e){}
+    p=fallback;
+  }
+  g.question=p[Math.floor(Math.random()*p.length)]||g.question;
+  if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
+  commanderRenderScreen();
+}
+
+function gateLesson(g){
+  var q=g.question||{};
+  var s=subjectById(g.subjectId),need=typeof req==='function'?req(g.wave):1;
+  var pathInfo=commanderQuestionPoolForLesson(g);
+  var lessonLabel=pathInfo?(pathInfo.lesson?('Lesson '+pathInfo.lesson+' of '+pathInfo.total):'Mixed review'):('Course review');
+  var focus=pathInfo&&pathInfo.lesson?((state.studySets.find(function(x){return x.lessonPathId===pathInfo.pathId&&x.lessonNumber===pathInfo.lesson&&x.type==='quiz';})||{}).lessonFocus||g.topic||g.unit||'Selected topic'):(g.topic||g.unit||'Selected topic');
+  return '<div class="commander-v8-root commander-gate-v8"><div class="commander-gate-card-v8"><div class="commander-gate-top-v8"><div><div class="commander-gate-kicker-v8">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-gate-sub-v8">Complete each lesson in order. After all lessons are complete, Commander cycles through the full question bank in random order.</div></div><button class="commander-gate-close-v8" data-action="commander-save-slots">Exit</button></div><div class="commander-gate-stats-v8"><div class="commander-gate-stat-v8"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-gate-stat-v8"><b>'+g.questionCorrectCount+'/'+need+'</b><span>Correct needed</span></div><div class="commander-gate-stat-v8"><b>'+((g.lessonIndex||0)?'Lesson '+g.lessonIndex+' / '+(g.lessonTotal||LESSONS):'Mixed review')+'</b><span>Study progression</span></div></div><div class="commander-lesson-strip-v9"><strong>'+esc(s?s.name:'AP Course')+'</strong><span>· '+esc(g.unit||'Course review')+'</span><span>· '+esc(lessonLabel)+'</span></div><div class="commander-gate-question-v8"><div class="commander-question-support-v9"><span>Question '+((g.questionAskedCount||0)+1)+'</span><span>+25 coins for correct</span><span>'+esc((pathInfo&&pathInfo.lesson?((pathInfo.pool||[]).length+' lesson questions'):'Full mixed bank'))+'</span></div><div class="commander-gate-meta-v8">'+esc((pathInfo&&pathInfo.lesson?focus:(g.topic||g.unit||'Selected topic')))+' </div><h2>'+esc(q.q||'Loading question…')+'</h2><span class="commander-answer-label-v9">Choose the correct answer</span><div class="commander-gate-options-v8">'+(Array.isArray(q.options)?q.options.map(function(o,j){return '<button class="commander-gate-option-v8" data-action="commander-answer-v8" data-answer="'+j+'"><span class="letter">'+String.fromCharCode(65+j)+'</span><span>'+esc(o)+'</span></button>';}).join(''):'')+'</div></div><div class="commander-gate-note-v8">This question comes from the selected lesson. Correct answers earn <b>+25 deployment coins</b>; wrong answers do not add coins and immediately give you another question.</div></div></div>';
+}
+
+/* Make new topic-based study-set generation use the lesson path. Notes-based sets keep their existing behavior. */
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('[data-action="generate-set"]');
+  if(!b)return;
+  var source=state.builder&&state.builder.source;
+  if(source!=='topic')return;
+  e.preventDefault();e.stopImmediatePropagation();
+  generateLessonPath();
+},true);
+
+/* Replace the Commander gate answer handler with the lesson-aware one. */
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('.commander-gate-option-v8');
+  if(!b)return;
+  e.preventDefault();e.stopImmediatePropagation();
+  answerLesson(Number(b.dataset.answer));
+},true);
+
+/* Render the lesson gate and initialize progression for new Commander runs. */
+var oldScreen=window.commanderRenderScreen;
+if(typeof oldScreen==='function'){
+  window.commanderRenderScreen=function(){
+    var g=state.games;
+    if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen){
+      var oldStage=document.getElementById('games-stage');
+      if(oldStage){
+        oldStage.innerHTML=gateLesson(g);
+        return;
+      }
+    }
+    return oldScreen.apply(this,arguments);
+  };
+}
+var oldStart=window.commanderStartMap;
+if(typeof oldStart==='function'){
+  window.commanderStartMap=function(mapId,slot,old){
+    var result=oldStart.apply(this,arguments);
+    var g=state.games;
+    if(g&&g.active==='commander'){
+      var info=commanderQuestionPoolForLesson(g);
+      if(info){
+        g.lessonPathId=info.pathId;
+        g.lessonTotal=info.total;
+        g.lessonIndex=info.lesson||1;
+        var p=window.bank(g);
+        if(p&&p.length)g.question=p[Math.floor(Math.random()*p.length)];
+      }
+      if(typeof window.commanderSaveFinal==='function')window.commanderSaveFinal(g);
+    }
+    return result;
+  };
+}
+/* Persist lesson progression in the v8 Commander save override. */
+var oldSave=window.commanderSaveFinal;
+if(typeof oldSave==='function'){
+  window.commanderSaveFinal=function(g){
+    try{
+      if(g&&g.slotIndex!=null){
+        var slots=commanderSlotsFinal();
+        slots[g.slotIndex]=Object.assign({},slots[g.slotIndex]||{},{
+          mapId:g.mapId,round:g.wave,base:g.base,subjectId:g.subjectId||'',unit:g.unit||'',topic:g.topic||'',
+          questionBank:g.questionBank||[],towers:(g.towers||[]).map(function(t){return{x:t.x,y:t.y,id:t.id,level:t.level};}),
+          waveCoins:g.waveCoins||0,questionGateOpen:!!g.questionGateOpen,questionCorrectCount:g.questionCorrectCount||0,
+          questionAskedCount:g.questionAskedCount||0,lessonPathId:g.lessonPathId||'',lessonIndex:Number(g.lessonIndex)||0,lessonTotal:Number(g.lessonTotal)||0,
+          savedAt:Date.now()
+        });
+        persistProgress();
+        return;
+      }
+    }catch(e){}
+    return oldSave.apply(this,arguments);
+  };
+}
+})();
+</script>
+
+</body>
 </html>
