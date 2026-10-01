@@ -5999,5 +5999,70 @@ if(hasCompletedSetup()){
 
 })();
 </script>
+
+<script id="commander-learning-economy-v5-fix">
+(function(){
+  'use strict';
+
+  function commanderMountBattleCanvasV5(){
+    const g=state.games;
+    if(!g || g.active!=='commander' || g.phase!=='battle' || g.questionGateOpen || g.finished) return;
+    requestAnimationFrame(function(){
+      const cv=document.getElementById('commander-map-final');
+      if(!cv) return;
+      if(!cv.dataset.boundV5){
+        cv.dataset.boundV5='1';
+        cv.addEventListener('mousemove',commanderCanvasMoveFinal);
+        cv.addEventListener('mouseleave',function(){state.games.hover=null;});
+        cv.addEventListener('click',commanderCanvasClickV5);
+      }
+      commanderDrawSceneFinal();
+      if(!g.frame) g.frame=requestAnimationFrame(commanderLoopFinal);
+    });
+  }
+
+  const previousLoadQuestion=commanderLoadQuestionFinal;
+  commanderLoadQuestionFinal=async function(){
+    const g=state.games;
+    if(!g || g.active!=='commander' || g.phase!=='battle') return;
+
+    /* A cleared wave returns to the study gate. */
+    if(!g.questionGateOpen && !g.running && !g.finished && Math.max(0,Number(g.wave)||0)>0 && Math.max(0,Number(g.waveCoins)||0)===0){
+      g.questionGateOpen=true;
+      g.questionRequired=1+Math.floor(Math.max(0,Number(g.wave)||0)/15);
+      g.questionCorrectCount=0;
+      g.questionAskedCount=0;
+      g.questionAnswered=false;
+      g.questionError='';
+      g.questionFeedback='';
+      g.question=null;
+      commanderSaveFinal();
+      commanderRenderScreen();
+    }
+    if(g.questionGateOpen) return previousLoadQuestion();
+  };
+
+  const previousAnswer=commanderAnswerQuestion;
+  commanderAnswerQuestion=function(i){
+    const g=state.games;
+    if(g && g.questionGateOpen){
+      const before=g.questionGateOpen;
+      commanderAnswerGateV5(i);
+      if(before && g && !g.questionGateOpen) commanderMountBattleCanvasV5();
+      return;
+    }
+    if(typeof previousAnswer==='function') previousAnswer(i);
+  };
+
+  /* Make the first successful answer immediately open the playable deployment field. */
+  const previousStartMap=commanderStartMapFinal;
+  commanderStartMapFinal=function(mapId,slotIndex,save){
+    previousStartMap(mapId,slotIndex,save);
+    if(state.games && !state.games.questionGateOpen) commanderMountBattleCanvasV5();
+  };
+
+  window.__commanderMountBattleCanvasV5=commanderMountBattleCanvasV5;
+})();
+</script>
 </body>
 </html>
