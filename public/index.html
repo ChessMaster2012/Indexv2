@@ -5908,7 +5908,10 @@ if(hasCompletedSetup()){
     commanderLaunchFinal=startWave6;
     commanderStartWaveV5=startWave6;
     commanderAnswerGateV5=answer6;
-    commanderNextQuestionFinal=function(){};
+    commanderNextQuestionFinal=function(){
+      const g=g6();
+      if(g&&!g.questionGateOpen&&!g.finished&&Number(g.wave)>0&&Number(g.waveCoins)===0) finishWave6();
+    };
     window.__commanderV6Installed=true;
   }
 
