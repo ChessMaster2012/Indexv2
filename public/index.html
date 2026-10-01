@@ -4039,7 +4039,7 @@ function commanderSetupFinalHtml(){
   var err=state.games.setupError?'<div class="commander-setup-error-final"><span class="commander-error-mark-final">!</span><div><b>We couldn’t prepare the questions yet.</b><small>'+esc(state.games.setupError)+'</small></div></div>':'';
   return '<div class="commander-fullscreen commander-ocean-ref commander-study-shell-final"><button class="commander-back-ref commander-back-final" data-action="commander-save-slots">Back</button><section class="commander-study-card-final"><div class="commander-study-kicker-final">TROOP COMMANDER</div><h1>Choose Your Study Mission</h1><p class="commander-study-lead-final">Pick the AP course, unit, and optional topic that will power the questions in your defense.</p><div class="commander-reward-pill-final">✓ Correct answer = <strong>+5 Commander coins</strong></div><div class="commander-form-final"><div class="commander-field-final"><label for="commander-subject-final">AP Course</label><select id="commander-subject-final">'+opts+'</select></div><div class="commander-field-final"><label for="commander-unit-final">Unit</label><select id="commander-unit-final">'+units.map(function(u){return '<option value="'+esc(u)+'">'+esc(u)+'</option>';}).join('')+'</select></div><div class="commander-field-final commander-field-wide-final"><label for="commander-topic-final">Specific Topic <span>optional</span></label><input id="commander-topic-final" placeholder="e.g. Natural selection, Federalist 10, derivatives"></div></div><div class="commander-study-helper-final"><span>📚</span><div><b>Your questions stay on this selection</b><small>Matching saved quizzes are used first. Otherwise Commander prepares an AP-aligned question set for this exact course and unit.</small></div></div>'+err+'<button class="commander-blue-button-ref commander-continue-final" data-action="commander-study-continue" '+(state.games.setupLoading?'disabled':'')+'>'+(state.games.setupLoading?'Preparing questions…':'Continue to Map Selection')+'</button></section></div>';
 }
-function commanderMapHtmlFinal(){return '<div class="commander-fullscreen commander-ocean-ref"><button type="button" class="commander-back-ref" data-action="commander-study-back">Back</button><div class="commander-wood-title-ref commander-map-title-v3">Choose a Map</div><div class="commander-map-grid-final-v3">'+COMMANDER_MAPS_FINAL.map(function(m){return '<button type="button" class="commander-map-card-final-v3" data-action="commander-map" data-map="'+m.id+'"><div class="commander-map-art-final-v3">'+commanderMapPreviewFinalV3(m)+'</div><div class="commander-map-name-final-v3">'+esc(m.name)+'</div><div class="commander-map-diff-final-v3">'+esc(m.difficulty)+'</div><div class="commander-map-desc-final-v3">'+esc(m.desc)+'</div></button>';}).join('')+'</div></div>';}
+function commanderMapHtmlFinal(){return '<div class="commander-fullscreen commander-ocean-ref"><button type="button" class="commander-back-ref" data-action="commander-study-back">Back</button><div class="commander-wood-title-ref commander-map-title-v3">Choose a Map</div><div class="commander-map-grid-final-v3">'+COMMANDER_MAPS_FINAL.map(function(m){return '<button type="button" class="commander-map-card-final-v3" data-action="commander-map" data-map="'+m.id+'" onclick="if(this.dataset.launched)return false;this.dataset.launched=\'1\';return window.__indexCommanderStartMap ? window.__indexCommanderStartMap(this.dataset.map) : false"><div class="commander-map-art-final-v3">'+commanderMapPreviewFinalV3(m)+'</div><div class="commander-map-name-final-v3">'+esc(m.name)+'</div><div class="commander-map-diff-final-v3">'+esc(m.difficulty)+'</div><div class="commander-map-desc-final-v3">'+esc(m.desc)+'</div></button>';}).join('')+'</div></div>';}
 function commanderMapPreviewFinalV3(m){var p=m.route.map(function(v){return(v[0]*220)+','+(v[1]*180);}).join(' '),d=m.detail.map(function(line){return '<polyline points="'+line.map(function(v){return(v[0]*220)+','+(v[1]*180);}).join(' ')+'" fill="none" stroke="rgba(30,50,55,.28)" stroke-width="12" stroke-linecap="round"/>';}).join(''),rocks=m.rocks.map(function(o){return '<circle cx="'+o[0]*220+'" cy="'+o[1]*180+'" r="'+Math.max(3,o[2]*220)+'" fill="rgba(255,255,255,.18)" stroke="rgba(20,30,35,.16)" stroke-width="2"/>';}).join('');return '<svg viewBox="0 0 220 180" preserveAspectRatio="none"><rect width="220" height="180" fill="'+m.bg+'"/><rect x="7" y="7" width="206" height="166" rx="13" fill="'+m.land+'"/><g>'+d+rocks+'</g><polyline points="'+p+'" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/><polyline points="'+p+'" fill="none" stroke="'+m.path+'" stroke-width="23" stroke-linecap="round" stroke-linejoin="round"/><polyline points="'+p+'" fill="none" stroke="rgba(255,255,255,.48)" stroke-width="2.5" stroke-dasharray="8 7" stroke-linecap="round"/><circle cx="'+m.route[0][0]*220+'" cy="'+m.route[0][1]*180+'" r="10" fill="#41d39a" stroke="#fff" stroke-width="3"/><text x="'+m.route[0][0]*220+'" y="'+(m.route[0][1]*180+4)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#0c4a39">S</text><rect x="'+(m.route[m.route.length-1][0]*220-11)+'" y="'+(m.route[m.route.length-1][1]*180-11)+'" width="22" height="22" rx="5" fill="#f45f72" stroke="#fff" stroke-width="3"/><text x="'+m.route[m.route.length-1][0]*220+'" y="'+(m.route[m.route.length-1][1]*180+4)+'" text-anchor="middle" font-size="8" font-weight="900" fill="#fff">B</text></svg>';}
 function commanderDrawMapBackgroundFinal(ctx,m,w,h){
  ctx.fillStyle=m.bg;ctx.fillRect(0,0,w,h);ctx.fillStyle=m.land;ctx.fillRect(15,12,w-30,h-24);
@@ -6759,19 +6759,52 @@ document.addEventListener('click',function(e){
   if(b){e.preventDefault();e.stopImmediatePropagation();var gu=state.games,iu=Number(b.dataset.index),tu=gu&&gu.towers&&gu.towers[iu],pp=commanderFinalProfile();if(tu){var uc=commanderFinalCost(tu.id);if(pp.coins>=uc&&tu.level<10){pp.coins-=uc;tu.level++;tu.maxHp+=15;tu.hp=tu.maxHp;commanderSaveFinal();persistProgress();renderCommanderStable();}}return;}
 },true);
 
-/* INDEX COMMANDER MAP BRIDGE 2026-10-01 */
+/* INDEX COMMANDER MAP BRIDGE 2026-10-01 v3 — self-contained launcher */
 window.__indexCommanderStartMap=function(mapId,slotIndex){
-  var g=(typeof state!=='undefined'&&state)?state.games:null;
-  if(slotIndex==null&&g)slotIndex=g.slotIndex;
-  if(typeof commanderStartMapFinal==='function'){
-    commanderStartMapFinal(mapId,slotIndex);
+  try{
+    var g0=(typeof state!=='undefined'&&state)?state.games:null;
+    if(slotIndex==null&&g0)slotIndex=g0.slotIndex;
+    var maps=(typeof COMMANDER_MAPS_FINAL!=='undefined'&&Array.isArray(COMMANDER_MAPS_FINAL))?COMMANDER_MAPS_FINAL:[];
+    if(!maps.some(function(x){return x.id===mapId;}))return false;
+    if(typeof clearGameTimers==='function')clearGameTimers();
+    var prev=g0||{},oldSave=null;
+    try{
+      if(slotIndex!=null&&typeof commanderSlotsFinal==='function'){
+        var slots=commanderSlotsFinal();
+        if(Array.isArray(slots))oldSave=slots[slotIndex]||null;
+      }
+    }catch(e){}
+    state.games={
+      active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slotIndex,mapId:mapId,
+      subjectId:(oldSave&&oldSave.subjectId)||prev.subjectId||'biology',
+      unit:(oldSave&&oldSave.unit)||prev.unit||'',topic:(oldSave&&oldSave.topic)||prev.topic||'',
+      questionBank:(oldSave&&Array.isArray(oldSave.questionBank)?oldSave.questionBank:(Array.isArray(prev.questionBank)?prev.questionBank:[])),
+      question:null,questionAnswered:false,questionError:'',questionLoading:false,questionGateOpen:true,
+      questionRequired:1,waveCoins:0,questionCorrectCount:0,questionAskedCount:0,
+      base:oldSave?Math.max(1,Number(oldSave.base)||100):100,
+      wave:oldSave?Math.max(0,Number(oldSave.round)||0):0,
+      selectedTroop:null,towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,
+      spawnTimer:null,spawnCount:0,spawnTotal:0,lastFrame:0,waveBanner:'',waveBannerUntil:0,hover:null,
+      bardBuffUntil:0,shieldUntil:0,
+      lessonPathId:oldSave&&oldSave.lessonPathId||'',lessonIndex:Number(oldSave&&oldSave.lessonIndex)||0,
+      lessonTotal:Number(oldSave&&oldSave.lessonTotal)||0,lessonMastered:oldSave&&oldSave.lessonMastered||{},
+      mixedQuestionOrder:oldSave&&oldSave.mixedQuestionOrder||null,mixedQuestionCursor:Number(oldSave&&oldSave.mixedQuestionCursor)||0
+    };
+    if(oldSave&&Array.isArray(oldSave.towers))oldSave.towers.forEach(function(t){
+      if(t&&t.x!==undefined&&t.y!==undefined&&typeof commanderFinalProfile==='function'&&commanderFinalProfile().owned[t.id]){
+        state.games.towers.push({id:t.id,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),cool:0,abilityReady:Date.now()+2000,recoil:0});
+      }
+    });
+    if(typeof commanderRenderScreen==='function')commanderRenderScreen();
+    if(typeof commanderLoadQuestionFinal==='function'&&!state.games.question){
+      try{commanderLoadQuestionFinal();}catch(e){}
+    }
+    if(typeof commanderSaveFinal==='function')commanderSaveFinal(state.games);
     return true;
+  }catch(err){
+    try{console.error('Commander map launch failed',err);}catch(e){}
+    return false;
   }
-  if(typeof commanderStartMap==='function'){
-    commanderStartMap(mapId,slotIndex);
-    return true;
-  }
-  return false;
 };
 
 })();
@@ -6780,54 +6813,8 @@ window.__indexCommanderStartMap=function(mapId,slotIndex){
 
 <style id="commander-map-click-fix-style">
 .commander-map-grid-final-v3{position:relative;z-index:100000!important;pointer-events:auto!important;}
-.commander-map-card-final-v3,
-.commander-map-card-ref{
-  position:relative!important;
-  z-index:100001!important;
-  pointer-events:auto!important;
-  cursor:pointer!important;
-  touch-action:manipulation!important;
-  -webkit-tap-highlight-color:rgba(76,163,255,.25);
-}
+.commander-map-card-final-v3,.commander-map-card-ref{position:relative!important;z-index:100001!important;pointer-events:auto!important;cursor:pointer!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(76,163,255,.25);}
 .commander-map-card-final-v3:active{transform:scale(.985);}
 </style>
-<script id="commander-map-click-fix">
-(function(){
-'use strict';
-/* INDEX COMMANDER MAP CLICK FIX 2026-10-01 v2 */
-if(window.__commanderMapClickFixV2)return;
-window.__commanderMapClickFixV2=true;
-
-function launchMapButton(b){
-  if(!b)return;
-  var g=(typeof state!=='undefined'&&state)?state.games:null;
-  if(!g||g.active!=='commander')return;
-  var mapId=b.dataset.map;
-  if(!mapId)return;
-  if(b.dataset.launching==='1')return;
-  b.dataset.launching='1';
-  setTimeout(function(){b.dataset.launching='';},350);
-  if(typeof window.__indexCommanderStartMap==='function'){
-    window.__indexCommanderStartMap(mapId,g.slotIndex);
-  }
-}
-
-document.addEventListener('pointerup',function(e){
-  var b=e.target&&e.target.closest?e.target.closest('[data-action="commander-map"]'):null;
-  if(!b)return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  launchMapButton(b);
-},true);
-
-document.addEventListener('click',function(e){
-  var b=e.target&&e.target.closest?e.target.closest('[data-action="commander-map"]'):null;
-  if(!b)return;
-  e.preventDefault();
-  e.stopImmediatePropagation();
-  launchMapButton(b);
-},true);
-})();
-</script>
 </body>
 </html>
