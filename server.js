@@ -985,11 +985,11 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
     const topic=String(req.body?.topic||'').trim();
     if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
     const userPrompt=[
-      'Create 10 AP-level multiple-choice questions for a student.',
+      'Create 5 AP-level multiple-choice questions for a student.',
       'HARD CURRICULUM BOUNDARY: ONLY AP '+course+' UNIT "'+unit+'".',
       topic ? 'Optional topic focus: "'+topic+'". This narrows the selected unit and never replaces it.' : '',
       'Do not use material from other units.',
-      'Cover several major concepts from this unit.',
+      'Cover different major concepts from this unit.',
       'Return ONLY valid JSON in exactly this shape:',
       '{"questions":[{"q":"question","options":["choice A","choice B","choice C","choice D"],"correct":0,"explanation":"brief"}]}',
       'The correct field must be an integer from 0 to 3. No markdown. No commentary outside JSON.'
@@ -999,7 +999,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       {role:'user',content:userPrompt}
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
-    const raw=await callVireonix(messages,true,65000,2400);
+    const raw=await callVireonix(messages,true,19000,1200);
     const data=parseCommanderQuestionJson(raw);
     if(!data){
       return res.status(502).json({
@@ -1017,7 +1017,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
     return res.json({questions,provider:'Vireonix Auto',model:'auto'});
   }catch(e){
     console.warn('[AI] Commander question-bank generation failed:',e?.message||e);
-    return res.status(Number(e?.status)||504).json({error:'Vireonix Auto could not prepare the Commander question set right now.',provider:'Vireonix Auto',model:'auto',detail:providerFailureLabel(e)});
+    return res.status(Number(e?.status)||504).json({error:'Vireonix Auto could not prepare the Commander question set within the Commander startup window.',provider:'Vireonix Auto',model:'auto',detail:providerFailureLabel(e)});
   }
 });
 
