@@ -1760,6 +1760,12 @@ async function startMembershipCheckout(tier){
     const r=await fetch('/api/billing/checkout',{method:'POST',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({tier})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok)throw new Error(d.error||'Could not start checkout.');
+    if(d.switched&&d.membership){
+      state.membership={...(state.membership||{}),...(d.membership||{})};
+      renderMembershipPage();
+      showRewardToast('🎉 Membership switched to '+(state.membership?.plan?.name||tier)+'.');
+      return;
+    }
     if(d.url)window.location.assign(d.url);else throw new Error('Stripe did not return a checkout URL.');
   }catch(e){
     showRewardToast(e.message||'Could not start secure checkout.');
