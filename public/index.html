@@ -6761,7 +6761,16 @@ document.addEventListener('click',function(e){
 
 /* INDEX COMMANDER MAP BRIDGE 2026-10-01 */
 window.__indexCommanderStartMap=function(mapId,slotIndex){
-  if(typeof commanderStartMapFinal==='function') return commanderStartMapFinal(mapId,slotIndex);
+  var g=(typeof state!=='undefined'&&state)?state.games:null;
+  if(slotIndex==null&&g)slotIndex=g.slotIndex;
+  if(typeof commanderStartMapFinal==='function'){
+    commanderStartMapFinal(mapId,slotIndex);
+    return true;
+  }
+  if(typeof commanderStartMap==='function'){
+    commanderStartMap(mapId,slotIndex);
+    return true;
+  }
   return false;
 };
 
