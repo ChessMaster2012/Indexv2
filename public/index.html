@@ -6184,7 +6184,7 @@ async function commanderQuestionPoolForLesson(g){
   var lesson=Number(g.lessonIndex||1);
   if(completed<total)lesson=Math.max(1,Math.min(total,lesson));
   else lesson=0;
-  var pool=lesson?all.filter(function(q){return Number(q.lessonNumber)===lesson}:all;
+  var pool=lesson?all.filter(function(q){return Number(q.lessonNumber)===lesson}):all;
   if(!pool.length)pool=all;
   return {pool:pool,pathId:pathId,total:total,lesson:lesson,completed:completed,all:all};
 }
