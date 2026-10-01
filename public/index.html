@@ -6762,5 +6762,31 @@ document.addEventListener('click',function(e){
 })();
 </script>
 
+
+<style id="commander-map-click-fix-style">
+.commander-map-card-final-v3{position:relative;z-index:5;pointer-events:auto!important;cursor:pointer!important;}
+.commander-map-card-ref{position:relative;z-index:5;pointer-events:auto!important;cursor:pointer!important;}
+</style>
+<script id="commander-map-click-fix">
+(function(){
+'use strict';
+/* INDEX COMMANDER MAP CLICK FIX 2026-10-01 */
+if(window.__commanderMapClickFix)return;
+window.__commanderMapClickFix=true;
+
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest?e.target.closest('[data-action="commander-map"]'):null;
+  if(!b)return;
+  var g=state&&state.games;
+  if(!g||g.active!=='commander')return;
+  var mapId=b.dataset.map;
+  if(!mapId)return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if(typeof commanderStartMapFinal==='function') commanderStartMapFinal(mapId,g.slotIndex);
+  else if(typeof commanderStartMap==='function') commanderStartMap(mapId,g.slotIndex);
+},true);
+})();
+</script>
 </body>
 </html>
