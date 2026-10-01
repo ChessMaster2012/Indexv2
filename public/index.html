@@ -3984,45 +3984,9 @@ async function commanderPrepareFinal(){
   var sid=(document.getElementById('commander-subject-final')||{}).value||'biology';
   var unit=(document.getElementById('commander-unit-final')||{}).value||'';
   var topic=((document.getElementById('commander-topic-final')||{}).value||'').trim();
-  state.games.subjectId=sid;state.games.unit=unit;state.games.topic=topic;state.games.setupLoading=true;state.games.setupError='';renderGames();
-
-  var bank=commanderQuestionPoolFinal(state.games),generationError='';
-  if(!bank.length){
-    try{
-      var controller=new AbortController();
-      var timer=setTimeout(function(){controller.abort();},66000);
-      var sub=subjectById(sid);
-      var response=await fetch('/api/ai/commander-bank',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
-        credentials:'same-origin',
-        cache:'no-store',
-        body:JSON.stringify({course:sub?sub.name:'',unit:unit,topic:topic}),
-        signal:controller.signal
-      });
-      clearTimeout(timer);
-      var data=await response.json().catch(function(){return{};});
-      if(!response.ok){
-        generationError=String(data.error||'Vireonix Auto could not prepare this AP question set right now.');
-      }else if(data&&Array.isArray(data.questions)){
-        bank=data.questions.filter(function(q){
-          return q&&typeof q.q==='string'&&q.q.trim()&&Array.isArray(q.options)&&q.options.length===4&&q.options.every(function(o){return typeof o==='string'&&o.trim();});
-        }).map(function(q){
-          return{q:q.q.trim(),options:q.options.map(function(o){return String(o).trim();}),correct:Math.max(0,Math.min(3,Number.isInteger(Number(q.correct))?Number(q.correct):0)),explanation:q.explanation?String(q.explanation):''};
-        }).slice(0,20);
-        if(!bank.length)generationError='Vireonix Auto returned no usable AP questions for this selection.';
-      }else generationError='Vireonix Auto returned an invalid Commander question set.';
-    }catch(e){
-      generationError=e&&e.name==='AbortError'?'Vireonix Auto took too long to prepare this AP question set.':'Vireonix Auto could not prepare this AP question set right now. Please try again.';
-    }
-  }
-
-  state.games.questionBank=bank;state.games.setupLoading=false;
-  if(!bank.length){
-    state.games.setupError=generationError||'No matching AP quiz was found for this course and unit. Create a matching study set or try another unit.';
-    renderGames();return;
-  }
-  state.games.setupError='';state.games.commanderScreen='maps';commanderSaveFinal();persistProgress();renderGames();
+  state.games.subjectId=sid; state.games.unit=unit; state.games.topic=topic;
+  state.games.setupLoading=false; state.games.setupError=''; state.games.questionBank=state.games.questionBank||[];
+  state.games.commanderScreen='maps'; renderGames();
 }
 function commanderSetupFinalHtml(){
   var opts=SUBJECTS.map(function(s){return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>';}).join('');
