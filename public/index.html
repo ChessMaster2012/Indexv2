@@ -7027,14 +7027,22 @@ function renderUnits(g,r){
   var enemies=(g.enemies||[]).map(function(e){var cls='enemy '+(e.kind||'raider');var hp=Math.max(0,Math.min(100,e.hp/e.maxHp*100));return '<div class="commander-auth-unit '+cls+'" style="left:'+(e.x*100)+'%;top:'+(e.y*100)+'%;">'+(e.kind==='runner'?'⚡':e.kind==='brute'?'◆':e.kind==='elite'?'✦':'●')+'<div class="commander-auth-unit-hp"><span style="width:'+hp+'%"></span></div></div>';}).join('');
   layer.innerHTML=towers+enemies;
 }
+var priorCommanderRender=window.commanderRenderScreen;
 function render(){
   var stage=document.getElementById('games-stage');if(!stage)return;
-  if(!state.games||state.games.active!=='commander'){return renderGames();}
+  if(!state.games||state.games.active!=='commander'){
+    if(typeof renderGames==='function')return renderGames();
+    return;
+  }
   var g=state.games;
-  if(g.phase!=='battle'){stage.innerHTML=commanderSaveSlotsHtmlV2();return;}
-  if(g.questionGateOpen){stage.innerHTML=renderGate(g);return;}
-  stage.innerHTML=battleHtml(g);
-  requestAnimationFrame(function(){draw(g);});
+  if(g.phase==='battle'){
+    if(g.questionGateOpen){stage.innerHTML=renderGate(g);return;}
+    stage.innerHTML=battleHtml(g);
+    requestAnimationFrame(function(){draw(g);});
+    return;
+  }
+  if(typeof priorCommanderRender==='function')return priorCommanderRender.apply(this,arguments);
+  stage.innerHTML=commanderSaveSlotsHtmlV2();
 }
 function startMap(mapId,slot,saveData){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===mapId;});if(!m)return;
