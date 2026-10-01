@@ -1105,10 +1105,10 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
           <div class="builder-row">
             <div class="field"><label>Specific topic <span class="field-optional">(optional)</span></label><input type="text" id="builder-topic-input" placeholder="e.g. Federalist 10, natural selection, derivatives"></div>
           </div>
-          <div class="builder-reminder-row">
-            <div class="field"><label>Review reminder</label><select id="builder-reminder"><option value="0">No reminder</option><option value="1">Tomorrow</option><option value="3">In 3 days</option><option value="7" selected>In 1 week</option><option value="14">In 2 weeks</option></select></div>
-            <div class="builder-reminder-help">Your set stays saved and gets a “Due” badge when it is time to review.</div>
-          </div>
+        </div>
+        <div class="builder-reminder-row">
+          <div class="field"><label>Review reminder</label><select id="builder-reminder"><option value="0">No reminder</option><option value="1">Tomorrow</option><option value="3">In 3 days</option><option value="7" selected>In 1 week</option><option value="14">In 2 weeks</option></select></div>
+          <div class="builder-reminder-help">Your set stays saved and gets a “Due” badge when it is time to review.</div>
         </div>
         <div class="builder-row" style="margin-top:4px;">
           <div class="field"><label>Format</label><select id="builder-type"><option value="flashcards">Flashcards</option><option value="quiz">Practice quiz</option></select></div>
@@ -3539,9 +3539,9 @@ async function generateStudySet(){
     customTopic = document.getElementById('builder-topic-input').value.trim();
     if(!unit){ statusEl.innerHTML = `<div class="error-note">Choose a unit first.</div>`; return; }
     sourceText = null; topicLabel = customTopic ? unit+' — '+customTopic : unit;
-    const days=Number(document.getElementById('builder-reminder')?.value||0);
-    reminderAt=days>0 ? Date.now()+days*86400000 : 0;
   }
+  const days=Number(document.getElementById('builder-reminder')?.value||0);
+  reminderAt=days>0 ? Date.now()+days*86400000 : 0;
   statusEl.innerHTML = `<div class="loading-line"><span class="spinner"></span> Building your ${type==='flashcards'?'flashcards':'quiz'}…</div>`;
   try{
     const setObj = await buildStudySet({subjectId, topic:source==='notes'?topicLabel:customTopic, unit, type, count, sourceText, reminderAt});
@@ -3553,6 +3553,9 @@ async function generateStudySet(){
 /* ============================== VIEWER: FLASHCARDS / QUIZ ============================== */
 function openStudySetViewer(id){
   const s = state.studySets.find(x=>x.id===id); if(!s) return;
+  if(Number(s.reminderAt||0)>0 && !s.reminderCompleted && Number(s.reminderAt)<=Date.now()){
+    s.reminderCompleted=true; s.reminderNotified=true; persistSets();
+  }
   if(s.type==='flashcards'){ ensureCardMeta(s); state.viewer = { setId:id, mode:'flashcards', cardsRef:s.cards, flashIndex:0, flashFlipped:false, sessionXP:0 }; }
   else{ state.viewer = { setId:id, mode:'quiz', quizIndex:0, quizAnswers:new Array(s.questions.length).fill(null), quizSubmitted:false }; }
   document.getElementById('viewer-title').textContent = s.title; renderViewerBody();
