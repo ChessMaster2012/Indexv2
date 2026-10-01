@@ -1573,6 +1573,17 @@ async function stripeRequest(endpoint,formFields={}){
   if(!r.ok) throw new Error(data.error?.message||data.message||('Stripe HTTP '+r.status));
   return data;
 }
+async function stripeGet(endpoint){
+  if(!STRIPE_SECRET_KEY) throw new Error('Stripe is not configured.');
+  const r=await fetch('https://api.stripe.com/v1/'+endpoint,{
+    method:'GET',
+    headers:{authorization:'Basic '+Buffer.from(STRIPE_SECRET_KEY+':').toString('base64')}
+  });
+  const txt=await r.text();
+  let data={}; try{data=txt?JSON.parse(txt):{};}catch{data={message:txt};}
+  if(!r.ok) throw new Error(data.error?.message||data.message||('Stripe HTTP '+r.status));
+  return data;
+}
 function verifyStripeSignature(rawBody,header){
   if(!rawBody||!STRIPE_WEBHOOK_SECRET)return false;
   const parts=String(header||'').split(',').reduce((acc,item)=>{
@@ -1616,7 +1627,7 @@ app.post('/api/billing/checkout',async(req,res)=>{
     const priceId=tier==='gold'?STRIPE_GOLD_PRICE_ID:tier==='platinum'?STRIPE_PLATINUM_PRICE_ID:STRIPE_DIAMOND_PRICE_ID;
     const session=await stripeRequest('checkout/sessions',{
       mode:'subscription','line_items[0][price]':priceId,'line_items[0][quantity]':1,
-      success_url:PUBLIC_BASE_URL+'/?billing=success',cancel_url:PUBLIC_BASE_URL+'/?billing=cancelled',
+      success_url:PUBLIC_BASE_URL+'/?billing=success&session_id={CHECKOUT_SESSION_ID}',cancel_url:PUBLIC_BASE_URL+'/?billing=cancelled',
       client_reference_id:String(req.user.id),
       ...(req.user.email?{customer_email:req.user.email}:{}),
       'metadata[userId]':String(req.user.id),'metadata[tier]':tier,
@@ -1627,6 +1638,44 @@ app.post('/api/billing/checkout',async(req,res)=>{
   }catch(e){
     console.error('Stripe checkout error:',e.message);
     res.status(503).json({error:'Secure checkout could not be started. Please try again.'});
+  }
+});
+app.post('/api/billing/confirm-session',async(req,res)=>{
+  if(!req.user)return res.status(401).json({error:'Not signed in.'});
+  try{
+    const sessionId=String(req.body?.sessionId||'').trim();
+    if(!/^cs_[A-Za-z0-9_]+$/.test(sessionId))return res.status(400).json({error:'Invalid checkout session.'});
+    if(!STRIPE_SECRET_KEY)return res.status(503).json({error:'Stripe is not configured yet.'});
+    await refreshAccountUserWithState(req);
+    const session=await stripeGet('checkout/sessions/'+encodeURIComponent(sessionId));
+    const sessionUserId=String(session.client_reference_id||session.metadata?.userId||'');
+    if(sessionUserId!==String(req.user.id))return res.status(403).json({error:'Checkout session does not belong to this account.'});
+    if(String(session.status||'')!=='complete'||String(session.payment_status||'')!=='paid'){
+      return res.status(409).json({error:'Stripe has not marked this payment as paid yet.'});
+    }
+    const tier=String(session.metadata?.tier||'').toLowerCase();
+    if(!['gold','platinum','diamond'].includes(tier))return res.status(400).json({error:'Checkout session has an invalid membership tier.'});
+    let patch={tier,status:'active',customerId:String(session.customer||''),subscriptionId:String(session.subscription||''),cancelAtPeriodEnd:false};
+    if(session.subscription){
+      try{
+        const subscription=await stripeGet('subscriptions/'+encodeURIComponent(String(session.subscription)));
+        const subTier=String(subscription.metadata?.tier||(subscription.items?.data?.[0]?.price?.id===STRIPE_DIAMOND_PRICE_ID?'diamond':subscription.items?.data?.[0]?.price?.id===STRIPE_PLATINUM_PRICE_ID?'platinum':subscription.items?.data?.[0]?.price?.id===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
+        if(['gold','platinum','diamond'].includes(subTier))patch.tier=subTier;
+        patch.status=String(subscription.status||'active');
+        patch.currentPeriodEnd=Number(subscription.current_period_end)||0;
+        patch.cancelAtPeriodEnd=subscription.cancel_at_period_end===true;
+      }catch(e){
+        console.warn('Stripe subscription reconciliation warning:',e.message);
+      }
+    }
+    const saved=await saveMembershipForUser(String(req.user.id),patch);
+    if(!saved)return res.status(404).json({error:'Index account could not be updated.'});
+    await refreshAccountUserWithState(req);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,membership:billingClientState(req.user)});
+  }catch(e){
+    console.error('Stripe checkout confirmation error:',e.message);
+    res.status(503).json({error:'Payment was completed, but Index could not confirm the membership yet.'});
   }
 });
 app.post('/api/billing/portal',async(req,res)=>{
@@ -1656,7 +1705,7 @@ app.post('/api/billing/webhook',async(req,res)=>{
     }else if(['customer.subscription.created','customer.subscription.updated','customer.subscription.deleted'].includes(event.type)){
       const userId=String(object.metadata?.userId||''),priceId=String(object.items?.data?.[0]?.price?.id||'');
       const tier=String(object.metadata?.tier||(priceId===STRIPE_DIAMOND_PRICE_ID?'diamond':priceId===STRIPE_PLATINUM_PRICE_ID?'platinum':priceId===STRIPE_GOLD_PRICE_ID?'gold':'')).toLowerCase();
-      if(userId&&['gold','diamond'].includes(tier)){
+      if(userId&&['gold','platinum','diamond'].includes(tier)){
         const active=!['canceled','unpaid'].includes(String(object.status||''));
         await saveMembershipForUser(userId,{tier:active?tier:'free',status:String(object.status||'active'),customerId:String(object.customer||''),subscriptionId:String(object.id||''),currentPeriodEnd:Number(object.current_period_end)||0,cancelAtPeriodEnd:object.cancel_at_period_end===true});
       }
