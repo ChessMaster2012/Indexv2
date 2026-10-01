@@ -3977,25 +3977,50 @@ function commanderDistanceFinal(px,py,ax,ay,bx,by){var dx=bx-ax,dy=by-ay,t=((px-
 function commanderCanPlaceFinal(x,y){var g=state.games,m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;});if(!m||g.running||g.finished)return false;if(x<.04||x>.96||y<.055||y>.945)return false;for(var i=0;i<m.route.length-1;i++)if(commanderDistanceFinal(x,y,m.route[i][0],m.route[i][1],m.route[i+1][0],m.route[i+1][1])<.065)return false;for(var j=0;j<m.detail.length;j++)for(var k=0;k<m.detail[j].length-1;k++)if(commanderDistanceFinal(x,y,m.detail[j][k][0],m.detail[j][k][1],m.detail[j][k+1][0],m.detail[j][k+1][1])<.04)return false;for(var q=0;q<m.rocks.length;q++){var o=m.rocks[q];if(Math.hypot(x-o[0],y-o[1])<o[2]+.03)return false;}for(var t=0;t<g.towers.length;t++)if(Math.hypot(x-g.towers[t].x,y-g.towers[t].y)<.07)return false;return true;}
 
 function commanderQuestionPoolFinal(g){
- var bank=[];state.studySets.forEach(function(s){if(s.subjectId!==g.subjectId||s.type!=='quiz'||!Array.isArray(s.questions))return;if(g.unit&&s.unit&&s.unit!==g.unit)return;if(g.topic&&String(s.topic||'').toLowerCase().indexOf(String(g.topic).toLowerCase())<0)return;s.questions.forEach(function(q){if(q.q&&Array.isArray(q.options)&&q.options.length===4)bank.push({q:q.q,options:q.options.map(String),correct:Math.max(0,Math.min(3,Number(q.correct)||0))});});});return shuffleArray(bank).slice(0,24);}
+ var bank=[];state.studySets.forEach(function(s){if(s.subjectId!==g.subjectId||s.type!=='quiz'||!Array.isArray(s.questions))return;if(g.unit&&s.unit&&s.unit!==g.unit)return;if(g.unit&&!s.unit&&g.topic&&String(s.title||'').toLowerCase().indexOf(String(g.topic).toLowerCase())<0)return;if(g.topic&&String(s.topic||'').toLowerCase().indexOf(String(g.topic).toLowerCase())<0)return;s.questions.forEach(function(q){if(q.q&&Array.isArray(q.options)&&q.options.length===4)bank.push({q:q.q,options:q.options.map(String),correct:Math.max(0,Math.min(3,Number(q.correct)||0))});});});return shuffleArray(bank).slice(0,24);}
 async function commanderPrepareFinal(){
-  var sid=(document.getElementById('commander-subject-final')||{}).value||'biology';
-  var unit=(document.getElementById('commander-unit-final')||{}).value||'';
-  var topic=((document.getElementById('commander-topic-final')||{}).value||'').trim();
-  state.games.subjectId=sid;state.games.unit=unit;state.games.topic=topic;state.games.setupLoading=true;state.games.setupError='';renderGames();
-  var bank=commanderQuestionPoolFinal(state.games),generationError='';
-  if(!bank.length&&typeof askJSON==='function'){
-    try{
-      var s=subjectById(sid);
-      var prompt='Create 10 AP-level multiple-choice questions ONLY about AP '+(s?s.name:'the selected course')+' unit "'+unit+'".'+(topic?' Focus specifically on "'+topic+'".':'')+' Return ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"brief"}]}. Every question must stay inside the selected unit.';
-      var out=await askJSON(prompt);
-      if(out&&Array.isArray(out.questions))bank=out.questions.filter(function(q){return q&&q.q&&Array.isArray(q.options)&&q.options.length===4;}).map(function(q){return{q:String(q.q),options:q.options.map(String),correct:Math.max(0,Math.min(3,Number(q.correct)||0))};});
-      else generationError='The question service returned no usable questions.';
-    }catch(e){generationError='The question service is temporarily unavailable. Please try again.';}
+ var sid=(document.getElementById('commander-subject-final')||{}).value||'biology';
+ var unit=(document.getElementById('commander-unit-final')||{}).value||'';
+ var topic=((document.getElementById('commander-topic-final')||{}).value||'').trim();
+ state.games.subjectId=sid;state.games.unit=unit;state.games.topic=topic;state.games.setupLoading=true;state.games.setupError='';renderGames();
+
+ var bank=commanderQuestionPoolFinal(state.games),generationError='';
+ if(!bank.length){
+  if(typeof runLocalAi!=='function'||typeof parseLooseJson!=='function'){
+   generationError='The question service is not available in this build.';
+  }else{
+   try{
+    var s=subjectById(sid);
+    var prompt='Create 10 AP-level multiple-choice questions for a student. HARD BOUNDARY: ONLY AP '+(s?s.name:'the selected course')+' UNIT "'+unit+'".'+(topic?' The optional topic "'+topic+'" narrows the questions further, but never replaces the selected unit.':'')+' Do not use concepts from other units. Cover different major concepts within this unit. Return ONLY valid JSON in this exact shape: {"questions":[{"q":"question","options":["choice A","choice B","choice C","choice D"],"correct":0,"explanation":"brief explanation"}]}. The correct field must be an integer 0-3. No markdown, no commentary, no text outside the JSON object.';
+    var raw=await runLocalAi([
+      {role:'system',content:'You are Index AP study-material generator. Stay strictly inside the requested AP course and unit. Return only valid JSON. Never add markdown or commentary.'},
+      {role:'user',content:prompt}
+    ],{timeoutMs:76000,complex:true,intent:'tutor'});
+    var parsed=parseLooseJson(raw);
+    if(parsed&&Array.isArray(parsed.questions)){
+      bank=parsed.questions.filter(function(q){
+        return q&&typeof q.q==='string'&&q.q.trim()&&Array.isArray(q.options)&&q.options.length===4&&q.options.every(function(o){return typeof o==='string'&&o.trim();});
+      }).map(function(q){
+        return{q:q.q.trim(),options:q.options.map(function(o){return String(o).trim();}),correct:Math.max(0,Math.min(3,Number.isInteger(Number(q.correct))?Number(q.correct):0)),explanation:q.explanation?String(q.explanation):''};
+      }).slice(0,20);
+    }else{
+      generationError='The question service returned an invalid question set.';
+    }
+   }catch(e){
+    var msg=String(e&&e.message||'').toLowerCase();
+    if(/timed out|timeout|too long/.test(msg))generationError='Vireonix Auto took too long to prepare this AP question set.';
+    else if(/rate|429|busy/.test(msg))generationError='Vireonix Auto is busy right now. Please try again in a moment.';
+    else generationError='Vireonix Auto could not prepare this AP question set right now.';
+   }
   }
-  state.games.questionBank=bank;state.games.setupLoading=false;
-  if(!bank.length){state.games.setupError=generationError||'No saved quiz matches this course and unit. Create a matching study set or try another unit.';renderGames();return;}
-  state.games.setupError='';state.games.commanderScreen='maps';commanderSaveFinal();persistProgress();renderGames();
+ }
+
+ state.games.questionBank=bank;state.games.setupLoading=false;
+ if(!bank.length){
+  state.games.setupError=generationError||'No matching AP quiz was found for this course and unit. Create a matching study set or try another unit.';
+  renderGames();return;
+ }
+ state.games.setupError='';state.games.commanderScreen='maps';commanderSaveFinal();persistProgress();renderGames();
 }
 function commanderSetupFinalHtml(){
   var opts=SUBJECTS.map(function(s){return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>';}).join('');
