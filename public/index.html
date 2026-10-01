@@ -5436,5 +5436,568 @@ if(hasCompletedSetup()){
 </script>
 
 
+
+<script id="commander-learning-economy-v5">
+(function(){
+  'use strict';
+
+  const DEPLOY_COSTS = {
+    'ling-sugarbug':5,
+    'ling-squire':10,
+    'ling-bard':15,
+    'ling-knight':20,
+    'ling-alchemist':25,
+    'ling-comet':30,
+    'ling-nebula':35,
+    'ling-voidling':40,
+    'ling-supernova':50
+  };
+
+  function commanderQuestionRequirementV5(g){
+    const wave = Math.max(0, Number(g && g.wave) || 0);
+    /* 1 correct answer for waves 0-14, 2 for 15-29, 3 for 30-44, etc. */
+    return 1 + Math.floor(wave / 15);
+  }
+
+  function commanderDeployCostV5(id){
+    return DEPLOY_COSTS[id] || 5;
+  }
+
+  function commanderQuestionMetaV5(g){
+    const required = Math.max(1, Number(g.questionRequired) || commanderQuestionRequirementV5(g));
+    return {
+      required,
+      correct: Math.max(0, Number(g.questionCorrectCount) || 0),
+      asked: Math.max(0, Number(g.questionAskedCount) || 0)
+    };
+  }
+
+  function commanderResetQuestionGateV5(g){
+    g.questionGateOpen = true;
+    g.questionRequired = commanderQuestionRequirementV5(g);
+    g.questionCorrectCount = 0;
+    g.questionAskedCount = 0;
+    g.questionAnswered = false;
+    g.questionError = '';
+    g.questionLoading = false;
+    g.question = null;
+    g.questionFeedback = '';
+  }
+
+  function commanderOpenQuestionGateV5(){
+    const g = state.games;
+    if(!g || g.active!=='commander' || g.phase!=='battle') return;
+    g.running = false;
+    g.waveCoins = 0;
+    commanderResetQuestionGateV5(g);
+    commanderSaveFinal();
+    commanderRenderScreen();
+    commanderLoadQuestionFinal();
+  }
+
+  function commanderPoolQuestionV5(g){
+    const bank = commanderQuestionPoolFinal(g);
+    return bank.length ? bank[Math.floor(Math.random()*bank.length)] : null;
+  }
+
+  async function commanderLoadQuestionV5(){
+    const g = state.games;
+    if(!g || g.active!=='commander' || g.phase!=='battle' || !g.questionGateOpen || g.questionLoading) return;
+    const local = commanderPoolQuestionV5(g);
+    if(local){
+      g.question = local;
+      g.questionLoading = false;
+      g.questionError = '';
+      g.questionFeedback = '';
+      commanderSaveFinal();
+      commanderRenderScreen();
+      return;
+    }
+
+    g.question = null;
+    g.questionLoading = true;
+    g.questionError = '';
+    g.questionFeedback = '';
+    commanderRenderScreen();
+
+    try{
+      const controller = new AbortController();
+      const timer = setTimeout(function(){ controller.abort(); },17000);
+      const response = await fetch('/api/ai/commander-question',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        credentials:'same-origin',
+        cache:'no-store',
+        body:JSON.stringify({
+          course:(subjectById(g.subjectId)||{}).name || '',
+          unit:g.unit || '',
+          topic:g.topic || ''
+        }),
+        signal:controller.signal
+      });
+      clearTimeout(timer);
+      const data = await response.json().catch(function(){return {};});
+      if(!response.ok || !data.question) throw new Error(String(data.error || 'The AP question could not be loaded.'));
+      const q=data.question;
+      if(!q.q || !Array.isArray(q.options) || q.options.length!==4) throw new Error('The AP question was incomplete.');
+      g.question={
+        q:String(q.q),
+        options:q.options.map(String),
+        correct:Math.max(0,Math.min(3,Number.isInteger(Number(q.correct))?Number(q.correct):0)),
+        explanation:q.explanation?String(q.explanation):''
+      };
+      g.questionBank=(g.questionBank||[]).concat([g.question]).slice(-24);
+      g.questionError='';
+      g.questionFeedback='';
+    }catch(e){
+      g.questionError=e&&e.name==='AbortError'
+        ? 'The AP question took too long to load.'
+        : String(e.message || 'The AP question could not be loaded.');
+    }finally{
+      g.questionLoading=false;
+      commanderSaveFinal();
+      commanderRenderScreen();
+    }
+  }
+
+  function commanderAnswerGateV5(i){
+    const g=state.games;
+    if(!g || !g.questionGateOpen || !g.question || g.questionLoading) return;
+
+    g.questionAnswered=true;
+    g.questionAskedCount=(Number(g.questionAskedCount)||0)+1;
+
+    if(Number(i)===Number(g.question.correct)){
+      g.questionCorrectCount=(Number(g.questionCorrectCount)||0)+1;
+      g.waveCoins=(Number(g.waveCoins)||0)+25;
+      g.questionFeedback='Correct! +25 deployment coins.';
+      showRewardToast('🪙 +25 deployment coins');
+      const meta=commanderQuestionMetaV5(g);
+
+      if(meta.correct>=meta.required){
+        g.questionGateOpen=false;
+        g.questionAnswered=false;
+        g.questionFeedback='';
+        g.questionError='';
+        commanderSaveFinal();
+        commanderRenderScreen();
+        return;
+      }
+
+      g.questionAnswered=false;
+      g.question=null;
+      commanderSaveFinal();
+      commanderRenderScreen();
+      setTimeout(commanderLoadQuestionFinal,180);
+      return;
+    }
+
+    g.questionFeedback='Not quite. Keep going — the next question is ready.';
+    g.questionAnswered=false;
+    g.question=null;
+    commanderSaveFinal();
+    commanderRenderScreen();
+    setTimeout(commanderLoadQuestionFinal,420);
+  }
+
+  function commanderQuestionGateHtmlV5(){
+    const g=state.games;
+    const meta=commanderQuestionMetaV5(g);
+    const subject=(subjectById(g.subjectId)||{}).name || 'AP';
+    const title=meta.required===1 ? 'Answer to Deploy' : 'Answer More Questions to Deploy';
+    const progress=meta.correct>=meta.required ? meta.required : meta.correct;
+    const header =
+      '<div class="commander-gate-kicker-v5">TROOP COMMANDER · STUDY GATE</div>'+
+      '<h1>'+esc(title)+'</h1>'+
+      '<p class="commander-gate-lead-v5">You cannot enter the defense field until you earn your deployment budget.</p>'+
+      '<div class="commander-gate-stats-v5">'+
+        '<span>✓ Correct: <b>'+progress+'/'+meta.required+'</b></span>'+
+        '<span>🪙 Deployment coins: <b>'+Math.max(0,Number(g.waveCoins)||0)+'</b></span>'+
+        '<span>🌊 Next wave: <b>'+(Math.max(0,Number(g.wave)||0)+1)+'</b></span>'+
+      '</div>';
+
+    let body='';
+    if(g.questionLoading){
+      body='<div class="commander-gate-loading-v5"><div class="commander-gate-spinner-v5"></div><b>Preparing your '+esc(subject)+' question…</b><small>Stay here until you answer correctly.</small></div>';
+    }else if(g.questionError){
+      body='<div class="commander-gate-error-v5"><b>We could not load the question.</b><small>'+esc(g.questionError)+'</small><button class="commander-gate-retry-v5" data-action="commander-retry-question">Try Again</button></div>';
+    }else if(g.question){
+      body=
+        '<div class="commander-gate-meta-v5">'+esc(subject)+' · '+esc(g.unit||'Unit')+(g.topic?' · '+esc(g.topic):'')+'</div>'+
+        '<div class="commander-gate-question-v5">'+esc(g.question.q)+'</div>'+
+        '<div class="commander-gate-options-v5">'+
+          g.question.options.map(function(o,i){
+            return '<button data-action="commander-answer" data-answer="'+i+'"><span>'+String.fromCharCode(65+i)+'</span>'+esc(o)+'</button>';
+          }).join('')+
+        '</div>'+
+        '<div class="commander-gate-hint-v5">'+esc(g.questionFeedback || 'Choose the best answer. A wrong answer gives you another question.')+'</div>';
+    }else{
+      body='<div class="commander-gate-loading-v5"><div class="commander-gate-spinner-v5"></div><b>Loading question…</b></div>';
+    }
+
+    return '<div class="commander-fullscreen commander-question-gate-v5">'+
+      '<div class="commander-gate-card-v5">'+header+body+'</div>'+
+    '</div>';
+  }
+
+  function commanderRosterFinalHtmlV5(){
+    const p=commanderFinalProfile();
+    const sel=state.games.selectedTroop||'ling-sugarbug';
+    const coins=Math.max(0,Number(state.games.waveCoins)||0);
+
+    return '<div class="commander-roster-final commander-roster-v5">'+
+      COMMANDER_TROOPS_FINAL.map(function(r){
+        const own=!!p.owned[r.id];
+        const lvl=Math.max(1,Number(p.levels[r.id])||1);
+        const s=commanderFinalStats(r.id,lvl);
+        const upgrade=commanderFinalCost(r.id);
+        const deploy=commanderDeployCostV5(r.id);
+        const canDeploy=own && coins>=deploy;
+        return '<div class="commander-char-final '+(own&&sel===r.id?'selected ':'')+(!own?'locked':'')+'">'+
+          '<button class="commander-char-select-final commander-char-select-v5" data-action="commander-select-troop" data-troop="'+r.id+'" '+(!own?'disabled':'')+'>'+
+            commanderIndexlingPortraitFinal(r.id)+
+            '<div class="commander-char-name-final">'+esc(r.name)+' · Lv '+lvl+'</div>'+
+            '<div class="commander-char-role-final">'+esc(r.role)+'</div>'+
+            '<div class="commander-char-stats-final">'+
+              '<span>⚔ '+s.damage+' DMG</span>'+
+              '<span>◉ '+s.range+' RNG</span>'+
+              '<span>⚡ '+(Math.round(1000/s.rate*10)/10)+' atk/s</span>'+
+              '<span>✦ '+esc(r.ability)+' · '+s.cooldown+'s</span>'+
+            '</div>'+
+          '</button>'+
+          (own
+            ? '<div class="commander-char-cost-v5">Deploy: <b>'+deploy+' 🪙</b></div><button class="commander-upgrade-final" data-action="commander-upgrade" data-id="'+r.id+'" '+(lvl>=10||p.coins<upgrade?'disabled':'')+'>Upgrade · '+upgrade+' 🪙</button>'
+            : '<div class="commander-char-cost-v5">Unlock: <b>'+r.cost+' 🪙</b></div><button class="commander-upgrade-final" data-action="commander-buy" data-id="'+r.id+'" '+(p.coins<r.cost?'disabled':'')+'>Unlock · '+r.cost+' 🪙</button>')+
+          (!own||!canDeploy ? '<div class="commander-deploy-state-v5">'+(own ? 'Need more deployment coins' : 'Locked')+'</div>' : '')+
+        '</div>';
+      }).join('')+
+    '</div>';
+  }
+
+  function commanderSaveFinalV5(){
+    const g=state.games;
+    if(g.slotIndex===undefined || g.slotIndex===null) return;
+    commanderSlotsFinal()[g.slotIndex]={
+      mapId:g.mapId,
+      round:g.wave,
+      base:g.base,
+      subjectId:g.subjectId||'',
+      unit:g.unit||'',
+      topic:g.topic||'',
+      questionBank:g.questionBank||[],
+      question:g.question||null,
+      questionAnswered:!!g.questionAnswered,
+      questionError:g.questionError||'',
+      questionGateOpen:!!g.questionGateOpen,
+      questionRequired:Math.max(1,Number(g.questionRequired)||commanderQuestionRequirementV5(g)),
+      questionCorrectCount:Math.max(0,Number(g.questionCorrectCount)||0),
+      questionAskedCount:Math.max(0,Number(g.questionAskedCount)||0),
+      waveCoins:Math.max(0,Number(g.waveCoins)||0),
+      towers:g.towers.map(function(t){return{x:t.x,y:t.y,id:t.id,level:t.level};}),
+      savedAt:Date.now()
+    };
+    persistProgress();
+  }
+
+  function commanderCanvasClickV5(e){
+    const g=state.games;
+    if(!g || g.active!=='commander' || g.phase!=='battle' || g.questionGateOpen || g.running || g.finished) return;
+    const cv=document.getElementById('commander-map-final');
+    if(!cv) return;
+    const r=cv.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width;
+    const y=(e.clientY-r.top)/r.height;
+    if(!commanderCanPlaceFinal(x,y)) return;
+    const id=g.selectedTroop||'ling-sugarbug';
+    const p=commanderFinalProfile();
+    if(!p.owned[id]) return;
+    const cost=commanderDeployCostV5(id);
+    if((Number(g.waveCoins)||0)<cost) return;
+    const lvl=Math.max(1,Number(p.levels[id])||1);
+    g.towers.push({id:id,x:x,y:y,level:lvl,cool:0,abilityReady:Date.now()+1800,recoil:0});
+    g.waveCoins=Math.max(0,Number(g.waveCoins)||0)-cost;
+    commanderSaveFinal();
+    commanderRenderScreen();
+    if(g.waveCoins===0){
+      setTimeout(function(){
+        if(state.games===g && g.active==='commander' && !g.running && !g.finished && !g.questionGateOpen){
+          commanderLaunchFinal();
+        }
+      },450);
+    }
+  }
+
+  function commanderBattleFinalHtmlV5(){
+    const g=state.games;
+    const m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;})||COMMANDER_MAPS_FINAL[0];
+    if(g.questionGateOpen) return commanderQuestionGateHtmlV5();
+    if(g.finished){
+      return '<div class="commander-fullscreen commander-battle-bg-ref"><div class="commander-result-ref">'+
+        '<h1>Base Defeated</h1><p>'+esc(m.name)+' · Round '+g.wave+'</p>'+
+        '<button class="commander-blue-button-ref commander-large-button-ref" data-action="commander-save-slots">Back to Save Slots</button>'+
+      '</div></div>';
+    }
+
+    const coins=Math.max(0,Number(g.waveCoins)||0);
+    const nextCost=Math.min.apply(null,COMMANDER_TROOPS_FINAL.filter(function(r){return commanderFinalProfile().owned[r.id];}).map(function(r){return commanderDeployCostV5(r.id);}).concat([5]));
+    const canStart=coins===0 && !g.running;
+
+    return '<div class="commander-fullscreen commander-battle-bg-ref commander-v5-battle">'+
+      '<main class="commander-battle-world-ref commander-world-v3">'+
+        '<canvas id="commander-map-final" class="commander-map-final-canvas"></canvas>'+
+        '<div class="commander-battle-map-label-ref">'+esc(m.name)+' · '+esc(m.difficulty)+'</div>'+
+        '<div class="commander-battle-context-ref">'+esc((subjectById(g.subjectId)||{}).name||'AP')+' · '+esc(g.unit||'Unit')+(g.topic?' · '+esc(g.topic):'')+'</div>'+
+        '<div class="commander-deployment-banner-v5"><b>DEPLOYMENT COINS</b><strong>🪙 '+coins+'</strong><small>'+(g.running?'Wave is running':'Place Indexlings until your budget reaches 0. The wave then starts automatically.')+'</small></div>'+
+      '</main>'+
+      '<aside class="commander-battle-panel-ref commander-panel-v3 commander-panel-v5">'+
+        '<div class="commander-currency-ref"><div><span>🪙</span><b>'+coins+'</b></div><div><span>♥</span><b>'+Math.max(0,g.base)+'</b></div></div>'+
+        '<div class="commander-round-ref">Wave '+Math.max(1,g.wave+1)+' · '+(g.running?'IN PROGRESS':'DEPLOYMENT')+'</div>'+
+        '<div class="commander-panel-title-ref">Indexlings · hover for stats · click to select</div>'+
+        commanderRosterFinalHtmlV5()+
+        '<div class="commander-deploy-help-v5">'+
+          '<b>How deployment works</b>'+
+          '<span>Correct study answers give 25 deployment coins. Each Indexling costs coins to place. When the budget reaches 0, the wave starts automatically.</span>'+
+        '</div>'+
+        '<button class="commander-start-ref commander-start-v5" data-action="commander-start-wave" '+(!canStart?'disabled':'')+'>'+ (canStart?'▶ Start Wave':'Spend all deployment coins') +'</button>'+
+        '<button class="commander-change-ref" data-action="commander-map-select">Change Map</button>'+
+        '<button class="commander-change-ref" data-action="commander-study-change">Change AP Topic</button>'+
+      '</aside>'+
+    '</div>';
+  }
+
+  function commanderStartWaveV5(){
+    const g=state.games;
+    if(!g || g.questionGateOpen || g.running || g.finished) return;
+    if(Math.max(0,Number(g.waveCoins)||0)!==0) return;
+    commanderLaunchFinal();
+  }
+
+  function commanderStartMapV5(mapId,slotIndex,save){
+    const m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===mapId;});
+    if(!m) return;
+    clearGameTimers();
+
+    const oldState=state.games||{};
+    const hasSave=!!save;
+    state.games={
+      active:'commander',
+      commanderScreen:'battle',
+      phase:'battle',
+      slotIndex:slotIndex,
+      mapId:mapId,
+      subjectId:(save&&save.subjectId)||oldState.subjectId||'biology',
+      unit:(save&&save.unit)||oldState.unit||'',
+      topic:(save&&save.topic)||oldState.topic||'',
+      questionBank:(save&&save.questionBank)||oldState.questionBank||[],
+      question:(save&&save.question)||null,
+      questionAnswered:false,
+      questionError:(save&&save.questionError)||'',
+      questionLoading:false,
+      questionGateOpen:hasSave ? save.questionGateOpen!==false : true,
+      questionRequired:hasSave ? Math.max(1,Number(save.questionRequired)||commanderQuestionRequirementV5({wave:Number(save.round)||0})) : 1,
+      questionCorrectCount:hasSave ? Math.max(0,Number(save.questionCorrectCount)||0) : 0,
+      questionAskedCount:hasSave ? Math.max(0,Number(save.questionAskedCount)||0) : 0,
+      questionFeedback:'',
+      waveCoins:hasSave ? Math.max(0,Number(save.waveCoins)||0) : 0,
+      base:hasSave?Math.max(1,Number(save.base)||100):100,
+      wave:hasSave?Math.max(0,Number(save.round)||0):0,
+      selectedTroop:(save&&save.selectedTroop)||'ling-sugarbug',
+      towers:[],
+      enemies:[],
+      projectiles:[],
+      effects:[],
+      running:false,
+      finished:false,
+      spawnTimer:null,
+      spawnCount:0,
+      spawnTotal:0,
+      lastFrame:0,
+      waveBanner:'',
+      waveBannerUntil:0,
+      hover:null,
+      bardBuffUntil:0,
+      shieldUntil:0
+    };
+
+    if(hasSave && Array.isArray(save.towers)){
+      save.towers.forEach(function(t){
+        if(t.x!==undefined && t.y!==undefined && commanderFinalProfile().owned[t.id]){
+          state.games.towers.push({
+            id:t.id,x:Number(t.x),y:Number(t.y),
+            level:Math.max(1,Number(t.level)||1),
+            cool:0,abilityReady:Date.now()+2000,recoil:0
+          });
+        }
+      });
+    }
+
+    commanderSaveFinal();
+    commanderRenderScreen();
+
+    requestAnimationFrame(function(){
+      const cv=document.getElementById('commander-map-final');
+      if(cv && !state.games.questionGateOpen){
+        if(!cv.dataset.boundV5){
+          cv.dataset.boundV5='1';
+          cv.addEventListener('mousemove',commanderCanvasMoveFinal);
+          cv.addEventListener('mouseleave',function(){state.games.hover=null;});
+          cv.addEventListener('click',commanderCanvasClickV5);
+        }
+        state.games.frame=requestAnimationFrame(commanderLoopFinal);
+      }
+    });
+
+    if(state.games.questionGateOpen) commanderLoadQuestionFinal();
+  }
+
+  function commanderRenderScreenV5(){
+    const stage=document.getElementById('games-stage');
+    const btn=document.getElementById('games-exit-btn');
+    if(!stage) return;
+    if(btn) btn.classList.add('hidden');
+
+    if(state.games.commanderScreen==='slots'){
+      stage.innerHTML=commanderSaveSlotsHtmlV2();
+      return;
+    }
+    if(state.games.commanderScreen==='setup'){
+      stage.innerHTML=commanderSetupFinalHtml();
+      const s=document.getElementById('commander-subject-final');
+      const u=document.getElementById('commander-unit-final');
+      if(s){
+        s.value=state.games.subjectId||'biology';
+        s.onchange=function(){
+          const sub=subjectById(s.value)||SUBJECTS[0];
+          const us=Array.isArray(sub.units)?sub.units:[];
+          u.innerHTML=us.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');
+          state.games.unit=us[0]||'';
+        };
+      }
+      if(u) u.value=state.games.unit||'';
+      const t=document.getElementById('commander-topic-final');
+      if(t) t.value=state.games.topic||'';
+      return;
+    }
+    if(state.games.commanderScreen==='maps'){
+      stage.innerHTML=commanderMapHtmlFinal();
+      return;
+    }
+    if(state.games.phase==='battle'){
+      stage.innerHTML=commanderBattleFinalHtmlV5();
+      if(state.games.questionGateOpen) return;
+      requestAnimationFrame(function(){
+        const cv=document.getElementById('commander-map-final');
+        if(!cv) return;
+        if(!cv.dataset.boundV5){
+          cv.dataset.boundV5='1';
+          cv.addEventListener('mousemove',commanderCanvasMoveFinal);
+          cv.addEventListener('mouseleave',function(){state.games.hover=null;});
+          cv.addEventListener('click',commanderCanvasClickV5);
+        }
+        commanderDrawSceneFinal();
+      });
+      return;
+    }
+    stage.innerHTML=commanderSaveSlotsHtmlV2();
+  }
+
+  /* Install the V5 behavior over the earlier Commander implementations. */
+  commanderSaveFinal=commanderSaveFinalV5;
+  commanderLoadQuestionFinal=commanderLoadQuestionV5;
+  commanderAnswerQuestion=commanderAnswerGateV5;
+  commanderStartWaveV5 && (commanderLaunchFinal=function(){
+    const g=state.games;
+    if(!g || g.questionGateOpen || g.running || g.finished || Math.max(0,Number(g.waveCoins)||0)!==0) return;
+    const m=COMMANDER_MAPS_FINAL.find(function(x){return x.id===g.mapId;});
+    if(!m) return;
+    g.wave++;
+    g.running=true;
+    g.spawnCount=0;
+    g.spawnTotal=4+Math.min(9,g.wave);
+    g.waveBanner='WAVE '+g.wave;
+    g.waveBannerUntil=Date.now()+1000;
+    g.question=null;
+    g.questionAnswered=false;
+    g.spawnTimer=setInterval(function(){
+      if(state.games!==g || g.active!=='commander' || g.phase!=='battle' || !g.running){
+        clearInterval(g.spawnTimer); g.spawnTimer=null; return;
+      }
+      if(g.spawnCount>=g.spawnTotal){
+        clearInterval(g.spawnTimer); g.spawnTimer=null; return;
+      }
+      const i=g.spawnCount;
+      const kind=(g.wave%4===0 && i===g.spawnTotal-1)
+        ? 'brute'
+        : (g.wave%3===0 && i%3===0 ? 'elite' : (i%2===0 ? 'raider' : 'runner'));
+      const b=COMMANDER_ENEMIES_FINAL.find(function(x){return x.id===kind;})||COMMANDER_ENEMIES_FINAL[1];
+      const hp=Math.round(b.hp*(m.hp/42)*(1+g.wave*.075));
+      const s=m.route[0];
+      g.enemies.push({
+        id:uid(),wp:0,x:s[0],y:s[1],hp:hp,maxHp:hp,
+        speed:b.speed*m.speed,baseDamage:b.baseDamage,size:b.size,
+        color:b.color,seed:Math.random()*9999,hit:0,slow:1
+      });
+      g.spawnCount++;
+    },m.spawn);
+    commanderSaveFinal();
+  });
+
+  commanderStartMapFinal=commanderStartMapV5;
+  commanderRenderScreen=commanderRenderScreenV5;
+
+  /* The existing update loop calls commanderLoadQuestionFinal after a cleared
+     wave. Our replacement turns that into the next full-screen study gate. */
+  commanderRetryQuestionFinal=function(){ commanderLoadQuestionFinal(); };
+
+  /* Use the V5 renderer for every Commander entry point. */
+  if(typeof commanderOpen==='function'){
+    const openOriginal=commanderOpen;
+    commanderOpen=function(){
+      openOriginal();
+      commanderRenderScreen();
+    };
+  }
+
+  /* Replace the delegated action hooks used by the main click handler. */
+  const oldActionMarker=window.__commanderV5ActionsInstalled;
+  if(!oldActionMarker){
+    window.__commanderV5ActionsInstalled=true;
+    const previousHandler=window.__indexCommanderV5ActionHook;
+    window.__indexCommanderV5ActionHook=function(action,t){
+      if(action==='commander-answer'){ commanderAnswerGateV5(parseInt(t.dataset.answer,10)); return true; }
+      if(action==='commander-start-wave'){ commanderStartWaveV5(); return true; }
+      if(action==='commander-retry-question'){ commanderRetryQuestionFinal(); return true; }
+      if(action==='commander-select-troop'){
+        if(!state.games.questionGateOpen) { state.games.selectedTroop=t.dataset.troop; commanderRenderScreen(); }
+        return true;
+      }
+      return previousHandler ? previousHandler(action,t) : false;
+    };
+  }
+
+  /* Patch the existing delegated game action handler once it is available.
+     The handler is already installed by Index; intercepting at document level
+     avoids changing unrelated game actions. */
+  document.addEventListener('click',function(ev){
+    const t=ev.target.closest && ev.target.closest('[data-action]');
+    if(!t) return;
+    const action=t.dataset.action;
+    if(!/^commander-/.test(action)) return;
+
+    if(action==='commander-answer' || action==='commander-start-wave' || action==='commander-retry-question' || action==='commander-select-troop'){
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      if(action==='commander-answer') commanderAnswerGateV5(parseInt(t.dataset.answer,10));
+      else if(action==='commander-start-wave') commanderStartWaveV5();
+      else if(action==='commander-retry-question') commanderRetryQuestionFinal();
+      else if(action==='commander-select-troop' && !state.games.questionGateOpen){
+        state.games.selectedTroop=t.dataset.troop;
+        commanderRenderScreen();
+      }
+    }
+  },true);
+
+})();
+</script>
 </body>
 </html>
