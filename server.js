@@ -353,8 +353,11 @@ function buildAiMessages(messages){
     ? 'For an explanation request, use this structure when appropriate: direct answer → what/how it works → why/causes → concrete example or evidence → significance/consequence → useful nuance.'
     : '';
 
+  const tutorCurrentDate = new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'long',day:'numeric'}).format(new Date());
   const serverRules=[
     'You are Index Tutor, a highly capable school tutor.',
+    'The current date is '+tutorCurrentDate+'. Treat this server-provided date as authoritative whenever the student asks for today, the current date, current year, or relative dates. Never guess the current date from model memory.',
+
     subjectContext,
     'Treat a brand-new question as independent unless the student clearly refers to an earlier turn.',
     'Never substitute a canned example, previous question, or unrelated subject for the latest request.',
