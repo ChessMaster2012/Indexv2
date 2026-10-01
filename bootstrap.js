@@ -1,1 +1,28 @@
-const fs = require('fs');\nconst path = require('path');\n\nconst root = __dirname;\nconst htmlPath = path.join(root, 'public', 'index.html');\nconst marker = '<!-- INDEX_REWARDS_V2 -->';\n\ntry {\n  let html = fs.readFileSync(htmlPath, 'utf8');\n  const legacyTag = '<script src="/indexling-custom.js"></script>';\n  const questTag = '<script src="/quests-avatar-pack.js"></script>';\n  const mapFixTag = '<script src="/commander-map-selection-fix.js"></script>';\n  html = html.split('<!-- INDEXLING_CUSTOM_V1 -->').join('');\n  html = html.split(legacyTag).join('');\n  html = html.split(questTag).join('');\n  html = html.split(mapFixTag).join('');\n  if (!html.includes(marker)) {\n    const patch = '\n' + marker + '\n' + questTag + '\n' + mapFixTag + '\n';\n    html = html.replace('</body>', patch + '</body>');\n  } else {\n    const tags = [questTag, mapFixTag].filter(tag => !html.includes(tag)).join('\n');\n    if (tags) html = html.replace(marker, marker + '\n' + tags);\n  }\n  fs.writeFileSync(htmlPath, html, 'utf8');\n} catch (err) {\n  console.error('Indexling bootstrap failed:', err);\n  process.exit(1);\n}\n\nrequire(path.join(root, 'server.js'));\n
+const fs = require('fs');
+const path = require('path');
+
+const root = __dirname;
+const htmlPath = path.join(root, 'public', 'index.html');
+const marker = '<!-- INDEX_REWARDS_V2 -->';
+const questTag = '<script src="/quests-avatar-pack.js"></script>';
+
+try {
+  let html = fs.readFileSync(htmlPath, 'utf8');
+
+  html = html.split('<!-- INDEXLING_CUSTOM_V1 -->').join('');
+  html = html.split('<script src="/indexling-custom.js"></script>').join('');
+  html = html.split(questTag).join('');
+
+  if (!html.includes(marker)) {
+    html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n</body>');
+  } else {
+    html = html.replace(marker, marker + '\n' + questTag);
+  }
+
+  fs.writeFileSync(htmlPath, html, 'utf8');
+} catch (err) {
+  console.error('Indexling bootstrap failed:', err);
+  process.exit(1);
+}
+
+require(path.join(root, 'server.js'));
