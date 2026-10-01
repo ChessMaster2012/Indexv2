@@ -56,6 +56,17 @@ nav{display:flex;flex-direction:column;gap:3px;}
 .panel{backdrop-filter:blur(4px);}
 .btn{letter-spacing:.01em;}
 .builder{background:linear-gradient(180deg,#fff,rgba(255,255,255,.82));border:1px solid rgba(124,92,252,.12);box-shadow:0 14px 34px rgba(36,31,61,.07);}
+.field-optional{font-size:10px;color:var(--ink-soft);font-weight:700;text-transform:none;letter-spacing:0;}
+.builder-reminder-row{display:grid;grid-template-columns:minmax(190px,.7fr) 1.3fr;gap:12px;align-items:end;margin:4px 0 10px;}
+.builder-reminder-help{font-size:11.5px;color:var(--ink-soft);line-height:1.45;padding:0 4px 9px;}
+.sets-toolbar{display:grid;grid-template-columns:1.4fr .8fr .8fr .9fr;gap:9px;margin:0 0 14px;}
+.sets-toolbar input,.sets-toolbar select{width:100%;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font-size:12.5px;}
+.sets-summary{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;}
+.sets-summary .chip{background:#fff;color:var(--ink-soft);border:1px solid var(--line);}
+.set-card-due{display:inline-flex;align-items:center;gap:4px;margin-top:7px;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:900;background:#fff4c8;color:#765700;border:1px solid #e7cc68;}
+.set-card-due.overdue{background:#ffe8e8;color:#a22b2b;border-color:#f1b3b3;}
+.set-card-due.done{background:#e9fff5;color:#16805a;border-color:#a9e6c9;}
+@media(max-width:760px){.builder-reminder-row{grid-template-columns:1fr}.sets-toolbar{grid-template-columns:1fr 1fr;}}
 .live-hub-card{box-shadow:0 14px 30px rgba(36,31,61,.13);}
 .live-hub-card.host{background:linear-gradient(135deg,#6e50ef,#ee6da5);}
 .live-hub-card.join{background:linear-gradient(135deg,#438fe8,#35b98b);}
@@ -1088,8 +1099,15 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
         </div>
         <div id="source-topic-block" class="hidden">
           <div class="builder-row">
-            <div class="field"><label>Course</label><select id="builder-subject-topic"></select></div>
-            <div class="field"><label>Topic</label><input type="text" id="builder-topic-input" placeholder="e.g. Photosynthesis, The New Deal, Limits"></div>
+            <div class="field"><label>AP course</label><select id="builder-subject-topic"></select></div>
+            <div class="field"><label>Unit</label><select id="builder-unit-topic"><option value="">Choose a unit…</option></select></div>
+          </div>
+          <div class="builder-row">
+            <div class="field"><label>Specific topic <span class="field-optional">(optional)</span></label><input type="text" id="builder-topic-input" placeholder="e.g. Federalist 10, natural selection, derivatives"></div>
+          </div>
+          <div class="builder-reminder-row">
+            <div class="field"><label>Review reminder</label><select id="builder-reminder"><option value="0">No reminder</option><option value="1">Tomorrow</option><option value="3">In 3 days</option><option value="7" selected>In 1 week</option><option value="14">In 2 weeks</option></select></div>
+            <div class="builder-reminder-help">Your set stays saved and gets a “Due” badge when it is time to review.</div>
           </div>
         </div>
         <div class="builder-row" style="margin-top:4px;">
@@ -1099,7 +1117,14 @@ button,.btn{font-family:var(--font-ui) !important;border-radius:12px !important}
         <div id="builder-status"></div>
         <button class="btn btn-primary" data-action="generate-set">✨ Generate study set</button>
       </div>
-      <h3 style="font-size:15px;margin-bottom:14px;">Your study sets</h3>
+      <h3 style="font-size:15px;margin-bottom:10px;">Your study sets</h3>
+      <div class="sets-summary" id="sets-summary"></div>
+      <div class="sets-toolbar">
+        <input id="sets-search" type="search" placeholder="Search sets, units, or topics…">
+        <select id="sets-course-filter"><option value="">All courses</option></select>
+        <select id="sets-status-filter"><option value="">All reminders</option><option value="due">Scheduled / due</option><option value="done">Reviewed</option></select>
+        <select id="sets-sort"><option value="recent">Newest first</option><option value="due">Reminder date</option><option value="course">Course</option><option value="name">Name</option></select>
+      </div>
       <div id="sets-list"></div>
     </section>
 
@@ -1581,6 +1606,7 @@ function loadLocalData(){
     }
   });
   if(dirty) persistSets();
+  setTimeout(checkStudySetReminders, 600);
 }
 function persistNotes(){ lsSet('index-notes', state.notes); scheduleAccountStateSync(); }
 function persistSets(){ lsSet('index-studysets', state.studySets); scheduleAccountStateSync(); }
@@ -3032,6 +3058,15 @@ function populateSubjectSelects(){
   document.getElementById('builder-subject-topic').innerHTML = opts;
   document.getElementById('learn-subject').innerHTML = opts;
   document.getElementById('notes-filter').innerHTML = `<option value="">All courses</option>` + opts;
+  updateStudySetUnitOptions();
+  const filter=document.getElementById('sets-course-filter');
+  if(filter) filter.innerHTML=`<option value="">All courses</option>`+opts;
+}
+function updateStudySetUnitOptions(){
+  const course=document.getElementById('builder-subject-topic'), unit=document.getElementById('builder-unit-topic');
+  if(!course || !unit) return;
+  const subj=subjectById(course.value), units=Array.isArray(subj?.units)?subj.units:[];
+  unit.innerHTML='<option value="">Choose a unit…</option>'+units.map((u,i)=>'<option value="'+esc(u)+'">Unit '+(i+1)+' — '+esc(u)+'</option>').join('');
 }
 
 /* ============================== TUTOR ============================== */
@@ -3329,14 +3364,50 @@ function renderLessonBody(){
 }
 
 /* ============================== STUDY SETS / BUILDER ============================== */
+function studySetReminderState(s){
+  const at=Number(s.reminderAt||0);
+  if(!at) return {kind:'none',label:''};
+  if(s.reminderCompleted) return {kind:'done',label:'✓ Reviewed'};
+  const diff=at-Date.now();
+  if(diff<=0) return {kind:'overdue',label:'🔔 Due now'};
+  const days=Math.ceil(diff/86400000);
+  return {kind:'upcoming',label:days===1?'🔔 Tomorrow':'🔔 In '+days+' days'};
+}
+function checkStudySetReminders(){
+  const due=state.studySets.filter(s=>studySetReminderState(s).kind==='overdue'&&!s.reminderNotified);
+  if(!due.length) return;
+  due.forEach(s=>s.reminderNotified=true);
+  persistSets();
+  showRewardToast('🔔 Study reminder: '+due.slice(0,3).map(s=>s.title).join(', ')+(due.length>3?' and more':''));
+}
 function renderStudySets(){
   renderBuilderNoteList();
-  const container = document.getElementById('sets-list'); const list = [...state.studySets].sort((a,b)=>b.createdAt-a.createdAt);
-  if(list.length===0){ container.innerHTML = `<div class="empty-state"><h3>No study sets yet</h3><p>Use the builder above to generate flashcards or a quiz.</p></div>`; return; }
-  container.innerHTML = `<div class="sets-grid">${list.map(s=>{
-    const subj = subjectById(s.subjectId); const count = s.type==='flashcards' ? s.cards.length : s.questions.length;
-    return `<button class="set-card" data-action="open-set" data-id="${s.id}"><span class="set-kind">${s.type==='flashcards'?'Flashcards':'Quiz'}</span><span class="set-title">${esc(s.title)}</span><span class="set-meta">${subj?esc(subj.name):''} · ${count} ${s.type==='flashcards'?'cards':'questions'}</span></button>`;
-  }).join('')}</div>`;
+  const container=document.getElementById('sets-list');
+  const query=(document.getElementById('sets-search')?.value||'').trim().toLowerCase();
+  const course=(document.getElementById('sets-course-filter')?.value||'');
+  const status=(document.getElementById('sets-status-filter')?.value||'');
+  const sort=(document.getElementById('sets-sort')?.value||'recent');
+  let list=[...state.studySets].filter(s=>{
+    const subj=subjectById(s.subjectId), hay=((s.title||'')+' '+(s.unit||'')+' '+(s.topic||'')+' '+(subj?.name||'')).toLowerCase();
+    const rem=studySetReminderState(s);
+    return (!query||hay.includes(query))&&(!course||s.subjectId===course)&&(!status||(status==='due'&&(rem.kind==='overdue'||rem.kind==='upcoming'))||(status==='done'&&rem.kind==='done'));
+  });
+  list.sort((x,y)=>{
+    if(sort==='due') return (Number(x.reminderAt)||Infinity)-(Number(y.reminderAt)||Infinity);
+    if(sort==='course') return String(subjectById(x.subjectId)?.name||'').localeCompare(String(subjectById(y.subjectId)?.name||''))||y.createdAt-x.createdAt;
+    if(sort==='name') return String(x.title||'').localeCompare(String(y.title||''));
+    return y.createdAt-x.createdAt;
+  });
+  const all=[...state.studySets], due=all.filter(s=>{const r=studySetReminderState(s);return r.kind==='overdue'||r.kind==='upcoming';}).length, reviewed=all.filter(s=>studySetReminderState(s).kind==='done').length;
+  const summary=document.getElementById('sets-summary');
+  if(summary) summary.innerHTML='<span class="chip"><span class="dot"></span>'+all.length+' total</span><span class="chip"><span class="dot"></span>'+due+' scheduled/due</span><span class="chip"><span class="dot"></span>'+reviewed+' reviewed</span>';
+  if(list.length===0){container.innerHTML='<div class="empty-state"><h3>No matching study sets</h3><p>Try a different course, filter, or search.</p></div>';return;}
+  container.innerHTML='<div class="sets-grid">'+list.map(s=>{
+    const subj=subjectById(s.subjectId), count=s.type==='flashcards'?s.cards.length:s.questions.length, rem=studySetReminderState(s);
+    const unitIndex=s.unit?(subj?.units||[]).indexOf(s.unit)+1:0;
+    const unitLabel=s.unit?' · Unit '+unitIndex+': '+esc(s.unit):'', topicLabel=s.topic?' · '+esc(s.topic):'';
+    return '<button class="set-card" data-action="open-set" data-id="'+s.id+'"><span class="set-kind">'+(s.type==='flashcards'?'Flashcards':'Quiz')+'</span><span class="set-title">'+esc(s.title)+'</span><span class="set-meta">'+(subj?esc(subj.name):'')+unitLabel+topicLabel+' · '+count+' '+(s.type==='flashcards'?'cards':'questions')+'</span>'+(rem.label?'<span class="set-card-due '+rem.kind+'">'+rem.label+'</span>':'')+'</button>';
+  }).join('')+'</div>';
 }
 function renderBuilderNoteList(){
   const subjectId = document.getElementById('builder-subject-notes').value || SUBJECTS[0].id;
@@ -3414,7 +3485,7 @@ function normalizeCheckpoint(cp){
   if(!Number.isInteger(correct) || correct<0 || correct>3) return null;
   return { q: q.slice(0,400), options: options.map(o=>o.slice(0,200)), correct, explanation: String(cp.explanation||'').slice(0,400) };
 }
-async function buildStudySet({subjectId, topic, type, count, sourceText}){
+async function buildStudySet({subjectId, topic, unit, type, count, sourceText, reminderAt}){
   const subj = subjectById(subjectId); let prompt;
   if(type==='flashcards'){
     prompt = (sourceText
@@ -3428,7 +3499,7 @@ async function buildStudySet({subjectId, topic, type, count, sourceText}){
       + `\n\nReply with ONLY JSON, no markdown fences, exactly this shape: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"..."}]} where "correct" is the zero-based index of the right option. Do not return an empty questions array.`;
   }
   let parsed = await askJSON(prompt);
-  let setObj = { id:uid(), subjectId, type, title:`${subj.name} — ${topic}`, createdAt:Date.now() };
+  let setObj = { id:uid(), subjectId, type, unit:unit||'', topic:topic||'', title:`${subj.name} — ${unit ? unit + (topic ? ' — '+topic : '') : topic}`, createdAt:Date.now(), reminderAt:Number(reminderAt)||0, reminderCompleted:false };
   if(type==='flashcards'){
     let cards = normalizeGeneratedCards(parsed);
     if(!cards.length){
@@ -3455,7 +3526,7 @@ async function generateStudySet(){
   const type = document.getElementById('builder-type').value; const count = document.getElementById('builder-count').value;
   const source = state.builder.source; const statusEl = document.getElementById('builder-status');
   if(!state.aiEnabled){ statusEl.innerHTML = `<div class="error-note">${esc(localAiUnavailableMessage)}</div>`; return; }
-  let subjectId, sourceText, topicLabel;
+  let subjectId, sourceText, topicLabel, unit='', customTopic='', reminderAt=0;
   if(source==='notes'){
     subjectId = document.getElementById('builder-subject-notes').value;
     const picked = state.notes.filter(n=>state.builder.selectedNoteIds.has(n.id) && n.subjectId===subjectId);
@@ -3464,13 +3535,16 @@ async function generateStudySet(){
     topicLabel = picked.length===1 ? picked[0].title : `${picked.length} notes`;
   }else{
     subjectId = document.getElementById('builder-subject-topic').value;
-    const topic = document.getElementById('builder-topic-input').value.trim();
-    if(!topic){ statusEl.innerHTML = `<div class="error-note">Enter a topic to build from.</div>`; return; }
-    sourceText = null; topicLabel = topic;
+    unit = document.getElementById('builder-unit-topic').value;
+    customTopic = document.getElementById('builder-topic-input').value.trim();
+    if(!unit){ statusEl.innerHTML = `<div class="error-note">Choose a unit first.</div>`; return; }
+    sourceText = null; topicLabel = customTopic ? unit+' — '+customTopic : unit;
+    const days=Number(document.getElementById('builder-reminder')?.value||0);
+    reminderAt=days>0 ? Date.now()+days*86400000 : 0;
   }
   statusEl.innerHTML = `<div class="loading-line"><span class="spinner"></span> Building your ${type==='flashcards'?'flashcards':'quiz'}…</div>`;
   try{
-    const setObj = await buildStudySet({subjectId, topic:topicLabel, type, count, sourceText});
+    const setObj = await buildStudySet({subjectId, topic:customTopic, unit, type, count, sourceText, reminderAt});
     statusEl.innerHTML = `<div class="loading-line" style="color:var(--green-deep);">Done — "${esc(setObj.title)}" is ready. 🎉</div>`;
     renderStudySets(); openStudySetViewer(setObj.id);
   }catch(e){ statusEl.innerHTML = `<div class="error-note">Couldn't build that study set. Please try again.</div>`; }
@@ -4727,6 +4801,11 @@ document.getElementById('source-toggle').addEventListener('click', (e)=>{
   document.getElementById('source-topic-block').classList.toggle('hidden', b.dataset.source!=='topic');
 });
 document.getElementById('builder-subject-notes').addEventListener('change', ()=>{ state.builder.selectedNoteIds = new Set(); renderBuilderNoteList(); });
+document.getElementById('builder-subject-topic').addEventListener('change', ()=>{ updateStudySetUnitOptions(); });
+document.getElementById('sets-search').addEventListener('input', renderStudySets);
+document.getElementById('sets-course-filter').addEventListener('change', renderStudySets);
+document.getElementById('sets-status-filter').addEventListener('change', renderStudySets);
+document.getElementById('sets-sort').addEventListener('change', renderStudySets);
 document.getElementById('note-pick-list').addEventListener('change', (e)=>{
   const cb = e.target.closest('input[type=checkbox]'); if(!cb) return;
   if(cb.checked) state.builder.selectedNoteIds.add(cb.dataset.noteId); else state.builder.selectedNoteIds.delete(cb.dataset.noteId);
