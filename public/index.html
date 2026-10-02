@@ -8086,38 +8086,88 @@ function updateProjectile(g,q,dt){
   q.life-=dt*1000;
 }
 function loopV6(now){
-  var g=state.games;if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
-  var dt=Math.min(.05,(g.lastFrame?now-g.lastFrame:now)/1000);g.lastFrame=now;var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});if(!m)return;
-  if(g.running){
-    while(g.spawnCount<g.spawnTotal&&now>=g.nextSpawnAt){spawnV6(g);g.nextSpawnAt+=Math.max(300,m.spawn);}
-    var p=profile();
-    g.towers.forEach(function(t){
-      var st=richStats(t.id,t.level),td=tdef(t.id);t.cool=Math.max(0,(t.cool||0)-dt*1000);
-      if(td.income)g.coinAccumulator=(g.coinAccumulator||0)+td.income*dt;
-      if(td.income&&g.coinAccumulator>=1){var whole=Math.floor(g.coinAccumulator);g.coinAccumulator-=whole;p.coins+=whole;}
-      if(t.cool>0)return;
-      var target=null,bd=Infinity;
-      g.enemies.forEach(function(e){if(e.hp<=0)return;var d=Math.hypot(e.x-t.x,e.y-t.y);if(d<=st.range/850&&d<bd){target=e;bd=d;}});
-      if(fireV6(g,t,target,st,now)){}
-    });
-    g.enemies.forEach(function(e){
-      var step=e.speed*dt*.18*(e.slowUntil>Date.now()?(e.slow||.5):1),tar=m.route[Math.min(e.wp+1,m.route.length-1)],dx=tar[0]-e.x,dy=tar[1]-e.y,d=Math.hypot(dx,dy)||1;
-      if(e.burnUntil>Date.now())e.hp-=e.burnDps*dt;if(e.poisonUntil>Date.now())e.hp-=e.poisonDps*dt;
-      if(d<=step){e.x=tar[0];e.y=tar[1];e.wp++;if(e.wp>=m.route.length-1){e.hp=0;g.base=Math.max(0,g.base-e.baseDamage);}}
-      else{e.x+=dx/d*step;e.y+=dy/d*step;}e.hit=Math.max(0,(e.hit||0)-dt*1000);
-    });
-    g.projectiles.forEach(function(q){updateProjectile(g,q,dt);});
-    g.effects.forEach(function(z){z.life-=dt*1000;});g.effects=g.effects.filter(function(z){return z.life>0;});
-    g.projectiles=g.projectiles.filter(function(q){return q.life>0;});g.enemies=g.enemies.filter(function(e){return e.hp>0;});
-    if(g.base<=0){g.running=false;g.finished=true;v6Save(g);renderBattle(g);return;}
-    if(g.spawnCount>=g.spawnTotal&&g.enemies.length===0){
-      g.running=false;g.questionGateOpen=true;g.waveCoins=0;g.questionFeedback=null;g.questionCorrectCount=0;g.questionAskedCount=0;g.waveBanner='ROUND '+g.wave+' CLEARED';
-      commanderAdvanceToNextQuestion(g);
-      try{v6Save(g);}catch(err){console.warn('Commander wave save failed',err);}
-      return;
+  var g=state.games;
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
+  try{
+    var dt=Math.min(.05,(g.lastFrame?now-g.lastFrame:now)/1000);
+    g.lastFrame=now;
+    var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});
+    if(!m){g.running=false;g.frame=null;return;}
+    if(g.running){
+      while(g.spawnCount<g.spawnTotal&&now>=g.nextSpawnAt){
+        spawnV6(g);
+        g.nextSpawnAt+=Math.max(300,m.spawn);
+      }
+      var p=profile();
+      (g.towers||[]).forEach(function(t){
+        var st=richStats(t.id,t.level)||{range:0,rate:1000,damage:0,power:0,shot:'#fff'};
+        var td=tdef(t.id)||{};
+        t.cool=Math.max(0,(t.cool||0)-dt*1000);
+        if(td.income)g.coinAccumulator=(g.coinAccumulator||0)+td.income*dt;
+        if(td.income&&g.coinAccumulator>=1){
+          var whole=Math.floor(g.coinAccumulator);
+          g.coinAccumulator-=whole;
+          p.coins+=whole;
+        }
+        if(t.cool>0)return;
+        var target=null,bd=Infinity;
+        (g.enemies||[]).forEach(function(e){
+          if(e.hp<=0)return;
+          var d=Math.hypot(e.x-t.x,e.y-t.y);
+          if(d<=st.range/850&&d<bd){target=e;bd=d;}
+        });
+        fireV6(g,t,target,st,now);
+      });
+      (g.enemies||[]).forEach(function(e){
+        var step=e.speed*dt*.18*(e.slowUntil>Date.now()?(e.slow||.5):1);
+        var tar=m.route[Math.min(e.wp+1,m.route.length-1)];
+        if(!tar)return;
+        var dx=tar[0]-e.x,dy=tar[1]-e.y,d=Math.hypot(dx,dy)||1;
+        if(e.burnUntil>Date.now())e.hp-=e.burnDps*dt;
+        if(e.poisonUntil>Date.now())e.hp-=e.poisonDps*dt;
+        if(d<=step){
+          e.x=tar[0];e.y=tar[1];e.wp++;
+          if(e.wp>=m.route.length-1){
+            e.hp=0;
+            g.base=Math.max(0,g.base-e.baseDamage);
+          }
+        }else{
+          e.x+=dx/d*step;e.y+=dy/d*step;
+        }
+        e.hit=Math.max(0,(e.hit||0)-dt*1000);
+      });
+      (g.projectiles||[]).forEach(function(q){updateProjectile(g,q,dt);});
+      (g.effects||[]).forEach(function(z){z.life-=dt*1000;});
+      g.effects=(g.effects||[]).filter(function(z){return z.life>0;});
+      g.projectiles=(g.projectiles||[]).filter(function(q){return q.life>0;});
+      g.enemies=(g.enemies||[]).filter(function(e){return e.hp>0;});
+      if(g.base<=0){
+        g.running=false;g.frame=null;g.finished=true;
+        v6Save(g);renderBattle(g);return;
+      }
+      if(g.spawnCount>=g.spawnTotal&&g.enemies.length===0){
+        g.running=false;g.frame=null;g.questionGateOpen=true;g.waveCoins=0;
+        g.questionFeedback=null;g.questionCorrectCount=0;g.questionAskedCount=0;
+        g.waveBanner='ROUND '+g.wave+' CLEARED';
+        commanderAdvanceToNextQuestion(g);
+        try{v6Save(g);}catch(err){console.warn('Commander wave save failed',err);}
+        return;
+      }
     }
+    draw(g);
+    if(state.games===g&&!g.questionGateOpen&&!g.finished){
+      g.frame=requestAnimationFrame(loopV6);
+    }else{
+      g.frame=null;
+    }
+  }catch(err){
+    console.error('Commander loopV6 failed:',err);
+    g.running=false;
+    g.frame=null;
+    try{v6Save(g);}catch(saveErr){console.error('Commander recovery save failed:',saveErr);}
+    try{renderBattle(g);}catch(renderErr){console.error('Commander recovery render failed:',renderErr);}
+    try{showRewardToast('Wave stopped safely. Please start the wave again.');}catch(toastErr){}
   }
-  draw(g);if(state.games===g&&!g.questionGateOpen&&!g.finished)g.frame=requestAnimationFrame(loopV6);
 }
 function towerAtPoint(g,x,y){
   var best=-1,bestD=.06;
