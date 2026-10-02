@@ -8047,26 +8047,33 @@ window.__commanderEnterBattlefieldV7=function(e){
   var g=state.games;
   if(!g||!g.questionFeedback||g.questionFeedback.correct!==true)return false;
   try{
-    g.active='commander';g.phase='battle';g.commanderScreen='battle';
-    g.questionGateOpen=false;g.questionFeedback=null;g.question=null;g.selectedTroop=null;
+    g.active='commander';
+    g.phase='battle';
+    g.commanderScreen='battle';
+    g.questionGateOpen=false;
+    g.questionFeedback=null;
+    g.question=null;
+    g.questionLoading=false;
+    g.selectedTroop=null;
+    g.running=false;
+    g.finished=false;
     if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
-    var stage=document.getElementById('games-stage');
-    if(!stage)throw new Error('Commander battlefield container is missing.');
-    stage.innerHTML=battle(g);
-    requestAnimationFrame(function(){
-      var cv=document.getElementById('commander-auth-canvas');
-      if(!cv)return;
-      cv.onpointermove=function(ev){var r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width,y=(ev.clientY-r.top)/r.height;g.cursor={x:x,y:y,valid:canPlace(g,x,y)};draw(g);};
-      cv.onpointerleave=function(){g.cursor=null;draw(g);};
-      cv.onpointerdown=function(ev){if(ev.button!==0)return;var r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width,y=(ev.clientY-r.top)/r.height;place(g,x,y);};
-      draw(g);
-    });
-    setTimeout(function(){try{v6Save(g);}catch(err){console.warn('Commander battlefield save failed',err);}},0);
+
+    renderBattle(g);
+
+    var canvas=document.getElementById('commander-auth-canvas');
+    if(!canvas)throw new Error('Commander battlefield canvas was not created.');
+
+    try{v6Save(g);}catch(err){console.warn('Commander battlefield save failed',err);}
+    g.lastFrame=performance.now();
+    g.frame=requestAnimationFrame(loopV6);
     return false;
   }catch(err){
     console.error('Commander battlefield launch failed',err);
-    var stage2=document.getElementById('games-stage');
-    if(stage2)stage2.innerHTML='<div class="commander-authoritative-root commander-auth-battle" style="display:flex;align-items:center;justify-content:center;background:#071321;color:#fff;"><div style="background:#fff;color:#102033;max-width:650px;margin:auto;padding:28px;border-radius:20px;text-align:center;"><h2 style="margin:0 0 10px;">Battlefield could not open</h2><p style="color:#526579;line-height:1.5;">The Commander engine hit a startup error. Reloading this Commander run can restore the battlefield.</p><button type="button" style="padding:12px 18px;border:0;border-radius:10px;background:#1c75b7;color:#fff;font-weight:900;cursor:pointer;" onclick="location.reload()">Reload Commander</button></div></div>';
+    var stage=document.getElementById('games-stage');
+    if(stage){
+      stage.innerHTML='<div class="commander-authoritative-root commander-auth-battle" style="display:flex;align-items:center;justify-content:center;background:#071321;color:#fff;"><div style="background:#fff;color:#102033;max-width:650px;margin:auto;padding:28px;border-radius:20px;text-align:center;"><div style="font-size:11px;font-weight:950;letter-spacing:.12em;color:#176fa7;text-transform:uppercase;">COMMANDER</div><h2 style="margin:8px 0 10px;">Battlefield could not open</h2><p style="color:#526579;line-height:1.5;">'+esc(String(err&&err.message||'Unknown Commander error'))+'</p><button type="button" style="padding:12px 18px;border:0;border-radius:10px;background:#1c75b7;color:#fff;font-weight:900;cursor:pointer;" onclick="return window.__commanderExitV6(event)">Back to Commander</button></div></div>';
+    }
     return false;
   }
 };
