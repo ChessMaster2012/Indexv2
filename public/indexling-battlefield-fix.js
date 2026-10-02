@@ -169,7 +169,7 @@ function buildCard(c,g){
   var damage=Math.max(1,Math.round((Number(t.damage)||8)*mult));
   var range=Math.round(Number(t.range)||120);
   var dps=Math.round((damage*1000/Math.max(400,Number(t.rate)||1200))*10)/10;
-  return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected ':'')+(unaffordable?'unaffordable':'')+'" data-pack-v4-troop="'+esc(c.id)+'" '+(unaffordable?'disabled title="Need '+cost+' deployment coins"':'')+'>'+
+  return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected ':'')+(unaffordable?'unaffordable':'')+'" data-pack-v4-troop="'+esc(c.id)+'" aria-disabled="'+(unaffordable?'true':'false')+'" '+(unaffordable?'title="Need '+cost+' deployment coins"':'')+'>'+
     '<div class="commander-pack-v4-art">'+getArt(c.id,true)+'</div>'+
     '<div class="commander-pack-v4-name">'+esc(c.name)+' · Lv '+level+'</div>'+
     '<div class="commander-pack-v4-meta"><span class="commander-pack-v4-pill">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+'</span><span class="commander-pack-v4-pill">'+esc(c.rarity)+'</span></div>'+
@@ -180,7 +180,11 @@ function buildCard(c,g){
 }
 function selectCard(card,e){
   var gg=state.games,tid=card&&card.getAttribute('data-pack-v4-troop'),tt=tid?tdef(tid):null;
-  if(gg&&tt&&Number(gg.waveCoins||0)<Math.max(1,Number(tt.cost)||1)){e.preventDefault();e.stopPropagation();return;}
+  if(gg&&tt&&Number(gg.waveCoins||0)<Math.max(1,Number(tt.cost)||1)){
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    showRewardToast('Need '+Math.max(1,Number(tt.cost)||1)+' deployment coins for '+(tt.name||'this Indexling')+'.');
+    return;
+  }
   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
   var g=state.games;if(!g||g.running||g.questionGateOpen)return;
   var id=card.getAttribute('data-pack-v4-troop');
@@ -191,6 +195,15 @@ function selectCard(card,e){
   try{v6Save(g);}catch(err){}
   renderBattle(g);
   setTimeout(sync,0);
+}
+function bindPackCardClicks(right){
+  if(!right||right.dataset.packCardsBound==='1')return;
+  right.dataset.packCardsBound='1';
+  right.addEventListener('click',function(e){
+    var card=e.target&&e.target.closest?e.target.closest('[data-pack-v4-troop]'):null;
+    if(!card||!right.contains(card))return;
+    selectCard(card,e);
+  },true);
 }
 function renderRight(){
   ensurePackDefs();
@@ -214,7 +227,7 @@ function renderRight(){
   var filters='<div class="commander-pack-v4-filter">'+categories.map(function(cat){return '<button type="button" class="'+(currentFilter===cat?'active':'')+'" data-pack-v4-filter="'+cat+'">'+cat+'</button>';}).join('')+'</div>';
   var cards=filtered.map(function(c){return buildCard(c,g);}).join('');
   right.innerHTML=title+round+filters+(cards?'<div class="commander-pack-v4">'+cards+'</div>':'<div class="commander-pack-v4-empty">No pack Indexlings are unlocked yet. Open a pack and return here to deploy them.</div>')+tail;
-  right.querySelectorAll('[data-pack-v4-troop]').forEach(function(card){card.addEventListener('click',function(e){selectCard(card,e);},true);});
+  bindPackCardClicks(right);
   right.querySelectorAll('[data-pack-v4-filter]').forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();g.packV4Filter=b.getAttribute('data-pack-v4-filter');renderRight();},true);});
   var sb=right.querySelector('#commander-pack-v4-start');if(sb)sb.addEventListener('click',function(e){if(typeof window.__commanderStartWaveFinal==='function')window.__commanderStartWaveFinal(e);},true);
   var mb=right.querySelector('#commander-pack-v4-map');if(mb)mb.addEventListener('click',function(e){if(typeof window.__commanderChangeMapFinal==='function')window.__commanderChangeMapFinal(e);},true);
@@ -484,7 +497,7 @@ function normalizeQuestionAfterTransition(g){
 }
 function ensureInitialDeploymentBudget(g){
   if(!g||g.phase!=='battle')return;
-  if(!g.initialDeploymentBudgetGranted&&Number(g.wave||0)===0&&!g.running&&!g.finished){
+  if(Number(g.wave||0)===0&&!g.running&&!g.finished&&Number(g.waveCoins||0)<=0){
     g.waveCoins=50;
     g.initialDeploymentBudgetGranted=true;
     try{commanderSaveFinal(g);}catch(e){}
