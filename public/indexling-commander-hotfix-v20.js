@@ -4,7 +4,7 @@ if(window.__indexCommanderHotfixV21)return;
 window.__indexCommanderHotfixV21=true;
 
 function commanderGame(){
-  try{return window.state&&window.state.games?window.state.games:null;}catch(e){return null;}
+  try{return typeof state!=='undefined'&&state&&state.games?state.games:null;}catch(e){return null;}
 }
 function findCanvas(){
   return document.getElementById('commander-auth-canvas');
