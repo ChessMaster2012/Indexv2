@@ -411,7 +411,7 @@ function renderRight(){
   right.innerHTML=title+round+selectionHint+filters+(cards?'<div class="commander-pack-v4">'+cards+'</div>':'<div class="commander-pack-v4-empty">No pack Indexlings are unlocked yet. Open a pack and return here to deploy them.</div>')+tail;
   bindPackCardClicks(right);
   right.querySelectorAll('[data-pack-v4-filter]').forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();g.packV4Filter=b.getAttribute('data-pack-v4-filter');renderRight();},true);});
-  var sb=right.querySelector('#commander-pack-v4-start');if(sb)sb.addEventListener('click',function(e){if(typeof window.__commanderStartWaveFinal==='function')window.__commanderStartWaveFinal(e);},true);
+  var sb=right.querySelector('#commander-pack-v4-start');if(sb)sb.addEventListener('click',function(e){var fn=window.__commanderStartWaveAuthoritative||window.__commanderStartWaveFinal;if(typeof fn==='function')fn(e);},true);
   var mb=right.querySelector('#commander-pack-v4-map');if(mb)mb.addEventListener('click',function(e){if(typeof window.__commanderChangeMapFinal==='function')window.__commanderChangeMapFinal(e);},true);
   var tb=right.querySelector('#commander-pack-v4-topic');if(tb)tb.addEventListener('click',function(e){if(typeof window.__commanderChangeTopicFinal==='function')window.__commanderChangeTopicFinal(e);},true);
 }
@@ -901,18 +901,21 @@ setTimeout(sync,120);
 setInterval(sync,500);
 })();
 
-/* V16_START_WAVE_PROXY */
+/* V19_START_WAVE_DIRECT */
 (function(){
   document.addEventListener('click',function(ev){
     var el=ev.target&&ev.target.closest?ev.target.closest(
-      '.commander-auth-start,.commander-start-ref,.commander-v6-start-wave,.commander-start-v8,[data-action="commander-start-wave"],[data-action="commander-v6-start"]'
+      '.commander-auth-start,.commander-start-ref,.commander-v6-start-wave,.commander-start-v8,[data-action="commander-start-wave"],[data-action="commander-v6-start"],#commander-pack-v4-start'
     ):null;
     if(!el||el.disabled)return;
     ev.preventDefault();
     ev.stopPropagation();
     ev.stopImmediatePropagation();
     try{
-      var handler=window.__commanderStartWaveFinal;
+      /* The authoritative handler lives in index.html's final Commander scope,
+         so invoke it directly rather than traversing any legacy wrappers. */
+      var handler=window.__commanderStartWaveAuthoritative;
+      if(typeof handler!=='function')handler=window.__commanderStartWaveFinal;
       if(typeof handler!=='function')throw new Error('Start Wave handler is unavailable.');
       handler(ev);
     }catch(err){
