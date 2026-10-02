@@ -695,9 +695,17 @@ function ensureInitialDeploymentBudget(g){
 var commanderAuthoritativeCanPlaceV8=window.commanderCanPlaceFinal;
 function commanderCanPlaceCompat(g,x,y){
   try{
+    if(!g||g.active!=='commander'||g.phase!=='battle'||g.running||g.finished)return false;
+    var nx=Number(x),ny=Number(y);
+    if(!Number.isFinite(nx)||!Number.isFinite(ny))return false;
+    /* Prefer the authoritative validator if another Commander layer supplied one. */
     if(typeof commanderAuthoritativeCanPlaceV8==='function'&&commanderAuthoritativeCanPlaceV8!==window.commanderCanPlaceFinal){
-      return !!commanderAuthoritativeCanPlaceV8(Number(x),Number(y));
+      return !!commanderAuthoritativeCanPlaceV8(nx,ny);
     }
+    /* This fix file owns the V6 placement engine too, so use the exact same
+       canPlace() function that actual clicks use. This keeps the preview
+       green/red state identical to real placement. */
+    if(typeof canPlace==='function')return !!canPlace(g,nx,ny);
   }catch(e){}
   return false;
 }
