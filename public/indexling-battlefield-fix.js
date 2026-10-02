@@ -130,7 +130,7 @@ function injectCss(){
     .commander-pack-v4-unit{position:absolute;transform:translate(-50%,-50%);width:68px;height:78px;pointer-events:auto;cursor:pointer;display:grid;place-items:center;filter:drop-shadow(0 8px 10px rgba(0,0,0,.32))}
     /* Placed Indexlings are drawn by the battlefield canvas. The overlay keeps
        only hit area, labels, stats and range so the character is never double-rendered. */
-    .commander-auth-unit.tower{visibility:hidden!important;pointer-events:none!important}
+    .commander-auth-unit.tower{display:none!important;visibility:hidden!important;pointer-events:none!important}
     .commander-pack-v4-unit-art{width:62px;height:62px;display:grid;place-items:center;visibility:visible!important}
     .commander-pack-v4-unit-art svg{visibility:visible!important;width:62px!important;height:62px!important}
     
@@ -726,51 +726,21 @@ window.commanderCanPlaceFinal=function(x,y){
     return !!g&&g.active==='commander'&&g.phase==='battle'&&commanderCanPlaceCompat(g,x,y);
   }catch(e){return false;}
 };
-function commanderWaveLoopV12(now){
-   var g=state&&state.games;
-   if(!g||g.active!=='commander'||g.phase!=='battle'||!g.running||g.questionGateOpen||g.finished){
-     if(g)g.frame=null;
-     return;
-   }
-   try{
-     var dt=Math.min(.05,(g.lastFrame?now-g.lastFrame:16)/1000);
-     g.lastFrame=now;
-     if(typeof update!=='function'||typeof draw!=='function')throw new Error('Commander battle engine is unavailable.');
-     update(g,dt,now);
-     if(state.games!==g||g.questionGateOpen||g.finished||!g.running){g.frame=null;return;}
-     draw(g);
-     g.frame=requestAnimationFrame(commanderWaveLoopV12);
-   }catch(err){
-     console.error('Commander wave loop failed',err);
-     try{
-       g.running=false;
-       g.frame=null;
-       if(typeof save==='function')save(g);
-       if(typeof render==='function')render();
-       if(typeof showRewardToast==='function')showRewardToast('The wave stopped because the battle engine hit an error.');
-     }catch(recoveryErr){console.error('Commander wave recovery failed',recoveryErr);}
-   }
- }
+var commanderAuthoritativeStartWaveV13=window.__commanderStartWaveFinal;
  window.__commanderStartWaveFinal=function(e){
    try{
-     if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
-     var g=state&&state.games;
-     if(!g||g.active!=='commander'||g.phase!=='battle'||g.running||g.finished||g.questionGateOpen)return false;
-     if(typeof launch!=='function')throw new Error('Commander wave engine is unavailable.');
-     if(g.frame)cancelAnimationFrame(g.frame);
-     g.frame=null;
-     if(!launch(g))return false;
-     if(state.games===g&&!g.questionGateOpen&&!g.finished){
-       g.lastFrame=performance.now();
-       g.frame=requestAnimationFrame(commanderWaveLoopV12);
+     if(typeof commanderAuthoritativeStartWaveV13!=='function'){
+       console.error('Commander authoritative Start Wave handler is unavailable.');
+       return false;
      }
+     return commanderAuthoritativeStartWaveV13(e);
    }catch(err){
      console.error('Commander Start Wave failed',err);
-     try{showRewardToast('Commander could not start the wave.');}catch(e2){}
+     try{if(typeof showRewardToast==='function')showRewardToast('Commander could not start the wave.');}catch(e2){}
+     return false;
    }
-   return false;
  };
- function wrapQuestionEconomy(){
+function wrapQuestionEconomy(){
   if(window.__indexCommanderQuestionEconomyV5)return;
   window.__indexCommanderQuestionEconomyV5=true;
   ensureQuestionCooldownState(state.games);
