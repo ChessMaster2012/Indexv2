@@ -726,6 +726,8 @@ window.commanderCanPlaceFinal=function(x,y){
     return !!g&&g.active==='commander'&&g.phase==='battle'&&commanderCanPlaceCompat(g,x,y);
   }catch(e){return false;}
 };
+var commanderStartWavePrevious=window.__commanderStartWaveFinal;
+window.__commanderStartWaveBase=(typeof commanderStartWavePrevious==='function'&&commanderStartWavePrevious!==window.__commanderStartWaveFinal)?commanderStartWavePrevious:null;
 window.__commanderStartWaveFinal=function(e){
    try{
      /* Resolve the authoritative handler at click time. The Commander page can
