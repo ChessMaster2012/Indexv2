@@ -7481,7 +7481,7 @@ function updateProjectile(g,q,dt){
     if(q.splash)hitSplash(g,e.x,e.y,q.splash,q.splashDamage||q.damage*.5,e.id);
     if(q.type==='frost'||q.type==='time')e.slow=q.slow||.48,e.slowUntil=Date.now()+(q.slowMs||2500);
     if(q.type==='poison'){e.poisonUntil=Date.now()+q.poisonMs;e.poisonDps=q.poisonDps;}
-    if(q.type==='chain'){var near=g.enemies.filter(function(x){return x.hp>0&&x.id!==e.id&&Math.hypot(x.x-e.x,y=e.y?x.y-e.y:0)<.13;}).slice(0,q.chain||2);near.forEach(function(n){n.hp-=q.chainDamage||q.damage*.7;});}
+    if(q.type==='chain'){var near=g.enemies.filter(function(x){return x.hp>0&&x.id!==e.id&&Math.hypot(x.x-e.x,x.y-e.y)<.13;}).slice(0,q.chain||2);near.forEach(function(n){n.hp-=q.chainDamage||q.damage*.7;});}
   }else{q.x+=dx/d*step;q.y+=dy/d*step;}
   q.life-=dt*1000;
 }
