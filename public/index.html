@@ -6872,7 +6872,7 @@ body:has(.commander-authoritative-root){overflow:hidden!important}
 .commander-auth-active-actions button{border:1px solid #cbd7e1;border-radius:8px;background:#f7fafc;color:#263b50;padding:5px 2px;font-size:8px;font-weight:900;cursor:pointer}
 .commander-auth-active-actions button:hover{background:#eaf3fa;border-color:#80a1bc}
 .commander-auth-empty{font-size:10px;line-height:1.5;color:#7891a6;padding:5px}
-.commander-auth-world{position:relative;min-width:0;overflow:hidden;background:#0b1830}
+.commander-auth-world{position:relative;min-width:0;width:100%;height:100%;overflow:hidden;background:#0b1830}
 .commander-auth-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:crosshair}
 .commander-auth-unit-layer{position:absolute;inset:0;pointer-events:none;z-index:7}
 .commander-auth-unit{position:absolute;transform:translate(-50%,-50%);display:grid;place-items:center}
@@ -7661,9 +7661,23 @@ function activeHtml(g){
     return '<div class="commander-auth-active-card"><div class="commander-auth-active-head"><div class="commander-auth-active-art">'+art(t.id,true)+'</div><div><div class="commander-auth-active-name">'+esc(td.name)+' · Lv '+t.level+'</div><div class="commander-auth-active-sub">'+esc(td.role)+' · '+Math.ceil(hp)+'/'+max+' HP</div>'+(td.income?'<div class="commander-auth-income">💰 +'+td.income.toFixed(1)+' coins/s</div>':'')+'</div></div><div class="commander-auth-health"><span style="width:'+pct+'%"></span></div><div class="commander-auth-active-actions"><button onclick="return window.__commanderHealFinal('+i+',event)">Heal · 10 🪙</button><button onclick="return window.__commanderUpgradeActiveFinal('+i+',event)">Upgrade</button><button onclick="return window.__commanderSellFinal('+i+',event)">Sell</button></div></div>';
   }).join('');
 }
+function commanderSafeRosterHtml(g){
+  var p;try{p=profile();}catch(e){p={coins:0,owned:{'ling-sugarbug':true},levels:{'ling-sugarbug':1}};}
+  var list=Array.isArray(COMMANDER_TROOPS_FINAL)?COMMANDER_TROOPS_FINAL:[];
+  return '<div class="commander-auth-category-bar"><button type="button" class="commander-auth-category selected">All</button></div>'+
+    list.map(function(t){
+      try{
+        var own=!!(p.owned&&p.owned[t.id]),lvl=Math.max(1,Number(p.levels&&p.levels[t.id])||1);
+        return '<button type="button" class="commander-auth-troop '+(g.selectedTroop===t.id?'selected ':'')+(!own?'locked':'')+'" onclick="return window.__commanderSelectFinal(\''+t.id+'\',event)"><div class="commander-auth-troop-art" style="display:grid;place-items:center;font-size:26px;">'+(t.category==='Damage'?'⚔️':t.category==='Splash'?'💥':t.category==='Control'?'⚡':t.category==='Support'?'✚':'🪙')+'</div><div class="commander-auth-troop-name">'+esc(t.name)+' · Lv '+lvl+'</div><div class="commander-auth-troop-role">'+esc(t.category||'Troop')+' · '+esc(t.role||'')+'</div><div class="commander-auth-troop-stats">Cost '+Math.max(0,Number(t.cost)||0)+' 🪙 · '+Number(t.damage)||0+' DMG · '+Number(t.range)||0+' RNG</div><div class="commander-auth-unlock">'+(own?'Deploy · '+(t.cost||0)+' 🪙':'Locked · '+(t.cost||0)+' 🪙')+'</div></button>';
+      }catch(e){return '';}
+    }).join('');
+}
 function battle(g){
-  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;})||COMMANDER_MAPS_FINAL[0],p=profile();
-  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>🪙 '+p.coins+'</b><span>Persistent Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+activeHtml(g)+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div><div class="commander-auth-ghost-label">'+(g.selectedTroop?'Hover the map to preview '+esc(tdef(g.selectedTroop).name)+' · green = place · red = blocked':'Select an Indexling to deploy')+'</div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexling Arsenal</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+Math.floor(g.waveCoins||0)+'</b> · Persistent coins: <b>'+Math.floor(p.coins||0)+'</b></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>'+rosterHtml(g)+'<button class="commander-auth-start" onclick="return window.__commanderStartWaveFinal(event)" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
+  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;})||COMMANDER_MAPS_FINAL[0];
+  var p;try{p=profile();}catch(e){p={coins:0};}
+  var active;try{active=activeHtml(g);}catch(e){active='<div class="commander-auth-empty">No Indexlings deployed yet.</div>';}
+  var roster;try{roster=rosterHtml(g);}catch(e){console.error('Commander roster renderer failed:',e);roster=commanderSafeRosterHtml(g);}
+  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>🪙 '+Math.floor(Number(p.coins)||0)+'</b><span>Persistent Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+active+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div><div class="commander-auth-ghost-label">'+(g.selectedTroop?'Hover the map to preview '+esc(tdef(g.selectedTroop).name)+' · green = place · red = blocked':'Select an Indexling to deploy')+'</div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexling Arsenal</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+Math.floor(g.waveCoins||0)+'</b> · Persistent coins: <b>'+Math.floor(p.coins||0)+'</b></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>'+roster+'<button class="commander-auth-start" onclick="return window.__commanderStartWaveFinal(event)" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
 }
 function renderBattle(g){
   var stage=document.getElementById('games-stage');if(!stage)return;
@@ -7682,19 +7696,13 @@ function renderBattle(g){
     });
     return;
   }
-  try{
-    stage.innerHTML=battle(g);
-  }catch(err){
-    console.error('Commander battle renderer failed:',err);
-    var safeMap=COMMANDER_MAPS_FINAL.find(function(m){return m.id===g.mapId;})||COMMANDER_MAPS_FINAL[0];
-    stage.innerHTML='<div class="commander-authoritative-root commander-auth-battle"><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas"></canvas><div class="commander-auth-map-label"><b>'+esc(safeMap.name)+'</b><span>Round '+Math.max(1,g.wave)+'</span></div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexling Arsenal</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+Math.floor(g.waveCoins||0)+'</b></div>'+((function(){try{return rosterHtml(g);}catch(_){return '<div class="commander-auth-empty">Troop roster is temporarily unavailable.</div>';}})())+'<button class="commander-auth-start" type="button" onclick="return window.__commanderStartWaveFinal(event)">▶ Start Wave</button></aside></div>';
-  }
+  stage.innerHTML=battle(g);
   requestAnimationFrame(function(){
     var cv=document.getElementById('commander-auth-canvas');if(!cv)return;
     cv.onpointermove=function(e){var r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;g.cursor={x:x,y:y,valid:canPlace(g,x,y)};draw(g);};
     cv.onpointerleave=function(){g.cursor=null;draw(g);};
     cv.onpointerdown=function(e){if(e.button!==0)return;var r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;place(g,x,y);};
-    draw(g);
+    try{draw(g);}catch(err){console.error('Commander battlefield draw failed:',err);}
   });
 }
 function renderGateV6(g){
