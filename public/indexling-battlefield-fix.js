@@ -111,6 +111,7 @@ function injectCss(){
     .commander-pack-v4-card{position:relative;min-height:150px;border:2px solid rgba(255,255,255,.10);border-radius:14px;background:linear-gradient(155deg,#172a40,#0f2033);color:#fff;padding:7px;text-align:left;cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s}
     .commander-pack-v4-card:hover{transform:translateY(-2px);border-color:#73dcff;box-shadow:0 8px 20px rgba(0,0,0,.22)}
     .commander-pack-v4-card.selected{border-color:#ffd75d;box-shadow:0 0 0 2px rgba(255,215,93,.18),0 8px 20px rgba(0,0,0,.22)}
+    .commander-pack-v4-card.unaffordable{opacity:.52!important;filter:saturate(.55)!important;cursor:not-allowed!important;border-color:rgba(255,255,255,.07)!important}.commander-pack-v4-card.unaffordable:hover{transform:none!important;box-shadow:none!important}
     .commander-pack-v4-art{height:70px;display:grid;place-items:center}
     .commander-pack-v4-art>div{width:67px!important;height:67px!important}
     .commander-pack-v4-art svg{width:67px!important;height:67px!important}
