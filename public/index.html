@@ -8004,6 +8004,31 @@ function draw(g){
   if(hud)hud.textContent='ROUND '+Math.max(1,g.wave)+'  •  ENEMIES '+(g.enemies||[]).length+'  •  REMAINING '+Math.max(0,(g.spawnTotal||0)-(g.spawnCount||0))+'  •  BASE '+Math.max(0,Math.floor(g.base));
 }
 
+window.__commanderPlaceAtClient=function(clientX,clientY,e){
+  var g=state&&state.games,cv=document.getElementById('commander-auth-canvas');
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.running||g.finished||!g.selectedTroop||!cv)return false;
+  var r=cv.getBoundingClientRect();if(!r.width||!r.height)return false;
+  var x=Math.max(0,Math.min(1,(Number(clientX)-r.left)/r.width));
+  var y=Math.max(0,Math.min(1,(Number(clientY)-r.top)/r.height));
+  var id=String(g.selectedTroop);
+  try{ensureCommanderTroopRegistryV9();}catch(err){}
+  var td=COMMANDER_TROOPS_FINAL.find(function(t){return t&&t.id===id;})||null;
+  var c=(typeof cosmeticById==='function')?cosmeticById(id):null;
+  if(!td&&!c)return false;
+  var valid=false;
+  try{valid=!!canPlace(g,x,y);}catch(err){valid=false;}
+  if(!valid)return false;
+  var cost=Math.max(1,Number(td&&td.cost)||1);
+  if(Number(g.waveCoins||0)<cost)return false;
+  var p=commanderFinalProfile(),lvl=Math.max(1,Number(p.levels[id])||1),hp=100+(lvl-1)*18;
+  g.waveCoins=Math.max(0,Number(g.waveCoins||0)-cost);
+  g.towers=g.towers||[];
+  g.towers.push({id:id,x:x,y:y,level:lvl,hp:hp,maxHp:hp,cool:0,abilityReady:performance.now()+1200,recoil:0});
+  g.selectedTroop=null;g.cursor=null;g.hoverTowerIndex=-1;g.selectedTowerIndex=-1;
+  try{v6Save(g);}catch(err){}
+  try{renderBattle(g);}catch(err){console.error('Commander placement render failed:',err);}
+  return true;
+};
 window.__commanderCategoryFinal=function(cat,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running)return false;g.troopCategory=cat;renderBattle(g);return false;};
 window.__commanderSelectFinal=function(id,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running||g.questionGateOpen)return false;var p=profile();if(!p.owned[id]){if(p.coins>=tdef(id).cost){p.coins-=tdef(id).cost;p.owned[id]=true;p.levels[id]=1;persistProgress();showRewardToast(tdef(id).name+' unlocked');}else{showRewardToast('Unlock '+tdef(id).name+' for '+tdef(id).cost+' coins first.');}return false;}g.selectedTroop=g.selectedTroop===id?null:id;g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;renderBattle(g);return false;};
 window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||!g.question||g.questionFeedback)return false;var q=g.question,answeredQuestion={q:q.q,options:q.options,correct:q.correct,explanation:q.explanation},correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;g.waveCoins=(g.waveCoins||0)+10;if(correct){g.questionCorrectCount=1;}if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,answeredQuestion,correct,false);g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};try{v6Save(g);}catch(err){console.warn('Commander gate save failed',err);}renderBattle(g);commanderRequestAiQuestion(g,true);return false;};
