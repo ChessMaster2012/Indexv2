@@ -112,6 +112,7 @@ function injectCss(){
     .commander-pack-v4-card:hover{transform:translateY(-2px);border-color:#73dcff;box-shadow:0 8px 20px rgba(0,0,0,.22)}
     .commander-pack-v4-card.selected{border-color:#ffd75d;box-shadow:0 0 0 2px rgba(255,215,93,.18),0 8px 20px rgba(0,0,0,.22)}
     .commander-pack-v4-card.unaffordable{opacity:.52!important;filter:saturate(.55)!important;cursor:not-allowed!important;border-color:rgba(255,255,255,.07)!important}.commander-pack-v4-card.unaffordable:hover{transform:none!important;box-shadow:none!important}
+    .commander-auth-side-left .commander-auth-wallet>div:first-child{display:none!important}
     .commander-pack-v4-art{height:70px;display:grid;place-items:center}
     .commander-pack-v4-art>div{width:67px!important;height:67px!important}
     .commander-pack-v4-art svg{width:67px!important;height:67px!important}
