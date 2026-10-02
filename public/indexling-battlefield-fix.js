@@ -1,24 +1,209 @@
 (function(){
 'use strict';
-if(window.__indexCommanderPlacementFix){try{window.__indexCommanderPlacementFixDestroy&&window.__indexCommanderPlacementFixDestroy()}catch(e){}}
-window.__indexCommanderPlacementFix=true;
-const STYLE='indexling-arsenal-v2-style',PANEL='indexling-arsenal-v2',ROOT='indexling-battlefield-overlay',STATS='indexling-battlefield-stats';
-const TROOPS=[
- ['Sugarbug','Damage','Sugar Rush'],['Squire','Tank','Shield Wall'],['Bard','Support','Battle Anthem'],['Knight','Damage','Royal Guard'],['Alchemist','Control','Transmute'],['Comet','Damage','Meteor Shot'],['Nebula','Control','Gravity Well'],['Voidling','Control','Void Rift'],['Supernova','Splash','Supernova Burst'],['Dragon','Damage','Dragon Flame'],['Sniper','Damage','Deadeye'],['Bombardier','Splash','Artillery Barrage'],['Frost Mage','Control','Frost Nova'],['Voltling','Control','Chain Voltage'],['Toxicling','Damage','Toxic Burst'],['Rocketling','Splash','Rocket Barrage'],['Medic','Support','Rapid Heal'],['Timekeeper','Control','Time Warp']
+if(window.__indexCommanderPackArsenalV2)return;
+window.__indexCommanderPackArsenalV2=true;
+
+const IDS=[
+  'ling-sugarbug','ling-squire','ling-bard','ling-knight','ling-alchemist',
+  'ling-comet','ling-nebula','ling-voidling','ling-supernova'
 ];
-let selected=null,placed=[],destroyed=false;
-function esc(v){return String(v).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]||c))}
-function data(name){const x=TROOPS.find(t=>t[0]===name)||TROOPS[0];return{id:'ling-'+x[0].toLowerCase().replace(/[^a-z0-9]+/g,'-'),name:x[0],role:x[1],ability:x[2],hp:100,damage:20,range:120,attackSpeed:1.2}}
-function board(){const qs=['.commander-battlefield','#commander-battlefield','[data-commander-battlefield]','.commander-map','#commander-map','[data-commander-map]'];for(const q of qs){const e=document.querySelector(q);if(e&&e.getBoundingClientRect().width>400&&e.getBoundingClientRect().height>300)return e}return [...document.querySelectorAll('canvas,[class*=battle],[id*=battle],[class*=map],[id*=map]')].find(e=>{const r=e.getBoundingClientRect();return r.width>650&&r.height>400&&r.left<innerWidth*.88})||null}
-function art(t,small){const n=t.name.toLowerCase();let a='#ff9fc7',d='#a54872',ac='#ffe5ef',extra='';if(n.includes('sugar')){a='#ff9fc7';d='#b83c75';ac='#fff0a8'}else if(n.includes('squire')){a='#91b8ff';d='#315a9c';ac='#e8f0ff'}else if(n.includes('bard')){a='#c59aff';d='#6c42a5';ac='#ffe37d'}else if(n.includes('knight')){a='#7fc9ff';d='#315d87';ac='#eaf8ff';extra='<path d="M28 31L18 9L40 23M72 31L82 9L60 23" fill="'+d+'"/>'}else if(n.includes('alchemist')){a='#73e0b2';d='#267e63';ac='#fff39a'}else if(n.includes('comet')){a='#ffb45d';d='#b85c24';ac='#fff1bd'}else if(n.includes('nebula')){a='#9d8cff';d='#4d3b9b';ac='#8ff5ff'}else if(n.includes('void')){a='#5d648e';d='#20243f';ac='#d18cff'}else if(n.includes('supernova')){a='#ff8a6b';d='#a93434';ac='#fff28a'}else if(n.includes('dragon')){a='#ff7272';d='#8e2525';ac='#ffd05c';extra='<path d="M28 20l10 13M72 20 62 33" stroke="'+ac+'" stroke-width="5" stroke-linecap="round"/>'}else if(n.includes('sniper')){a='#8ad0b2';d='#2e6d58';ac='#d9fff0'}else if(n.includes('bombardier')){a='#aeb8c7';d='#4e5868';ac='#ffcc70'}else if(n.includes('frost')){a='#b5ecff';d='#4b8bb0';ac='#fff'}else if(n.includes('volt')){a='#ffe27a';d='#b17c00';ac='#fff'}else if(n.includes('toxic')){a='#8ee68a';d='#327c37';ac='#dfff75'}else if(n.includes('rocket')){a='#ff9b86';d='#963b2f';ac='#ffd1a8'}else if(n.includes('medic')){a='#f5a6c8';d='#9a3e68';ac='#fff'}else if(n.includes('timekeeper')){a='#c4b5fd';d='#5b4b9a';ac='#ffe28a'}const id='ling-art-'+Math.random().toString(36).slice(2);return '<svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="'+id+'" x1="20%" y1="10%" x2="80%" y2="90%"><stop offset="0" stop-color="'+a+'"/><stop offset="1" stop-color="'+d+'"/></linearGradient></defs>'+extra+'<ellipse cx="50" cy="53" rx="30" ry="34" fill="url(#'+id+')"/><circle cx="40" cy="52" r="4" fill="#25233a"/><circle cx="60" cy="52" r="4" fill="#25233a"/><path d="M39 62q11 8 22 0" fill="none" stroke="#25233a" stroke-width="3" stroke-linecap="round"/><circle cx="72" cy="30" r="7" fill="'+ac+'"/></svg>'}
-function addStyle(){if(document.getElementById(STYLE))return;const s=document.createElement('style');s.id=STYLE;s.textContent=`#${PANEL}{position:fixed;z-index:10000;top:0;right:0;width:16.5vw;min-width:250px;height:100vh;background:#0d1726;color:#fff;padding:10px 10px 90px;overflow-y:auto;box-sizing:border-box;font-family:system-ui,sans-serif}#${PANEL} .ia-title{font-size:12px;font-weight:900;letter-spacing:.1em;color:#8ddcff;margin:2px 2px 7px}#${PANEL} .ia-sub{font-size:10px;color:#b9c7d9;background:#17283c;border:1px solid #29435f;border-radius:8px;padding:6px;margin-bottom:7px}#${PANEL} .ia-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}#${PANEL} .ia-card{position:relative;min-width:0;min-height:92px;padding:5px 3px;border:1px solid #29405a;border-radius:10px;background:#132236;color:#fff;cursor:pointer;text-align:center;box-shadow:none;transition:.12s;user-select:none}#${PANEL} .ia-card:hover{transform:translateY(-2px);border-color:#69d9ff;background:#1a3049}#${PANEL} .ia-card.selected{border:2px solid #ffd34d;background:#24364c;box-shadow:0 0 0 2px rgba(255,211,77,.2)}#${PANEL} .ia-art{height:48px;display:grid;place-items:center}.ia-art svg{width:48px;height:48px}.ia-name{font-size:9px;font-weight:900;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ia-role{font-size:7px;color:#8ddcff;margin-top:2px}.ia-stats{font-size:7px;color:#9eafc3;margin-top:2px}.ia-cost{position:absolute;right:4px;top:3px;font-size:7px;color:#ffd34d}.ia-hint{position:fixed;left:12px;bottom:14px;z-index:10001;background:#0d1726;color:#fff;padding:9px 12px;border-radius:10px;font:800 11px system-ui;box-shadow:0 5px 20px #0006}.ia-hint b{color:#6ee7b7}#${ROOT}{position:absolute;inset:0;z-index:9000;pointer-events:none;overflow:visible}.ia-unit{position:absolute;transform:translate(-50%,-50%);width:82px;height:92px;pointer-events:auto;cursor:pointer;filter:drop-shadow(0 8px 10px #0005)}.ia-unit:hover{transform:translate(-50%,-50%) scale(1.08)}.ia-unit .ia-uart{width:76px;height:76px}.ia-unit .ia-uart svg{width:76px;height:76px}.ia-unit .ia-uname,.ia-unit .ia-urole{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;padding:3px 7px;border-radius:999px;font:900 9px system-ui;box-shadow:0 3px 8px #0004}.ia-uname{top:74px;background:#0d1726;color:#fff}.ia-urole{bottom:78px;background:#fff;color:#172235}.ia-range{position:absolute;width:170px;height:170px;left:-44px;top:-44px;border:3px solid #2fd48b;border-radius:50%;opacity:0;pointer-events:none}.ia-unit:hover .ia-range{opacity:1}#${STATS}{position:fixed;z-index:11000;display:none;width:250px;padding:14px;border-radius:14px;background:#0d1726;color:#fff;border:1px solid #35506d;box-shadow:0 18px 40px #0008;font:12px system-ui}#${STATS} h3{margin:0 0 4px;font-size:16px}.ias-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #ffffff18}.ias-ability{margin-top:8px;padding:8px;background:#ffffff0d;border-radius:9px}`;document.head.appendChild(s)}
-function arsenal(){let p=document.getElementById(PANEL);if(!p){p=document.createElement('div');p.id=PANEL;document.body.appendChild(p)}p.innerHTML='<div class="ia-title">INDEXLING ARSENAL</div><div class="ia-sub">Pack Indexlings • Click one, then click an empty battlefield spot</div><div class="ia-grid"></div>';const g=p.querySelector('.ia-grid');TROOPS.forEach(x=>{const t=data(x[0]),c=document.createElement('button');c.type='button';c.className='ia-card'+(selected&&selected.name===t.name?' selected':'');c.innerHTML='<span class="ia-cost">Cost 25</span><div class="ia-art">'+art(t,true)+'</div><div class="ia-name">'+esc(t.name)+' · Lv 1</div><div class="ia-role">'+esc(t.role)+' · Pack</div><div class="ia-stats">HP '+t.hp+' · DMG '+t.damage+' · R '+t.range+'</div>';c.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();selected=t;arsenal();hint('Selected '+t.name+'. Now click an empty location on the battlefield.');},true);g.appendChild(c)});}
-function hint(txt){let h=document.querySelector('.ia-hint');if(!h){h=document.createElement('div');h.className='ia-hint';document.body.appendChild(h)}h.innerHTML='<b>Deploy:</b> '+esc(txt)}
-function show(u,t){let b=document.getElementById(STATS);if(!b){b=document.createElement('div');b.id=STATS;document.body.appendChild(b)}b.innerHTML='<h3>'+esc(t.name)+'</h3><div style="opacity:.7;font-size:10px">'+esc(t.role)+' Indexling</div><div class="ias-row"><span>Health</span><b>'+t.hp+'</b></div><div class="ias-row"><span>Damage</span><b>'+t.damage+'</b></div><div class="ias-row"><span>Range</span><b>'+t.range+'</b></div><div class="ias-row"><span>Attack speed</span><b>'+t.attackSpeed+'</b></div><div class="ias-ability"><b>Unique Attack</b><br>'+esc(t.ability)+'</div>';const r=u.getBoundingClientRect();b.style.display='block';b.style.left=Math.min(innerWidth-270,Math.max(8,r.right+10))+'px';b.style.top=Math.min(innerHeight-210,Math.max(8,r.top-10))+'px'}
-function place(e){if(!selected||destroyed)return;const b=board();if(!b)return;const r=b.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return;if(e.target.closest&&e.target.closest('#'+PANEL))return;const t=selected,u=document.createElement('div');u.className='ia-unit';u.style.left=(e.clientX-r.left)+'px';u.style.top=(e.clientY-r.top)+'px';u.innerHTML='<div class="ia-range"></div><div class="ia-uart">'+art(t)+'</div><div class="ia-urole">'+esc(t.role)+'</div><div class="ia-uname">'+esc(t.name)+'</div>';u.addEventListener('mouseenter',()=>show(u,t));u.addEventListener('mouseleave',()=>{const s=document.getElementById(STATS);if(s)s.style.display='none'});u.addEventListener('click',e=>{e.stopPropagation();show(u,t)});let root=document.getElementById(ROOT);if(!root){root=document.createElement('div');root.id=ROOT;b.appendChild(root)}root.appendChild(u);placed.push(u);selected=null;arsenal();hint('Placed '+t.name+'. Select another Indexling from the arsenal to deploy more.');}
-function clean(){const p=document.getElementById(PANEL);if(p)p.remove();const r=document.getElementById(ROOT);if(r)r.remove();const s=document.getElementById(STATS);if(s)s.remove();document.querySelectorAll('.ia-hint').forEach(x=>x.remove())}
-function init(){if(destroyed)return;addStyle();clean();arsenal();const b=board();if(b){if(getComputedStyle(b).position==='static')b.style.position='relative';b.addEventListener('click',place,true)}hint('Select an Indexling from the arsenal, then click the battlefield to place it.')}
-window.__indexCommanderPlacementFixDestroy=function(){destroyed=true;clean()};
-let last=false;const mo=new MutationObserver(()=>{if(destroyed)return;const b=board();const visible=b&&b.getBoundingClientRect().width>400;if(visible&&!last){last=true;setTimeout(init,80)}if(!visible)last=false});mo.observe(document.documentElement,{childList:true,subtree:true});
-setTimeout(init,300);setTimeout(init,1000);
-})();
+
+function esc(v){
+  return String(v==null?'':v).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+  });
+}
+function troop(id){
+  try{return COMMANDER_TROOPS_FINAL.find(function(t){return t.id===id;})||null;}catch(e){return null;}
+}
+function cosmetic(id){
+  try{return typeof cosmeticById==='function'?cosmeticById(id):null;}catch(e){return null;}
+}
+function skin(id){
+  try{return typeof getEquippedSkinForIndexling==='function'?getEquippedSkinForIndexling(id):null;}catch(e){return null;}
+}
+function art(id,small){
+  var c=cosmetic(id);
+  if(!c)return '<span class="pack-v2-fallback">✦</span>';
+  try{
+    if(typeof indexlingArtHtml==='function'){
+      var v=indexlingArtHtml(c,!!small,skin(id));
+      if(v)return v;
+    }
+  }catch(e){}
+  return '<span class="pack-v2-fallback">'+esc(c.icon||'✦')+'</span>';
+}
+function stats(id){
+  try{
+    var p=commanderFinalProfile(),lvl=Math.max(1,Number(p.levels&&p.levels[id])||1);
+    return {lvl:lvl,st:commanderFinalStats(id,lvl)};
+  }catch(e){
+    var t=troop(id)||{};
+    return {lvl:1,st:{damage:Number(t.damage)||0,range:Number(t.range)||0,rate:Number(t.rate)||1000,cooldown:Number(t.cooldown)||6}};
+  }
+}
+function css(){
+  if(document.getElementById('commander-pack-arsenal-v2-style'))return;
+  var s=document.createElement('style');
+  s.id='commander-pack-arsenal-v2-style';
+  s.textContent=`
+    .commander-pack-arsenal-v2{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important}
+    .commander-pack-card-v2{position:relative;min-height:136px!important;padding:7px!important;border:2px solid rgba(255,255,255,.1)!important;border-radius:14px!important;background:linear-gradient(160deg,#17293d,#102033)!important;color:#fff!important;text-align:left!important;cursor:pointer!important;overflow:visible!important;transition:transform .12s,border-color .12s,box-shadow .12s,background .12s!important}
+    .commander-pack-card-v2:hover{transform:translateY(-2px)!important;border-color:#6fd9ff!important;background:linear-gradient(160deg,#1d344b,#13283c)!important;box-shadow:0 9px 22px rgba(0,0,0,.22)!important}
+    .commander-pack-card-v2.selected{border-color:#ffd45e!important;box-shadow:0 0 0 2px rgba(255,212,94,.2),0 10px 24px rgba(0,0,0,.22)!important}
+    .commander-pack-card-v2.locked{opacity:.62}
+    .commander-pack-art-v2{height:62px;display:grid;place-items:center}
+    .commander-pack-art-v2>*{max-width:62px!important;max-height:62px!important}
+    .commander-pack-art-v2 svg{width:62px!important;height:62px!important;display:block!important}
+    .commander-pack-name-v2{font-size:10px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .commander-pack-meta-v2{font-size:8px;color:#9eb5c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+    .commander-pack-stats-v2{font-size:7.5px;color:#d3e3ee;line-height:1.35;margin-top:4px}
+    .commander-pack-cost-v2{font-size:8px;font-weight:950;color:#ffd76c;margin-top:4px}
+    .commander-pack-lock-v2{position:absolute;right:6px;top:6px;padding:3px 5px;border-radius:999px;background:rgba(5,14,24,.75);font-size:7px;font-weight:950;color:#ffd76c}
+    .commander-pack-hint-v2{margin:0 0 8px;padding:7px 9px;border-radius:10px;background:#14283d;border:1px solid #35536d;color:#bfe3f5;font-size:8px;font-weight:850;line-height:1.35}
+    .commander-pack-unit-layer-v2{position:absolute;inset:0;z-index:8;pointer-events:none}
+    .commander-pack-unit-v2{position:absolute;transform:translate(-50%,-50%);width:78px;height:92px;pointer-events:auto;display:grid;place-items:center;filter:drop-shadow(0 7px 9px rgba(0,0,0,.32));cursor:pointer}
+    .commander-pack-unit-v2:hover{z-index:30}
+    .commander-pack-unit-art-v2{width:72px;height:72px;display:grid;place-items:center}
+    .commander-pack-unit-art-v2 svg{width:72px!important;height:72px!important}
+    .commander-pack-unit-name-v2{position:absolute;top:69px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:4px 7px;border-radius:999px;background:rgba(7,19,33,.94);border:1px solid rgba(255,255,255,.12);color:#fff;font:900 8px system-ui;pointer-events:none}
+    .commander-pack-unit-role-v2{position:absolute;bottom:75px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:3px 6px;border-radius:999px;background:#fff;color:#15283a;font:900 7px system-ui;pointer-events:none}
+    .commander-pack-unit-ring-v2{position:absolute;left:50%;top:50%;width:150px;height:150px;transform:translate(-50%,-50%);border:3px solid #37d990;border-radius:50%;background:rgba(55,217,144,.10);opacity:0;pointer-events:none}
+    .commander-pack-unit-v2:hover .commander-pack-unit-ring-v2{opacity:1}
+    .commander-pack-unit-tip-v2{position:absolute;left:100%;top:0;width:210px;padding:10px;border-radius:12px;background:rgba(7,19,33,.97);border:1px solid #3f6a88;color:#fff;box-shadow:0 14px 30px rgba(0,0,0,.3);opacity:0;transform:translateX(8px);transition:.12s;pointer-events:none;z-index:50}
+    .commander-pack-unit-v2:hover .commander-pack-unit-tip-v2{opacity:1}
+    .commander-pack-unit-tip-v2 b{font-size:11px}
+    .commander-pack-ghost-v2{position:absolute;transform:translate(-50%,-50%);width:82px;height:82px;z-index:9;pointer-events:none;display:grid;place-items:center}
+    .commander-pack-ghost-ring-v2{position:absolute;width:154px;height:154px;border-radius:50%;border:3px solid #37d990;background:rgba(55,217,144,.12)}
+    .commander-pack-ghost-ring-v2.blocked{border-color:#ed5d6a;background:rgba(237,93,106,.12)}
+    .commander-pack-ghost-art-v2{width:70px;height:70px;opacity:.68;filter:drop-shadow(0 6px 8px rgba(0,0,0,.35))}
+    .commander-pack-ghost-art-v2 svg{width:70px!important;height:70px!important}
+    .commander-pack-ghost-label-v2{position:absolute;top:60px;white-space:nowrap;padding:4px 7px;border-radius:8px;background:rgba(7,19,33,.95);border:1px solid #37d990;color:#d9ffef;font:900 8px system-ui}
+    .commander-pack-ghost-label-v2.blocked{border-color:#ed5d6a;color:#ffe3e6}
+    .commander-pack-fallback-v2{font-size:28px}
+    @media(max-width:760px){.commander-pack-arsenal-v2{grid-template-columns:1fr!important}.commander-pack-unit-tip-v2{left:auto;right:100%;transform:translateX(-8px)}}
+  `;
+  document.head.appendChild(s);
+}
+
+function isBattle(){
+  return !!document.querySelector('#games-stage .commander-auth-battle');
+}
+function stage(){
+  return document.getElementById('games-stage');
+}
+function clearLegacy(){
+  ['indexling-battlefield-overlay','indexling-battlefield-stats'].forEach(function(id){
+    var e=document.getElementById(id);if(e)e.remove();
+  });
+  document.querySelectorAll('.ibp-hint,.ibp-unit').forEach(function(e){e.remove();});
+}
+function renderArsenal(){
+  var st=stage();if(!st||!isBattle())return;
+  var box=st.querySelector('.commander-auth-roster');
+  var g=window.state&&state.games;
+  if(!box||!g||g.active!=='commander'||g.phase!=='battle')return;
+
+  var p;
+  try{p=commanderFinalProfile();}catch(e){p={owned:{},levels:{}};}
+  var sig=IDS.map(function(id){return id+':'+(p.owned&&p.owned[id]?'1':'0')+':'+(g.selectedTroop===id?'1':'0');}).join('|');
+  if(box.dataset.packV2Sig===sig&&box.querySelector('.commander-pack-arsenal-v2'))return;
+
+  var html='<div class="commander-pack-hint-v2">Choose an Indexling from your pack collection. Click a card to select it, then click an open area of the battlefield to place it. Hover a placed Indexling for its range and stats.</div><div class="commander-pack-arsenal-v2">';
+  IDS.forEach(function(id){
+    var t=troop(id),c=cosmetic(id);
+    if(!t||!c)return;
+    var own=!!(p.owned&&p.owned[id]),info=stats(id),stt=info.st,lvl=info.lvl,cost=Math.max(0,Number(t.cost)||5);
+    html+='<button type="button" class="commander-pack-card-v2 '+(g.selectedTroop===id?'selected ':'')+(!own?'locked':'')+'" data-pack-troop="'+id+'">'+
+      (!own?'<span class="commander-pack-lock-v2">LOCKED</span>':'')+
+      '<div class="commander-pack-art-v2">'+art(id,true)+'</div>'+
+      '<div class="commander-pack-name-v2">'+esc(c.name)+' · Lv '+lvl+'</div>'+
+      '<div class="commander-pack-meta-v2">'+esc(t.category||t.role||'Indexling')+' · '+esc(t.role||'Defense')+'</div>'+
+      '<div class="commander-pack-stats-v2">⚔ '+stt.damage+' DMG · ◉ '+stt.range+' RNG · ⚡ '+(Math.round(1000/stt.rate*10)/10)+'/s<br>✦ '+esc(t.ability||'Unique Attack')+'</div>'+
+      '<div class="commander-pack-cost-v2">Deploy · '+cost+' 🪙</div>'+
+    '</button>';
+  });
+  html+='</div>';
+  box.innerHTML=html;
+  box.dataset.packV2Sig=sig;
+
+  box.querySelectorAll('[data-pack-troop]').forEach(function(card){
+    card.addEventListener('click',function(e){
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      var id=card.dataset.packTroop,g=state.games;
+      if(!g||g.running||g.questionGateOpen)return;
+      if(typeof window.__commanderSelectFinal==='function'){
+        window.__commanderSelectFinal(id,e);
+      }else{
+        g.selectedTroop=g.selectedTroop===id?null:id;
+        if(typeof window.commanderRenderScreen==='function')window.commanderRenderScreen();
+      }
+    },true);
+  });
+}
+
+function renderUnitLayer(){
+  var st=stage(),world=st&&st.querySelector('.commander-auth-world'),g=window.state&&state.games;
+  if(!world||!g||g.active!=='commander'||g.phase!=='battle')return;
+  var old=world.querySelector('.commander-pack-unit-layer-v2');
+  if(!old){old=document.createElement('div');old.className='commander-pack-unit-layer-v2';world.appendChild(old);}
+  var key=(g.towers||[]).map(function(t){return [t.id,t.x,t.y,t.level,t.hp].join(':');}).join('|')+'#'+String(g.selectedTroop||'')+'#'+String(g.cursor?g.cursor.x+'|'+g.cursor.y+'|'+g.cursor.valid:'');
+  if(old.dataset.key===key)return;
+  old.dataset.key=key;
+  var html='';
+  (g.towers||[]).forEach(function(t,i){
+    var td=troop(t.id),info=stats(t.id),stt=info.st,lvl=info.lvl;
+    if(!td)return;
+    var c=cosmetic(t.id);
+    html+='<div class="commander-pack-unit-v2" style="left:'+(t.x*100)+'%;top:'+(t.y*100)+'%;" data-pack-unit-index="'+i+'">'+
+      '<div class="commander-pack-unit-ring-v2"></div>'+
+      '<div class="commander-pack-unit-art-v2">'+art(t.id,false)+'</div>'+
+      '<div class="commander-pack-unit-role-v2">'+esc(td.category||td.role||'Indexling')+'</div>'+
+      '<div class="commander-pack-unit-name-v2">'+esc((c&&c.name)||td.name||'Indexling')+' · Lv '+lvl+'</div>'+
+      '<div class="commander-pack-unit-tip-v2"><b>'+esc((c&&c.name)||td.name||'Indexling')+' · Lv '+lvl+'</b><br>'+
+      '<span style="color:#9fdfff">'+esc(td.category||td.role||'Indexling')+'</span><br>'+
+      '⚔ '+stt.damage+' DMG · ◉ '+stt.range+' RNG · ⚡ '+(Math.round(1000/stt.rate*10)/10)+'/s<br>'+
+      '<span style="color:#ffd66e">✦ '+esc(td.ability||'Unique Attack')+'</span></div>'+
+    '</div>';
+  });
+  if(g.selectedTroop&&g.cursor&&!g.running){
+    var info2=stats(g.selectedTroop),td2=troop(g.selectedTroop);
+    if(td2){
+      html+='<div class="commander-pack-ghost-v2" style="left:'+(g.cursor.x*100)+'%;top:'+(g.cursor.y*100)+'%;">'+
+        '<div class="commander-pack-ghost-ring-v2 '+(g.cursor.valid?'':'blocked')+'"></div>'+
+        '<div class="commander-pack-ghost-art-v2">'+art(g.selectedTroop,false)+'</div>'+
+        '<div class="commander-pack-ghost-label-v2 '+(g.cursor.valid?'':'blocked')+'">'+(g.cursor.valid?'PLACE':'BLOCKED')+' · '+esc(td2.name)+'</div>'+
+      '</div>';
+    }
+  }
+  old.innerHTML=html;
+}
+
+function bindWorldEvents(){
+  var cv=document.getElementById('commander-auth-canvas');
+  if(!cv||cv.dataset.packV2Bound==='1')return;
+  cv.dataset.packV2Bound='1';
+  cv.addEventListener('pointermove',function(){requestAnimationFrame(function(){renderUnitLayer();});},{passive:true});
+  cv.addEventListener('pointerleave',function(){requestAnimationFrame(function(){renderUnitLayer();});},{passive:true});
+}
+
+function sync(){
+  clearLegacy();
+  if(!isBattle())return;
+  css();
+  renderArsenal();
+  bindWorldEvents();
+  renderUnitLayer();
+}
+
+var mo=new MutationObserver(function(){
+  clearTimeout(window.__indexCommanderPackArsenalTimer);
+  window.__indexCommanderPackArsenalTimer=setTimeout(sync,20);
+});
+var st=stage();
+if(st)mo.observe(st,{childList:true,subtree:true});
+setInterval(sync,700);
+setTimeout(sync,120);
+setTimeout(sync,700);
+
+})();\n
