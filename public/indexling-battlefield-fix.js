@@ -50,7 +50,7 @@ function buildDef(c,i){
   var tier=c.rarity==='Legendary'?4:c.rarity==='Epic'?3:c.rarity==='Rare'?2:1;
   return {
     id:c.id,name:c.name,role:role+' Indexling',category:role,
-    cost:Math.round((PACK_META[pack]?.costBase||40)+(tier-1)*18),
+    cost:5+(tier-1)*3+Math.min(2,idx%3),
     damage:Math.round((9+idx*2)*rarity),
     range:118+(idx%8)*16+(tier-1)*8,
     rate:Math.max(650,1220-(idx%6)*65-(tier-1)*40),
