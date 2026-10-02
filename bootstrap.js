@@ -7,7 +7,7 @@ const marker = '<!-- INDEX_REWARDS_V2 -->';
 const questTag = '<script src="/quests-avatar-pack.js"></script>';
 const battlefieldTag = '<script src="/indexling-battlefield-fix.js?v=22"></script>';
 const hotfixTag = '<script src="/indexling-commander-hotfix-v20.js?v=24"></script>';
-const runtimeTag = '<script src="/commander-runtime-v13.js?v=1"></script>';
+const runtimeTag = '<script src="/commander-runtime-v13.js?v=2"></script>';
 
 try {
   let html = fs.readFileSync(htmlPath, 'utf8');
