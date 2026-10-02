@@ -8540,11 +8540,15 @@ function commanderStartWaveEngineV10(e){
   try{
     commanderWaveEngineV10.active=true;
     var token=++commanderWaveEngineV10.token;
+
     g.running=true;
     g.finished=false;
     g.questionGateOpen=false;
     g.questionFeedback=null;
     g.selectedTroop=null;
+    g.selectedTowerIndex=-1;
+    g.hoverTowerIndex=-1;
+    g.cursor=null;
     g.wave=Math.max(0,Number(g.wave)||0)+1;
     g.spawnCount=0;
     g.spawnTotal=6+Math.min(14,g.wave*2);
@@ -8559,10 +8563,18 @@ function commanderStartWaveEngineV10(e){
     try{v6Save(g);}catch(err){console.warn('[Commander V10] initial save failed',err);}
     renderBattle(g);
 
-    function step(now){
-      var live=state&&state.games;
-      if(token!==commanderWaveEngineV10.token||live!==g||!commanderWaveEngineV10.active){
-        if(live===g)g.frame=null;
+    /*
+     * Use the existing Commander V6 gameplay loop directly. It is the real
+     * implementation that owns spawnV6(), enemy movement, tower attacks,
+     * projectiles, base damage, round completion, and drawing.
+     *
+     * The previous V10 controller called a nonexistent update() function,
+     * which immediately threw and reset running=false. That is why the UI
+     * returned to READY TO DEPLOY with zero enemies.
+     */
+    var firstFrame=requestAnimationFrame(function(now){
+      if(token!==commanderWaveEngineV10.token||state.games!==g){
+        if(state.games===g)g.frame=null;
         return;
       }
       if(!g.running||g.finished||g.questionGateOpen||g.phase!=='battle'){
@@ -8571,19 +8583,12 @@ function commanderStartWaveEngineV10(e){
         return;
       }
       try{
-        var dt=Math.min(.05,(g.lastFrame?now-g.lastFrame:16)/1000);
-        g.lastFrame=now;
-        update(g,dt,now);
-        if(state.games!==g)return;
-        draw(g);
-        if(g.running&&!g.finished&&!g.questionGateOpen){
-          g.frame=requestAnimationFrame(step);
-        }else{
-          g.frame=null;
+        loopV6(now);
+        if(!g.running||g.finished||g.questionGateOpen){
           commanderWaveEngineV10.active=false;
         }
       }catch(err){
-        console.error('[Commander V10] wave loop failed',err);
+        console.error('[Commander V10] wave loop bridge failed',err);
         g.running=false;
         g.frame=null;
         commanderWaveEngineV10.active=false;
@@ -8591,10 +8596,10 @@ function commanderStartWaveEngineV10(e){
         try{renderBattle(g);}catch(renderErr){}
         try{showRewardToast('Wave engine stopped safely: '+String(err&&err.message||err));}catch(toastErr){}
       }
-    }
+    });
 
-    g.frame=requestAnimationFrame(step);
-    if(g.frame==null)throw new Error('Commander animation frame could not be scheduled.');
+    if(firstFrame==null)throw new Error('Commander animation frame could not be scheduled.');
+    g.frame=firstFrame;
     return false;
   }catch(err){
     commanderWaveEngineV10.active=false;
