@@ -7741,13 +7741,14 @@ async function commanderRequestAiQuestion(g,background){
 
       if(background){
         g.aiNextQuestion=q;
+        g.aiPrefetchError='';
       }else{
         g.question=q;
         g.questionLoading=false;
         g.aiPrefetchError='';
         commanderRememberQuestion(g,q);
+        if(state.games===g)renderBattle(g);
       }
-      if(state.games===g)renderBattle(g);
       return q;
     }
     throw new Error('AI returned a repeated question after multiple attempts.');
@@ -7764,8 +7765,8 @@ async function commanderRequestAiQuestion(g,background){
           var fallback=pickV6(g,g.question&&g.question.q);
           g.question=fallback;
           commanderRememberQuestion(g,fallback);
+          renderBattle(g);
         }
-        renderBattle(g);
       }
       return null;
     })
@@ -7822,10 +7823,23 @@ function commanderAdvanceToNextQuestion(g){
   if(commanderConsumeNextAiQuestion(g)){
     renderBattle(g);
     commanderRequestAiQuestion(g,true);
+    return;
+  }
+  g.question=null;
+  g.questionLoading=true;
+  renderBattle(g);
+  var pending=g.aiQuestionRequest;
+  if(pending){
+    pending.then(function(){
+      if(state.games!==g)return;
+      if(commanderConsumeNextAiQuestion(g)){
+        renderBattle(g);
+        commanderRequestAiQuestion(g,true);
+      }else{
+        commanderRequestAiQuestion(g,false);
+      }
+    });
   }else{
-    g.question=null;
-    g.questionLoading=true;
-    renderBattle(g);
     commanderRequestAiQuestion(g,false);
   }
 }
