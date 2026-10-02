@@ -6952,6 +6952,8 @@ body:has(.commander-authoritative-root){overflow:hidden!important}
 .commander-auth-budget{padding:8px 10px;border-radius:11px;background:#1a2c41;border:1px solid #324c65;color:#d5e6f4;font-size:9px;margin-bottom:8px}
 @media(max-width:900px){.commander-auth-battle{grid-template-columns:1fr 320px}.commander-auth-side-left{display:none}}
 @media(max-width:700px){.commander-auth-battle{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 46vh}.commander-auth-side-right{border-left:0;border-top:1px solid rgba(255,255,255,.1)}.commander-auth-options{grid-template-columns:1fr}.commander-auth-stats{grid-template-columns:1fr 1fr}}
+
+.commander-pack-active-art{width:64px!important;height:64px!important;display:grid!important;place-items:center!important}.commander-pack-active-art svg{width:60px!important;height:60px!important}.commander-auth-active-ability{font:900 8px system-ui;color:#ffd86b;margin-top:3px}
 </style>
 
 <script id="commander-authoritative-v5">
@@ -7733,8 +7735,18 @@ function rosterHtml(g){
 function activeHtml(g){
   if(!g.towers.length)return '<div class="commander-auth-empty">No Indexlings deployed yet.<br><br>Select an Indexling on the right, then hover the battlefield to preview placement.</div>';
   return g.towers.map(function(t,i){
-    var td=tdef(t.id),hp=Math.max(0,Number(t.hp||0)),max=Math.max(1,Number(t.maxHp||100)),pct=Math.max(0,Math.min(100,hp/max));
-    return '<div class="commander-auth-active-card"><div class="commander-auth-active-head"><div class="commander-auth-active-art">'+art(t.id,true)+'</div><div><div class="commander-auth-active-name">'+esc(td.name)+' · Lv '+t.level+'</div><div class="commander-auth-active-sub">'+esc(td.role)+' · '+Math.ceil(hp)+'/'+max+' HP</div>'+(td.income?'<div class="commander-auth-income">💰 +'+td.income.toFixed(1)+' coins/s</div>':'')+'</div></div><div class="commander-auth-health"><span style="width:'+pct+'%"></span></div><div class="commander-auth-active-actions"><button onclick="return window.__commanderHealFinal('+i+',event)">Heal · 10 🪙</button><button onclick="return window.__commanderUpgradeActiveFinal('+i+',event)">Upgrade</button><button onclick="return window.__commanderSellFinal('+i+',event)">Sell</button></div></div>';
+    var td=COMMANDER_TROOPS_FINAL.find(function(x){return x.id===t.id;})||null;
+    var c=(typeof cosmeticById==='function')?cosmeticById(t.id):null;
+    if(!td&&!c)return '';
+    var name=(c&&c.name)||(td&&td.name)||'Indexling';
+    var role=(td&&td.role)||(c&&((c.pack||'Pack')+' Indexling'))||'Indexling';
+    var artHtml='';
+    try{
+      if(c&&typeof indexlingArtHtml==='function')artHtml=indexlingArtHtml(c,true,getEquippedSkinForIndexling(t.id))||'';
+    }catch(e){}
+    if(!artHtml)artHtml=art(t.id,true);
+    var hp=Math.max(0,Number(t.hp||0)),max=Math.max(1,Number(t.maxHp||100)),pct=Math.max(0,Math.min(100,hp/max));
+    return '<div class="commander-auth-active-card"><div class="commander-auth-active-head"><div class="commander-auth-active-art commander-pack-active-art">'+artHtml+'</div><div><div class="commander-auth-active-name">'+esc(name)+' · Lv '+Math.max(1,Number(t.level)||1)+'</div><div class="commander-auth-active-sub">'+esc(role)+' · '+Math.ceil(hp)+'/'+max+' HP</div>'+(td&&td.income?'<div class="commander-auth-income">💰 +'+td.income.toFixed(1)+' coins/s</div>':'')+(td&&td.ability?'<div class="commander-auth-active-ability">✦ '+esc(td.ability)+'</div>':'')+'</div></div><div class="commander-auth-health"><span style="width:'+pct+'%"></span></div><div class="commander-auth-active-actions"><button onclick="return window.__commanderHealFinal('+i+',event)">Heal · 10 🪙</button><button onclick="return window.__commanderUpgradeActiveFinal('+i+',event)">Upgrade</button><button onclick="return window.__commanderSellFinal('+i+',event)">Sell</button></div></div>';
   }).join('');
 }
 function commanderSafeRosterHtml(g){
@@ -8004,16 +8016,152 @@ function commanderAdvanceToNextQuestion(g){
 
   commanderRequestAiQuestion(g,false);
 }
+/* COMMANDER QUESTION PIPELINE V9
+   Keep a rolling queue of fresh AP questions. Generated questions are never
+   shown twice in the same run; the AI bank request receives the used stems as
+   exclusions, and the local safety bank is only used when AI generation is unavailable. */
+var commanderRequestAiQuestionLegacyV9=commanderRequestAiQuestion;
+function commanderQuestionExclusionsV9(g){
+  var out=commanderUsedQuestions(g).slice(-30);
+  if(g&&g.question&&g.question.q)out.push(commanderQuestionKey(g.question.q));
+  if(g&&g.aiNextQuestion&&g.aiNextQuestion.q)out.push(commanderQuestionKey(g.aiNextQuestion.q));
+  (Array.isArray(g&&g.aiQuestionQueue)?g.aiQuestionQueue:[]).forEach(function(q){if(q&&q.q)out.push(commanderQuestionKey(q.q));});
+  return Array.from(new Set(out)).filter(Boolean).slice(-30);
+}
+function commanderQuestionQueueHasV9(g,key){
+  return (Array.isArray(g&&g.aiQuestionQueue)?g.aiQuestionQueue:[]).some(function(q){return commanderQuestionKey(q&&q.q)===key;});
+}
+function commanderQueueQuestionV9(g,q){
+  var n=commanderNormalizeAiQuestion({question:q});
+  if(!n)return false;
+  var key=commanderQuestionKey(n.q);
+  if(!key||commanderUsedQuestions(g).indexOf(key)>=0||commanderQuestionQueueHasV9(g,key))return false;
+  if(g.question&&commanderQuestionKey(g.question.q)===key)return false;
+  if(g.aiNextQuestion&&commanderQuestionKey(g.aiNextQuestion.q)===key)return false;
+  if(!Array.isArray(g.aiQuestionQueue))g.aiQuestionQueue=[];
+  g.aiQuestionQueue.push(n);
+  if(g.aiQuestionQueue.length>4)g.aiQuestionQueue=g.aiQuestionQueue.slice(-4);
+  return true;
+}
+function commanderFallbackUniqueV9(g){
+  var used=commanderUsedQuestions(g);
+  var queued=Array.isArray(g.aiQuestionQueue)?g.aiQuestionQueue:[];
+  var pool=questionPoolForRun(g).filter(function(q){
+    var k=commanderQuestionKey(q&&q.q);
+    return q&&q.q&&used.indexOf(k)<0&&!queued.some(function(x){return commanderQuestionKey(x&&x.q)===k;});
+  });
+  if(!pool.length){
+    pool=questionPoolForRun(g).filter(function(q){return q&&q.q&&commanderQuestionKey(q.q)!==commanderQuestionKey(g.question&&g.question.q);});
+  }
+  if(!pool.length)return null;
+  var raw=pool[Math.floor(Math.random()*pool.length)];
+  return {q:String(raw.q),options:(raw.options||[]).map(String).slice(0,4),correct:Math.max(0,Math.min(3,Number(raw.correct)||0)),explanation:String(raw.explanation||'')};
+}
+async function commanderRequestAiQuestionV9(g,background){
+  if(!g||state.games!==g)return null;
+  if(g.aiQuestionRequest)return g.aiQuestionRequest;
+  if(background&&Array.isArray(g.aiQuestionQueue)&&g.aiQuestionQueue.length>=3)return g.aiQuestionQueue[0]||null;
+  var subject=subjectById(g.subjectId)||{};
+  var course=subject.name||g.subjectId||'Biology',unit=g.unit||'Course review',topic=g.topic||'';
+  var exclusions=commanderQuestionExclusionsV9(g);
+  var request=(async function(){
+    try{
+      var response=await fetch('/api/ai/commander-bank',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},
+        cache:'no-store',
+        body:JSON.stringify({course:course,unit:unit,topic:topic,exclude:exclusions,seed:String(Date.now())+'-'+String(Math.random()).slice(2)})
+      });
+      var data=await response.json().catch(function(){return{};});
+      if(!response.ok)throw new Error(data&&data.error||'AI question bank request failed.');
+      var list=Array.isArray(data.questions)?data.questions:[];
+      list.forEach(function(q){commanderQueueQuestionV9(g,q);});
+      if(!Array.isArray(g.aiQuestionQueue))g.aiQuestionQueue=[];
+      if(!g.question&&g.questionGateOpen&&g.aiQuestionQueue.length){
+        g.question=g.aiQuestionQueue.shift();
+        g.questionSource='ai';
+        g.questionLoading=false;
+        g.aiPrefetchError='';
+        commanderRememberQuestion(g,g.question);
+        renderBattle(g);
+      }else if(background){
+        try{v6Save(g);}catch(e){}
+      }
+      if(!g.question&&g.questionGateOpen){
+        throw new Error('AI returned no new Commander questions.');
+      }
+      return g.question||g.aiQuestionQueue[0]||null;
+    }catch(err){
+      if(state.games===g){
+        g.aiPrefetchError=String(err&&err.message||err);
+        if(!g.question&&g.questionGateOpen){
+          var fb=commanderFallbackUniqueV9(g);
+          if(fb){
+            g.question=fb;
+            g.questionSource='fallback';
+            g.questionLoading=false;
+            commanderRememberQuestion(g,fb);
+            renderBattle(g);
+          }
+        }else if(!background){
+          /* A foreground failure still gets a local unseen question. */
+          var fb2=commanderFallbackUniqueV9(g);
+          if(fb2)commanderQueueQuestionV9(g,fb2);
+        }
+      }
+      return null;
+    }finally{
+      if(state.games===g)g.aiQuestionRequest=null;
+    }
+  })();
+  g.aiQuestionRequest=request;
+  return request;
+}
+commanderRequestAiQuestion=commanderRequestAiQuestionV9;
+function commanderConsumeNextAiQuestionV9(g){
+  if(!g||!Array.isArray(g.aiQuestionQueue)||!g.aiQuestionQueue.length)return false;
+  var next=g.aiQuestionQueue.shift();
+  var key=commanderQuestionKey(next&&next.q);
+  if(!next||!next.q||commanderUsedQuestions(g).indexOf(key)>=0)return false;
+  g.question=next;
+  g.questionSource='ai';
+  g.questionLoading=false;
+  g.aiPrefetchError='';
+  commanderRememberQuestion(g,next);
+  return true;
+}
+commanderConsumeNextAiQuestion=commanderConsumeNextAiQuestionV9;
+commanderAdvanceToNextQuestion=function(g){
+  if(!g||state.games!==g)return;
+  g.questionFeedback=null;
+  g.questionLoading=true;
+  g.aiPrefetchError='';
+  if(commanderConsumeNextAiQuestionV9(g)){
+    renderBattle(g);
+    commanderRequestAiQuestionV9(g,true);
+    try{v6Save(g);}catch(e){}
+    return;
+  }
+  renderBattle(g);
+  var pending=commanderRequestAiQuestionV9(g,false);
+  if(pending&&typeof pending.then==='function')pending.then(function(){
+    if(state.games===g){
+      if(g.question)renderBattle(g);
+      commanderRequestAiQuestionV9(g,true);
+      try{v6Save(g);}catch(e){}
+    }
+  });
+};
 function v6Profile(){return commanderFinalProfile();}
 function v6Save(g){
   if(!g||g.slotIndex==null)return;
-  commanderSlotsFinal()[g.slotIndex]={mapId:g.mapId,round:g.wave,base:g.base,subjectId:g.subjectId||'',unit:g.unit||'',topic:g.topic||'',waveCoins:g.waveCoins||0,questionGateOpen:!!g.questionGateOpen,question:g.question||null,questionFeedback:g.questionFeedback||null,questionCorrectCount:g.questionCorrectCount||0,questionAskedCount:g.questionAskedCount||0,selectedTroop:g.selectedTroop||null,troopCategory:g.troopCategory||'All',usedQuestionKeys:g.usedQuestionKeys||[],towers:(g.towers||[]).map(function(t){return{id:t.id,x:t.x,y:t.y,level:t.level,hp:t.hp,maxHp:t.maxHp};}),savedAt:Date.now()};persistProgress();
+  commanderSlotsFinal()[g.slotIndex]={mapId:g.mapId,round:g.wave,base:g.base,subjectId:g.subjectId||'',unit:g.unit||'',topic:g.topic||'',waveCoins:g.waveCoins||0,questionGateOpen:!!g.questionGateOpen,question:g.question||null,questionFeedback:g.questionFeedback||null,questionCorrectCount:g.questionCorrectCount||0,questionAskedCount:g.questionAskedCount||0,selectedTroop:g.selectedTroop||null,troopCategory:g.troopCategory||'All',usedQuestionKeys:g.usedQuestionKeys||[],aiQuestionQueue:Array.isArray(g.aiQuestionQueue)?g.aiQuestionQueue.slice(0,4):[],towers:(g.towers||[]).map(function(t){return{id:t.id,x:t.x,y:t.y,level:t.level,hp:t.hp,maxHp:t.maxHp};}),savedAt:Date.now()};persistProgress();
 }
 function clearV6Timers(g){if(g&&g.frame){cancelAnimationFrame(g.frame);g.frame=null;}if(typeof clearGameTimers==='function')clearGameTimers();}
 function startV6(mapId,slot,saveData){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===mapId;});if(!m)return;
   var prev=state.games||{},old=saveData&&typeof saveData==='object'?saveData:null;clearV6Timers(prev);
-  var g={active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',question:null,questionGateOpen:true,questionFeedback:null,questionAskedCount:0,questionCorrectCount:0,waveCoins:old?Number(old.waveCoins)||0:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,selectedTroop:old&&old.selectedTroop||null,troopCategory:old&&old.troopCategory||'All',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,coinAccumulator:0,usedQuestionKeys:[],aiNextQuestion:null,aiQuestionRequest:null,questionLoading:true,aiPrefetchError:'',usedQuestionKeys:old&&Array.isArray(old.usedQuestionKeys)?old.usedQuestionKeys.slice(-40):[],hoverTowerIndex:-1,selectedTowerIndex:-1};
+  var g={active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',question:null,questionGateOpen:true,questionFeedback:null,questionAskedCount:0,questionCorrectCount:0,waveCoins:old?Number(old.waveCoins)||0:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,selectedTroop:old&&old.selectedTroop||null,troopCategory:old&&old.troopCategory||'All',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,coinAccumulator:0,usedQuestionKeys:[],aiQuestionQueue:old&&Array.isArray(old.aiQuestionQueue)?old.aiQuestionQueue.slice(0,4):[],aiNextQuestion:null,aiQuestionRequest:null,questionLoading:true,aiPrefetchError:'',usedQuestionKeys:old&&Array.isArray(old.usedQuestionKeys)?old.usedQuestionKeys.slice(-40):[],hoverTowerIndex:-1,selectedTowerIndex:-1};
   if(old&&Array.isArray(old.towers))old.towers.forEach(function(t){if(t&&t.id&&t.x!=null&&t.y!=null&&v6Profile().owned[t.id])g.towers.push({id:t.id,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),hp:Number(t.hp||100),maxHp:Number(t.maxHp||100),cool:0,abilityReady:performance.now()+1500,recoil:0});});
   state.games=g;v6Save(g);renderBattle(g);commanderBeginGateQuestion(g);
 }
@@ -8206,7 +8354,7 @@ function draw(g){
 }
 window.__commanderCategoryFinal=function(cat,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running)return false;g.troopCategory=cat;renderBattle(g);return false;};
 window.__commanderSelectFinal=function(id,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running||g.questionGateOpen)return false;var p=profile();if(!p.owned[id]){if(p.coins>=tdef(id).cost){p.coins-=tdef(id).cost;p.owned[id]=true;p.levels[id]=1;persistProgress();showRewardToast(tdef(id).name+' unlocked');}else{showRewardToast('Unlock '+tdef(id).name+' for '+tdef(id).cost+' coins first.');}return false;}g.selectedTroop=g.selectedTroop===id?null:id;g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;renderBattle(g);return false;};
-window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||!g.question||g.questionFeedback)return false;var q=g.question,answeredQuestion={q:q.q,options:q.options,correct:q.correct,explanation:q.explanation},correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;g.waveCoins=(g.waveCoins||0)+10;if(correct){g.questionCorrectCount=1;}if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,answeredQuestion,correct,false);g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};try{v6Save(g);}catch(err){console.warn('Commander gate save failed',err);}renderBattle(g);if(!g.aiNextQuestion)commanderRequestAiQuestion(g,true);return false;};
+window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||!g.question||g.questionFeedback)return false;var q=g.question,answeredQuestion={q:q.q,options:q.options,correct:q.correct,explanation:q.explanation},correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;g.waveCoins=(g.waveCoins||0)+10;if(correct){g.questionCorrectCount=1;}if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,answeredQuestion,correct,false);g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};try{v6Save(g);}catch(err){console.warn('Commander gate save failed',err);}renderBattle(g);commanderRequestAiQuestion(g,true);return false;};
 window.__commanderEnterBattlefieldV7=function(e){
   if(e&&e.preventDefault){e.preventDefault();e.stopPropagation();}
   var g=state.games;
@@ -8253,12 +8401,15 @@ window.__commanderGateContinueV7=function(e){
 };
 window.__commanderContinueV6=function(e){if(e&&e.preventDefault){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionFeedback)return false;if(g.questionFeedback.correct)return window.__commanderEnterBattlefieldV7();commanderAdvanceToNextQuestion(g);return false;};
 window.__commanderExitV6=function(e){if(e){e.preventDefault();e.stopPropagation();}clearV6Timers(state.games);state.games={active:null,setupType:null,commanderScreen:null};renderGames();return false;};
-window.__commanderStartWaveFinal=function(e){
+window.__commanderStartWaveAuthoritative=function(e){
   if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
-  var g=state.games;
+  var g=state&&state.games;
   if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.running||g.finished)return false;
   try{
     if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
+    g.selectedTowerIndex=-1;
+    g.hoverTowerIndex=-1;
+    g.cursor=null;
     g.wave=Math.max(0,Number(g.wave)||0)+1;
     g.running=true;
     g.spawnCount=0;
@@ -8272,29 +8423,23 @@ window.__commanderStartWaveFinal=function(e){
     g.waveBannerUntil=Date.now()+850;
     v6Save(g);
     renderBattle(g);
-    /* Start the authoritative simulation directly. */
+    /* renderBattle only rebuilds the DOM; the next line starts the real V6 loop. */
     g.lastFrame=performance.now();
     g.frame=requestAnimationFrame(loopV6);
-    /* If another render replaces the frame before the first tick, restart it. */
-    setTimeout(function(){
-      var live=state.games;
-      if(live===g&&g.running&&!g.questionGateOpen&&!g.finished&&g.frame==null){
-        g.lastFrame=performance.now();
-        g.frame=requestAnimationFrame(loopV6);
-      }
-    },100);
     return false;
   }catch(err){
-    console.error('Commander Start Wave v15 failed',err);
+    console.error('Commander authoritative Start Wave failed',err);
     try{
       g.running=false;
       g.frame=null;
+      g.questionGateOpen=false;
       renderBattle(g);
       showRewardToast('Could not start the wave: '+String(err&&err.message||err));
     }catch(recoveryErr){console.error('Commander Start Wave recovery failed',recoveryErr);}
     return false;
   }
 };
+window.__commanderStartWaveFinal=window.__commanderStartWaveAuthoritative;
 window.__commanderHealFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i],p=profile();if(!t||p.coins<10)return false;p.coins-=10;t.hp=Math.min(t.maxHp,t.hp+Math.max(20,t.maxHp*.35));persistProgress();v6Save(g);renderBattle(g);return false;};
 window.__commanderUpgradeActiveFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i],p=profile();if(!t)return false;var cost=costFor(t.id);if(p.coins<cost||t.level>=10)return false;p.coins-=cost;t.level++;t.maxHp+=18;t.hp=t.maxHp;p.levels[t.id]=Math.max(Number(p.levels[t.id])||1,t.level);persistProgress();v6Save(g);renderBattle(g);return false;};
 window.__commanderSellFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i];if(!t)return false;var p=profile(),td=tdef(t.id);p.coins+=Math.max(5,Math.floor((td.cost||20)*.55));g.towers.splice(i,1);persistProgress();v6Save(g);renderBattle(g);return false;};
