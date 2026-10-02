@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 if(window.__indexCommanderHotfixV22)return;
-window.__indexCommanderHotfixV21=true;
+window.__indexCommanderHotfixV22=true;
 
 function commanderGame(){
   try{return typeof state!=='undefined'&&state&&state.games?state.games:null;}catch(e){return null;}
@@ -109,74 +109,36 @@ setInterval(hardenCanvas,250);
 function startWaveDirect(ev){
   var g=commanderGame();
   if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
-
-  /* Always call the real authoritative launcher. Do not route through another
-     wrapper because several older Commander fixes used to wrap this method. */
   var handler=window.__commanderStartWaveAuthoritative;
-  if(typeof handler!=='function')handler=window.__commanderStartWaveFinal;
   if(typeof handler!=='function'){
     console.error('[Commander V22] authoritative Start Wave handler is unavailable');
     return false;
   }
-
-  /* Use a tiny proxy event so the launcher cannot cancel the real pointer/click
-     event before the browser finishes delivering it to the button. */
-  var proxy={
-    preventDefault:function(){},
-    stopPropagation:function(){},
-    stopImmediatePropagation:function(){}
-  };
-  var waveBefore=Math.max(0,Number(g.wave)||0);
-
   try{
-    handler(proxy);
+    handler(ev);
+    return true;
   }catch(err){
     console.error('[Commander V22] Start Wave launch failed',err);
+    try{if(typeof showRewardToast==='function')showRewardToast('Could not start the wave: '+String(err&&err.message||err));}catch(e){}
     return false;
   }
-
-  /* Recover from a stale/half-started state without requiring a second user
-     click. A valid launch advances wave immediately and leaves a live frame. */
-  setTimeout(function(){
-    var live=commanderGame();
-    if(!live||live!==g||live.questionGateOpen||live.finished)return;
-
-    if(!live.running&&Number(live.wave)<=waveBefore){
-      try{handler(proxy);}catch(err){console.error('[Commander V22] Start Wave retry failed',err);}
-      return;
-    }
-    if(live.running&&!live.frame){
-      live.running=false;
-      try{handler(proxy);}catch(err){console.error('[Commander V22] Start Wave frame recovery failed',err);}
-    }
-  },120);
-
-  return true;
 }
 window.__commanderStartWaveReliable=startWaveDirect;
 
 function isStartWaveElement(target){
   return target&&target.closest?target.closest(
-    '#commander-pack-v4-start,.commander-auth-start,.commander-start-ref,.commander-v6-start-wave,.commander-start-v8,[data-action="commander-start-wave"],[data-action="commander-v6-start"]'
+    '#commander-auth-start-wave,#commander-pack-v4-start,[data-commander-start-wave]'
   ):null;
 }
 
-/* Pointerdown makes the game respond immediately; click covers keyboard and
-   other activation paths. We intentionally do not stop propagation here. */
-document.addEventListener('pointerdown',function(ev){
-  if(ev.button!==0)return;
-  var el=isStartWaveElement(ev.target);
-  if(!el||el.disabled)return;
-  var g=commanderGame();
-  if(!g||g.active!=='commander'||g.phase!=='battle')return;
-  startWaveDirect(ev);
-},true);
-
+/* Only the click event owns Start Wave. Pointerdown is deliberately ignored so
+   the launcher cannot run twice for one physical click. */
 document.addEventListener('click',function(ev){
   var el=isStartWaveElement(ev.target);
   if(!el||el.disabled)return;
-  var g=commanderGame();
-  if(!g||g.active!=='commander'||g.phase!=='battle')return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.stopImmediatePropagation();
   startWaveDirect(ev);
 },true);
 })();
