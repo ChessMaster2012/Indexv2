@@ -396,7 +396,7 @@ function renderRight(){
   var renderKey=[
     Number(g.wave)||0,Number(g.waveCoins)||0,!!g.running,!!g.finished,
     String(g.selectedTroop||''),String(g.packV4Filter||'All'),
-    (g.towers||[]).length,(g.enemies||[]).length
+    (g.towers||[]).length
   ].join('|');
   if(right.dataset.packRenderKey===renderKey)return;
   right.dataset.packRenderKey=renderKey;
