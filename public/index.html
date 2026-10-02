@@ -7361,7 +7361,7 @@ function rosterHtml(g){
   var list=COMMANDER_TROOPS_FINAL.filter(function(t){return cat==='All'||t.category===cat;});
   return categoryHtml(g)+list.map(function(t){
     var own=!!p.owned[t.id],lvl=Math.max(1,Number(p.levels[t.id])||1),st=richStats(t.id,lvl),rate=t.income?'<br>💰 +'+t.income.toFixed(1)+'/s':''; 
-    return '<button class="commander-auth-troop '+(sel===t.id?'selected ':'')+(!own?'locked':'')+'" '+(!own?'disabled':'')+' onclick="return window.__commanderSelectFinal(\''+t.id+'\',event)"><div class="commander-auth-troop-art">'+art(t.id,true)+'</div><div class="commander-auth-troop-name">'+esc(t.name)+' · Lv '+lvl+'</div><div class="commander-auth-troop-role">'+esc(t.category)+' · '+esc(t.role)+'</div><div class="commander-auth-troop-stats">⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · ⚡ '+(Math.round(1000/st.rate*10)/10)+' atk/s'+rate+'</div><div class="commander-auth-unlock">'+(own?'Deploy · '+(t.cost||0)+' 🪙':'Locked · '+t.cost+' 🪙')+'</div></button>';
+    return '<button type="button" class="commander-auth-troop '+(sel===t.id?'selected ':'')+(!own?'locked':'')+'" onclick="return window.__commanderSelectFinal(\''+t.id+'\',event)"><div class="commander-auth-troop-art">'+art(t.id,true)+'</div><div class="commander-auth-troop-name">'+esc(t.name)+' · Lv '+lvl+'</div><div class="commander-auth-troop-role">'+esc(t.category)+' · '+esc(t.role)+'</div><div class="commander-auth-troop-stats">⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · ⚡ '+(Math.round(1000/st.rate*10)/10)+' atk/s'+rate+'</div><div class="commander-auth-unlock">'+(own?'Deploy · '+(t.cost||0)+' 🪙':'Locked · '+t.cost+' 🪙')+'</div></button>';
   }).join('');
 }
 function activeHtml(g){
