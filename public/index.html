@@ -8201,7 +8201,48 @@ window.__commanderGateContinueV7=function(e){
 };
 window.__commanderContinueV6=function(e){if(e&&e.preventDefault){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionFeedback)return false;if(g.questionFeedback.correct)return window.__commanderEnterBattlefieldV7();commanderAdvanceToNextQuestion(g);return false;};
 window.__commanderExitV6=function(e){if(e){e.preventDefault();e.stopPropagation();}clearV6Timers(state.games);state.games={active:null,setupType:null,commanderScreen:null};renderGames();return false;};
-window.__commanderStartWaveFinal=function(e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.questionGateOpen||g.running||g.finished)return false;g.wave++;g.running=true;g.spawnCount=0;g.spawnTotal=6+Math.min(14,g.wave*2);g.nextSpawnAt=performance.now()+150;g.lastFrame=performance.now();v6Save(g);renderBattle(g);g.frame=requestAnimationFrame(loopV6);return false;};
+window.__commanderStartWaveFinal=function(e){
+  if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
+  var g=state.games;
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.running||g.finished)return false;
+  try{
+    if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
+    g.wave=Math.max(0,Number(g.wave)||0)+1;
+    g.running=true;
+    g.spawnCount=0;
+    g.spawnTotal=6+Math.min(14,g.wave*2);
+    g.enemies=[];
+    g.projectiles=[];
+    g.effects=[];
+    g.nextSpawnAt=performance.now()+150;
+    g.lastFrame=performance.now();
+    g.waveBanner='ROUND '+g.wave;
+    g.waveBannerUntil=Date.now()+850;
+    v6Save(g);
+    renderBattle(g);
+    /* Start the authoritative simulation directly. */
+    g.lastFrame=performance.now();
+    g.frame=requestAnimationFrame(loopV6);
+    /* If another render replaces the frame before the first tick, restart it. */
+    setTimeout(function(){
+      var live=state.games;
+      if(live===g&&g.running&&!g.questionGateOpen&&!g.finished&&g.frame==null){
+        g.lastFrame=performance.now();
+        g.frame=requestAnimationFrame(loopV6);
+      }
+    },100);
+    return false;
+  }catch(err){
+    console.error('Commander Start Wave v15 failed',err);
+    try{
+      g.running=false;
+      g.frame=null;
+      renderBattle(g);
+      showRewardToast('Could not start the wave: '+String(err&&err.message||err));
+    }catch(recoveryErr){console.error('Commander Start Wave recovery failed',recoveryErr);}
+    return false;
+  }
+};
 window.__commanderHealFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i],p=profile();if(!t||p.coins<10)return false;p.coins-=10;t.hp=Math.min(t.maxHp,t.hp+Math.max(20,t.maxHp*.35));persistProgress();v6Save(g);renderBattle(g);return false;};
 window.__commanderUpgradeActiveFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i],p=profile();if(!t)return false;var cost=costFor(t.id);if(p.coins<cost||t.level>=10)return false;p.coins-=cost;t.level++;t.maxHp+=18;t.hp=t.maxHp;p.levels[t.id]=Math.max(Number(p.levels[t.id])||1,t.level);persistProgress();v6Save(g);renderBattle(g);return false;};
 window.__commanderSellFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i];if(!t)return false;var p=profile(),td=tdef(t.id);p.coins+=Math.max(5,Math.floor((td.cost||20)*.55));g.towers.splice(i,1);persistProgress();v6Save(g);renderBattle(g);return false;};
