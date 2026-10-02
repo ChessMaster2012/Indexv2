@@ -8510,6 +8510,128 @@ window.commanderRenderScreen=function(){
   if(g&&g.commanderScreen==='slots'){stage.innerHTML=commanderSaveSlotsHtmlV2();return;}
   stage.innerHTML=commanderSaveSlotsHtmlV2();
 };
+
+/*
+ * COMMANDER WAVE ENGINE V10
+ * Final wave controller. It owns the wave loop directly instead of delegating
+ * to the legacy Commander launch/loop wrappers.
+ */
+var commanderWaveEngineV10={active:false,token:0};
+
+function commanderStartWaveEngineV10(e){
+  if(e&&e.preventDefault)e.preventDefault();
+  if(e&&e.stopPropagation)e.stopPropagation();
+  if(e&&e.stopImmediatePropagation)e.stopImmediatePropagation();
+
+  var g=state&&state.games;
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
+
+  if(g.running&&g.frame)return false;
+  if(g.running&&!g.frame)g.running=false;
+  if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
+
+  var m=COMMANDER_MAPS_FINAL.find(function(v){return v&&v.id===g.mapId;});
+  if(!m){
+    console.error('[Commander V10] map not found',g.mapId);
+    try{showRewardToast('Commander could not find this map.');}catch(err){}
+    return false;
+  }
+
+  try{
+    commanderWaveEngineV10.active=true;
+    var token=++commanderWaveEngineV10.token;
+    g.running=true;
+    g.finished=false;
+    g.questionGateOpen=false;
+    g.questionFeedback=null;
+    g.selectedTroop=null;
+    g.wave=Math.max(0,Number(g.wave)||0)+1;
+    g.spawnCount=0;
+    g.spawnTotal=6+Math.min(14,g.wave*2);
+    g.enemies=[];
+    g.projectiles=[];
+    g.effects=[];
+    g.nextSpawnAt=performance.now()+120;
+    g.lastFrame=performance.now();
+    g.waveBanner='ROUND '+g.wave;
+    g.waveBannerUntil=Date.now()+1000;
+
+    try{v6Save(g);}catch(err){console.warn('[Commander V10] initial save failed',err);}
+    renderBattle(g);
+
+    function step(now){
+      var live=state&&state.games;
+      if(token!==commanderWaveEngineV10.token||live!==g||!commanderWaveEngineV10.active){
+        if(live===g)g.frame=null;
+        return;
+      }
+      if(!g.running||g.finished||g.questionGateOpen||g.phase!=='battle'){
+        g.frame=null;
+        commanderWaveEngineV10.active=false;
+        return;
+      }
+      try{
+        var dt=Math.min(.05,(g.lastFrame?now-g.lastFrame:16)/1000);
+        g.lastFrame=now;
+        update(g,dt,now);
+        if(state.games!==g)return;
+        draw(g);
+        if(g.running&&!g.finished&&!g.questionGateOpen){
+          g.frame=requestAnimationFrame(step);
+        }else{
+          g.frame=null;
+          commanderWaveEngineV10.active=false;
+        }
+      }catch(err){
+        console.error('[Commander V10] wave loop failed',err);
+        g.running=false;
+        g.frame=null;
+        commanderWaveEngineV10.active=false;
+        try{v6Save(g);}catch(saveErr){}
+        try{renderBattle(g);}catch(renderErr){}
+        try{showRewardToast('Wave engine stopped safely: '+String(err&&err.message||err));}catch(toastErr){}
+      }
+    }
+
+    g.frame=requestAnimationFrame(step);
+    if(g.frame==null)throw new Error('Commander animation frame could not be scheduled.');
+    return false;
+  }catch(err){
+    commanderWaveEngineV10.active=false;
+    g.running=false;
+    g.frame=null;
+    console.error('[Commander V10] Start Wave failed',err,{active:g.active,phase:g.phase,questionGateOpen:g.questionGateOpen,wave:g.wave});
+    try{renderBattle(g);}catch(renderErr){}
+    try{showRewardToast('Could not start the wave: '+String(err&&err.message||err));}catch(toastErr){}
+    return false;
+  }
+}
+
+window.__commanderStartWaveAuthoritative=commanderStartWaveEngineV10;
+window.__commanderStartWaveFinal=commanderStartWaveEngineV10;
+window.__commanderStartWaveReliable=commanderStartWaveEngineV10;
+
+document.addEventListener('click',function(e){
+  var el=e.target&&e.target.closest?e.target.closest(
+    '#commander-auth-start-wave,#commander-pack-v4-start,.commander-auth-start,.commander-start-ref,.commander-v6-start-wave,.commander-start-v8,[data-action="commander-start-wave"],[data-action="commander-v6-start"]'
+  ):null;
+  if(!el)return;
+  var g=state&&state.games;
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return;
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+  commanderStartWaveEngineV10(e);
+},true);
+
+setInterval(function(){
+  try{
+    var g=state&&state.games;
+    if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return;
+    if(g.running&&!g.frame&&!commanderWaveEngineV10.active)commanderStartWaveEngineV10();
+  }catch(err){console.error('[Commander V10] watchdog failed',err);}
+},250);
+
 })();
 </script>
 </body>
