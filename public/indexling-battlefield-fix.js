@@ -128,7 +128,10 @@ function injectCss(){
     .commander-pack-v4-empty{padding:18px 8px;color:#9eb7cb;font:800 10px/1.4 system-ui;text-align:center}
     .commander-pack-v4-unit-layer{position:absolute;inset:0;z-index:20;pointer-events:none}
     .commander-pack-v4-unit{position:absolute;transform:translate(-50%,-50%);width:68px;height:78px;pointer-events:auto;cursor:pointer;display:grid;place-items:center;filter:drop-shadow(0 8px 10px rgba(0,0,0,.32))}
-    .commander-pack-v4-unit-art{width:60px;height:60px;display:grid;place-items:center}
+    /* Placed Indexlings are drawn by the battlefield canvas. The overlay keeps
+       only hit area, labels, stats and range so the character is never double-rendered. */
+    .commander-pack-v4-unit-art{width:60px;height:60px;display:grid;place-items:center;visibility:hidden!important}
+    .commander-pack-v4-unit-art svg{visibility:hidden!important}
     .commander-pack-v4-unit-art svg{width:60px!important;height:60px!important}
     .commander-pack-v4-ring{position:absolute;width:156px;height:156px;border-radius:50%;border:3px solid #39db94;background:rgba(57,219,148,.09);opacity:0;transition:opacity .12s;pointer-events:none}
     .commander-pack-v4-unit:hover .commander-pack-v4-ring,.commander-pack-v4-unit.pinned .commander-pack-v4-ring{opacity:1}
@@ -147,7 +150,7 @@ function injectCss(){
     .commander-pack-v4-ghost-shadow{position:absolute;left:50%;top:74%;width:52px;height:15px;transform:translate(-50%,-50%);border-radius:50%;background:rgba(0,0,0,.42);filter:blur(5px);opacity:.8}
     .commander-pack-v4-ghost-art{width:56px;height:56px;opacity:.58;filter:drop-shadow(0 7px 10px rgba(0,0,0,.35))}
     .commander-pack-v4-ghost-art svg{width:56px!important;height:56px!important}
-    .commander-pack-v4-ghost-ring{position:absolute;width:132px;height:132px;border-radius:50%;border:3px solid #38db94;background:rgba(56,219,148,.10)}
+    .commander-pack-v4-ghost-ring{position:absolute;width:132px!important;height:132px!important;aspect-ratio:1/1;border-radius:50%;box-sizing:border-box;border:3px solid #38db94;background:rgba(56,219,148,.10);transform:translateZ(0)}
     .commander-pack-v4-ghost-ring.blocked{border-color:#ec5d6a;background:rgba(236,93,106,.11)}
     .commander-pack-v4-ghost-label{position:absolute;top:66px;white-space:nowrap;padding:4px 7px;border-radius:8px;background:rgba(5,15,26,.94);color:#cffff0;border:1px solid #38db94;font:950 8px system-ui}
     .commander-pack-v4-ghost-label.blocked{border-color:#ec5d6a;color:#ffdfe3}
@@ -381,6 +384,13 @@ function renderRight(){
   if(!right||!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
   ensureInitialDeploymentBudget(g);
   var list=unlockedPackIds();
+  var renderKey=[
+    Number(g.wave)||0,Number(g.waveCoins)||0,!!g.running,!!g.finished,
+    String(g.selectedTroop||''),String(g.packV4Filter||'All'),
+    (g.towers||[]).length,(g.enemies||[]).length
+  ].join('|');
+  if(right.dataset.packRenderKey===renderKey)return;
+  right.dataset.packRenderKey=renderKey;
   if(g.selectedTroop&&tdef(g.selectedTroop)&&Number(g.waveCoins||0)<Math.max(1,Number(tdef(g.selectedTroop).cost)||1))g.selectedTroop=null;
   var currentFilter=g.packV4Filter||'All';
   var filtered=list.filter(function(c){
@@ -720,16 +730,15 @@ window.__commanderStartWaveFinal=function(e){
     if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
     var g=state&&state.games;
     if(!g||g.active!=='commander'||g.phase!=='battle'||g.running||g.finished||g.questionGateOpen)return false;
-    var launch=window.commanderLaunchFinal||window.commanderStartWaveV5;
+    /* Use the SAME engine that the visible commander-auth-canvas uses.
+       It calls render(), then this starts the matching requestAnimationFrame loop. */
     if(typeof launch!=='function')throw new Error('Commander wave engine is unavailable.');
-    /* Start Wave is an explicit command: remaining deployment coins are kept. */
-    var keep=Math.max(0,Number(g.waveCoins)||0);
-    g.waveCoins=0;
-    launch.call(window);
-    g.waveCoins=keep;
-    try{if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);}catch(err){}
-    try{if(typeof commanderRenderScreen==='function')commanderRenderScreen();}catch(err2){}
-    try{if(typeof mountCanvas6==='function')mountCanvas6();}catch(err3){}
+    if(!launch(g))return false;
+    if(state.games===g&&!g.questionGateOpen&&!g.finished){
+      g.lastFrame=performance.now();
+      if(g.frame)cancelAnimationFrame(g.frame);
+      g.frame=requestAnimationFrame(loop);
+    }
   }catch(err){
     console.error('Commander Start Wave failed',err);
     try{showRewardToast('Commander could not start the wave.');}catch(e2){}
