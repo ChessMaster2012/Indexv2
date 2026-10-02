@@ -483,6 +483,36 @@ function wrapQuestionEconomy(){
       return result;
     };
   }
+  var oldAnswerV4=window.answerV4;
+  if(typeof oldAnswerV4==='function'&&!window.__indexCommanderWrappedAnswerV4){
+    window.__indexCommanderWrappedAnswerV4=true;
+    window.answerV4=function(i){
+      var g=state.games,q=g&&g.question?{q:g.question.q,options:g.question.options,correct:g.question.correct,explanation:g.question.explanation}:null;
+      var before=g?Number(g.waveCoins||0):0;
+      var result=oldAnswerV4.apply(this,arguments);
+      if(g&&q){
+        var correct=Number(i)===Number(q.correct);
+        markQuestionCooldown(g,q,correct);
+        if(Number(g.waveCoins||0)<before+10)g.waveCoins=before+10;
+        if(g.questionGateOpen&&!g.questionFeedback){
+          decayQuestionCooldowns(g);
+          enforceQuestionCooldown(g);
+        }
+        try{commanderSaveFinal(g);}catch(e){}
+      }
+      return result;
+    };
+  }
+  var oldContinueV4=window.continueV4;
+  if(typeof oldContinueV4==='function'&&!window.__indexCommanderWrappedContinueV4){
+    window.__indexCommanderWrappedContinueV4=true;
+    window.continueV4=function(){
+      var g=state.games;
+      var result=oldContinueV4.apply(this,arguments);
+      if(g)normalizeQuestionAfterTransition(g);
+      return result;
+    };
+  }
 }
 function patchCommanderRunPersistence(){
   if(window.__indexCommanderRunPersistenceV5)return;
