@@ -20,31 +20,13 @@ function placeThroughAuthoritativeBridge(ev,cv){
   var g=commanderGame();
   if(!g||g.active!=='commander'||g.phase!=='battle'||g.running||g.finished||g.questionGateOpen||!g.selectedTroop)return false;
   if(!cv||cv.id!=='commander-auth-canvas')return false;
-
-  var beforeTowers=Array.isArray(g.towers)?g.towers.length:0;
-  var beforeSelected=String(g.selectedTroop);
-
-  var proxy={
-    button:0,
-    clientX:ev.clientX,
-    clientY:ev.clientY,
-    preventDefault:function(){},
-    stopPropagation:function(){},
-    stopImmediatePropagation:function(){}
-  };
-
   try{
-    if(typeof window.__commanderCanvasFinal==='function'){
-      window.__commanderCanvasFinal(proxy);
-      var afterTowers=Array.isArray(g.towers)?g.towers.length:0;
-      var placed=afterTowers>beforeTowers || !g.selectedTroop;
-      if(placed){
-        console.debug('[Commander V21] placed',beforeSelected,'at',proxy.clientX,proxy.clientY);
-        return true;
-      }
+    if(typeof window.__commanderPlaceAtClient==='function'){
+      return !!window.__commanderPlaceAtClient(ev.clientX,ev.clientY,ev);
     }
+    console.error('[Commander V24] exact placement bridge is unavailable');
   }catch(err){
-    console.error('[Commander V21] authoritative placement bridge failed',err);
+    console.error('[Commander V24] exact placement bridge failed',err);
   }
   return false;
 }
