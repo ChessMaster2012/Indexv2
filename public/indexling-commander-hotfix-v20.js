@@ -1,6 +1,6 @@
 (function(){
 'use strict';
-if(window.__indexCommanderHotfixV21)return;
+if(window.__indexCommanderHotfixV22)return;
 window.__indexCommanderHotfixV21=true;
 
 function commanderGame(){
@@ -110,39 +110,73 @@ function startWaveDirect(ev){
   var g=commanderGame();
   if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
 
-  if(g.running&&!g.frame)g.running=false;
-
-  var handler=window.__commanderStartWaveAuthoritative||window.__commanderStartWaveFinal;
-  if(typeof handler!=='function')return false;
-
-  try{
-    handler(ev||null);
-    setTimeout(function(){
-      var live=commanderGame();
-      if(!live||live!==g||live.questionGateOpen||live.finished)return;
-      if(live.running&&!live.frame){
-        live.running=false;
-        var h=window.__commanderStartWaveAuthoritative||window.__commanderStartWaveFinal;
-        if(typeof h==='function')h(null);
-      }
-    },120);
-    return true;
-  }catch(err){
-    console.error('[Commander V21] Start Wave recovery failed',err);
+  /* Always call the real authoritative launcher. Do not route through another
+     wrapper because several older Commander fixes used to wrap this method. */
+  var handler=window.__commanderStartWaveAuthoritative;
+  if(typeof handler!=='function')handler=window.__commanderStartWaveFinal;
+  if(typeof handler!=='function'){
+    console.error('[Commander V22] authoritative Start Wave handler is unavailable');
     return false;
   }
-}
 
-document.addEventListener('click',function(ev){
-  var el=ev.target&&ev.target.closest?ev.target.closest(
+  /* Use a tiny proxy event so the launcher cannot cancel the real pointer/click
+     event before the browser finishes delivering it to the button. */
+  var proxy={
+    preventDefault:function(){},
+    stopPropagation:function(){},
+    stopImmediatePropagation:function(){}
+  };
+  var waveBefore=Math.max(0,Number(g.wave)||0);
+
+  try{
+    handler(proxy);
+  }catch(err){
+    console.error('[Commander V22] Start Wave launch failed',err);
+    return false;
+  }
+
+  /* Recover from a stale/half-started state without requiring a second user
+     click. A valid launch advances wave immediately and leaves a live frame. */
+  setTimeout(function(){
+    var live=commanderGame();
+    if(!live||live!==g||live.questionGateOpen||live.finished)return;
+
+    if(!live.running&&Number(live.wave)<=waveBefore){
+      try{handler(proxy);}catch(err){console.error('[Commander V22] Start Wave retry failed',err);}
+      return;
+    }
+    if(live.running&&!live.frame){
+      live.running=false;
+      try{handler(proxy);}catch(err){console.error('[Commander V22] Start Wave frame recovery failed',err);}
+    }
+  },120);
+
+  return true;
+}
+window.__commanderStartWaveReliable=startWaveDirect;
+
+function isStartWaveElement(target){
+  return target&&target.closest?target.closest(
     '#commander-pack-v4-start,.commander-auth-start,.commander-start-ref,.commander-v6-start-wave,.commander-start-v8,[data-action="commander-start-wave"],[data-action="commander-v6-start"]'
   ):null;
+}
+
+/* Pointerdown makes the game respond immediately; click covers keyboard and
+   other activation paths. We intentionally do not stop propagation here. */
+document.addEventListener('pointerdown',function(ev){
+  if(ev.button!==0)return;
+  var el=isStartWaveElement(ev.target);
   if(!el||el.disabled)return;
   var g=commanderGame();
   if(!g||g.active!=='commander'||g.phase!=='battle')return;
-  ev.preventDefault();
-  ev.stopPropagation();
-  ev.stopImmediatePropagation();
+  startWaveDirect(ev);
+},true);
+
+document.addEventListener('click',function(ev){
+  var el=isStartWaveElement(ev.target);
+  if(!el||el.disabled)return;
+  var g=commanderGame();
+  if(!g||g.active!=='commander'||g.phase!=='battle')return;
   startWaveDirect(ev);
 },true);
 })();
