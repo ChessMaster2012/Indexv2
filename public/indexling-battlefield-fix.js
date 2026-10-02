@@ -158,23 +158,27 @@ function buildCard(c,g){
   var level=1;
   try{level=Math.max(1,Number(commanderFinalProfile().levels[c.id])||1);}catch(e){}
   var mult=rarityMultiplier(c.rarity);
+  var cost=Math.max(1,Number(t.cost)||1),unaffordable=!g.running&&Number(g.waveCoins||0)<cost;
   var damage=Math.max(1,Math.round((Number(t.damage)||8)*mult));
   var range=Math.round(Number(t.range)||120);
   var dps=Math.round((damage*1000/Math.max(400,Number(t.rate)||1200))*10)/10;
-  return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected':'')+'" data-pack-v4-troop="'+esc(c.id)+'">'+
+  return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected ':'')+(unaffordable?'unaffordable':'')+'" data-pack-v4-troop="'+esc(c.id)+'" '+(unaffordable?'disabled title="Need '+cost+' deployment coins"':'')+'>'+
     '<div class="commander-pack-v4-art">'+getArt(c.id,true)+'</div>'+
     '<div class="commander-pack-v4-name">'+esc(c.name)+' · Lv '+level+'</div>'+
     '<div class="commander-pack-v4-meta"><span class="commander-pack-v4-pill">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+'</span><span class="commander-pack-v4-pill">'+esc(c.rarity)+'</span></div>'+
     '<div class="commander-pack-v4-stats">⚔ '+damage+' DMG · ◉ '+range+' RNG · '+dps+' DPS</div>'+
     '<div class="commander-pack-v4-attack">✦ '+esc(t.ability||c.name+' Signature')+'</div>'+
-    '<div class="commander-pack-v4-cost">Deploy · '+Math.max(1,Number(t.cost)||35)+' 🪙</div>'+
+    '<div class="commander-pack-v4-cost">Deploy · '+cost+' 🪙</div>'+
     '</button>';
 }
 function selectCard(card,e){
+  var gg=state.games,tid=card&&card.getAttribute('data-pack-v4-troop'),tt=tid?tdef(tid):null;
+  if(gg&&tt&&Number(gg.waveCoins||0)<Math.max(1,Number(tt.cost)||1)){e.preventDefault();e.stopPropagation();return;}
   e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
   var g=state.games;if(!g||g.running||g.questionGateOpen)return;
   var id=card.getAttribute('data-pack-v4-troop');
   if(!tdef(id))return;
+  if(Number(g.waveCoins||0)<Math.max(1,Number(tdef(id).cost)||1))return;
   g.selectedTroop=g.selectedTroop===id?null:id;
   g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;g.cursor=null;
   try{v6Save(g);}catch(err){}
@@ -270,8 +274,123 @@ function patchPlacementGuard(){
     return typeof original==='function'?original(id,e):false;
   };
 }
+function cooldownKey(q){return String(q&&q.q||'').trim();}
+
+function questionPoolForRun(g){
+  var list=[];
+  try{
+    if(typeof window.commanderQuestionPoolForLesson==='function'){
+      var info=window.commanderQuestionPoolForLesson(g);
+      if(info&&info.pool&&info.pool.length)list=(info.lesson===0&&info.all&&info.all.length)?info.all:info.pool;
+    }
+  }catch(e){}
+  if(!list.length){
+    try{var p=commanderQuestionPoolFinal(g);if(p&&p.length)list=p;}catch(e){}
+  }
+  return list||[];
+}
+function ensureQuestionCooldownState(g){
+  if(!g)return;
+  if(!g.commanderQuestionCooldowns||typeof g.commanderQuestionCooldowns!=='object')g.commanderQuestionCooldowns={};
+  if(!Array.isArray(g.commanderQuestionHistory))g.commanderQuestionHistory=[];
+}
+function decayQuestionCooldowns(g){
+  ensureQuestionCooldownState(g);
+  Object.keys(g.commanderQuestionCooldowns).forEach(function(k){
+    g.commanderQuestionCooldowns[k]=Math.max(0,Number(g.commanderQuestionCooldowns[k]||0)-1);
+    if(!g.commanderQuestionCooldowns[k])delete g.commanderQuestionCooldowns[k];
+  });
+}
+function chooseEligibleQuestion(g,excludeKey){
+  ensureQuestionCooldownState(g);
+  var pool=questionPoolForRun(g).filter(function(q){return q&&q.q&&cooldownKey(q)!==String(excludeKey||'');});
+  var eligible=pool.filter(function(q){return !(g.commanderQuestionCooldowns[cooldownKey(q)]>0);});
+  if(!eligible.length)eligible=pool;
+  if(!eligible.length)return null;
+  var q=eligible[Math.floor(Math.random()*eligible.length)];
+  return {q:String(q.q),options:(q.options||[]).map(String).slice(0,4),correct:Math.max(0,Math.min(3,Number(q.correct)||0)),explanation:String(q.explanation||'')};
+}
+function enforceQuestionCooldown(g){
+  if(!g||!g.questionGateOpen||!g.question)return;
+  ensureQuestionCooldownState(g);
+  var key=cooldownKey(g.question),remaining=Number(g.commanderQuestionCooldowns[key]||0);
+  if(remaining>0){
+    var replacement=chooseEligibleQuestion(g,key);
+    if(replacement)g.question=replacement;
+  }
+}
+function markQuestionCooldown(g,q,correct){
+  ensureQuestionCooldownState(g);
+  var key=cooldownKey(q);if(!key)return;
+  g.commanderQuestionCooldowns[key]=correct?15:5;
+  g.commanderQuestionHistory.push({key:key,correct:!!correct,at:Date.now()});
+  if(g.commanderQuestionHistory.length>60)g.commanderQuestionHistory=g.commanderQuestionHistory.slice(-60);
+}
+function normalizeQuestionAfterTransition(g){
+  if(!g||!g.questionGateOpen)return;
+  decayQuestionCooldowns(g);
+  enforceQuestionCooldown(g);
+  try{commanderSaveFinal(g);}catch(e){}
+}
+function ensureInitialDeploymentBudget(g){
+  if(!g||g.phase!=='battle')return;
+  if(!g.initialDeploymentBudgetGranted&&Number(g.wave||0)===0&&!g.running&&!g.finished&&!g.questionGateOpen){
+    g.waveCoins=50;
+    g.initialDeploymentBudgetGranted=true;
+    try{commanderSaveFinal(g);}catch(e){}
+  }
+}
+function wrapQuestionEconomy(){
+  if(window.__indexCommanderQuestionEconomyV5)return;
+  window.__indexCommanderQuestionEconomyV5=true;
+  ensureQuestionCooldownState(state.games);
+  var oldAnswer=window.__commanderAnswerFinal;
+  if(typeof oldAnswer==='function'){
+    window.__commanderAnswerFinal=function(i,e){
+      var g=state.games,q=g&&g.question?{q:g.question.q,options:g.question.options,correct:g.question.correct,explanation:g.question.explanation}:null;
+      var before=g?Number(g.waveCoins||0):0;
+      var result=oldAnswer.apply(this,arguments);
+      if(g&&q){
+        var correct=Number(i)===Number(q.correct);
+        markQuestionCooldown(g,q,correct);
+        g.waveCoins=before+10;
+        normalizeQuestionAfterTransition(g);
+        if(!g.questionGateOpen)g.questionFeedback=null;
+        if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
+        if(typeof commanderRenderScreen==='function')commanderRenderScreen();
+      }
+      return result;
+    };
+  }
+  var oldContinue=window.__commanderContinueFinal;
+  if(typeof oldContinue==='function'){
+    window.__commanderContinueFinal=function(e){
+      var g=state.games;
+      var result=oldContinue.apply(this,arguments);
+      if(g)normalizeQuestionAfterTransition(g);
+      return result;
+    };
+  }
+}
+function patchTopicChange(){
+  if(window.__indexCommanderTopicAutoResetV5)return;
+  window.__indexCommanderTopicAutoResetV5=true;
+  document.addEventListener('change',function(ev){
+    var t=ev.target;
+    if(!t||t.id!=='commander-subject-final')return;
+    var g=state.games;
+    if(!g||g.active!=='commander')return;
+    var sub=subjectById(t.value)||SUBJECTS[0],units=Array.isArray(sub.units)?sub.units:[];
+    g.subjectId=t.value;g.unit=units[0]||'';g.topic='';g.questionBank=[];g.lessonPathId='';g.lessonIndex=0;g.lessonTotal=0;g.lessonMastered={};g.mixedQuestionOrder=null;g.mixedQuestionCursor=0;g.commanderQuestionCooldowns={};g.commanderQuestionHistory=[];
+    var topic=document.getElementById('commander-topic-final');if(topic)topic.value='';
+    var unit=document.getElementById('commander-unit-final');if(unit){unit.innerHTML=units.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');unit.value=g.unit;}
+    try{g.question=null;g.questionFeedback=null;g.questionError='';g.questionLoading=true;}catch(e){}
+    try{commanderSaveFinal(g);}catch(e){}
+  },false);
+}
+
 function sync(){
-  ensurePackDefs();patchPlacementGuard();
+  ensurePackDefs();patchPlacementGuard();wrapQuestionEconomy();patchTopicChange();ensureInitialDeploymentBudget(state.games);
   var stage=document.getElementById('games-stage');
   if(!stage||!stage.querySelector('.commander-auth-battle'))return;
   syncLayers();
