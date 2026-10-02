@@ -101,7 +101,7 @@ function clearLegacy(){
 function renderArsenal(){
   var st=stage();if(!st||!isBattle())return;
   var box=st.querySelector('.commander-auth-roster');
-  var g=window.state&&state.games;
+  var g=typeof state!=='undefined'?state.games:null;
   if(!box||!g||g.active!=='commander'||g.phase!=='battle')return;
 
   var p;
@@ -143,7 +143,7 @@ function renderArsenal(){
 }
 
 function renderUnitLayer(){
-  var st=stage(),world=st&&st.querySelector('.commander-auth-world'),g=window.state&&state.games;
+  var st=stage(),world=st&&st.querySelector('.commander-auth-world'),g=typeof state!=='undefined'?state.games:null;
   if(!world||!g||g.active!=='commander'||g.phase!=='battle')return;
   var old=world.querySelector('.commander-pack-unit-layer-v2');
   if(!old){old=document.createElement('div');old.className='commander-pack-unit-layer-v2';world.appendChild(old);}
@@ -206,4 +206,4 @@ setInterval(sync,700);
 setTimeout(sync,120);
 setTimeout(sync,700);
 
-})();\n
+})();
