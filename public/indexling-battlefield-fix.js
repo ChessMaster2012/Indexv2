@@ -190,6 +190,7 @@ function renderRight(){
   var right=actualRight(),g=typeof state!=='undefined'?state.games:null;
   if(!right||!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
   var list=unlockedPackIds();
+  if(g.selectedTroop&&tdef(g.selectedTroop)&&Number(g.waveCoins||0)<Math.max(1,Number(tdef(g.selectedTroop).cost)||1))g.selectedTroop=null;
   var currentFilter=g.packV4Filter||'All';
   var filtered=list.filter(function(c){
     if(currentFilter==='All')return true;
@@ -276,18 +277,128 @@ function patchPlacementGuard(){
 }
 function cooldownKey(q){return String(q&&q.q||'').trim();}
 
+var QUESTION_SAFETY_BANK={
+  biology:[
+    ['Which molecule stores hereditary information in most cells?',['ATP','DNA','Glucose','Lipids'],1],
+    ['Where does glycolysis occur?',['Nucleus','Cytoplasm','Mitochondrial matrix','Golgi apparatus'],1],
+    ['What is the main function of ribosomes?',['Store DNA','Synthesize proteins','Digest lipids','Make ATP'],1],
+    ['Which process moves water across a selectively permeable membrane?',['Diffusion','Osmosis','Translation','Transcription'],1],
+    ['What happens during mitosis?',['Chromosome number is normally maintained','DNA is converted to RNA','Proteins are digested','ATP is destroyed'],0],
+    ['Which organelle is the main site of aerobic cellular respiration?',['Lysosome','Mitochondrion','Ribosome','Vacuole'],1],
+    ['What is the role of mRNA?',['Carry genetic instructions to ribosomes','Store ATP','Break down glucose','Build cell walls'],0],
+    ['Natural selection changes populations primarily through differences in what?',['Traits affecting survival or reproduction','The age of cells','The number of organelles','The color of DNA'],0]
+  ],
+  usgov:[
+    ['Federalist No. 10 focuses heavily on the problem of what?',['Factions','Judicial review','Term limits','The census'],0],
+    ['Federalist No. 51 argues that government should be designed with what?',['Checks and balances','A single legislature','No elections','Direct rule by judges'],0],
+    ['Which case established the principle of judicial review?',['Marbury v. Madison','McCulloch v. Maryland','Brown v. Board','Gibbons v. Ogden'],0],
+    ['Which principle divides power between the national and state governments?',['Federalism','Separation of powers','Popular sovereignty','Due process'],0],
+    ['Which branch has the constitutional power to declare war?',['The judiciary','Congress','The president alone','State governments'],1],
+    ['What does the First Amendment protect?',['Freedom of speech','Quartering troops','Protection from searches in all cases','The right to a jury in every dispute'],0],
+    ['The Necessary and Proper Clause is also called what?',['Elastic Clause','Supremacy Clause','Establishment Clause','Equal Protection Clause'],0],
+    ['Why is an independent judiciary important in the constitutional system?',['It can interpret the law without direct political control','It writes all federal laws','It appoints all governors','It controls elections'],0]
+  ],
+  ushistory:[
+    ['Which event is generally considered the first major military engagement of the American Revolution?',['Lexington and Concord','Yorktown','Gettysburg','Fort Sumter'],0],
+    ['The Constitution replaced which earlier national framework?',['Articles of Confederation','Federalist Papers','Treaty of Paris','Mayflower Compact'],0],
+    ['Which amendment ended slavery in the United States?',['10th','13th','14th','15th'],1],
+    ['What was a major goal of Reconstruction?',['Reintegrating the former Confederate states and protecting rights','Ending westward expansion','Creating a national bank','Annexing Canada'],0],
+    ['The Progressive Era is associated with efforts to address what?',['Industrial and political problems','The Cold War','Colonial independence in Asia','The Civil War'],0],
+    ['Which development helped accelerate U.S. industrialization in the late 1800s?',['Railroad expansion','The Louisiana Purchase','The Articles of Confederation','The Monroe Doctrine'],0]
+  ],
+  worldhistory:[
+    ['Where did the Industrial Revolution begin?',['Great Britain','China','Brazil','Russia'],0],
+    ['What was a major effect of European imperialism in the 1800s?',['European control expanded across parts of Africa and Asia','Most empires disappeared immediately','Industrialization ended','All trade stopped'],0],
+    ['World War I began after the assassination of whom?',['Archduke Franz Ferdinand','Winston Churchill','Woodrow Wilson','Otto von Bismarck'],0],
+    ['The Cold War primarily involved rivalry between which two powers?',['United States and Soviet Union','Britain and France','China and Japan','Spain and Portugal'],0],
+    ['Decolonization accelerated especially after which conflict?',['World War II','The Seven Years’ War','The Crimean War','The Napoleonic Wars'],0],
+    ['The Enlightenment emphasized the use of what?',['Reason','Divine right','Feudal obligation','Hereditary privilege'],0]
+  ],
+  chemistry:[
+    ['Atomic number is equal to the number of what in a neutral atom?',['Neutrons','Protons','Nucleons','Isotopes'],1],
+    ['A solution with pH below 7 is generally what?',['Acidic','Basic','Neutral','Metallic'],0],
+    ['What happens to most reaction rates as temperature increases?',['They increase','They decrease','They always become zero','They cannot change'],0],
+    ['Molarity is defined as moles of solute per what?',['Liter of solution','Gram of solvent','Mole of solvent','Liter of solute'],0],
+    ['Which particle has a negative charge?',['Proton','Neutron','Electron','Nucleus'],2],
+    ['Oxidation is commonly defined as what?',['Loss of electrons','Gain of electrons','Gain of neutrons','Loss of protons'],0]
+  ],
+  physics1:[
+    ['The slope of a position-time graph represents what?',['Velocity','Acceleration','Force','Momentum'],0],
+    ['Newton’s second law is represented by which relationship?',['F=ma','p=mv','W=Fd','E=mc²'],0],
+    ['What is kinetic energy associated with?',['Motion','Position only','Temperature only','Charge only'],0],
+    ['Momentum is calculated as mass multiplied by what?',['Velocity','Acceleration','Force','Energy'],0],
+    ['If net force on an object is zero, its acceleration is what?',['Zero','Maximum','Negative one','Undefined'],0],
+    ['Work is done on an object when a force causes what?',['A displacement','A color change','A mass increase','A temperature decrease only'],0]
+  ],
+  calcab:[
+    ['What is the derivative of x²?',['x','2x','x²','2'],1],
+    ['A derivative represents what?',['Instantaneous rate of change','Total probability','Area only','A constant value'],0],
+    ['What is the derivative of a constant?',['1','0','The constant itself','Undefined'],1],
+    ['What does a definite integral commonly represent geometrically?',['Signed area','Slope only','A maximum only','A probability in every case'],0],
+    ['Which rule is useful for differentiating a product of two functions?',['Product rule','Power set rule','Remainder rule','Distance rule'],0],
+    ['What does the Fundamental Theorem of Calculus connect?',['Derivatives and integrals','Matrices and vectors','Probability and statistics','Angles and polygons'],0]
+  ],
+  statistics:[
+    ['A confidence interval estimates what?',['A population parameter','Every individual value','A sample size','A histogram'],0],
+    ['What measure describes the center of a data set by adding values and dividing by count?',['Mean','Range','Variance','Percentile'],0],
+    ['A larger standard deviation generally indicates what?',['More spread in the data','A larger sample automatically','A smaller mean','No variation'],0],
+    ['A p-value is used to evaluate what under a null model?',['How compatible the data are with the null hypothesis','The exact population size','The mean of every population','A graph’s color'],0],
+    ['Correlation measures what?',['Strength and direction of a linear association','Causation automatically','Sample size','The median only'],0],
+    ['What is the range of a data set?',['Maximum minus minimum','Mean minus median','Sum divided by count','Standard deviation squared'],0]
+  ],
+  psychology:[
+    ['Classical conditioning is based on learning through what?',['Association','Random mutation','Economic growth','Plate tectonics'],0],
+    ['Which neuron structure usually receives incoming signals?',['Dendrites','Axon','Myelin','Terminal buttons'],0],
+    ['Which brain region is strongly associated with forming new explicit memories?',['Hippocampus','Medulla','Cerebellum only','Spinal cord'],0],
+    ['Conformity generally refers to what?',['Changing behavior or beliefs to match a group','Forgetting information','Learning by trial only','Dreaming during sleep'],0],
+    ['What is a neurotransmitter?',['A chemical messenger between neurons','A type of chromosome','A muscle fiber','A memory test'],0],
+    ['Operant conditioning focuses on how behavior is affected by what?',['Consequences','DNA sequence only','Weather','Blood type'],0]
+  ],
+  macro:[
+    ['GDP measures the market value of what?',['Final goods and services produced domestically','All household wealth','Only imports','Only government spending'],0],
+    ['Inflation is a sustained increase in what?',['The general price level','Real output only','Employment only','Interest-free loans'],0],
+    ['Fiscal policy mainly involves changes in what?',['Government spending and taxation','The money supply only','Reserve requirements only','Exchange rates only'],0],
+    ['Monetary policy is primarily conducted by changing what?',['Interest rates and money conditions','Income tax brackets','Government purchases','Trade treaties'],0],
+    ['Unemployment caused by workers moving between jobs is called what?',['Frictional unemployment','Structural unemployment','Cyclical unemployment','Seasonal inflation'],0],
+    ['When aggregate demand rises faster than productive capacity, what can result?',['Demand-pull inflation','Deflation only','Lower prices in every case','A permanent recession'],0]
+  ],
+  micro:[
+    ['The law of demand generally says quantity demanded falls when what rises?',['Price','Population','Quality','Advertising'],0],
+    ['Opportunity cost is what?',['The value of the next best alternative forgone','The total money in a bank','A tax on firms','The price after a discount'],0],
+    ['A perfectly competitive firm is generally a what in the market?',['Price taker','Price maker','Monopoly','Cartel'],0],
+    ['Marginal cost is the change in total cost from producing what?',['One more unit','One fewer firm','One more dollar of revenue','One more consumer only'],0],
+    ['A monopoly is characterized by what?',['A single seller with significant market power','Many identical sellers','No barriers to entry','Perfect competition'],0],
+    ['A negative externality imposes a cost on whom?',['A third party not directly involved in the transaction','Only the seller','Only the buyer','Nobody'],0]
+  ],
+  englang:[
+    ['A claim is best described as what?',['A position supported by reasoning and evidence','A citation format','A grammar rule','A decorative sentence'],0],
+    ['What is an appeal to ethos based on?',['Credibility or character','Emotion only','Numerical calculation only','Chronology'],0],
+    ['What is an appeal to pathos based on?',['Emotion','Credibility','Formal proof only','Grammar'],0],
+    ['A counterclaim is what?',['A position that challenges the main claim','A source citation','A topic sentence only','A definition'],0],
+    ['Evidence is used primarily to do what?',['Support a claim or line of reasoning','Replace all reasoning','Make a title longer','Remove context'],0],
+    ['A rhetorical situation includes the speaker, audience, purpose, and what else?',['Context','Font size','Page number','Citation color'],0]
+  ],
+  spanishlang:[
+    ['Which phrase means “I have been studying”?',['He estudiado','Estoy estudiando','He estado estudiando','Estudié'],2],
+    ['Which tense commonly describes an ongoing action in the past?',['Imperfect','Preterite only','Future','Conditional only'],0],
+    ['What is a common use of the subjunctive?',['Expressing doubt, emotion, wishes, or non-certain situations','Stating every completed fact','Naming months','Counting objects'],0],
+    ['Which word means “although”?',['Aunque','Porque','Entonces','Mientras'],0],
+    ['Which form means “we used to eat”?',['Comíamos','Comimos','Comeremos','Hemos comido'],0],
+    ['What does “sin embargo” generally mean?',['However','Therefore','Usually','Never'],0]
+  ]
+};
 function questionPoolForRun(g){
-  var list=[];
+  var list=[],seen={};
+  function add(arr){(arr||[]).forEach(function(q){var k=cooldownKey(q);if(k&&!seen[k]){seen[k]=1;list.push(q);}});}
   try{
     if(typeof window.commanderQuestionPoolForLesson==='function'){
       var info=window.commanderQuestionPoolForLesson(g);
-      if(info&&info.pool&&info.pool.length)list=(info.lesson===0&&info.all&&info.all.length)?info.all:info.pool;
+      if(info){add(info.all);add(info.pool);}
     }
   }catch(e){}
-  if(!list.length){
-    try{var p=commanderQuestionPoolFinal(g);if(p&&p.length)list=p;}catch(e){}
-  }
-  return list||[];
+  try{add(commanderQuestionPoolFinal(g));}catch(e){}
+  add((QUESTION_SAFETY_BANK[g.subjectId]||QUESTION_SAFETY_BANK.biology).map(function(q){return{q:q[0],options:q[1],correct:q[2],explanation:'Review the AP concept tested by this question.'};}));
+  return list;
 }
 function ensureQuestionCooldownState(g){
   if(!g)return;
@@ -327,14 +438,14 @@ function markQuestionCooldown(g,q,correct){
   if(g.commanderQuestionHistory.length>60)g.commanderQuestionHistory=g.commanderQuestionHistory.slice(-60);
 }
 function normalizeQuestionAfterTransition(g){
-  if(!g||!g.questionGateOpen)return;
+  if(!g||!g.questionGateOpen||g.questionFeedback)return;
   decayQuestionCooldowns(g);
   enforceQuestionCooldown(g);
   try{commanderSaveFinal(g);}catch(e){}
 }
 function ensureInitialDeploymentBudget(g){
   if(!g||g.phase!=='battle')return;
-  if(!g.initialDeploymentBudgetGranted&&Number(g.wave||0)===0&&!g.running&&!g.finished&&!g.questionGateOpen){
+  if(!g.initialDeploymentBudgetGranted&&Number(g.wave||0)===0&&!g.running&&!g.finished){
     g.waveCoins=50;
     g.initialDeploymentBudgetGranted=true;
     try{commanderSaveFinal(g);}catch(e){}
@@ -372,6 +483,44 @@ function wrapQuestionEconomy(){
     };
   }
 }
+function patchCommanderRunPersistence(){
+  if(window.__indexCommanderRunPersistenceV5)return;
+  window.__indexCommanderRunPersistenceV5=true;
+  var oldSave=window.commanderSaveFinal;
+  if(typeof oldSave==='function'){
+    window.commanderSaveFinal=function(g){
+      var gg=g||state.games,ret=oldSave.apply(this,arguments);
+      try{
+        if(gg&&gg.slotIndex!=null){
+          var slot=commanderSlotsFinal()[gg.slotIndex];
+          if(slot){
+            slot.commanderQuestionCooldowns=Object.assign({},gg.commanderQuestionCooldowns||{});
+            slot.commanderQuestionHistory=Array.isArray(gg.commanderQuestionHistory)?gg.commanderQuestionHistory.slice(-60):[];
+            slot.initialDeploymentBudgetGranted=!!gg.initialDeploymentBudgetGranted;
+            persistProgress();
+          }
+        }
+      }catch(e){}
+      return ret;
+    };
+  }
+  var oldStart=window.commanderStartMapFinal;
+  if(typeof oldStart==='function'){
+    window.commanderStartMapFinal=function(mapId,slot,saveData){
+      var ret=oldStart.apply(this,arguments),g=state.games;
+      if(g&&g.active==='commander'){
+        ensureQuestionCooldownState(g);
+        var src=saveData&&typeof saveData==='object'?saveData:null;
+        g.commanderQuestionCooldowns=src&&src.commanderQuestionCooldowns&&typeof src.commanderQuestionCooldowns==='object'?Object.assign({},src.commanderQuestionCooldowns):{};
+        g.commanderQuestionHistory=src&&Array.isArray(src.commanderQuestionHistory)?src.commanderQuestionHistory.slice(-60):[];
+        g.initialDeploymentBudgetGranted=!!(src&&src.initialDeploymentBudgetGranted);
+        ensureInitialDeploymentBudget(g);
+        try{commanderSaveFinal(g);}catch(e){}
+      }
+      return ret;
+    };
+  }
+}
 function patchTopicChange(){
   if(window.__indexCommanderTopicAutoResetV5)return;
   window.__indexCommanderTopicAutoResetV5=true;
@@ -390,7 +539,7 @@ function patchTopicChange(){
 }
 
 function sync(){
-  ensurePackDefs();patchPlacementGuard();wrapQuestionEconomy();patchTopicChange();ensureInitialDeploymentBudget(state.games);
+  ensurePackDefs();patchPlacementGuard();wrapQuestionEconomy();patchTopicChange();patchCommanderRunPersistence();ensureInitialDeploymentBudget(state.games);
   var stage=document.getElementById('games-stage');
   if(!stage||!stage.querySelector('.commander-auth-battle'))return;
   syncLayers();
