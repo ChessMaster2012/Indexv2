@@ -892,23 +892,23 @@ setTimeout(sync,120);
 setInterval(sync,500);
 })();
 
-/* V14_START_WAVE_PROXY */
+/* V16_START_WAVE_PROXY */
 (function(){
-  var authoritative=window.__commanderStartWaveFinal;
-  window.__commanderStartWaveV16=authoritative;
   document.addEventListener('click',function(ev){
-    var el=ev.target&&ev.target.closest?ev.target.closest('.commander-auth-start'):null;
-    if(!el)return;
-    if(el.disabled)return;
+    var el=ev.target&&ev.target.closest?ev.target.closest(
+      '.commander-auth-start,.commander-start-ref,.commander-v6-start-wave,.commander-start-v8,[data-action="commander-start-wave"],[data-action="commander-v6-start"]'
+    ):null;
+    if(!el||el.disabled)return;
     ev.preventDefault();
     ev.stopPropagation();
     ev.stopImmediatePropagation();
     try{
-      if(typeof window.__commanderStartWaveV16!=='function')throw new Error('Authoritative Start Wave handler is unavailable.');
-      window.__commanderStartWaveV16(ev);
+      var handler=window.__commanderStartWaveFinal;
+      if(typeof handler!=='function')throw new Error('Start Wave handler is unavailable.');
+      handler(ev);
     }catch(err){
       console.error('Direct Commander Start Wave failed',err);
-      try{showRewardToast('Could not start the wave.');}catch(e){}
+      try{if(typeof showRewardToast==='function')showRewardToast('Could not start the wave: '+String(err&&err.message||err));}catch(e){}
     }
   },true);
 })();
