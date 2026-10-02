@@ -7057,7 +7057,7 @@ function renderRoster(g){
 }
 function battleHtml(g){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;})||COMMANDER_MAPS_FINAL[0],p=profile();
-  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>🪙 '+p.coins+'</b><span>Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+renderActive(g)+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas" onclick="return window.__commanderCanvasFinal(event)"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexlings · hover for stats · click to select</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+g.waveCoins+'</b> · Placements spend this budget.</div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div><div class="commander-auth-roster">'+renderRoster(g)+'</div><button class="commander-auth-start" onclick="return window.__commanderStartWaveFinal(event)" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
+  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>🪙 '+p.coins+'</b><span>Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+renderActive(g)+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas" onclick="return window.__commanderCanvasFinal(event)"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexlings · hover for stats · click to select</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+g.waveCoins+'</b> · Placements spend this budget.</div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div><div class="commander-auth-roster">'+renderRoster(g)+'</div><button type="button" id="commander-auth-start-wave" class="commander-auth-start" data-commander-start-wave="true" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
 }
 function draw(g){
   var cv=document.getElementById('commander-auth-canvas'),m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});
@@ -8451,7 +8451,11 @@ window.__commanderExitV6=function(e){if(e){e.preventDefault();e.stopPropagation(
 window.__commanderStartWaveAuthoritative=function(e){
   if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
   var g=state&&state.games;
-  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.running||g.finished)return false;
+  if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
+  /* A stale running=true with no animation frame is recoverable. Do not let
+     an abandoned previous Commander loop make the button appear dead. */
+  if(g.running&&g.frame)return false;
+  if(g.running&&!g.frame)g.running=false;
   try{
     if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
     g.selectedTowerIndex=-1;
@@ -8470,12 +8474,15 @@ window.__commanderStartWaveAuthoritative=function(e){
     g.waveBannerUntil=Date.now()+850;
     v6Save(g);
     renderBattle(g);
-    /* renderBattle only rebuilds the DOM; the next line starts the real V6 loop. */
     g.lastFrame=performance.now();
     g.frame=requestAnimationFrame(loopV6);
+    if(!g.frame)throw new Error('Commander animation frame could not be scheduled.');
     return false;
   }catch(err){
-    console.error('Commander authoritative Start Wave failed',err);
+    console.error('Commander authoritative Start Wave failed',err,{
+      active:g&&g.active,phase:g&&g.phase,questionGateOpen:g&&g.questionGateOpen,
+      running:g&&g.running,finished:g&&g.finished,wave:g&&g.wave,frame:g&&g.frame
+    });
     try{
       g.running=false;
       g.frame=null;
