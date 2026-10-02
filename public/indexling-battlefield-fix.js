@@ -539,6 +539,17 @@ function patchTopicChange(){
   },false);
 }
 
+function recordGateAnswerV5(g,q,correct,transitioned){
+  if(!g||!q)return;
+  markQuestionCooldown(g,q,!!correct);
+  if(transitioned&&g.questionGateOpen&&!g.questionFeedback){
+    decayQuestionCooldowns(g);
+    enforceQuestionCooldown(g);
+  }
+  try{commanderSaveFinal(g);}catch(e){}
+}
+window.__indexCommanderRecordGateAnswerV5=recordGateAnswerV5;
+
 function sync(){
   ensurePackDefs();patchPlacementGuard();wrapQuestionEconomy();patchTopicChange();patchCommanderRunPersistence();ensureInitialDeploymentBudget(state.games);
   var stage=document.getElementById('games-stage');
