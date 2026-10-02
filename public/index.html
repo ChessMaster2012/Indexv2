@@ -7664,7 +7664,7 @@ function clearV6Timers(g){if(g&&g.frame){cancelAnimationFrame(g.frame);g.frame=n
 function startV6(mapId,slot,saveData){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===mapId;});if(!m)return;
   var prev=state.games||{},old=saveData&&typeof saveData==='object'?saveData:null;clearV6Timers(prev);
-  var g={active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',question:null,questionGateOpen:true,questionFeedback:null,questionAskedCount:0,questionCorrectCount:0,waveCoins:old?Number(old.waveCoins)||0:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,selectedTroop:old&&old.selectedTroop||null,troopCategory:old&&old.troopCategory||'All',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,coinAccumulator:0,usedQuestionKeys:[],aiQuestionQueue:old&&Array.isArray(old.aiQuestionQueue)?old.aiQuestionQueue.slice(0,4):[],aiNextQuestion:null,aiQuestionRequest:null,questionLoading:true,aiPrefetchError:'',usedQuestionKeys:old&&Array.isArray(old.usedQuestionKeys)?old.usedQuestionKeys.slice(-40):[],hoverTowerIndex:-1,selectedTowerIndex:-1};
+  var g={active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',question:null,questionGateOpen:true,questionFeedback:null,questionAskedCount:0,questionCorrectCount:0,waveCoins:old?Number(old.waveCoins)||0:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,selectedTroop:old&&old.selectedTroop||null,troopCategory:old&&old.troopCategory||'All',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,__commanderWaveStartLock:false,__commanderStandaloneWave:false,coinAccumulator:0,usedQuestionKeys:[],aiQuestionQueue:old&&Array.isArray(old.aiQuestionQueue)?old.aiQuestionQueue.slice(0,4):[],aiNextQuestion:null,aiQuestionRequest:null,questionLoading:true,aiPrefetchError:'',usedQuestionKeys:old&&Array.isArray(old.usedQuestionKeys)?old.usedQuestionKeys.slice(-40):[],hoverTowerIndex:-1,selectedTowerIndex:-1};
   if(old&&Array.isArray(old.towers))old.towers.forEach(function(t){
     var tid=String(t&&t.id||'');
     var td=tid?COMMANDER_TROOPS_FINAL.find(function(x){return x&&x.id===tid;}):null;
@@ -8083,6 +8083,7 @@ window.__commanderStartWaveAuthoritative=function(e){
   if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
   var g=state&&state.games;
   if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
+  if(g.running)return false;
   /* A stale running=true with no animation frame is recoverable. Do not let
      an abandoned previous Commander loop make the button appear dead. */
   if(g.running&&g.frame)return false;
@@ -8177,6 +8178,8 @@ function commanderStartWaveEngineV10(e){
 
   var g=state&&state.games;
   if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
+  if(g.running||g.__commanderWaveStartLock)return false;
+  g.__commanderWaveStartLock=true;
   if(g.__commanderWaveInterval){
     clearInterval(g.__commanderWaveInterval);
     g.__commanderWaveInterval=null;
@@ -8212,8 +8215,8 @@ function commanderStartWaveEngineV10(e){
     g.enemies=[];
     g.projectiles=[];
     g.effects=[];
-    g.nextSpawnAt=Date.now()+250;
-    g.lastFrame=Date.now();
+    g.nextSpawnAt=performance.now()+250;
+    g.lastFrame=performance.now();
     g.waveBanner='ROUND '+g.wave;
     g.waveBannerUntil=Date.now()+1100;
 
@@ -8297,11 +8300,11 @@ function commanderStartWaveEngineV10(e){
         g.enemies=(g.enemies||[]).filter(function(en){return en.hp>0;});
 
         if(g.base<=0){
-          g.running=false;g.frame=null;g.finished=true;g.__commanderStandaloneWave=false;try{v6Save(g);}catch(err){}
+          g.running=false;g.frame=null;g.finished=true;g.__commanderStandaloneWave=false;g.__commanderWaveStartLock=false;try{v6Save(g);}catch(err){}
           renderBattle(g);commanderWaveEngineV10.active=false;return false;
         }
         if(g.spawnCount>=g.spawnTotal&&g.enemies.length===0){
-          g.running=false;g.frame=null;g.questionGateOpen=true;g.waveCoins=0;g.questionFeedback=null;g.questionCorrectCount=0;g.questionAskedCount=0;
+          g.running=false;g.frame=null;g.questionGateOpen=true;g.waveCoins=0;g.__commanderWaveStartLock=false;g.questionFeedback=null;g.questionCorrectCount=0;g.questionAskedCount=0;
           g.waveBanner='ROUND '+g.wave+' CLEARED';g.__commanderStandaloneWave=false;try{v6Save(g);}catch(err){}
           commanderAdvanceToNextQuestion(g);commanderWaveEngineV10.active=false;return false;
         }
@@ -8315,7 +8318,7 @@ function commanderStartWaveEngineV10(e){
     var accumulator=0,last=performance.now(),fixedStep=1/30,renderClock=0;
     var frameLoop=function(now){
       if(state.games!==g||!g.running||g.finished||g.questionGateOpen||g.phase!=='battle'){
-        g.frame=null;commanderWaveEngineV10.active=false;return;
+        g.frame=null;commanderWaveEngineV10.active=false;if(!g.running)g.__commanderWaveStartLock=false;return;
       }
       try{
         var elapsed=Math.min(.10,Math.max(0,(now-last)/1000));last=now;accumulator=Math.min(.20,accumulator+elapsed);
