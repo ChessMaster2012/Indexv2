@@ -7003,6 +7003,23 @@ body:has(.commander-authoritative-root){overflow:hidden!important}
 @media(max-width:700px){.commander-auth-battle{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) 46vh}.commander-auth-side-right{border-left:0;border-top:1px solid rgba(255,255,255,.1)}.commander-auth-options{grid-template-columns:1fr}.commander-auth-stats{grid-template-columns:1fr 1fr}}
 
 .commander-pack-active-art{width:64px!important;height:64px!important;display:grid!important;place-items:center!important}.commander-pack-active-art svg{width:60px!important;height:60px!important}.commander-auth-active-ability{font:900 8px system-ui;color:#ffd86b;margin-top:3px}
+<style>
+.commander-inline-pack-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:6px 0 10px}
+.commander-inline-pack-card{position:relative;min-width:0}
+.commander-inline-pack-main{width:100%;min-height:150px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:linear-gradient(145deg,#172c42,#102235);color:#fff;padding:7px;text-align:left;cursor:pointer;box-shadow:0 5px 14px rgba(0,0,0,.14);transition:.12s}
+.commander-inline-pack-main:hover{transform:translateY(-1px);border-color:#72defd}
+.commander-inline-pack-card.selected .commander-inline-pack-main{border:2px solid #ffd45f;box-shadow:0 0 0 2px rgba(255,212,95,.12)}
+.commander-inline-pack-card.locked .commander-inline-pack-main{opacity:.46;filter:saturate(.5)}
+.commander-inline-pack-card.unaffordable .commander-inline-pack-main{opacity:.62;filter:saturate(.62)}
+.commander-inline-pack-art{height:62px;display:grid;place-items:center}.commander-inline-pack-art svg{width:56px!important;height:56px!important}
+.commander-inline-pack-name{font:950 10px system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.commander-inline-pack-meta{font:800 7px system-ui;color:#a9c0d2;margin-top:2px;text-transform:capitalize}
+.commander-inline-pack-stats{font:800 7.5px system-ui;color:#e7f2f8;margin-top:5px}
+.commander-inline-pack-attack{font:900 7.5px system-ui;color:#ffd76d;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.commander-inline-pack-cost{font:950 7.5px system-ui;color:#75e2b6;margin-top:4px}
+.commander-inline-pack-selected{position:absolute;left:5px;right:5px;bottom:5px;padding:4px 5px;border-radius:7px;background:rgba(49,211,143,.16);border:1px solid rgba(49,211,143,.45);font:900 6.5px system-ui;color:#bfffe5}
+@media(max-width:1200px){.commander-inline-pack-grid{grid-template-columns:1fr}}
+</style>
 </style>
 
 <script id="commander-authoritative-v5">
@@ -7097,18 +7114,7 @@ function renderActive(g){
     return '<div class="commander-auth-active-card"><div class="commander-auth-active-head"><div class="commander-auth-active-art">'+troopArt(t.id)+'</div><div><div class="commander-auth-active-name">'+esc(r.name)+' · Lv '+t.level+'</div><div class="commander-auth-active-sub">'+esc(r.role)+' · '+Math.ceil(hp)+'/'+max+' HP</div></div></div><div class="commander-auth-health"><span style="width:'+pct+'%"></span></div><div class="commander-auth-active-actions"><button onclick="return window.__commanderHealFinal('+i+',event)">Heal · 10 🪙</button><button onclick="return window.__commanderUpgradeActiveFinal('+i+',event)">Upgrade · '+up+' 🪙</button><button onclick="return window.__commanderSellFinal('+i+',event)">Sell</button></div></div>';
   }).join('');
 }
-function renderRoster(g){
-  var p=profile(),sel=g.selectedTroop||'';
-  return COMMANDER_TROOPS_FINAL.map(function(r){
-    var own=!!p.owned[r.id],lvl=Math.max(1,Number(p.levels[r.id])||1),st=commanderFinalStats(r.id,lvl);
-    return '<button class="commander-auth-troop '+(sel===r.id?'selected ':'')+(!own?'locked':'')+'" '+(!own?'disabled':'')+' onclick="return window.__commanderSelectFinal(\''+r.id+'\',event)"><div class="commander-auth-troop-art">'+troopArt(r.id)+'</div><div class="commander-auth-troop-name">'+esc(r.name)+' · Lv '+lvl+'</div><div class="commander-auth-troop-role">'+esc(r.role)+'</div><div class="commander-auth-troop-stats">⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · ⚡ '+(Math.round(1000/st.rate*10)/10)+' atk/s<br>✦ '+esc(r.ability)+'</div><div class="commander-auth-unlock">'+(own?'Deploy · '+(r.cost||0)+' 🪙':'Locked · '+r.cost+' 🪙')+'</div></button>';
-  }).join('');
-}
-function battleHtml(g){
-  var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;})||COMMANDER_MAPS_FINAL[0],p=profile();
-  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>🪙 '+p.coins+'</b><span>Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+renderActive(g)+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas" onclick="return window.__commanderCanvasFinal(event)"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexlings · hover for stats · click to select</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+g.waveCoins+'</b> · Placements spend this budget.</div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div><div class="commander-auth-roster">'+renderRoster(g)+'</div><button type="button" id="commander-auth-start-wave" class="commander-auth-start" data-commander-start-wave="true" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
-}
-var COMMANDER_PACK_PROJECTILE_STYLES={
+var INLINE_PACK_ATTACKS={
   candy:['sugar-stinger','gumdrop-bounce','taffy-lash','choco-burst','jelly-spray','caramel-arc','sprinkle-storm','lolli-spin'],
   medieval:['shield-boomerang','bardic-note','hammer-smash','lance-thrust','alchemy-flask','dragon-flame','arcane-orb','royal-sigil'],
   robo:['pulse-beam','circuit-arc','servo-punch','drone-laser','mecha-rocket','reactor-ring','cyber-disc','overclock-bolt'],
@@ -7116,100 +7122,119 @@ var COMMANDER_PACK_PROJECTILE_STYLES={
   arcade:['pixel-bolt','joystick-pulse','pixel-burst','glitch-beam','synth-wave','racer-boost','arcade-cannon','highscore-ray'],
   cosmic:['comet-trail','moon-ray','star-burst','nebula-pulse','eclipse-orb','quasar-beam','void-collapse','supernova']
 };
-var COMMANDER_PACK_PROJECTILE_COLORS={
-  candy:['#ff79b0','#8de8ff','#ff9a63'],medieval:['#f4d46a','#9fe5ff','#c8b5ff'],
-  robo:['#63efff','#ff9c61','#e6ff7d'],ocean:['#69dbff','#6ff0cf','#d9fbff'],
-  arcade:['#ff62d5','#71e7ff','#ffe46a'],cosmic:['#b893ff','#65e5ff','#ff79b7']
-};
-var COMMANDER_PACK_PROJECTILE_LOOKUP=Object.create(null);
-for(var pk in COMMANDER_PACK_PROJECTILE_STYLES){
-  COMMANDER_PACK_PROJECTILE_STYLES[pk].forEach(function(styleKey,styleIndex){
-    COMMANDER_PACK_PROJECTILE_LOOKUP[styleKey]={pack:pk,index:styleIndex};
+var INLINE_PACK_ROLES=['Damage','Support','Splash','Control','Tank','Damage','Support','Splash'];
+function inlinePackCost(c,idx){
+  var base=c&&c.rarity==='Legendary'?12:c&&c.rarity==='Epic'?10:c&&c.rarity==='Rare'?8:6;
+  return base+(idx%3);
+}
+function inlinePackRarityMult(c){return c&&c.rarity==='Legendary'?1.55:c&&c.rarity==='Epic'?1.32:c&&c.rarity==='Rare'?1.16:1;}
+function ensureInlinePackTroops(){
+  if(!Array.isArray(REWARD_COSMETICS)||!Array.isArray(COMMANDER_TROOPS_FINAL))return;
+  var seen={};
+  REWARD_COSMETICS.filter(function(c){return c&&c.type==='indexling';}).forEach(function(c){
+    var pack=c.pack||'candy',group=REWARD_COSMETICS.filter(function(x){return x&&x.type==='indexling'&&x.pack===pack;}),idx=Math.max(0,group.findIndex(function(x){return x.id===c.id;}));
+    var role=INLINE_PACK_ROLES[idx%INLINE_PACK_ROLES.length],mult=inlinePackRarityMult(c);
+    var def=COMMANDER_TROOPS_FINAL.find(function(t){return t.id===c.id;});
+    if(!def){
+      def={id:c.id,name:c.name,role:role+' Indexling',category:role,cost:inlinePackCost(c,idx),
+        damage:Math.max(4,Math.round((8+idx*2)*mult)),range:118+(idx%8)*15+(c.rarity==='Legendary'?14:c.rarity==='Epic'?9:c.rarity==='Rare'?4:0),
+        rate:Math.max(620,1240-(idx%6)*68-(c.rarity==='Legendary'?100:c.rarity==='Epic'?65:c.rarity==='Rare'?30:0)),
+        cooldown:Math.max(4,8-(c.rarity==='Legendary'?1:c.rarity==='Epic'?.5:c.rarity==='Rare'?.25:0)),
+        power:Math.max(2,Math.round((10+idx*2)*mult)),
+        ability:(INLINE_PACK_ATTACKS[pack]||['signature-strike'])[idx%(INLINE_PACK_ATTACKS[pack]||['signature-strike']).length],
+        attackType:(INLINE_PACK_ATTACKS[pack]||['basic'])[idx%(INLINE_PACK_ATTACKS[pack]||['basic']).length],
+        shot:c.main||'#9fe8ff',
+        income:role==='Economy'?2:0
+      };
+      COMMANDER_TROOPS_FINAL.push(def);
+    }else{
+      def.attackType=def.attackType||((INLINE_PACK_ATTACKS[pack]||['basic'])[idx%(INLINE_PACK_ATTACKS[pack]||['basic']).length]);
+      def.ability=def.ability||def.attackType;
+    }
+    seen[c.id]=true;
   });
+  try{
+    var p=commanderFinalProfile();
+    var unlocked=state&&state.progress&&Array.isArray(state.progress.unlockedCosmetics)?state.progress.unlockedCosmetics:[];
+    REWARD_COSMETICS.filter(function(c){return c&&c.type==='indexling';}).forEach(function(c){
+      if(unlocked.indexOf(c.id)>=0){p.owned[c.id]=true;if(!p.levels[c.id])p.levels[c.id]=1;}
+    });
+  }catch(e){}
 }
-function drawPackProjectile(ctx,type,now){
-  var meta=COMMANDER_PACK_PROJECTILE_LOOKUP[type];if(!meta)return false;
-  var pal=COMMANDER_PACK_PROJECTILE_COLORS[meta.pack]||['#fff','#9fe5ff','#ffd166'],i=meta.index;
-  var c=pal[i%pal.length],a=pal[(i+1)%pal.length];
-  ctx.lineCap='round';ctx.lineJoin='round';
-  if(i===0){ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(-22,-4);ctx.lineTo(9,0);ctx.lineTo(-22,4);ctx.closePath();ctx.fill();ctx.fillStyle=a;ctx.beginPath();ctx.arc(10,0,4,0,Math.PI*2);ctx.fill();}
-  else if(i===1){ctx.fillStyle=c;ctx.beginPath();ctx.arc(0,0,9,0,Math.PI*2);ctx.fill();ctx.strokeStyle=a;ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,6+Math.sin(now*.01)*1.5,0,Math.PI*2);ctx.stroke();}
-  else if(i===2){ctx.strokeStyle=c;ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-25,7);ctx.quadraticCurveTo(-8,-12,10,4);ctx.stroke();ctx.fillStyle=a;ctx.beginPath();ctx.arc(11,4,4,0,Math.PI*2);ctx.fill();}
-  else if(i===3){ctx.fillStyle=c;for(var j=0;j<8;j++){var ag=j*Math.PI/4;ctx.beginPath();ctx.arc(Math.cos(ag)*10,Math.sin(ag)*10,3.2,0,Math.PI*2);ctx.fill();}ctx.fillStyle=a;ctx.beginPath();ctx.arc(0,0,4,0,Math.PI*2);ctx.fill();}
-  else if(i===4){ctx.fillStyle=c;for(var z=0;z<5;z++){ctx.beginPath();ctx.arc(-8+z*4,Math.sin(z*1.7)*5,3.4,0,Math.PI*2);ctx.fill();}ctx.strokeStyle=a;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-10,8);ctx.lineTo(10,-8);ctx.stroke();}
-  else if(i===5){ctx.strokeStyle=c;ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-23,8);ctx.quadraticCurveTo(-4,-14,15,0);ctx.stroke();ctx.fillStyle=a;ctx.beginPath();ctx.arc(16,0,5,0,Math.PI*2);ctx.fill();}
-  else if(i===6){ctx.strokeStyle=c;ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*1.55);ctx.stroke();ctx.strokeStyle=a;ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,6,Math.PI*.15,Math.PI*1.7);ctx.stroke();}
-  else{ctx.strokeStyle=c;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-24,0);ctx.lineTo(13,0);ctx.stroke();ctx.fillStyle=a;ctx.beginPath();ctx.moveTo(15,0);ctx.lineTo(6,-7);ctx.lineTo(6,7);ctx.closePath();ctx.fill();ctx.fillStyle=c;ctx.beginPath();ctx.arc(2,0,5+Math.sin(now*.012)*1.5,0,Math.PI*2);ctx.fill();}
-  return true;
+function inlinePackArt(c,mini){
+  try{
+    var sk=typeof getEquippedSkinForIndexling==='function'?getEquippedSkinForIndexling(c.id):null;
+    if(typeof indexlingArtHtml==='function'){
+      var artHtml=indexlingArtHtml(c,!!mini,sk);
+      if(artHtml)return artHtml;
+    }
+  }catch(e){}
+  return '<span style="font-size:'+(mini?28:40)+'px">'+esc(c.icon||'✦')+'</span>';
 }
-function projectileDraw(ctx,q,r,now){
-  var x=q.x*r.width,y=q.y*r.height,px=q.prevX*r.width,py=q.prevY*r.height,ang=Math.atan2(y-py,x-px),t=q.type;
-  ctx.save();ctx.translate(x,y);ctx.rotate(ang);
-  if(drawPackProjectile(ctx,t,now)){ctx.restore();return;}
-  var pulse=1+Math.sin(now*.012)*.12;
-  if(t==='flame'){ctx.fillStyle=q.blue?'#68d9ff':'#ff704e';ctx.beginPath();ctx.moveTo(-22,0);ctx.quadraticCurveTo(-6,-11,6,0);ctx.quadraticCurveTo(-6,11,-22,0);ctx.fill();ctx.fillStyle='#ffd35d';ctx.beginPath();ctx.arc(5,0,5*pulse,0,Math.PI*2);ctx.fill();}
-  else if(t==='sniper'){ctx.strokeStyle='#f4fbff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-28,0);ctx.lineTo(14,0);ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(15,0,4,0,Math.PI*2);ctx.fill();}
-  else if(t==='cannon'){ctx.fillStyle='#ffad52';ctx.beginPath();ctx.arc(0,0,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#fff0c0';ctx.lineWidth=3;ctx.stroke();}
-  else if(t==='frost'){ctx.strokeStyle='#a9efff';ctx.lineWidth=3;for(var k=0;k<4;k++){ctx.save();ctx.rotate(k*Math.PI/2);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(15,0);ctx.stroke();ctx.restore();}}
-  else if(t==='chain'){ctx.strokeStyle='#f8ff82';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-18,0);ctx.lineTo(-7,-7);ctx.lineTo(6,7);ctx.lineTo(18,0);ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,0,4,0,Math.PI*2);ctx.fill();}
-  else if(t==='poison'){ctx.fillStyle='#78e581';ctx.beginPath();ctx.arc(0,0,8*pulse,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#d6ff95';ctx.lineWidth=2;ctx.stroke();}
-  else if(t==='rocket'){ctx.fillStyle='#ff6677';ctx.beginPath();ctx.roundRect(-13,-5,24,10,3);ctx.fill();ctx.fillStyle='#ffd27a';ctx.beginPath();ctx.moveTo(-15,0);ctx.lineTo(-28,-7);ctx.lineTo(-28,7);ctx.closePath();ctx.fill();}
-  else if(t==='medic'){ctx.strokeStyle='#6ff2b5';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-20,0);ctx.lineTo(20,0);ctx.stroke();ctx.fillStyle='#baffdf';ctx.fillRect(-4,-11,8,22);ctx.fillRect(-11,-4,22,8);}
-  else if(t==='time'){ctx.strokeStyle='#d0a8ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,11,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-7);ctx.moveTo(0,0);ctx.lineTo(6,3);ctx.stroke();}
-  else if(t==='note'){ctx.fillStyle='#ff93da';ctx.beginPath();ctx.arc(-1,6,6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ff93da';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(4,6);ctx.lineTo(8,-15);ctx.stroke();}
-  else if(t==='lance'){ctx.fillStyle='#e4f2ff';ctx.fillRect(-20,-3,30,6);ctx.beginPath();ctx.moveTo(12,0);ctx.lineTo(2,-8);ctx.lineTo(2,8);ctx.closePath();ctx.fill();}
-  else if(t==='flask'){ctx.fillStyle='#b58cff';ctx.beginPath();ctx.arc(0,3,9,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.fillRect(-4,-11,8,8);}
-  else if(t==='comet'){ctx.strokeStyle='#9fe8ff';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-28,2);ctx.lineTo(8,0);ctx.stroke();ctx.fillStyle='#e8fcff';ctx.beginPath();ctx.arc(10,0,7,0,Math.PI*2);ctx.fill();}
-  else if(t==='gravity'||t==='void'){ctx.strokeStyle='#c69cff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,10*pulse,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#8d69e6';ctx.beginPath();ctx.arc(0,0,4,0,Math.PI*2);ctx.fill();}
-  else if(t==='nova'){ctx.strokeStyle='#ff8295';ctx.lineWidth=3;for(var ray=0;ray<8;ray++){var an=ray*Math.PI/4;ctx.beginPath();ctx.moveTo(Math.cos(an)*7,Math.sin(an)*7);ctx.lineTo(Math.cos(an)*17,Math.sin(an)*17);ctx.stroke();}ctx.fillStyle='#ffd4dd';ctx.beginPath();ctx.arc(0,0,5,0,Math.PI*2);ctx.fill();}
-  else{ctx.fillStyle=q.color||'#fff';ctx.beginPath();ctx.arc(0,0,6*pulse,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.72)';ctx.lineWidth=2;ctx.stroke();}
-  ctx.restore();
+function inlineUnlocked(c,p){
+  return !!(p&&p.owned&&p.owned[c.id]);
 }
-
-var commanderRenderCache={key:'',canvas:null,w:0,h:0,dpr:1};
-function buildCommanderStaticMap(m,w,h,dpr){
-  var cache=document.createElement('canvas');cache.width=Math.max(1,Math.floor(w*dpr));cache.height=Math.max(1,Math.floor(h*dpr));
-  var ctx=cache.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);commanderDrawMapBackgroundFinal(ctx,m,w,h);
-  var pts=m.route.map(function(v){return{x:v[0]*w,y:v[1]*h};});
-  ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.lineWidth=64;ctx.strokeStyle='rgba(255,255,255,.24)';
-  ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();
-  ctx.lineWidth=42;ctx.strokeStyle=m.path;ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();
-  ctx.lineWidth=2;ctx.strokeStyle='rgba(255,255,255,.13)';ctx.setLineDash([7,11]);ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();ctx.setLineDash([]);ctx.restore();
-  var st=pts[0],en=pts[pts.length-1];ctx.fillStyle='#35d59c';ctx.beginPath();ctx.arc(st.x,st.y,27,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#ecfff8';ctx.lineWidth=4;ctx.stroke();
-  ctx.fillStyle='#ef6473';ctx.beginPath();ctx.roundRect(en.x-29,en.y-29,58,58,10);ctx.fill();ctx.fillStyle='#fff';ctx.font='950 10px Arial';ctx.textAlign='center';ctx.fillText('BASE',en.x,en.y+3);
-  return cache;
-}
-function draw(g){
-  var cv=document.getElementById('commander-auth-canvas'),m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});if(!cv||!m)return;
-  var r=cv.getBoundingClientRect();if(!r.width||!r.height)return;
-  var w=Math.floor(r.width),h=Math.floor(r.height),d=Math.min(2,window.devicePixelRatio||1),pw=Math.max(1,Math.floor(w*d)),ph=Math.max(1,Math.floor(h*d));
-  if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph;}
-  var ctx=cv.getContext('2d');ctx.setTransform(d,0,0,d,0,0);
-  var key=m.id+'|'+w+'|'+h+'|'+d;
-  if(commanderRenderCache.key!==key||!commanderRenderCache.canvas)commanderRenderCache={key:key,canvas:buildCommanderStaticMap(m,w,h,d),w:w,h:h,dpr:d};
-  ctx.clearRect(0,0,w,h);ctx.drawImage(commanderRenderCache.canvas,0,0,w,h);
-  var now=Date.now();
-  if(g.waveBannerUntil&&g.waveBannerUntil>now){ctx.save();ctx.globalAlpha=Math.min(.92,(g.waveBannerUntil-now)/240);ctx.fillStyle='rgba(5,16,29,.85)';ctx.roundRect(w*.5-120,17,240,42,14);ctx.fill();ctx.fillStyle='#e9fbff';ctx.font='950 15px Arial';ctx.textAlign='center';ctx.fillText(g.waveBanner||('ROUND '+g.wave),w*.5,44);ctx.restore();}
-  if(g.selectedTroop&&g.cursor&&!g.running){
-    try{var lvl=Math.max(1,Number(profile().levels[g.selectedTroop])||1),stt=richStats(g.selectedTroop,lvl),rad=stt.range/850*w;ctx.fillStyle=g.cursor.valid?'rgba(49,211,143,.13)':'rgba(234,91,103,.13)';ctx.beginPath();ctx.arc(g.cursor.x*w,g.cursor.y*h,rad,0,Math.PI*2);ctx.fill();ctx.strokeStyle=g.cursor.valid?'#31d38f':'#ea5b67';ctx.lineWidth=3;ctx.stroke();}catch(e){}
+window.__commanderSelectPackInline=function(id,e){
+  if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
+  var g=state&&state.games;if(!g||g.active!=='commander'||g.phase!=='battle'||g.running||g.questionGateOpen)return false;
+  ensureInlinePackTroops();
+  var t=COMMANDER_TROOPS_FINAL.find(function(x){return x.id===id;});if(!t)return false;
+  var p=commanderFinalProfile(),owned=inlineUnlocked({id:id},p);
+  if(!owned){
+    if(typeof showRewardToast==='function')showRewardToast('Unlock this Indexling from its reward pack first.');
+    return false;
   }
-  (g.projectiles||[]).forEach(function(q){projectileDraw(ctx,q,{width:w,height:h},now);});
-  (g.effects||[]).forEach(function(z){var life=Math.max(0,Number(z.life)||0),max=Math.max(1,Number(z.maxLife)||1);ctx.globalAlpha=Math.max(.06,life/max);ctx.fillStyle=z.color||'#fff';ctx.beginPath();ctx.arc(z.x*w,z.y*h,(z.radius||.04)*w,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;});
-  (g.enemies||[]).forEach(function(e){var x=e.x*w,y=e.y*h;commanderDrawEnemyFinal(ctx,Object.assign({},e,{x:x,y:y}));var bw=Math.max(24,e.size*1.8);ctx.fillStyle='rgba(14,24,34,.74)';ctx.roundRect(x-bw/2,y-e.size-12,bw,6,3);ctx.fill();ctx.fillStyle='#55e6a5';ctx.roundRect(x-bw/2,y-e.size-12,bw*Math.max(0,e.hp/e.maxHp),6,3);ctx.fill();});
-  var inspect=(g.selectedTowerIndex>=0&&g.towers[g.selectedTowerIndex])?g.towers[g.selectedTowerIndex]:null;if(!inspect&&g.hoverTowerIndex>=0&&g.towers[g.hoverTowerIndex])inspect=g.towers[g.hoverTowerIndex];if(inspect)drawTowerInspection(ctx,g,inspect,w,h);
-  var hud=document.getElementById('commander-live-hud');if(hud)hud.textContent='ROUND '+Math.max(1,g.wave)+'  •  ENEMIES '+(g.enemies||[]).length+'  •  REMAINING '+Math.max(0,(g.spawnTotal||0)-(g.spawnCount||0))+'  •  BASE '+Math.max(0,Math.floor(g.base));
+  var cost=Math.max(1,Number(t.cost)||1);
+  if(Number(g.waveCoins||0)<cost){
+    if(typeof showRewardToast==='function')showRewardToast('Need '+cost+' deployment coins for '+t.name+'.');
+    return false;
+  }
+  g.selectedTroop=g.selectedTroop===id?null:id;
+  g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;
+  g.cursor=g.selectedTroop?{x:.5,y:.5,valid:true}:null;
+  try{v6Save(g);}catch(err){}
+  if(typeof renderBattle==='function')renderBattle(g);
+  return false;
+};
+
+function renderRoster(g){
+  ensureInlinePackTroops();
+  var p=commanderFinalProfile(),sel=g.selectedTroop||'',coins=Math.floor(Number(g.waveCoins)||0);
+  var list=REWARD_COSMETICS.filter(function(c){
+    return c&&c.type==='indexling';
+  });
+  var cats=['All','Damage','Support','Splash','Control','Tank'];
+  var filtered=list;
+  var cat=g.troopCategory||'All';
+  if(cat!=='All')filtered=list.filter(function(c){
+    var t=COMMANDER_TROOPS_FINAL.find(function(x){return x.id===c.id;});
+    return t&&t.category===cat;
+  });
+  var filters='<div class="commander-auth-category-bar">'+cats.map(function(x){
+    return '<button type="button" class="commander-auth-category '+(cat===x?'selected':'')+'" onclick="event.preventDefault();event.stopPropagation();state.games.troopCategory=\''+x+'\';renderBattle(state.games);">'+esc(x)+'</button>';
+  }).join('')+'</div>';
+  var cards=filtered.map(function(c){
+    var t=COMMANDER_TROOPS_FINAL.find(function(x){return x.id===c.id;});
+    if(!t)return '';
+    var idx=list.findIndex(function(x){return x.id===c.id;});
+    var lvl=Math.max(1,Number(p.levels[c.id])||1),st=commanderFinalStats(c.id,lvl);
+    var owned=inlineUnlocked(c,p),cost=Math.max(1,Number(t.cost)||1),affordable=coins>=cost;
+    var attack=t.ability||((INLINE_PACK_ATTACKS[c.pack]||['Signature Strike'])[idx%8]);
+    return '<div class="commander-inline-pack-card '+(sel===c.id?'selected ':'')+(!owned?'locked ':'')+(!affordable?'unaffordable':'')+'">'+
+      '<button type="button" class="commander-inline-pack-main" onclick="return window.__commanderSelectPackInline(\''+c.id+'\',event)">'+
+        '<div class="commander-inline-pack-art">'+inlinePackArt(c,true)+'</div>'+
+        '<div class="commander-inline-pack-name">'+esc(c.name)+' · Lv '+lvl+'</div>'+
+        '<div class="commander-inline-pack-meta">'+esc(c.pack||'Pack')+' · '+esc(c.rarity||'Common')+' · '+esc(t.category||t.role||'Damage')+'</div>'+
+        '<div class="commander-inline-pack-stats">⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · ⚡ '+(Math.round(1000/st.rate*10)/10)+'/s</div>'+
+        '<div class="commander-inline-pack-attack">✦ '+esc(attack)+'</div>'+
+        '<div class="commander-inline-pack-cost">'+(owned?('Deploy · '+cost+' 🪙'):'LOCKED · Reward Pack')+'</div>'+
+      '</button>'+
+      (sel===c.id?'<div class="commander-inline-pack-selected">SELECTED · Hover the map for the green/red placement range</div>':'')+
+    '</div>';
+  }).join('');
+  return filters+'<div class="commander-inline-pack-grid">'+cards+'</div>';
 }
 
-window.__commanderCategoryFinal(\''+cat+'\',event)">'+cat+'</button>';}).join('')+'</div>';
-}
-function rosterHtml(g){
-  var p=profile(),sel=g.selectedTroop||'',cat=g.troopCategory||'All';
-  var list=COMMANDER_TROOPS_FINAL.filter(function(t){return cat==='All'||t.category===cat;});
-  return categoryHtml(g)+list.map(function(t){
-    var own=!!p.owned[t.id],lvl=Math.max(1,Number(p.levels[t.id])||1),st=richStats(t.id,lvl),rate=t.income?'<br>💰 +'+t.income.toFixed(1)+'/s':''; 
-    return '<button type="button" class="commander-auth-troop '+(sel===t.id?'selected ':'')+(!own?'locked':'')+'" onclick="return window.__commanderSelectFinal(\''+t.id+'\',event)"><div class="commander-auth-troop-art">'+art(t.id,true)+'</div><div class="commander-auth-troop-name">'+esc(t.name)+' · Lv '+lvl+'</div><div class="commander-auth-troop-role">'+esc(t.category)+' · '+esc(t.role)+'</div><div class="commander-auth-troop-stats">⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · ⚡ '+(Math.round(1000/st.rate*10)/10)+' atk/s'+rate+'</div><div class="commander-auth-unlock">'+(own?'Deploy · '+(t.cost||0)+' 🪙':'Locked · '+t.cost+' 🪙')+'</div></button>';
-  }).join('');
-}
 function activeHtml(g){
   if(!g.towers.length)return '<div class="commander-auth-empty">No Indexlings deployed yet.<br><br>Select an Indexling on the right, then hover the battlefield to preview placement.</div>';
   return g.towers.map(function(t,i){
@@ -7996,6 +8021,7 @@ window.updateProjectile=updateProjectile;
 window.ensureCommanderTroopRegistryV9=ensureCommanderTroopRegistryV9;
 window.syncLayers=window.syncLayers||null;
 
+try{ensureInlinePackTroops();}catch(e){}
 /*
  * COMMANDER WAVE ENGINE V10
  * Final wave controller. It owns the wave loop directly instead of delegating
