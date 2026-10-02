@@ -5,7 +5,7 @@ const root = __dirname;
 const htmlPath = path.join(root, 'public', 'index.html');
 const marker = '<!-- INDEX_REWARDS_V2 -->';
 const questTag = '<script src="/quests-avatar-pack.js"></script>';
-const battlefieldTag = '<script src="/indexling-battlefield-fix.js?v=14"></script>';
+const battlefieldTag = '<script src="/indexling-battlefield-fix.js?v=15"></script>';
 
 try {
   let html = fs.readFileSync(htmlPath, 'utf8');
