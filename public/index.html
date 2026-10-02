@@ -8145,13 +8145,9 @@ function draw(g){
   var st=pts[0],en=pts[pts.length-1];ctx.fillStyle='#35d59c';ctx.beginPath();ctx.arc(st.x,st.y,28+Math.sin(Date.now()*.006)*3,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#e8fff7';ctx.lineWidth=4;ctx.stroke();ctx.fillStyle='#ef6473';ctx.beginPath();ctx.roundRect(en.x-29,en.y-29,58,58,10);ctx.fill();ctx.fillStyle='#fff';ctx.font='950 10px Arial';ctx.textAlign='center';ctx.fillText('BASE',en.x,en.y+3);
   (g.projectiles||[]).forEach(function(q){projectileDraw(ctx,q,r,Date.now());});
   var now=Date.now();
-  (g.towers||[]).forEach(function(t){drawIndexlingRich(ctx,t.x*r.width,t.y*r.height,t.id,31,t.level,now<t.recoil);});
+  /* Placed Indexlings are rendered by the pack overlay so their artwork exactly matches the Arsenal. */
   (g.enemies||[]).forEach(function(e){var x=e.x*r.width,y=e.y*r.height;commanderDrawEnemy(ctx,Object.assign({},e,{x:x,y:y}));var bw=e.size*1.7;ctx.fillStyle='rgba(20,25,35,.62)';ctx.fillRect(x-bw/2,y-e.size-11,bw,5);ctx.fillStyle='#4fe1a3';ctx.fillRect(x-bw/2,y-e.size-11,bw*Math.max(0,e.hp/e.maxHp),5);});
-  if(g.cursor&&g.selectedTroop&&!g.running){
-    var lvl=Math.max(1,Number(profile().levels[g.selectedTroop])||1),stt=richStats(g.selectedTroop,lvl),x=g.cursor.x*r.width,y=g.cursor.y*r.height,rad=stt.range/850*r.width;
-    ctx.save();ctx.globalAlpha=.96;ctx.setLineDash([9,7]);ctx.fillStyle=g.cursor.valid?'rgba(49,211,143,.12)':'rgba(234,91,103,.13)';ctx.beginPath();ctx.arc(x,y,rad,0,Math.PI*2);ctx.fill();ctx.strokeStyle=g.cursor.valid?'#32d58d':'#ec5b69';ctx.lineWidth=4;ctx.stroke();ctx.setLineDash([]);
-    ctx.globalAlpha=.34;drawIndexlingRich(ctx,x,y,g.selectedTroop,32,lvl,false,1);ctx.globalAlpha=.18;ctx.fillStyle='#0d1a28';ctx.beginPath();ctx.ellipse(x,y+24,24,8,0,0,Math.PI*2);ctx.fill();ctx.restore();
-  }
+  /* Placement preview is rendered by the pack overlay for exact Arsenal artwork. */
   var inspect=(g.selectedTowerIndex>=0&&g.towers[g.selectedTowerIndex])?g.towers[g.selectedTowerIndex]:null;
   if(!inspect&&g.hoverTowerIndex>=0&&g.towers[g.hoverTowerIndex])inspect=g.towers[g.hoverTowerIndex];
   if(inspect)drawTowerInspection(ctx,g,inspect,r.width,r.height);
