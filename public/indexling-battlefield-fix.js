@@ -152,6 +152,43 @@ function injectCss(){
     .commander-pack-v4-ghost-label{position:absolute;top:66px;white-space:nowrap;padding:4px 7px;border-radius:8px;background:rgba(5,15,26,.94);color:#cffff0;border:1px solid #38db94;font:950 8px system-ui}
     .commander-pack-v4-ghost-label.blocked{border-color:#ec5d6a;color:#ffdfe3}
     @media(max-width:1250px){.commander-pack-v4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .commander-gate-v4{box-sizing:border-box!important;width:100%!important;min-height:100dvh!important;padding:clamp(8px,2vw,24px)!important;display:flex!important;align-items:center!important;justify-content:center!important;overflow:auto!important}
+    .commander-gate-v4 .commander-gate-card-v8{box-sizing:border-box!important;width:min(1080px,100%)!important;max-height:calc(100dvh - 16px)!important;overflow:auto!important;padding:clamp(14px,2.2vw,28px)!important}
+    .commander-gate-v4 .commander-gate-top-v8{display:flex!important;gap:16px!important;align-items:flex-start!important}
+    .commander-gate-v4 .commander-gate-top-v8>div{min-width:0!important;flex:1 1 auto!important}
+    .commander-gate-v4 .commander-gate-top-v8 h1{font-size:clamp(22px,3vw,40px)!important;line-height:1.08!important;margin:.2em 0!important}
+    .commander-gate-v4 .commander-gate-sub-v8{font-size:clamp(11px,1.25vw,15px)!important;line-height:1.4!important}
+    .commander-gate-v4 .commander-gate-stats-v8{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important}
+    .commander-gate-v4 .commander-lesson-strip-v9{display:flex!important;flex-wrap:wrap!important;gap:5px 12px!important}
+    .commander-gate-v4 .commander-gate-question-v8{min-width:0!important}
+    .commander-gate-v4 .commander-gate-question-v8 h2{font-size:clamp(18px,2.2vw,30px)!important;line-height:1.22!important;overflow-wrap:anywhere!important;margin:10px 0 12px!important}
+    .commander-gate-v4 .commander-gate-options-v4{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+    .commander-gate-v4 .commander-gate-option-v8{box-sizing:border-box!important;min-width:0!important;min-height:58px!important;height:auto!important;padding:12px 14px!important;display:flex!important;align-items:center!important;gap:10px!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere!important;font-size:clamp(13px,1.45vw,17px)!important;line-height:1.3!important}
+    .commander-gate-v4 .commander-gate-option-v8 .letter{flex:0 0 30px!important}
+    .commander-gate-v4 .commander-feedback-v4{box-sizing:border-box!important;width:100%!important}
+    .commander-gate-v4 .commander-gate-note-v8{font-size:clamp(10px,1.1vw,14px)!important;line-height:1.35!important}
+    @media(max-width:800px){
+      .commander-gate-v4{align-items:flex-start!important;padding:6px!important}
+      .commander-gate-v4 .commander-gate-card-v8{max-height:calc(100dvh - 12px)!important;padding:12px!important}
+      .commander-gate-v4 .commander-gate-stats-v8{grid-template-columns:1fr 1fr!important}
+      .commander-gate-v4 .commander-gate-stats-v8 .commander-gate-stat-v8:last-child{grid-column:1/-1}
+      .commander-gate-v4 .commander-gate-options-v4{grid-template-columns:1fr!important}
+    }
+    @media(max-width:800px) and (max-height:800px){
+      .commander-gate-v4 .commander-gate-card-v8{padding:9px!important}
+      .commander-gate-v4 .commander-gate-top-v8{gap:8px!important}
+      .commander-gate-v4 .commander-gate-top-v8 h1{font-size:23px!important}
+      .commander-gate-v4 .commander-gate-sub-v8{font-size:10px!important}
+      .commander-gate-v4 .commander-gate-question-v8 h2{font-size:18px!important;margin:7px 0!important}
+      .commander-gate-v4 .commander-gate-option-v8{min-height:48px!important;padding:8px 10px!important;font-size:13px!important}
+    }
+    @media(min-width:801px) and (max-height:850px){
+      .commander-gate-v4 .commander-gate-card-v8{padding:14px!important}
+      .commander-gate-v4 .commander-gate-top-v8 h1{font-size:28px!important}
+      .commander-gate-v4 .commander-gate-sub-v8{font-size:11px!important}
+      .commander-gate-v4 .commander-gate-option-v8{min-height:50px!important;padding:9px 12px!important;font-size:14px!important}
+      .commander-gate-v4 .commander-gate-question-v8 h2{font-size:21px!important;margin:7px 0 9px!important}
+    }
   `;
   document.head.appendChild(s);
 }
@@ -193,7 +230,7 @@ function selectCard(card,e){
   g.selectedTroop=g.selectedTroop===id?null:id;
   g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;g.cursor=null;
   try{v6Save(g);}catch(err){}
-  renderBattle(g);
+  syncLayers();
   setTimeout(sync,0);
 }
 function bindPackCardClicks(right){
@@ -301,10 +338,18 @@ function installPreviewHandlers(world){
   var cv=world&&world.querySelector('#commander-auth-canvas');
   if(!cv||cv.dataset.packPreviewBound==='1')return;
   cv.dataset.packPreviewBound='1';
-  cv.addEventListener('pointermove',function(){
+  cv.addEventListener('pointermove',function(e){
     var g=typeof state!=='undefined'?state.games:null;
-    if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
+    if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||!g.selectedTroop)return;
+    var r=cv.getBoundingClientRect();
+    if(!r.width||!r.height)return;
+    var x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width));
+    var y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));
+    var valid=false;
+    try{valid=typeof commanderCanPlaceFinal==='function'&&commanderCanPlaceFinal(x,y);}catch(err){valid=false;}
+    g.cursor={x:x,y:y,valid:!!valid};
     updatePreviewGhost(g);
+    syncLayers();
   },false);
   cv.addEventListener('pointerleave',function(){
     var g=typeof state!=='undefined'?state.games:null;
@@ -322,7 +367,7 @@ function patchPlacementGuard(){
       ensurePackDefs();
       g.selectedTroop=g.selectedTroop===id?null:id;
       g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;g.cursor=null;
-      renderBattle(g);setTimeout(sync,0);return false;
+      syncLayers();setTimeout(sync,0);return false;
     }
     return typeof original==='function'?original(id,e):false;
   };
