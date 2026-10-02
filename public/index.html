@@ -7167,6 +7167,28 @@ function loop(now){
   update(g,dt,now);draw(g);
   if(state.games===g&&!g.questionGateOpen&&!g.finished)g.frame=requestAnimationFrame(loop);
 }
+function ensureCommanderTroopRegistryV9(){
+  try{
+    if(Array.isArray(window.COMMANDER_TROOPS_FINAL)&&Array.isArray(window.REWARD_COSMETICS)){
+      window.REWARD_COSMETICS.filter(function(c){return c&&c.type==='indexling';}).forEach(function(c,i){
+        if(!window.COMMANDER_TROOPS_FINAL.some(function(t){return t&&t.id===c.id;})){
+          var groups=window.REWARD_COSMETICS.filter(function(x){return x&&x.type==='indexling'&&x.pack===c.pack;});
+          var idx=Math.max(0,groups.findIndex(function(x){return x.id===c.id;}));
+          var rarity=c.rarity==='Legendary'?1.6:c.rarity==='Epic'?1.35:c.rarity==='Rare'?1.18:1;
+          var roles=['Damage','Support','Splash','Control','Tank','Damage'];
+          window.COMMANDER_TROOPS_FINAL.push({
+            id:c.id,name:c.name,role:(roles[idx%roles.length]||'Damage')+' Indexling',
+            category:roles[idx%roles.length]||'Damage',cost:5+(c.rarity==='Legendary'?3:c.rarity==='Epic'?2:c.rarity==='Rare'?1:0)+(idx%3),
+            damage:Math.round((9+idx*2)*rarity),range:118+(idx%8)*16,rate:Math.max(650,1220-(idx%6)*65),
+            cooldown:Math.max(4,8-(c.rarity==='Legendary'?1:c.rarity==='Epic'?.5:0)),
+            power:Math.round((10+idx*2)*rarity),ability:c.name+' Signature',attackType:'basic',
+            description:c.name+' uses its unique signature attack.'
+          });
+        }
+      });
+    }
+  }catch(e){console.warn('Commander troop registry refresh failed',e);}
+}
 function place(g,x,y){
   var id=g.selectedTroop;if(!id||!canPlace(g,x,y))return;
   var r=troopDef(id),p=profile(),cost=Math.max(0,Number(r.cost)||0);
@@ -8162,14 +8184,39 @@ function startV6(mapId,slot,saveData){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===mapId;});if(!m)return;
   var prev=state.games||{},old=saveData&&typeof saveData==='object'?saveData:null;clearV6Timers(prev);
   var g={active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',question:null,questionGateOpen:true,questionFeedback:null,questionAskedCount:0,questionCorrectCount:0,waveCoins:old?Number(old.waveCoins)||0:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,selectedTroop:old&&old.selectedTroop||null,troopCategory:old&&old.troopCategory||'All',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,coinAccumulator:0,usedQuestionKeys:[],aiQuestionQueue:old&&Array.isArray(old.aiQuestionQueue)?old.aiQuestionQueue.slice(0,4):[],aiNextQuestion:null,aiQuestionRequest:null,questionLoading:true,aiPrefetchError:'',usedQuestionKeys:old&&Array.isArray(old.usedQuestionKeys)?old.usedQuestionKeys.slice(-40):[],hoverTowerIndex:-1,selectedTowerIndex:-1};
-  if(old&&Array.isArray(old.towers))old.towers.forEach(function(t){if(t&&t.id&&t.x!=null&&t.y!=null&&v6Profile().owned[t.id])g.towers.push({id:t.id,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),hp:Number(t.hp||100),maxHp:Number(t.maxHp||100),cool:0,abilityReady:performance.now()+1500,recoil:0});});
+  if(old&&Array.isArray(old.towers))old.towers.forEach(function(t){
+    var tid=String(t&&t.id||'');
+    var td=tid?COMMANDER_TROOPS_FINAL.find(function(x){return x&&x.id===tid;}):null;
+    var cc=tid&&typeof cosmeticById==='function'?cosmeticById(tid):null;
+    if(tid&&t.x!=null&&t.y!=null&&(td||cc)&&v6Profile().owned[tid]){
+      g.towers.push({id:tid,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),hp:Number(t.hp||100),maxHp:Number(t.maxHp||100),cool:0,abilityReady:performance.now()+1500,recoil:0});
+    }
+  });
   state.games=g;v6Save(g);renderBattle(g);commanderBeginGateQuestion(g);
 }
 function place(g,x,y){
-  var id=g.selectedTroop;if(!id)return;var td=tdef(id),p=v6Profile();if(!canPlace(g,x,y))return;
-  if((g.waveCoins||0)<td.cost){showRewardToast('Not enough deployment coins for '+td.name+'.');return;}
-  var lvl=Math.max(1,Number(p.levels[id])||1),hp=100+(lvl-1)*18;g.waveCoins-=td.cost;
-  g.towers.push({id:id,x:x,y:y,level:lvl,hp:hp,maxHp:hp,cool:0,abilityReady:performance.now()+1200,recoil:0});g.selectedTroop=null;v6Save(g);renderBattle(g);
+  var id=String(g&&g.selectedTroop||'');
+  if(!id)return;
+  ensureCommanderTroopRegistryV9();
+  var td=COMMANDER_TROOPS_FINAL.find(function(t){return t&&t.id===id;})||null;
+  var c=(typeof cosmeticById==='function')?cosmeticById(id):null;
+  /* Never allow tdef()'s historical Sugarbug fallback to turn an invalid ID
+     into Sugarbug. Placement must always use a real pack Indexling ID. */
+  if(!td&&!c){
+    g.selectedTroop=null;g.cursor=null;
+    try{v6Save(g);}catch(e){}
+    return;
+  }
+  if(!canPlace(g,x,y))return;
+  var cost=Math.max(1,Number(td&&td.cost)||1);
+  if((g.waveCoins||0)<cost){
+    showRewardToast('Not enough deployment coins for '+((td&&td.name)||(c&&c.name)||'this Indexling')+'.');
+    return;
+  }
+  var p=v6Profile(),lvl=Math.max(1,Number(p.levels[id])||1),hp=100+(lvl-1)*18;
+  g.waveCoins-=cost;
+  g.towers.push({id:id,x:x,y:y,level:lvl,hp:hp,maxHp:hp,cool:0,abilityReady:performance.now()+1200,recoil:0});
+  g.selectedTroop=null;g.cursor=null;v6Save(g);renderBattle(g);
 }
 function canPlace(g,x,y){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});if(!m||g.running||g.finished)return false;
@@ -8432,7 +8479,6 @@ window.__commanderStartWaveAuthoritative=function(e){
     try{
       g.running=false;
       g.frame=null;
-      g.questionGateOpen=false;
       renderBattle(g);
       showRewardToast('Could not start the wave: '+String(err&&err.message||err));
     }catch(recoveryErr){console.error('Commander Start Wave recovery failed',recoveryErr);}
