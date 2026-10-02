@@ -8525,21 +8525,25 @@ function commanderStartWaveEngineV10(e){
 
   var g=state&&state.games;
   if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
-
-  if(g.running&&g.frame)return false;
-  if(g.running&&!g.frame)g.running=false;
-  if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
+  if(g.__commanderWaveInterval){
+    clearInterval(g.__commanderWaveInterval);
+    g.__commanderWaveInterval=null;
+  }
+  if(g.frame){
+    cancelAnimationFrame(g.frame);
+    g.frame=null;
+  }
 
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v&&v.id===g.mapId;});
-  if(!m){
-    console.error('[Commander V10] map not found',g.mapId);
-    try{showRewardToast('Commander could not find this map.');}catch(err){}
+  if(!m||!Array.isArray(m.route)||m.route.length<2){
+    console.error('[Commander V11] invalid map',g.mapId,m);
+    try{showRewardToast('Commander could not load this map.');}catch(err){}
     return false;
   }
 
   try{
     commanderWaveEngineV10.active=true;
-    var token=++commanderWaveEngineV10.token;
+    commanderWaveEngineV10.token++;
 
     g.running=true;
     g.finished=false;
@@ -8551,61 +8555,204 @@ function commanderStartWaveEngineV10(e){
     g.cursor=null;
     g.wave=Math.max(0,Number(g.wave)||0)+1;
     g.spawnCount=0;
-    g.spawnTotal=6+Math.min(14,g.wave*2);
+    g.spawnTotal=8+Math.min(14,g.wave*2);
     g.enemies=[];
     g.projectiles=[];
     g.effects=[];
-    g.nextSpawnAt=performance.now()+120;
-    g.lastFrame=performance.now();
+    g.nextSpawnAt=Date.now()+250;
+    g.lastFrame=Date.now();
     g.waveBanner='ROUND '+g.wave;
-    g.waveBannerUntil=Date.now()+1000;
+    g.waveBannerUntil=Date.now()+1100;
 
-    try{v6Save(g);}catch(err){console.warn('[Commander V10] initial save failed',err);}
+    try{v6Save(g);}catch(err){console.warn('[Commander V11] initial save failed',err);}
     renderBattle(g);
 
-    /*
-     * Use the existing Commander V6 gameplay loop directly. It is the real
-     * implementation that owns spawnV6(), enemy movement, tower attacks,
-     * projectiles, base damage, round completion, and drawing.
-     *
-     * The previous V10 controller called a nonexistent update() function,
-     * which immediately threw and reset running=false. That is why the UI
-     * returned to READY TO DEPLOY with zero enemies.
-     */
-    var firstFrame=requestAnimationFrame(function(now){
-      if(token!==commanderWaveEngineV10.token||state.games!==g){
-        if(state.games===g)g.frame=null;
-        return;
-      }
-      if(!g.running||g.finished||g.questionGateOpen||g.phase!=='battle'){
-        g.frame=null;
-        commanderWaveEngineV10.active=false;
-        return;
-      }
+    var emergencyDraw=function(){
       try{
-        loopV6(now);
-        if(!g.running||g.finished||g.questionGateOpen){
-          commanderWaveEngineV10.active=false;
+        var cv=document.getElementById('commander-auth-canvas');
+        if(!cv)return;
+        var r=cv.getBoundingClientRect();
+        if(!r.width||!r.height)return;
+        var ctx=cv.getContext('2d');
+        if(!ctx)return;
+        var d=Math.min(2,window.devicePixelRatio||1);
+        cv.width=Math.floor(r.width*d);
+        cv.height=Math.floor(r.height*d);
+        ctx.setTransform(d,0,0,d,0,0);
+        try{mapPolished(ctx,m,r.width,r.height);}catch(mapErr){
+          ctx.clearRect(0,0,r.width,r.height);
+          ctx.fillStyle=m.land||'#68a463';
+          ctx.fillRect(0,0,r.width,r.height);
         }
-      }catch(err){
-        console.error('[Commander V10] wave loop bridge failed',err);
-        g.running=false;
-        g.frame=null;
-        commanderWaveEngineV10.active=false;
-        try{v6Save(g);}catch(saveErr){}
-        try{renderBattle(g);}catch(renderErr){}
-        try{showRewardToast('Wave engine stopped safely: '+String(err&&err.message||err));}catch(toastErr){}
-      }
-    });
+        var pts=m.route.map(function(v){return{x:v[0]*r.width,y:v[1]*r.height};});
+        ctx.save();
+        ctx.lineCap='round';ctx.lineJoin='round';
+        ctx.lineWidth=64;ctx.strokeStyle='rgba(255,255,255,.24)';
+        ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();
+        ctx.lineWidth=42;ctx.strokeStyle=m.path||'#a88a61';
+        ctx.beginPath();pts.forEach(function(p,i){i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();
+        ctx.restore();
+        var stp=pts[0],enp=pts[pts.length-1];
+        ctx.fillStyle='#35d59c';ctx.beginPath();ctx.arc(stp.x,stp.y,28,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#ef6473';ctx.beginPath();ctx.roundRect(enp.x-29,enp.y-29,58,58,10);ctx.fill();
+        ctx.fillStyle='#fff';ctx.font='900 10px Arial';ctx.textAlign='center';ctx.fillText('BASE',enp.x,enp.y+3);
+        (g.enemies||[]).forEach(function(en){
+          var x=en.x*r.width,y=en.y*r.height,size=Math.max(14,Number(en.size)||18);
+          try{commanderDrawEnemyFinal(ctx,Object.assign({},en,{x:x,y:y}));}
+          catch(err){ctx.fillStyle=en.color||'#ef756f';ctx.beginPath();ctx.arc(x,y,size*.7,0,Math.PI*2);ctx.fill();}
+          ctx.fillStyle='rgba(20,25,35,.70)';ctx.fillRect(x-size,y-size-10,size*2,5);
+          ctx.fillStyle='#4fe1a3';ctx.fillRect(x-size,y-size-10,(size*2)*Math.max(0,en.hp/en.maxHp),5);
+        });
+      }catch(err){console.error('[Commander V11] emergency draw failed',err);}
+    };
 
-    if(firstFrame==null)throw new Error('Commander animation frame could not be scheduled.');
-    g.frame=firstFrame;
+    var tick=function(){
+      if(state.games!==g||!g.running||g.finished||g.questionGateOpen||g.phase!=='battle'){
+        if(g.__commanderWaveInterval){clearInterval(g.__commanderWaveInterval);g.__commanderWaveInterval=null;}
+        commanderWaveEngineV10.active=false;
+        return;
+      }
+
+      try{
+        var now=Date.now();
+        var dt=Math.min(.05,Math.max(.001,(now-g.lastFrame||50)/1000));
+        g.lastFrame=now;
+
+        /* Spawn independently of requestAnimationFrame so an old canvas loop
+           cannot prevent the enemy queue from advancing. */
+        while(g.spawnCount<g.spawnTotal&&now>=g.nextSpawnAt){
+          try{spawnV6(g);}
+          catch(spawnErr){
+            console.error('[Commander V11] spawn failed',spawnErr);
+            /* Deterministic emergency enemy; this guarantees the wave visibly
+               progresses even if a legacy enemy helper breaks. */
+            var idx=g.spawnCount;
+            var kind=idx%3===0?'elite':(idx%2===0?'raider':'runner');
+            var def=COMMANDER_ENEMIES_FINAL.find(function(x){return x.id===kind;})||COMMANDER_ENEMIES_FINAL[0];
+            var startPt=m.route[0],nextPt=m.route[1]||startPt;
+            var hp=Math.max(8,Math.round((def.hp||20)*(1+g.wave*.08)));
+            g.enemies.push({id:'v11-'+Date.now()+'-'+idx,kind:kind,wp:0,x:startPt[0],y:startPt[1],hp:hp,maxHp:hp,speed:(def.speed||.8)*m.speed,baseDamage:def.baseDamage||3,size:def.size||18,color:def.color||'#ef756f',seed:idx,slow:1,hit:0});
+            g.spawnCount++;
+          }
+          g.nextSpawnAt+=Math.max(260,Number(m.spawn)||900);
+        }
+
+        /* Move enemies using the existing route. */
+        (g.enemies||[]).forEach(function(en){
+          try{
+            var tar=m.route[Math.min(en.wp+1,m.route.length-1)];
+            if(!tar)return;
+            var step=(Number(en.speed)||.8)*dt*.18*(en.slowUntil>Date.now()?(en.slow||.5):1);
+            var dx=tar[0]-en.x,dy=tar[1]-en.y,dist=Math.hypot(dx,dy)||1;
+            if(dist<=step){
+              en.x=tar[0];en.y=tar[1];en.wp++;
+              if(en.wp>=m.route.length-1){
+                en.hp=0;
+                g.base=Math.max(0,g.base-(Number(en.baseDamage)||3));
+              }
+            }else{
+              en.x+=dx/dist*step;
+              en.y+=dy/dist*step;
+            }
+          }catch(moveErr){console.error('[Commander V11] enemy move failed',moveErr);}
+        });
+
+        /* Keep existing tower combat, but isolate failures to individual towers. */
+        var p=null;
+        try{p=profile();}catch(profileErr){p=null;}
+        (g.towers||[]).forEach(function(t){
+          try{
+            var st=richStats(t.id,t.level)||{range:120,rate:1000,damage:5,power:1,shot:'#ffd166'};
+            var td=tdef(t.id)||{};
+            t.cool=Math.max(0,(Number(t.cool)||0)-dt*1000);
+            if(td.income&&p){
+              g.coinAccumulator=(g.coinAccumulator||0)+Number(td.income)*dt;
+              if(g.coinAccumulator>=1){
+                var whole=Math.floor(g.coinAccumulator);
+                g.coinAccumulator-=whole;
+                p.coins+=whole;
+              }
+            }
+            if(t.cool>0)return;
+            var target=null,bd=Infinity;
+            (g.enemies||[]).forEach(function(en){
+              if(en.hp<=0)return;
+              var dd=Math.hypot(en.x-t.x,en.y-t.y);
+              if(dd<=st.range/850&&dd<bd){target=en;bd=dd;}
+            });
+            if(target||td.income||td.attackType==='medic')fireV6(g,t,target,st,now);
+          }catch(towerErr){console.error('[Commander V11] tower update failed',towerErr);}
+        });
+
+        /* Existing projectile engine is optional; a projectile failure must
+           never terminate the entire wave. */
+        (g.projectiles||[]).forEach(function(q){
+          try{updateProjectile(g,q,dt);}catch(projectileErr){console.error('[Commander V11] projectile failed',projectileErr);q.life=0;}
+        });
+        (g.projectiles||[]).forEach(function(q){if(q.life==null)q.life=0;});
+        g.projectiles=(g.projectiles||[]).filter(function(q){return q.life>0;});
+        g.effects=(g.effects||[]).filter(function(z){return (z.life=Number(z.life)-dt*1000)>0;});
+        g.enemies=(g.enemies||[]).filter(function(en){return Number(en.hp)>0;});
+
+        if(g.base<=0){
+          g.running=false;
+          g.frame=null;
+          g.finished=true;
+          if(g.__commanderWaveInterval){clearInterval(g.__commanderWaveInterval);g.__commanderWaveInterval=null;}
+          try{v6Save(g);}catch(err){}
+          renderBattle(g);
+          commanderWaveEngineV10.active=false;
+          return;
+        }
+
+        if(g.spawnCount>=g.spawnTotal&&g.enemies.length===0){
+          g.running=false;
+          g.frame=null;
+          g.questionGateOpen=true;
+          g.waveCoins=0;
+          g.questionFeedback=null;
+          g.questionCorrectCount=0;
+          g.questionAskedCount=0;
+          g.waveBanner='ROUND '+g.wave+' CLEARED';
+          if(g.__commanderWaveInterval){clearInterval(g.__commanderWaveInterval);g.__commanderWaveInterval=null;}
+          try{v6Save(g);}catch(err){}
+          commanderAdvanceToNextQuestion(g);
+          commanderWaveEngineV10.active=false;
+          return;
+        }
+
+        try{draw(g);}catch(drawErr){
+          console.error('[Commander V11] polished draw failed',drawErr);
+          emergencyDraw();
+        }
+
+        var roundEl=document.querySelector('.commander-auth-side-right .commander-auth-round');
+        if(roundEl)roundEl.textContent='Round '+Math.max(1,g.wave)+' · WAVE IN PROGRESS';
+      }catch(err){
+        /*
+         * Never silently reset the wave. Keep it running and use the emergency
+         * renderer; this makes runtime failures visible instead of returning
+         * to READY TO DEPLOY.
+         */
+        console.error('[Commander V11] tick failed',err);
+        try{emergencyDraw();}catch(drawErr){}
+      }
+    };
+
+    tick();
+    g.__commanderWaveInterval=setInterval(tick,50);
+    /* Clear any stale animation-frame ownership. The standalone wave timer is
+       now the sole wave controller. */
+    g.frame=null;
+
+    var roundEl=document.querySelector('.commander-auth-side-right .commander-auth-round');
+    if(roundEl)roundEl.textContent='Round '+Math.max(1,g.wave)+' · WAVE IN PROGRESS';
     return false;
   }catch(err){
     commanderWaveEngineV10.active=false;
     g.running=false;
     g.frame=null;
-    console.error('[Commander V10] Start Wave failed',err,{active:g.active,phase:g.phase,questionGateOpen:g.questionGateOpen,wave:g.wave});
+    console.error('[Commander V11] Start Wave failed',err);
     try{renderBattle(g);}catch(renderErr){}
     try{showRewardToast('Could not start the wave: '+String(err&&err.message||err));}catch(toastErr){}
     return false;
