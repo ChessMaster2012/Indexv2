@@ -906,7 +906,16 @@ function sync(){
   if(stage.querySelector('.commander-auth-battle'))syncLayers();
 }
 var timer=0;
-var mo=new MutationObserver(function(){clearTimeout(timer);timer=setTimeout(sync,25);});
+var mo=new MutationObserver(function(records){
+   var relevant=false;
+   (records||[]).forEach(function(m){
+     var t=m&&m.target;
+     if(t&&t.closest&&(t.closest('.commander-auth-unit-layer')||t.closest('.commander-pack-v4-unit-layer')))return;
+     relevant=true;
+   });
+   if(!relevant)return;
+   clearTimeout(timer);timer=setTimeout(sync,25);
+ });
 function observe(){var st=document.getElementById('games-stage');if(st)mo.observe(st,{childList:true,subtree:true});sync();}
 setTimeout(observe,0);
 setTimeout(sync,120);
