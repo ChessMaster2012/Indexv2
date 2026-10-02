@@ -901,25 +901,27 @@ setTimeout(sync,120);
 setInterval(sync,500);
 })();
 
-/* V19_START_WAVE_DIRECT */
+/* V20_START_WAVE_SINGLE_PATH */
 (function(){
-  document.addEventListener('click',function(ev){
-    var el=ev.target&&ev.target.closest?ev.target.closest(
-      '.commander-auth-start,.commander-start-ref,.commander-v6-start-wave,.commander-start-v8,[data-action="commander-start-wave"],[data-action="commander-v6-start"],#commander-pack-v4-start'
+  function startElement(target){
+    return target&&target.closest?target.closest(
+      '#commander-auth-start-wave,#commander-pack-v4-start,[data-commander-start-wave]'
     ):null;
+  }
+  document.addEventListener('click',function(ev){
+    var el=startElement(ev.target);
     if(!el||el.disabled)return;
+    /* This is the one Commander Start Wave event path. Prevent the legacy
+       application-level data-action handler from receiving this click. */
     ev.preventDefault();
     ev.stopPropagation();
     ev.stopImmediatePropagation();
     try{
-      /* The authoritative handler lives in index.html's final Commander scope,
-         so invoke it directly rather than traversing any legacy wrappers. */
       var handler=window.__commanderStartWaveAuthoritative;
-      if(typeof handler!=='function')handler=window.__commanderStartWaveFinal;
-      if(typeof handler!=='function')throw new Error('Start Wave handler is unavailable.');
+      if(typeof handler!=='function')throw new Error('Authoritative Commander Start Wave handler is unavailable.');
       handler(ev);
     }catch(err){
-      console.error('Direct Commander Start Wave failed',err);
+      console.error('Commander V20 Start Wave failed',err);
       try{if(typeof showRewardToast==='function')showRewardToast('Could not start the wave: '+String(err&&err.message||err));}catch(e){}
     }
   },true);
