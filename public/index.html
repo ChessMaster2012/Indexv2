@@ -6463,11 +6463,12 @@ window.addEventListener('click',function(e){
   e.preventDefault();e.stopImmediatePropagation();
   var idx=Number(b.dataset.answer);
   if(idx<0||idx>3||!g.question)return;
+  var answeredQuestion={q:g.question.q,options:g.question.options,correct:g.question.correct,explanation:g.question.explanation};
   g.questionAskedCount=(g.questionAskedCount||0)+1;
-  if(idx===Number(g.question.correct)){
+  g.waveCoins=(g.waveCoins||0)+10;
+  showRewardToast('🪙 +10 deployment coins');
+  if(idx===Number(answeredQuestion.correct)){
     g.questionCorrectCount=(g.questionCorrectCount||0)+1;
-    g.waveCoins=(g.waveCoins||0)+25;
-    showRewardToast('🪙 +25 deployment coins');
     var need=typeof req==='function'?req(g.wave):1;
     var lessonFinished=false;
     if(g.lessonPathId&&g.lessonIndex){
@@ -6480,8 +6481,8 @@ window.addEventListener('click',function(e){
       }
     }
     if(g.questionCorrectCount>=need){
+      if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,answeredQuestion,true,false);
       g.questionGateOpen=false;g.question=null;g.selectedTroop=null;
-      if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,q,true,false);
       if(g.lessonPathId&&g.lessonIndex&&lessonFinished){
         var info=commanderQuestionPoolForLesson(g);
         if(info){
@@ -6514,7 +6515,7 @@ window.addEventListener('click',function(e){
     }
     if(pool.length)g.question=pool[Math.floor(Math.random()*pool.length)];
   }
-  if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,q,false,true);
+  if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,answeredQuestion,idx===Number(answeredQuestion.correct),true);
   if(typeof commanderSaveFinal==='function')commanderSaveFinal(g);
   commanderRenderScreen();
 },true);
