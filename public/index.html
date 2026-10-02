@@ -5197,6 +5197,7 @@ document.addEventListener('click', async (e)=>{
   else if(action==='commander-study-continue'){ if(!state.games.setupLoading) await commanderPrepareFinal(); }
   else if(action==='commander-study-back'){ commanderBackToSetupFinalPolished(); }
   else if(action==='commander-setup-back'){ commanderBackToSetupFinalPolished(); }
+  else if(action==='commander-gate-continue'){ return window.__commanderGateContinueV7(e); }
   else if(action==='commander-enter-battlefield'){ return window.__commanderEnterBattlefieldV7(e); }
   else if(action==='commander-map'){ commanderStartMapFinal(t.dataset.map,state.games.slotIndex); }
   else if(action==='commander-map-select'){ commanderBackToMaps(); }
@@ -7384,11 +7385,32 @@ window.commanderSaveFinal=save;
 }
 .commander-auth-feedback b{font-size:14px!important}
 .commander-auth-feedback p{font-size:13px!important;line-height:1.5!important}
-#commander-enter-battlefield-btn{
+#commander-gate-continue-btn{
   position:relative!important;
   z-index:10050!important;
+  display:block!important;
+  width:100%!important;
+  min-height:48px!important;
+  margin:14px 0 0!important;
   pointer-events:auto!important;
   touch-action:manipulation!important;
+  clear:both!important;
+}
+.commander-auth-feedback{
+  display:block!important;
+  overflow:visible!important;
+  isolation:isolate!important;
+}
+.commander-auth-feedback b,
+.commander-auth-feedback p{
+  position:relative!important;
+  display:block!important;
+  clear:both!important;
+  overflow-wrap:anywhere!important;
+}
+.commander-auth-feedback p{
+  margin:7px 0 0!important;
+  padding:0!important;
 }
 .commander-auth-feedback button{
   margin-top:11px!important;
@@ -7656,7 +7678,7 @@ function renderGateV6(g){
     var cls='commander-auth-option';if(fb&&i===Number(q.correct))cls+=' correct';if(fb&&i===Number(fb.chosen)&&i!==Number(q.correct))cls+=' incorrect';
     return '<button class="'+cls+'" '+(fb?'disabled':'')+' onclick="return window.__commanderAnswerV6('+i+',event)"><span class="letter">'+String.fromCharCode(65+i)+'</span><span>'+esc(o)+'</span></button>';
   }).join('');
-  var feedback=fb?'<div class="commander-auth-feedback '+(fb.correct?'correct':'wrong')+'"><b>'+(fb.correct?'Correct! Wave unlocked.':'Not quite — review the answer, then continue.')+'</b><p>'+esc(fb.explanation||q.explanation||'The highlighted green answer is correct.')+'</p><button type="button" id="commander-enter-battlefield-btn" data-action="commander-enter-battlefield" onclick="return window.__commanderEnterBattlefieldV7(event)">'+(fb.correct?'Enter Battlefield →':'Next Question →')+'</button></div>':'';
+  var feedback=fb?'<div class="commander-auth-feedback '+(fb.correct?'correct':'wrong')+'"><b>'+(fb.correct?'Correct! Wave unlocked.':'Not quite — review the answer, then continue.')+'</b><p>'+esc(fb.explanation||q.explanation||'The highlighted green answer is correct.')+'</p><button type="button" id="commander-gate-continue-btn" data-action="commander-gate-continue" onclick="return window.__commanderGateContinueV7(event)">'+(fb.correct?'Enter Battlefield →':'Next Question →')+'</button></div>':'';
   return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer before each wave. Correct answers award +25 deployment coins. Wrong answers show the correct answer and instantly prepare another AI question.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>1/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>AI ready</b><span>Fresh review</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><div class="commander-auth-ai-badge">'+(g.questionSource==='ai'?'✦ AI-GENERATED · FRESH FOR THIS RUN':'◈ LOCAL BACKUP · AI TEMPORARILY UNAVAILABLE')+'</div><h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">Correct answers turn green. Wrong choices turn red. The next question is generated ahead of time and is required to be different from the questions already used in this run.</div></div></div>';
 }
 function pickV6(g,exclude){
@@ -7829,16 +7851,18 @@ function commanderBeginGateQuestion(g){
   commanderRequestAiQuestion(g,false);
 }
 function commanderAdvanceToNextQuestion(g){
-  if(!g)return;
+  if(!g||state.games!==g)return;
   g.questionFeedback=null;
+  g.questionLoading=true;
+  g.aiPrefetchError='';
+  renderBattle(g);
+
   if(commanderConsumeNextAiQuestion(g)){
     renderBattle(g);
     commanderRequestAiQuestion(g,true);
     return;
   }
-  g.question=null;
-  g.questionLoading=true;
-  renderBattle(g);
+
   var pending=g.aiQuestionRequest;
   if(pending){
     pending.then(function(){
@@ -7846,13 +7870,16 @@ function commanderAdvanceToNextQuestion(g){
       if(commanderConsumeNextAiQuestion(g)){
         renderBattle(g);
         commanderRequestAiQuestion(g,true);
-      }else{
+      }else if(!g.aiQuestionRequest){
         commanderRequestAiQuestion(g,false);
       }
+    }).catch(function(){
+      if(state.games===g&&!g.aiQuestionRequest)commanderRequestAiQuestion(g,false);
     });
-  }else{
-    commanderRequestAiQuestion(g,false);
+    return;
   }
+
+  commanderRequestAiQuestion(g,false);
 }
 function v6Profile(){return commanderFinalProfile();}
 function v6Save(g){
@@ -7992,38 +8019,37 @@ window.__commanderEnterBattlefieldV7=function(e){
   var g=state.games;
   if(!g||!g.questionFeedback||g.questionFeedback.correct!==true)return false;
   try{
-    g.active='commander';
-    g.phase='battle';
-    g.commanderScreen='battle';
-    g.questionGateOpen=false;
-    g.questionFeedback=null;
-    g.question=null;
-    g.selectedTroop=null;
-    g.running=false;
-    g.finished=false;
+    g.active='commander';g.phase='battle';g.commanderScreen='battle';
+    g.questionGateOpen=false;g.questionFeedback=null;g.question=null;g.selectedTroop=null;
     if(g.frame){cancelAnimationFrame(g.frame);g.frame=null;}
     var stage=document.getElementById('games-stage');
     if(!stage)throw new Error('Commander battlefield container is missing.');
     stage.innerHTML=battle(g);
     requestAnimationFrame(function(){
       var cv=document.getElementById('commander-auth-canvas');
-      if(cv){
-        cv.onpointermove=function(ev){var r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width,y=(ev.clientY-r.top)/r.height;g.cursor={x:x,y:y,valid:canPlace(g,x,y)};draw(g);};
-        cv.onpointerleave=function(){g.cursor=null;draw(g);};
-        cv.onpointerdown=function(ev){if(ev.button!==0)return;var r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width,y=(ev.clientY-r.top)/r.height;place(g,x,y);};
-        draw(g);
-      }
+      if(!cv)return;
+      cv.onpointermove=function(ev){var r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width,y=(ev.clientY-r.top)/r.height;g.cursor={x:x,y:y,valid:canPlace(g,x,y)};draw(g);};
+      cv.onpointerleave=function(){g.cursor=null;draw(g);};
+      cv.onpointerdown=function(ev){if(ev.button!==0)return;var r=cv.getBoundingClientRect(),x=(ev.clientX-r.left)/r.width,y=(ev.clientY-r.top)/r.height;place(g,x,y);};
+      draw(g);
     });
     try{v6Save(g);}catch(err){console.warn('Commander battlefield save failed',err);}
     return false;
   }catch(err){
     console.error('Commander battlefield launch failed',err);
     var stage2=document.getElementById('games-stage');
-    if(stage2){
-      stage2.innerHTML='<div class="commander-authoritative-root commander-auth-battle" style="display:flex;align-items:center;justify-content:center;background:#071321;color:#fff;"><div style="background:#fff;color:#102033;max-width:650px;margin:auto;padding:28px;border-radius:20px;text-align:center;"><h2 style="margin:0 0 10px;">Battlefield could not open</h2><p style="color:#526579;line-height:1.5;">The Commander engine hit a startup error. Reloading this Commander run can restore the battlefield.</p><button type="button" style="padding:12px 18px;border:0;border-radius:10px;background:#1c75b7;color:#fff;font-weight:900;cursor:pointer;" onclick="location.reload()">Reload Commander</button></div></div>';
-    }
+    if(stage2)stage2.innerHTML='<div class="commander-authoritative-root commander-auth-battle" style="display:flex;align-items:center;justify-content:center;background:#071321;color:#fff;"><div style="background:#fff;color:#102033;max-width:650px;margin:auto;padding:28px;border-radius:20px;text-align:center;"><h2 style="margin:0 0 10px;">Battlefield could not open</h2><p style="color:#526579;line-height:1.5;">The Commander engine hit a startup error. Reloading this Commander run can restore the battlefield.</p><button type="button" style="padding:12px 18px;border:0;border-radius:10px;background:#1c75b7;color:#fff;font-weight:900;cursor:pointer;" onclick="location.reload()">Reload Commander</button></div></div>';
     return false;
   }
+};
+
+window.__commanderGateContinueV7=function(e){
+  if(e&&e.preventDefault){e.preventDefault();e.stopPropagation();}
+  var g=state.games;
+  if(!g||!g.questionFeedback)return false;
+  if(g.questionFeedback.correct===true)return window.__commanderEnterBattlefieldV7();
+  commanderAdvanceToNextQuestion(g);
+  return false;
 };
 window.__commanderContinueV6=function(e){if(e&&e.preventDefault){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionFeedback)return false;if(g.questionFeedback.correct)return window.__commanderEnterBattlefieldV7();commanderAdvanceToNextQuestion(g);return false;};
 window.__commanderExitV6=function(e){if(e){e.preventDefault();e.stopPropagation();}clearV6Timers(state.games);state.games={active:null,setupType:null,commanderScreen:null};renderGames();return false;};
