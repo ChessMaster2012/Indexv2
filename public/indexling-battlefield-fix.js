@@ -155,14 +155,14 @@ function injectCss(){
     /* Commander study gate: use the real gate classes and pin the gate to the viewport. */
     .commander-auth-gate{
       position:fixed!important;inset:0!important;z-index:10020!important;
-      box-sizing:border-box!important;width:100vw!important;height:100svh!important;min-height:100svh!important;
+      box-sizing:border-box!important;width:100vw!important;height:100dvh!important;min-height:100dvh!important;
       padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))!important;
       display:flex!important;align-items:flex-start!important;justify-content:center!important;
       overflow:auto!important;-webkit-overflow-scrolling:touch!important;
     }
     .commander-auth-card{
       box-sizing:border-box!important;width:min(920px,calc(100vw - 16px))!important;
-      max-width:920px!important;max-height:calc(100svh - 16px)!important;overflow:auto!important;
+      max-width:920px!important;max-height:calc(100dvh - 16px)!important;overflow:auto!important;
       padding:clamp(12px,2vw,24px)!important;border-radius:20px!important;
       margin:0 auto!important;
     }
@@ -187,7 +187,7 @@ function injectCss(){
     .commander-auth-feedback p{font-size:10px!important;line-height:1.35!important}
     .commander-auth-note{margin-top:8px!important;font-size:9px!important;line-height:1.35!important}
     @media(max-width:800px){
-      .commander-auth-card{width:calc(100vw - 12px)!important;max-height:calc(100svh - 12px)!important;padding:10px!important;border-radius:16px!important}
+      .commander-auth-card{width:calc(100vw - 12px)!important;max-height:calc(100dvh - 12px)!important;padding:10px!important;border-radius:16px!important}
       .commander-auth-top{align-items:flex-start!important}
       .commander-auth-top h1{font-size:clamp(22px,7vw,34px)!important}
       .commander-auth-stats{grid-template-columns:1fr 1fr!important}
@@ -243,7 +243,7 @@ function buildCard(c,g){
   var damage=Math.max(1,Math.round((Number(t.damage)||8)*mult));
   var range=Math.round(Number(t.range)||120);
   var dps=Math.round((damage*1000/Math.max(400,Number(t.rate)||1200))*10)/10;
-  return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected ':'')+(unaffordable?'unaffordable':'')+'" data-pack-v4-troop="'+esc(c.id)+'" aria-disabled="'+(unaffordable?'true':'false')+'" '+(unaffordable?'title="Need '+cost+' deployment coins"':'')+'>'+
+  return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected ':'')+(unaffordable?'unaffordable':'')+'" data-pack-v4-troop="'+esc(c.id)+'" aria-disabled="'+(unaffordable?'true':'false')+'" onclick="return window.__commanderArsenalSelectV7(this,event)" '+(unaffordable?'title="Need '+cost+' deployment coins"':'')+'>'+
     '<div class="commander-pack-v4-art">'+getArt(c.id,true)+'</div>'+
     '<div class="commander-pack-v4-name">'+esc(c.name)+' · Lv '+level+'</div>'+
     '<div class="commander-pack-v4-meta"><span class="commander-pack-v4-pill">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+'</span><span class="commander-pack-v4-pill">'+esc(c.rarity)+'</span></div>'+
@@ -252,6 +252,28 @@ function buildCard(c,g){
     '<div class="commander-pack-v4-cost">Deploy · '+cost+' 🪙</div>'+
     '</button>';
 }
+window.__commanderArsenalSelectV7=function(card,e){
+  try{
+    if(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();}
+    var g=state&&state.games,id=card&&card.getAttribute('data-pack-v4-troop'),td=id?tdef(id):null;
+    if(!g||g.active!=='commander'||g.phase!=='battle'||g.running||g.questionGateOpen||!td)return false;
+    var cost=Math.max(1,Number(td.cost)||1);ensureInitialDeploymentBudget(g);
+    if(Number(g.waveCoins||0)<cost){
+      if(typeof showRewardToast==='function')showRewardToast('Need '+cost+' deployment coins for '+(td.name||'this Indexling')+'.');
+      return false;
+    }
+    g.selectedTroop=(g.selectedTroop===id?null:id);
+    g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;
+    g.cursor=g.selectedTroop?{x:.5,y:.5,valid:canPlace(g,.5,.5)}:null;
+    try{v6Save(g);}catch(err){}
+    if(card&&card.parentElement){
+      card.parentElement.querySelectorAll('.commander-pack-v4-card').forEach(function(x){x.classList.toggle('selected',x===card&&!!g.selectedTroop);});
+    }
+    syncLayers();
+    setTimeout(sync,0);
+  }catch(err){console.error('Commander arsenal selection failed',err);}
+  return false;
+};
 function selectCard(card,e){
   var gg=state.games,tid=card&&card.getAttribute('data-pack-v4-troop'),tt=tid?tdef(tid):null;
   if(gg&&tt&&Number(gg.waveCoins||0)<Math.max(1,Number(tt.cost)||1)){
