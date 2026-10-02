@@ -7975,37 +7975,32 @@ function commanderConsumeNextAiQuestion(g){
 function commanderBeginGateQuestion(g){
   if(!g)return;
   g.questionFeedback=null;
-  g.question=null;
-  g.questionLoading=true;
+  g.questionLoading=false;
   g.aiPrefetchError='';
 
-  var course=((subjectById(g.subjectId)||{}).name||g.subjectId||'Biology'),key=commanderAiCacheKey(course,g.unit,g.topic),cached=COMMANDER_AI_CACHE[key];
-  if(cached&&cached.question){
-    var cachedQuestion=cached.question;
-    cached.question=null;
-    g.question=cachedQuestion;
-    g.questionLoading=false;
-    commanderRememberQuestion(g,cachedQuestion);
+  /* Never block the Commander gate on the network. Put a valid unseen local
+     question on screen immediately, then ask the existing AI pipeline for a
+     fresh batch in the background. */
+  var immediate=commanderFallbackUniqueV9(g);
+  if(immediate){
+    g.question=immediate;
+    g.questionSource='fallback';
+    commanderRememberQuestion(g,immediate);
     renderBattle(g);
-    commanderRequestAiQuestion(g,true);
-    return;
-  }
-  if(cached&&cached.promise){
+  }else{
+    g.question=null;
+    g.questionLoading=true;
     renderBattle(g);
-    cached.promise.then(function(q){
-      if(state.games!==g)return;
-      cached.question=null;
-      g.question=q;
-      g.questionSource='ai';
-      g.questionLoading=false;
-      commanderRememberQuestion(g,q);
-      renderBattle(g);
-      commanderRequestAiQuestion(g,true);
-    }).catch(function(){if(state.games===g)commanderRequestAiQuestion(g,false);});
-    return;
   }
-  renderBattle(g);
-  commanderRequestAiQuestion(g,false);
+
+  /* AI generation is best-effort here; its result is queued for the next
+     transition and can never leave the current gate stuck on loading. */
+  var pending=commanderRequestAiQuestionV9(g,true);
+  if(pending&&typeof pending.catch==='function'){
+    pending.catch(function(err){
+      if(state.games===g)g.aiPrefetchError=String(err&&err.message||err);
+    });
+  }
 }
 function commanderAdvanceToNextQuestion(g){
   if(!g||state.games!==g)return;
@@ -8088,12 +8083,16 @@ async function commanderRequestAiQuestionV9(g,background){
   var exclusions=commanderQuestionExclusionsV9(g);
   var request=(async function(){
     try{
+      var controller=(typeof AbortController==='function')?new AbortController():null;
+      var timeoutId=controller?setTimeout(function(){try{controller.abort();}catch(e){}},9000):null;
       var response=await fetch('/api/ai/commander-bank',{
         method:'POST',
         headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},
         cache:'no-store',
+        signal:controller?controller.signal:undefined,
         body:JSON.stringify({course:course,unit:unit,topic:topic,exclude:exclusions,seed:String(Date.now())+'-'+String(Math.random()).slice(2)})
       });
+      if(timeoutId)clearTimeout(timeoutId);
       var data=await response.json().catch(function(){return{};});
       if(!response.ok)throw new Error(data&&data.error||'AI question bank request failed.');
       var list=Array.isArray(data.questions)?data.questions:[];
