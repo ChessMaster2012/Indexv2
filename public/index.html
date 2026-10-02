@@ -7698,38 +7698,62 @@ async function commanderWarmAiQuestion(course,unit,topic){
   COMMANDER_AI_CACHE[key]=entry;
   entry.promise=fetch('/api/ai/commander-question',{method:'POST',headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},cache:'no-store',body:JSON.stringify({course:course,unit:unit,topic:topic,exclude:[]})})
     .then(function(r){return r.json().catch(function(){return{};}).then(function(data){if(!r.ok)throw new Error(data&&data.error||'AI question request failed.');return data;});})
-    .then(function(data){var q=commanderNormalizeAiQuestion(data);if(!q)throw new Error('AI returned an invalid question.');entry.question=q;entry.promise=null;return q;})
+    .then(function(data){
+      var q=commanderNormalizeAiQuestion(data);
+      if(!q)throw new Error('AI returned an invalid question.');
+      entry.question=q;
+      entry.promise=null;
+      return q;
+    })
     .catch(function(err){entry.promise=null;throw err;});
   return entry.promise;
 }
 window.__commanderWarmAiQuestion=commanderWarmAiQuestion;
+
 async function commanderRequestAiQuestion(g,background){
   if(!g||state.games!==g)return null;
   if(g.aiQuestionRequest)return g.aiQuestionRequest;
+
   var subject=subjectById(g.subjectId)||{},course=subject.name||g.subjectId||'Biology',unit=g.unit||'Course review',topic=g.topic||'';
-  var exclusions=commanderUsedQuestions(g).slice(-30);
-  if(g.question&&g.question.q)exclusions.push(g.question.q);
-  if(g.aiNextQuestion&&g.aiNextQuestion.q)exclusions.push(g.aiNextQuestion.q);
-  var promise=fetch('/api/ai/commander-question',{method:'POST',headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},cache:'no-store',body:JSON.stringify({course:course,unit:unit,topic:topic,exclude:exclusions})})
-    .then(function(r){return r.json().catch(function(){return{};}).then(function(data){if(!r.ok)throw new Error(data&&data.error||'AI question request failed.');return data;});})
-    .then(function(data){
-      if(state.games!==g)return null;
+  var exclusions=commanderUsedQuestions(g).slice(-30).map(function(x){return String(x);});
+  if(g.question&&g.question.q)exclusions.push(commanderQuestionKey(g.question.q));
+  if(g.aiNextQuestion&&g.aiNextQuestion.q)exclusions.push(commanderQuestionKey(g.aiNextQuestion.q));
+
+  var requestPromise=(async function(){
+    var localExclusions=exclusions.slice();
+    for(var attempt=0;attempt<3;attempt++){
+      var response=await fetch('/api/ai/commander-question',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},
+        cache:'no-store',
+        body:JSON.stringify({course:course,unit:unit,topic:topic,exclude:localExclusions})
+      });
+      var data=await response.json().catch(function(){return{};});
+      if(!response.ok)throw new Error(data&&data.error||'AI question request failed.');
       var q=commanderNormalizeAiQuestion(data);
       if(!q)throw new Error('AI returned an invalid Commander question.');
+
       var key=commanderQuestionKey(q.q);
-      if(exclusions.indexOf(q.q)>=0||exclusions.indexOf(key)>=0||commanderUsedQuestions(g).indexOf(key)>=0){
-        return commanderRequestAiQuestion(g,background);
+      if(localExclusions.indexOf(key)>=0||commanderUsedQuestions(g).indexOf(key)>=0){
+        localExclusions.push(key);
+        continue;
       }
+
       if(background){
         g.aiNextQuestion=q;
       }else{
         g.question=q;
         g.questionLoading=false;
+        g.aiPrefetchError='';
         commanderRememberQuestion(g,q);
       }
-      renderBattle(g);
+      if(state.games===g)renderBattle(g);
       return q;
-    })
+    }
+    throw new Error('AI returned a repeated question after multiple attempts.');
+  })();
+
+  g.aiQuestionRequest=requestPromise
     .catch(function(err){
       if(state.games===g){
         if(background){
@@ -7746,8 +7770,8 @@ async function commanderRequestAiQuestion(g,background){
       return null;
     })
     .finally(function(){if(state.games===g)g.aiQuestionRequest=null;});
-  g.aiQuestionRequest=promise;
-  return promise;
+
+  return g.aiQuestionRequest;
 }
 function commanderConsumeNextAiQuestion(g){
   if(!g||!g.aiNextQuestion)return false;
@@ -7764,12 +7788,29 @@ function commanderBeginGateQuestion(g){
   g.question=null;
   g.questionLoading=true;
   g.aiPrefetchError='';
-  var key=commanderAiCacheKey((subjectById(g.subjectId)||{}).name||g.subjectId,g.unit,g.topic);
-  var cached=COMMANDER_AI_CACHE[key];
+
+  var course=((subjectById(g.subjectId)||{}).name||g.subjectId||'Biology'),key=commanderAiCacheKey(course,g.unit,g.topic),cached=COMMANDER_AI_CACHE[key];
   if(cached&&cached.question){
-    var q=cached.question;cached.question=null;
-    g.question=q;g.questionLoading=false;commanderRememberQuestion(g,q);renderBattle(g);
+    var cachedQuestion=cached.question;
+    cached.question=null;
+    g.question=cachedQuestion;
+    g.questionLoading=false;
+    commanderRememberQuestion(g,cachedQuestion);
+    renderBattle(g);
     commanderRequestAiQuestion(g,true);
+    return;
+  }
+  if(cached&&cached.promise){
+    renderBattle(g);
+    cached.promise.then(function(q){
+      if(state.games!==g)return;
+      cached.question=null;
+      g.question=q;
+      g.questionLoading=false;
+      commanderRememberQuestion(g,q);
+      renderBattle(g);
+      commanderRequestAiQuestion(g,true);
+    }).catch(function(){if(state.games===g)commanderRequestAiQuestion(g,false);});
     return;
   }
   renderBattle(g);
@@ -7895,8 +7936,9 @@ function loopV6(now){
     if(g.base<=0){g.running=false;g.finished=true;v6Save(g);renderBattle(g);return;}
     if(g.spawnCount>=g.spawnTotal&&g.enemies.length===0){
       g.running=false;g.questionGateOpen=true;g.waveCoins=0;g.questionFeedback=null;g.questionCorrectCount=0;g.questionAskedCount=0;g.waveBanner='ROUND '+g.wave+' CLEARED';
-      if(!commanderConsumeNextAiQuestion(g)){g.question=null;g.questionLoading=true;commanderRequestAiQuestion(g,false);}
-      v6Save(g);renderBattle(g);if(g.question){commanderRequestAiQuestion(g,true);}return;
+      commanderAdvanceToNextQuestion(g);
+      try{v6Save(g);}catch(err){console.warn('Commander wave save failed',err);}
+      return;
     }
   }
   draw(g);if(state.games===g&&!g.questionGateOpen&&!g.finished)g.frame=requestAnimationFrame(loopV6);
@@ -7920,7 +7962,7 @@ function draw(g){
 window.__commanderCategoryFinal=function(cat,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running)return false;g.troopCategory=cat;renderBattle(g);return false;};
 window.__commanderSelectFinal=function(id,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running||g.questionGateOpen)return false;var p=profile();if(!p.owned[id]){if(p.coins>=tdef(id).cost){p.coins-=tdef(id).cost;p.owned[id]=true;p.levels[id]=1;persistProgress();showRewardToast(tdef(id).name+' unlocked');}else{showRewardToast('Unlock '+tdef(id).name+' for '+tdef(id).cost+' coins first.');}return false;}g.selectedTroop=g.selectedTroop===id?null:id;renderBattle(g);return false;};
 window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||!g.question||g.questionFeedback)return false;var q=g.question,correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;if(correct){g.questionCorrectCount=1;g.waveCoins=(g.waveCoins||0)+25;}g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};try{v6Save(g);}catch(err){console.warn('Commander gate save failed',err);}renderBattle(g);commanderRequestAiQuestion(g,true);return false;};
-window.__commanderContinueV6=function(e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionFeedback)return false;if(g.questionFeedback.correct){g.questionGateOpen=false;g.questionFeedback=null;g.selectedTroop=null;g.question=null;try{v6Save(g);}catch(err){console.warn('Commander battlefield save failed',err);}renderBattle(g);g.lastFrame=performance.now();g.frame=requestAnimationFrame(loopV6);}else{commanderAdvanceToNextQuestion(g);}return false;};
+window.__commanderContinueV6=function(e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionFeedback)return false;if(g.questionFeedback.correct){g.questionGateOpen=false;g.questionFeedback=null;g.selectedTroop=null;g.question=null;renderBattle(g);try{v6Save(g);}catch(err){console.warn('Commander battlefield save failed',err);}g.lastFrame=performance.now();g.frame=requestAnimationFrame(loopV6);}else{commanderAdvanceToNextQuestion(g);}return false;};
 window.__commanderExitV6=function(e){if(e){e.preventDefault();e.stopPropagation();}clearV6Timers(state.games);state.games={active:null,setupType:null,commanderScreen:null};renderGames();return false;};
 window.__commanderStartWaveFinal=function(e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.questionGateOpen||g.running||g.finished)return false;g.wave++;g.running=true;g.spawnCount=0;g.spawnTotal=6+Math.min(14,g.wave*2);g.nextSpawnAt=performance.now()+150;g.lastFrame=performance.now();v6Save(g);renderBattle(g);g.frame=requestAnimationFrame(loopV6);return false;};
 window.__commanderHealFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i],p=profile();if(!t||p.coins<10)return false;p.coins-=10;t.hp=Math.min(t.maxHp,t.hp+Math.max(20,t.maxHp*.35));persistProgress();v6Save(g);renderBattle(g);return false;};
