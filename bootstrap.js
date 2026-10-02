@@ -27,7 +27,7 @@ try {
   if (!html.includes(marker)) {
     html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + hotfixTag + '\n' + runtimeTag + '\n</body>');
   } else {
-    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + hotfixTag);
+    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + hotfixTag + '\n' + runtimeTag);
   }
 
   fs.writeFileSync(htmlPath, html, 'utf8');
