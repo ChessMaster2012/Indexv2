@@ -8061,18 +8061,19 @@ function commanderQueueQuestionV9(g,q){
   return true;
 }
 function commanderFallbackUniqueV9(g){
-  var used=commanderUsedQuestions(g);
-  var queued=Array.isArray(g.aiQuestionQueue)?g.aiQuestionQueue:[];
-  var pool=questionPoolForRun(g).filter(function(q){
-    var k=commanderQuestionKey(q&&q.q);
-    return q&&q.q&&used.indexOf(k)<0&&!queued.some(function(x){return commanderQuestionKey(x&&x.q)===k;});
-  });
-  if(!pool.length){
-    pool=questionPoolForRun(g).filter(function(q){return q&&q.q&&commanderQuestionKey(q.q)!==commanderQuestionKey(g.question&&g.question.q);});
+  /*
+   * Use the authoritative local V6 picker here. questionPoolForRun() belongs
+   * to the external battlefield-fix IIFE and is not visible from this scope.
+   * Keeping the fallback inside the main Commander engine prevents startup
+   * from crashing when AI generation is unavailable.
+   */
+  try{
+    var q=pickV6(g,g&&g.question&&g.question.q);
+    if(q&&q.q)return q;
+  }catch(err){
+    console.error('Commander local fallback question failed:',err);
   }
-  if(!pool.length)return null;
-  var raw=pool[Math.floor(Math.random()*pool.length)];
-  return {q:String(raw.q),options:(raw.options||[]).map(String).slice(0,4),correct:Math.max(0,Math.min(3,Number(raw.correct)||0)),explanation:String(raw.explanation||'')};
+  return null;
 }
 async function commanderRequestAiQuestionV9(g,background){
   if(!g||state.games!==g)return null;
