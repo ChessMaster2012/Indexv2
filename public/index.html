@@ -4031,7 +4031,7 @@ function commanderCanPlaceFinal(x,y){var g=state.games,m=COMMANDER_MAPS_FINAL.fi
 
 function commanderQuestionPoolFinal(g){
  var bank=[];state.studySets.forEach(function(s){if(s.subjectId!==g.subjectId||s.type!=='quiz'||!Array.isArray(s.questions))return;if(g.unit&&s.unit&&s.unit!==g.unit)return;if(g.unit&&!s.unit&&g.topic&&String(s.title||'').toLowerCase().indexOf(String(g.topic).toLowerCase())<0)return;if(g.topic&&String(s.topic||'').toLowerCase().indexOf(String(g.topic).toLowerCase())<0)return;s.questions.forEach(function(q){if(q.q&&Array.isArray(q.options)&&q.options.length===4)bank.push({q:q.q,options:q.options.map(String),correct:Math.max(0,Math.min(3,Number(q.correct)||0))});});});return shuffleArray(bank).slice(0,24);}
-async function commanderPrepareFinal(){var sid=(document.getElementById('commander-subject-final')||{}).value||'biology';var unit=(document.getElementById('commander-unit-final')||{}).value||'';var topic=((document.getElementById('commander-topic-final')||{}).value||'').trim();state.games.subjectId=sid;state.games.unit=unit;state.games.topic=topic;state.games.setupLoading=false;state.games.setupError='';state.games.questionBank=state.games.questionBank||[];state.games.commanderScreen='maps';renderGames();}
+async function commanderPrepareFinal(){var sid=(document.getElementById('commander-subject-final')||{}).value||'biology';var unit=(document.getElementById('commander-unit-final')||{}).value||'';var topic=((document.getElementById('commander-topic-final')||{}).value||'').trim();state.games.subjectId=sid;state.games.unit=unit;state.games.topic=topic;state.games.setupLoading=false;state.games.setupError='';state.games.questionBank=state.games.questionBank||[];state.games.commanderScreen='maps';renderGames();try{var sub=subjectById(sid)||{};if(window.__commanderWarmAiQuestion)window.__commanderWarmAiQuestion(sub.name||sid,unit,topic);}catch(e){}}
 function commanderSetupFinalHtml(){
   var opts=SUBJECTS.map(function(s){return '<option value="'+esc(s.id)+'">'+esc(s.name)+'</option>';}).join('');
   var sub=subjectById(state.games.subjectId||'biology')||SUBJECTS[0];
@@ -7214,7 +7214,260 @@ window.commanderSaveFinal=save;
 .commander-auth-ghost-label{position:absolute;left:15px;bottom:15px;z-index:10;padding:7px 9px;border-radius:10px;background:rgba(7,19,33,.78);border:1px solid rgba(255,255,255,.15);color:#d8edf9;font-size:9px;font-weight:900;pointer-events:none}
 @media(max-width:920px){.commander-auth-card{min-height:90vh!important;padding:26px!important}.commander-auth-options{grid-template-columns:1fr!important}}
 @media(max-width:680px){.commander-auth-stats{grid-template-columns:1fr!important}.commander-auth-card{padding:20px!important}.commander-auth-question{padding:20px!important}.commander-auth-question h2{font-size:26px!important}.commander-auth-side-right{max-height:52vh}}
-</style><script id="commander-gameplay-upgrade-v6">
+<style id="commander-answer-gate-v7-css">
+#games-stage:has(.commander-auth-gate){
+  background:#071a2b!important;
+}
+.commander-auth-gate{
+  padding:16px!important;
+  align-items:stretch!important;
+  justify-content:center!important;
+  background:
+    radial-gradient(circle at 8% 8%,rgba(74,196,255,.28),transparent 28%),
+    radial-gradient(circle at 92% 12%,rgba(47,212,139,.22),transparent 30%),
+    linear-gradient(135deg,#061522 0%,#0b2740 54%,#10293f 100%)!important;
+}
+.commander-auth-card{
+  width:min(1360px,96vw)!important;
+  min-height:calc(100vh - 32px)!important;
+  max-height:calc(100vh - 32px)!important;
+  padding:34px 38px 30px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  gap:0!important;
+  overflow:auto!important;
+  background:linear-gradient(180deg,#f7fbff 0%,#eef5fb 100%)!important;
+  border:1px solid rgba(176,208,232,.9)!important;
+  border-radius:30px!important;
+  box-shadow:0 30px 90px rgba(0,0,0,.42),0 2px 0 rgba(255,255,255,.7) inset!important;
+}
+.commander-auth-top{
+  align-items:flex-start!important;
+  padding-bottom:4px;
+}
+.commander-auth-kicker{
+  color:#176fa7!important;
+  font-size:11px!important;
+  font-weight:950!important;
+  letter-spacing:.18em!important;
+}
+.commander-auth-card h1{
+  color:#102943!important;
+  font-size:clamp(44px,6.1vw,76px)!important;
+  line-height:.96!important;
+  letter-spacing:-.025em!important;
+  margin:6px 0 12px!important;
+}
+.commander-auth-sub{
+  max-width:980px!important;
+  color:#4d6680!important;
+  font-size:15px!important;
+  line-height:1.6!important;
+}
+.commander-auth-exit{
+  flex:0 0 auto!important;
+  background:#fff!important;
+  border:2px solid #b7ccdf!important;
+  color:#18324a!important;
+  min-width:64px!important;
+  min-height:42px!important;
+  box-shadow:0 4px 14px rgba(17,45,70,.08)!important;
+}
+.commander-auth-stats{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:14px!important;
+  margin:22px 0 18px!important;
+}
+.commander-auth-stat{
+  min-height:88px!important;
+  padding:16px 18px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  background:#fff!important;
+  border:2px solid #d3e2ef!important;
+  border-radius:18px!important;
+  box-shadow:0 7px 18px rgba(19,52,79,.06)!important;
+}
+.commander-auth-stat:nth-child(1){
+  background:linear-gradient(135deg,#eef8ff,#fff)!important;
+  border-color:#b7dff8!important;
+}
+.commander-auth-stat:nth-child(2){
+  background:linear-gradient(135deg,#effcf6,#fff)!important;
+  border-color:#bde7d1!important;
+}
+.commander-auth-stat:nth-child(3){
+  background:linear-gradient(135deg,#f5f1ff,#fff)!important;
+  border-color:#d6c8ff!important;
+}
+.commander-auth-stat b{
+  color:#102943!important;
+  font-size:31px!important;
+}
+.commander-auth-stat span{
+  color:#60758a!important;
+  font-size:10px!important;
+}
+.commander-auth-question{
+  flex:1!important;
+  min-height:390px!important;
+  padding:30px 32px 34px!important;
+  background:linear-gradient(145deg,#0d2943 0%,#123e61 58%,#155174 100%)!important;
+  border:2px solid #276184!important;
+  border-radius:26px!important;
+  box-shadow:0 18px 38px rgba(8,34,55,.19)!important;
+}
+.commander-auth-meta{
+  color:#83ddff!important;
+  font-size:11px!important;
+  letter-spacing:.14em!important;
+}
+.commander-auth-question h2{
+  color:#fff!important;
+  font-size:clamp(29px,4.25vw,48px)!important;
+  line-height:1.16!important;
+  letter-spacing:-.012em!important;
+  margin:12px 0 24px!important;
+  max-width:1080px!important;
+}
+.commander-auth-options{
+  gap:14px!important;
+}
+.commander-auth-option{
+  min-height:94px!important;
+  padding:15px 18px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:2px!important;
+  border:2px solid #587b97!important;
+  border-radius:17px!important;
+  background:linear-gradient(145deg,#1c3d5a,#17334d)!important;
+  color:#fff!important;
+  font-size:15px!important;
+  line-height:1.35!important;
+  box-shadow:0 7px 16px rgba(1,22,39,.12)!important;
+}
+.commander-auth-option:hover{
+  background:linear-gradient(145deg,#245274,#1b4563)!important;
+  border-color:#82d8ff!important;
+  transform:translateY(-1px)!important;
+}
+.commander-auth-option .letter{
+  flex:0 0 40px!important;
+  width:40px!important;
+  height:40px!important;
+  margin-right:11px!important;
+  border-radius:12px!important;
+  background:#6ed6ff!important;
+  color:#102943!important;
+  font-size:15px!important;
+}
+.commander-auth-option.correct{
+  color:#0f5539!important;
+  background:linear-gradient(135deg,#dff9ec,#c9f3de)!important;
+  border-color:#2fc488!important;
+  box-shadow:0 7px 18px rgba(47,196,136,.16)!important;
+}
+.commander-auth-option.incorrect{
+  color:#7b2330!important;
+  background:linear-gradient(135deg,#ffe8eb,#ffd9df)!important;
+  border-color:#e85b6b!important;
+}
+.commander-auth-feedback{
+  margin-top:14px!important;
+  padding:16px 18px!important;
+  border-radius:17px!important;
+  border:2px solid #cfdeea!important;
+  box-shadow:0 7px 16px rgba(8,29,47,.08)!important;
+}
+.commander-auth-feedback b{font-size:14px!important}
+.commander-auth-feedback p{font-size:13px!important;line-height:1.5!important}
+.commander-auth-feedback button{
+  margin-top:11px!important;
+  padding:13px 16px!important;
+  border-radius:12px!important;
+  background:linear-gradient(135deg,#1c75b7,#25b989)!important;
+  color:#fff!important;
+  font-size:14px!important;
+  box-shadow:0 5px 0 rgba(13,76,123,.7)!important;
+}
+.commander-auth-feedback button:hover{
+  filter:brightness(1.06)!important;
+  transform:translateY(-1px)!important;
+}
+.commander-auth-note{
+  margin-top:13px!important;
+  padding:10px 12px!important;
+  color:#60778d!important;
+  font-size:10.5px!important;
+  line-height:1.5!important;
+}
+.commander-auth-ai-badge{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:6px!important;
+  margin:0 0 10px!important;
+  padding:6px 10px!important;
+  border-radius:999px!important;
+  background:rgba(133,221,255,.12)!important;
+  border:1px solid rgba(133,221,255,.32)!important;
+  color:#bfefff!important;
+  font-size:9px!important;
+  font-weight:950!important;
+  letter-spacing:.09em!important;
+  text-transform:uppercase!important;
+}
+.commander-auth-loading{
+  display:flex!important;
+  min-height:360px!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex-direction:column!important;
+  text-align:center!important;
+  color:#fff!important;
+}
+.commander-auth-spinner{
+  width:54px!important;
+  height:54px!important;
+  border-radius:50%!important;
+  border:6px solid rgba(255,255,255,.18)!important;
+  border-top-color:#79dcff!important;
+  animation:commanderSpin .72s linear infinite!important;
+  margin-bottom:16px!important;
+}
+.commander-auth-loading h2{
+  color:#fff!important;
+  margin:0 0 8px!important;
+  font-size:26px!important;
+}
+.commander-auth-loading p{
+  color:#b9d8eb!important;
+  font-size:12.5px!important;
+  max-width:560px!important;
+  margin:0!important;
+  line-height:1.5!important;
+}
+.commander-auth-card button:focus-visible{
+  outline:3px solid rgba(49,169,236,.36)!important;
+  outline-offset:2px!important;
+}
+@keyframes commanderSpin{to{transform:rotate(360deg)}}
+@media(max-width:920px){
+  .commander-auth-card{min-height:calc(100vh - 24px)!important;max-height:calc(100vh - 24px)!important;padding:24px!important}
+  .commander-auth-question{min-height:0!important;padding:24px!important}
+  .commander-auth-options{grid-template-columns:1fr!important}
+  .commander-auth-stats{grid-template-columns:1fr!important}
+}
+@media(max-width:620px){
+  .commander-auth-gate{padding:8px!important}
+  .commander-auth-card{width:100%!important;min-height:calc(100vh - 16px)!important;max-height:calc(100vh - 16px)!important;padding:18px!important;border-radius:22px!important}
+  .commander-auth-card h1{font-size:42px!important}
+  .commander-auth-sub{font-size:13px!important}
+  .commander-auth-question h2{font-size:27px!important}
+  .commander-auth-option{min-height:78px!important;font-size:14px!important}
+}
+</style></style><script id="commander-gameplay-upgrade-v6">
 (function(){
 'use strict';
 if(window.__commanderGameplayV6)return;
@@ -7388,20 +7641,152 @@ function renderBattle(g){
   });
 }
 function renderGateV6(g){
-  var q=g.question||pickV6(g),fb=g.questionFeedback,s=subjectById(g.subjectId),opts=(q.options||[]).map(function(o,i){
+  var fb=g.questionFeedback,s=subjectById(g.subjectId);
+  if(!g.question){
+    return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">A fresh AI-generated question is being prepared for this exact AP course and unit.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>0/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>AI review</b><span>Fresh question</span></div></div><div class="commander-auth-question"><div class="commander-auth-loading"><div class="commander-auth-spinner"></div><h2>Generating your question…</h2><p>Using '+esc(s?s.name:'your AP course')+' · '+esc(g.unit||'course review')+(g.topic?' · '+esc(g.topic):'')+'. The next question is also prefetched so it can appear immediately after you answer.</p></div></div><div class="commander-auth-note">Question generation happens in the background and each new question is checked against this run to prevent repeats.</div></div></div>';
+  }
+  var q=g.question,opts=(q.options||[]).map(function(o,i){
     var cls='commander-auth-option';if(fb&&i===Number(q.correct))cls+=' correct';if(fb&&i===Number(fb.chosen)&&i!==Number(q.correct))cls+=' incorrect';
     return '<button class="'+cls+'" '+(fb?'disabled':'')+' onclick="return window.__commanderAnswerV6('+i+',event)"><span class="letter">'+String.fromCharCode(65+i)+'</span><span>'+esc(o)+'</span></button>';
   }).join('');
   var feedback=fb?'<div class="commander-auth-feedback '+(fb.correct?'correct':'wrong')+'"><b>'+(fb.correct?'Correct! Wave unlocked.':'Not quite — review the answer, then continue.')+'</b><p>'+esc(fb.explanation||q.explanation||'The highlighted green answer is correct.')+'</p><button onclick="return window.__commanderContinueV6(event)">'+(fb.correct?'Enter Battlefield →':'Next Question →')+'</button></div>':'';
-  return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer before each wave. Correct answers award +25 deployment coins. Wrong answers show the correct answer and give you another question.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>1/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>'+((g.lessonIndex||0)?'Lesson '+g.lessonIndex+' / '+(g.lessonTotal||LESSONS):'Mixed review')+'</b><span>Study progression</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">The correct answer turns green. A wrong choice turns red, and the next question comes from your selected study material when available.</div></div></div>';
+  return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer before each wave. Correct answers award +25 deployment coins. Wrong answers show the correct answer and instantly prepare another AI question.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>1/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>AI ready</b><span>Fresh review</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><div class="commander-auth-ai-badge">✦ AI-GENERATED · FRESH FOR THIS RUN</div><h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">Correct answers turn green. Wrong choices turn red. The next question is generated ahead of time and is required to be different from the questions already used in this run.</div></div></div>';
 }
 function pickV6(g,exclude){
   var list=[];
   try{if(typeof window.commanderQuestionPoolForLesson==='function'){var info=window.commanderQuestionPoolForLesson(g);if(info&&info.pool&&info.pool.length)list=info.lesson===0?info.all:info.pool;}}catch(e){}
   if(!list.length){try{list=commanderQuestionPoolFinal(g);}catch(e){}}
   if(!list.length)list=[{q:'Natural selection acts directly on which level?',options:['Genotypes only','Phenotypes','Species names','Mutations only'],correct:1,explanation:'Selection acts on observable phenotypes.'}];
-  var f=list.filter(function(q){return !exclude||q.q!==exclude;});if(!f.length)f=list;
-  var q=f[Math.floor(Math.random()*f.length)];return{q:String(q.q),options:q.options.map(String).slice(0,4),correct:Number(q.correct)||0,explanation:String(q.explanation||'')};
+  var used=g&&Array.isArray(g.usedQuestionKeys)?g.usedQuestionKeys:[];
+  var f=list.filter(function(q){var key=commanderQuestionKey(q&&q.q);return (!exclude||q.q!==exclude)&&used.indexOf(key)<0;});
+  if(!f.length)f=list.filter(function(q){return !exclude||q.q!==exclude;});
+  if(!f.length)f=list;
+  var q=f[Math.floor(Math.random()*f.length)];
+  return{q:String(q.q),options:(q.options||[]).map(String).slice(0,4),correct:Math.max(0,Math.min(3,Number(q.correct)||0)),explanation:String(q.explanation||'')};
+}
+var COMMANDER_AI_CACHE=Object.create(null);
+function commanderQuestionKey(value){
+  return String(value||'').toLowerCase().replace(/\s+/g,' ').replace(/[^a-z0-9 ]/g,'').trim().slice(0,500);
+}
+function commanderAiCacheKey(course,unit,topic){
+  return String(course||'').trim()+'||'+String(unit||'').trim()+'||'+String(topic||'').trim();
+}
+function commanderUsedQuestions(g){
+  return Array.isArray(g&&g.usedQuestionKeys)?g.usedQuestionKeys:[];
+}
+function commanderRememberQuestion(g,q){
+  if(!g||!q)return;
+  if(!Array.isArray(g.usedQuestionKeys))g.usedQuestionKeys=[];
+  var key=commanderQuestionKey(q.q);
+  if(!key)return;
+  if(g.usedQuestionKeys.indexOf(key)<0)g.usedQuestionKeys.push(key);
+  if(g.usedQuestionKeys.length>40)g.usedQuestionKeys=g.usedQuestionKeys.slice(-40);
+}
+function commanderNormalizeAiQuestion(data){
+  var q=data&&data.question?data.question:null;
+  if(!q||typeof q.q!=='string'||!Array.isArray(q.options)||q.options.length!==4)return null;
+  if(!q.options.every(function(v){return typeof v==='string'&&v.trim();}))return null;
+  var correct=Number(q.correct);
+  if(!Number.isInteger(correct)||correct<0||correct>3)return null;
+  return{q:q.q.trim(),options:q.options.map(function(v){return String(v).trim();}),correct:correct,explanation:String(q.explanation||'')};
+}
+async function commanderWarmAiQuestion(course,unit,topic){
+  var key=commanderAiCacheKey(course,unit,topic),entry=COMMANDER_AI_CACHE[key];
+  if(entry&&entry.question)return entry.question;
+  if(entry&&entry.promise)return entry.promise;
+  entry=entry||{};
+  COMMANDER_AI_CACHE[key]=entry;
+  entry.promise=fetch('/api/ai/commander-question',{method:'POST',headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},cache:'no-store',body:JSON.stringify({course:course,unit:unit,topic:topic,exclude:[]})})
+    .then(function(r){return r.json().catch(function(){return{};}).then(function(data){if(!r.ok)throw new Error(data&&data.error||'AI question request failed.');return data;});})
+    .then(function(data){var q=commanderNormalizeAiQuestion(data);if(!q)throw new Error('AI returned an invalid question.');entry.question=q;entry.promise=null;return q;})
+    .catch(function(err){entry.promise=null;throw err;});
+  return entry.promise;
+}
+window.__commanderWarmAiQuestion=commanderWarmAiQuestion;
+async function commanderRequestAiQuestion(g,background){
+  if(!g||state.games!==g)return null;
+  if(g.aiQuestionRequest)return g.aiQuestionRequest;
+  var subject=subjectById(g.subjectId)||{},course=subject.name||g.subjectId||'Biology',unit=g.unit||'Course review',topic=g.topic||'';
+  var exclusions=commanderUsedQuestions(g).slice(-30);
+  if(g.question&&g.question.q)exclusions.push(g.question.q);
+  if(g.aiNextQuestion&&g.aiNextQuestion.q)exclusions.push(g.aiNextQuestion.q);
+  var promise=fetch('/api/ai/commander-question',{method:'POST',headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},cache:'no-store',body:JSON.stringify({course:course,unit:unit,topic:topic,exclude:exclusions})})
+    .then(function(r){return r.json().catch(function(){return{};}).then(function(data){if(!r.ok)throw new Error(data&&data.error||'AI question request failed.');return data;});})
+    .then(function(data){
+      if(state.games!==g)return null;
+      var q=commanderNormalizeAiQuestion(data);
+      if(!q)throw new Error('AI returned an invalid Commander question.');
+      var key=commanderQuestionKey(q.q);
+      if(exclusions.indexOf(q.q)>=0||exclusions.indexOf(key)>=0||commanderUsedQuestions(g).indexOf(key)>=0){
+        return commanderRequestAiQuestion(g,background);
+      }
+      if(background){
+        g.aiNextQuestion=q;
+      }else{
+        g.question=q;
+        g.questionLoading=false;
+        commanderRememberQuestion(g,q);
+      }
+      renderBattle(g);
+      return q;
+    })
+    .catch(function(err){
+      if(state.games===g){
+        if(background){
+          g.aiPrefetchError=String(err&&err.message||err);
+        }else{
+          g.questionLoading=false;
+          g.aiPrefetchError=String(err&&err.message||err);
+          var fallback=pickV6(g,g.question&&g.question.q);
+          g.question=fallback;
+          commanderRememberQuestion(g,fallback);
+        }
+        renderBattle(g);
+      }
+      return null;
+    })
+    .finally(function(){if(state.games===g)g.aiQuestionRequest=null;});
+  g.aiQuestionRequest=promise;
+  return promise;
+}
+function commanderConsumeNextAiQuestion(g){
+  if(!g||!g.aiNextQuestion)return false;
+  g.question=g.aiNextQuestion;
+  g.aiNextQuestion=null;
+  g.questionLoading=false;
+  g.aiPrefetchError='';
+  commanderRememberQuestion(g,g.question);
+  return true;
+}
+function commanderBeginGateQuestion(g){
+  if(!g)return;
+  g.questionFeedback=null;
+  g.question=null;
+  g.questionLoading=true;
+  g.aiPrefetchError='';
+  var key=commanderAiCacheKey((subjectById(g.subjectId)||{}).name||g.subjectId,g.unit,g.topic);
+  var cached=COMMANDER_AI_CACHE[key];
+  if(cached&&cached.question){
+    var q=cached.question;cached.question=null;
+    g.question=q;g.questionLoading=false;commanderRememberQuestion(g,q);renderBattle(g);
+    commanderRequestAiQuestion(g,true);
+    return;
+  }
+  renderBattle(g);
+  commanderRequestAiQuestion(g,false);
+}
+function commanderAdvanceToNextQuestion(g){
+  if(!g)return;
+  g.questionFeedback=null;
+  if(commanderConsumeNextAiQuestion(g)){
+    renderBattle(g);
+    commanderRequestAiQuestion(g,true);
+  }else{
+    g.question=null;
+    g.questionLoading=true;
+    renderBattle(g);
+    commanderRequestAiQuestion(g,false);
+  }
 }
 function v6Profile(){return commanderFinalProfile();}
 function v6Save(g){
@@ -7412,9 +7797,9 @@ function clearV6Timers(g){if(g&&g.frame){cancelAnimationFrame(g.frame);g.frame=n
 function startV6(mapId,slot,saveData){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===mapId;});if(!m)return;
   var prev=state.games||{},old=saveData&&typeof saveData==='object'?saveData:null;clearV6Timers(prev);
-  var g={active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',question:null,questionGateOpen:true,questionFeedback:null,questionAskedCount:0,questionCorrectCount:0,waveCoins:old?Number(old.waveCoins)||0:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,selectedTroop:old&&old.selectedTroop||null,troopCategory:old&&old.troopCategory||'All',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,coinAccumulator:0};
+  var g={active:'commander',commanderScreen:'battle',phase:'battle',slotIndex:slot,mapId:mapId,subjectId:old&&old.subjectId||prev.subjectId||'biology',unit:old&&old.unit||prev.unit||'',topic:old&&old.topic||prev.topic||'',question:null,questionGateOpen:true,questionFeedback:null,questionAskedCount:0,questionCorrectCount:0,waveCoins:old?Number(old.waveCoins)||0:0,base:old?Math.max(1,Number(old.base)||100):100,wave:old?Math.max(0,Number(old.round)||0):0,selectedTroop:old&&old.selectedTroop||null,troopCategory:old&&old.troopCategory||'All',towers:[],enemies:[],projectiles:[],effects:[],running:false,finished:false,spawnCount:0,spawnTotal:0,nextSpawnAt:0,lastFrame:0,frame:null,cursor:null,coinAccumulator:0,usedQuestionKeys:[],aiNextQuestion:null,aiQuestionRequest:null,questionLoading:true,aiPrefetchError:''};
   if(old&&Array.isArray(old.towers))old.towers.forEach(function(t){if(t&&t.id&&t.x!=null&&t.y!=null&&v6Profile().owned[t.id])g.towers.push({id:t.id,x:Number(t.x),y:Number(t.y),level:Math.max(1,Number(t.level)||1),hp:Number(t.hp||100),maxHp:Number(t.maxHp||100),cool:0,abilityReady:performance.now()+1500,recoil:0});});
-  g.question=pickV6(g);state.games=g;v6Save(g);renderBattle(g);
+  state.games=g;v6Save(g);renderBattle(g);commanderBeginGateQuestion(g);
 }
 function place(g,x,y){
   var id=g.selectedTroop;if(!id)return;var td=tdef(id),p=v6Profile();if(!canPlace(g,x,y))return;
@@ -7509,7 +7894,9 @@ function loopV6(now){
     g.projectiles=g.projectiles.filter(function(q){return q.life>0;});g.enemies=g.enemies.filter(function(e){return e.hp>0;});
     if(g.base<=0){g.running=false;g.finished=true;v6Save(g);renderBattle(g);return;}
     if(g.spawnCount>=g.spawnTotal&&g.enemies.length===0){
-      g.running=false;g.questionGateOpen=true;g.waveCoins=0;g.questionFeedback=null;g.questionCorrectCount=0;g.questionAskedCount=0;g.waveBanner='ROUND '+g.wave+' CLEARED';g.question=pickV6(g);v6Save(g);renderBattle(g);return;
+      g.running=false;g.questionGateOpen=true;g.waveCoins=0;g.questionFeedback=null;g.questionCorrectCount=0;g.questionAskedCount=0;g.waveBanner='ROUND '+g.wave+' CLEARED';
+      if(!commanderConsumeNextAiQuestion(g)){g.question=null;g.questionLoading=true;commanderRequestAiQuestion(g,false);}
+      v6Save(g);renderBattle(g);if(g.question){commanderRequestAiQuestion(g,true);}return;
     }
   }
   draw(g);if(state.games===g&&!g.questionGateOpen&&!g.finished)g.frame=requestAnimationFrame(loopV6);
@@ -7532,8 +7919,8 @@ function draw(g){
 }
 window.__commanderCategoryFinal=function(cat,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running)return false;g.troopCategory=cat;renderBattle(g);return false;};
 window.__commanderSelectFinal=function(id,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running||g.questionGateOpen)return false;var p=profile();if(!p.owned[id]){if(p.coins>=tdef(id).cost){p.coins-=tdef(id).cost;p.owned[id]=true;p.levels[id]=1;persistProgress();showRewardToast(tdef(id).name+' unlocked');}else{showRewardToast('Unlock '+tdef(id).name+' for '+tdef(id).cost+' coins first.');}return false;}g.selectedTroop=g.selectedTroop===id?null:id;renderBattle(g);return false;};
-window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||g.questionFeedback)return false;var q=g.question,correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;if(correct){g.questionCorrectCount=1;g.waveCoins=(g.waveCoins||0)+25;}g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};v6Save(g);renderBattle(g);return false;};
-window.__commanderContinueV6=function(e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionFeedback)return false;if(g.questionFeedback.correct){g.questionGateOpen=false;g.questionFeedback=null;g.selectedTroop=null;g.question=null;v6Save(g);renderBattle(g);g.lastFrame=performance.now();g.frame=requestAnimationFrame(loopV6);}else{var old=g.question&&g.question.q;g.questionFeedback=null;g.question=pickV6(g,old);v6Save(g);renderBattle(g);}return false;};
+window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||!g.question||g.questionFeedback)return false;var q=g.question,correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;if(correct){g.questionCorrectCount=1;g.waveCoins=(g.waveCoins||0)+25;}g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};try{v6Save(g);}catch(err){console.warn('Commander gate save failed',err);}renderBattle(g);commanderRequestAiQuestion(g,true);return false;};
+window.__commanderContinueV6=function(e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionFeedback)return false;if(g.questionFeedback.correct){g.questionGateOpen=false;g.questionFeedback=null;g.selectedTroop=null;g.question=null;try{v6Save(g);}catch(err){console.warn('Commander battlefield save failed',err);}renderBattle(g);g.lastFrame=performance.now();g.frame=requestAnimationFrame(loopV6);}else{commanderAdvanceToNextQuestion(g);}return false;};
 window.__commanderExitV6=function(e){if(e){e.preventDefault();e.stopPropagation();}clearV6Timers(state.games);state.games={active:null,setupType:null,commanderScreen:null};renderGames();return false;};
 window.__commanderStartWaveFinal=function(e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.questionGateOpen||g.running||g.finished)return false;g.wave++;g.running=true;g.spawnCount=0;g.spawnTotal=6+Math.min(14,g.wave*2);g.nextSpawnAt=performance.now()+150;g.lastFrame=performance.now();v6Save(g);renderBattle(g);g.frame=requestAnimationFrame(loopV6);return false;};
 window.__commanderHealFinal=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games,t=g&&g.towers&&g.towers[i],p=profile();if(!t||p.coins<10)return false;p.coins-=10;t.hp=Math.min(t.maxHp,t.hp+Math.max(20,t.maxHp*.35));persistProgress();v6Save(g);renderBattle(g);return false;};
