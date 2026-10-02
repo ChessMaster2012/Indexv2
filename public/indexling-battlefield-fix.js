@@ -891,3 +891,24 @@ setTimeout(observe,0);
 setTimeout(sync,120);
 setInterval(sync,500);
 })();
+
+/* V14_START_WAVE_PROXY */
+(function(){
+  var authoritative=window.__commanderStartWaveFinal;
+  window.__commanderStartWaveV16=authoritative;
+  document.addEventListener('click',function(ev){
+    var el=ev.target&&ev.target.closest?ev.target.closest('.commander-auth-start'):null;
+    if(!el)return;
+    if(el.disabled)return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+    try{
+      if(typeof window.__commanderStartWaveV16!=='function')throw new Error('Authoritative Start Wave handler is unavailable.');
+      window.__commanderStartWaveV16(ev);
+    }catch(err){
+      console.error('Direct Commander Start Wave failed',err);
+      try{showRewardToast('Could not start the wave.');}catch(e){}
+    }
+  },true);
+})();
