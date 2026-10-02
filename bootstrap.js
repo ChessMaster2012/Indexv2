@@ -14,6 +14,10 @@ try {
   html = html.split('<!-- INDEXLING_CUSTOM_V1 -->').join('');
   html = html.split('<script src="/indexling-custom.js"></script>').join('');
   html = html.split(questTag).join('');
+  /* Remove every previously injected Commander fix version before adding the
+     current one. Version bumps must not accumulate duplicate script handlers. */
+  html = html.replace(/<script src="\/indexling-battlefield-fix\.js(?:\?v=[^"]*)?"><\/script>/g, '');
+  html = html.replace(/<script src="\/indexling-commander-hotfix-v20\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.split(battlefieldTag).join('');
   html = html.split(hotfixTag).join('');
 
