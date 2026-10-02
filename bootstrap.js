@@ -6,6 +6,7 @@ const htmlPath = path.join(root, 'public', 'index.html');
 const marker = '<!-- INDEX_REWARDS_V2 -->';
 const questTag = '<script src="/quests-avatar-pack.js"></script>';
 const battlefieldTag = '<script src="/indexling-battlefield-fix.js?v=19"></script>';
+const hotfixTag = '<script src="/indexling-commander-hotfix-v20.js"></script>';
 
 try {
   let html = fs.readFileSync(htmlPath, 'utf8');
@@ -14,11 +15,12 @@ try {
   html = html.split('<script src="/indexling-custom.js"></script>').join('');
   html = html.split(questTag).join('');
   html = html.split(battlefieldTag).join('');
+  html = html.split(hotfixTag).join('');
 
   if (!html.includes(marker)) {
-    html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n' + battlefieldTag + '\n</body>');
+    html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + hotfixTag + '\n</body>');
   } else {
-    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag);
+    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + hotfixTag);
   }
 
   fs.writeFileSync(htmlPath, html, 'utf8');
