@@ -1,209 +1,285 @@
 (function(){
 'use strict';
-if(window.__indexCommanderPackArsenalV2)return;
-window.__indexCommanderPackArsenalV2=true;
+if(window.__indexCommanderPackArsenalV4)return;
+window.__indexCommanderPackArsenalV4=true;
 
-const IDS=[
-  'ling-sugarbug','ling-squire','ling-bard','ling-knight','ling-alchemist',
-  'ling-comet','ling-nebula','ling-voidling','ling-supernova'
-];
+var PACK_META={
+  candy:{label:'Candy Carnival',costBase:35},
+  medieval:{label:'Medieval Keep',costBase:45},
+  robo:{label:'Robo Works',costBase:55},
+  ocean:{label:'Deep Sea',costBase:60},
+  arcade:{label:'Arcade Afterdark',costBase:65},
+  cosmic:{label:'Cosmic Odyssey',costBase:70}
+};
+var ROLE_SEQ=['Damage','Support','Splash','Control','Tank','Damage','Support','Splash'];
+var ATTACK_PREFIX={
+  candy:['Sugar Sting','Gumdrop Bounce','Taffy Whip','Choco Crush','Jelly Burst','Caramel Lash','Sprinkle Volley','Lolli Crown'],
+  medieval:['Shield Bash','Bardic Inspire','Hammer Strike','Lance Charge','Alchemy Bomb','Dragon Flame','Arcane Volley','Royal Decree'],
+  robo:['Pulse Shot','Circuit Surge','Servo Slam','Drone Beam','Mecha Burst','Reactor Blast','Cyber Pulse','Overclock Beam'],
+  ocean:['Bubble Shot','Coral Spike','Pearl Burst','Diver Harpoon','Kelp Snare','Kraken Crush','Abyss Wave','Tide King Surge'],
+  arcade:['Token Toss','Joystick Strike','Pixel Burst','Glitch Zap','Synth Wave','Racer Rush','Arcade Blast','Highscore Beam'],
+  cosmic:['Comet Trail','Moon Ray','Star Burst','Nebula Wave','Eclipse Field','Quasar Beam','Void Collapse','Supernova Burst']
+};
 
-function esc(v){
-  return String(v==null?'':v).replace(/[&<>"]/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
-  });
+function esc(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function cosmetics(){
+  try{return Array.isArray(REWARD_COSMETICS)?REWARD_COSMETICS.filter(function(c){return c&&c.type==='indexling';}):[];}catch(e){return[];}
 }
-function troop(id){
-  try{return COMMANDER_TROOPS_FINAL.find(function(t){return t.id===id;})||null;}catch(e){return null;}
-}
-function cosmetic(id){
-  try{return typeof cosmeticById==='function'?cosmeticById(id):null;}catch(e){return null;}
-}
-function skin(id){
-  try{return typeof getEquippedSkinForIndexling==='function'?getEquippedSkinForIndexling(id):null;}catch(e){return null;}
-}
-function art(id,small){
-  var c=cosmetic(id);
-  if(!c)return '<span class="pack-v2-fallback">✦</span>';
+function getCos(id){try{return typeof cosmeticById==='function'?cosmeticById(id):null;}catch(e){return null;}}
+function getSkin(id){try{return typeof getEquippedSkinForIndexling==='function'?getEquippedSkinForIndexling(id):null;}catch(e){return null;}}
+function getArt(id,mini){
+  var c=getCos(id);
+  if(!c)return '<span style="font-size:30px">✦</span>';
   try{
     if(typeof indexlingArtHtml==='function'){
-      var v=indexlingArtHtml(c,!!small,skin(id));
-      if(v)return v;
+      var a=indexlingArtHtml(c,!!mini,getSkin(id));
+      if(a)return a;
     }
   }catch(e){}
-  return '<span class="pack-v2-fallback">'+esc(c.icon||'✦')+'</span>';
+  return '<span style="font-size:30px">'+esc(c.icon||'✦')+'</span>';
 }
-function stats(id){
+function rarityMultiplier(r){
+  return r==='Legendary'?1.6:r==='Epic'?1.35:r==='Rare'?1.18:1;
+}
+function buildDef(c,i){
+  var pack=c.pack||'candy', group=cosmetics().filter(function(x){return x.pack===pack;});
+  var idx=Math.max(0,group.findIndex(function(x){return x.id===c.id;}));
+  var role=ROLE_SEQ[idx%ROLE_SEQ.length];
+  var rarity=rarityMultiplier(c.rarity);
+  var attack=((ATTACK_PREFIX[pack]||['Signature Strike'])[idx%((ATTACK_PREFIX[pack]||['Signature Strike']).length)])||'Signature Strike';
+  var tier=c.rarity==='Legendary'?4:c.rarity==='Epic'?3:c.rarity==='Rare'?2:1;
+  return {
+    id:c.id,name:c.name,role:role+' Indexling',category:role,
+    cost:Math.round((PACK_META[pack]?.costBase||40)+(tier-1)*18),
+    damage:Math.round((9+idx*2)*rarity),
+    range:118+(idx%8)*16+(tier-1)*8,
+    rate:Math.max(650,1220-(idx%6)*65-(tier-1)*40),
+    cooldown:Math.max(4,8-(tier-1)*.5),
+    power:Math.round((10+idx*2)*rarity),
+    ability:attack,
+    attackType:'basic',
+    description:c.name+' uses '+attack+' as its signature attack.'
+  };
+}
+function ensurePackDefs(){
+  if(!Array.isArray(window.COMMANDER_TROOPS_FINAL)||!Array.isArray(window.REWARD_COSMETICS))return;
+  var list=cosmetics();
+  list.forEach(function(c,i){
+    if(!COMMANDER_TROOPS_FINAL.some(function(t){return t.id===c.id;})){
+      COMMANDER_TROOPS_FINAL.push(buildDef(c,i));
+    }
+  });
   try{
-    var p=commanderFinalProfile(),lvl=Math.max(1,Number(p.levels&&p.levels[id])||1);
-    return {lvl:lvl,st:commanderFinalStats(id,lvl)};
-  }catch(e){
-    var t=troop(id)||{};
-    return {lvl:1,st:{damage:Number(t.damage)||0,range:Number(t.range)||0,rate:Number(t.rate)||1000,cooldown:Number(t.cooldown)||6}};
-  }
+    var p=commanderFinalProfile();
+    list.forEach(function(c){
+      if(state&&state.progress&&Array.isArray(state.progress.unlockedCosmetics)&&state.progress.unlockedCosmetics.indexOf(c.id)>=0){
+        p.owned[c.id]=true;
+        if(!p.levels[c.id])p.levels[c.id]=1;
+      }
+    });
+  }catch(e){}
 }
-function css(){
-  if(document.getElementById('commander-pack-arsenal-v2-style'))return;
-  var s=document.createElement('style');
-  s.id='commander-pack-arsenal-v2-style';
+function tdef(id){
+  try{
+    var t=COMMANDER_TROOPS_FINAL.find(function(x){return x.id===id;});
+    if(t)return t;
+  }catch(e){}
+  var c=getCos(id);
+  return c?buildDef(c,0):null;
+}
+function unlockedPackIds(){
+  ensurePackDefs();
+  var set={};
+  try{
+    (state.progress&&state.progress.unlockedCosmetics||[]).forEach(function(id){
+      if(getCos(id))set[id]=true;
+    });
+    var eq=state.progress&&state.progress.equipped&&state.progress.equipped.indexling;
+    if(eq&&getCos(eq))set[eq]=true;
+    var p=commanderFinalProfile();
+    Object.keys(p.owned||{}).forEach(function(id){if(p.owned[id]&&getCos(id))set[id]=true;});
+  }catch(e){}
+  if(!Object.keys(set).length)set['ling-sugarbug']=true;
+  return cosmetics().filter(function(c){return set[c.id];});
+}
+
+function injectCss(){
+  if(document.getElementById('commander-pack-v4-css'))return;
+  var s=document.createElement('style');s.id='commander-pack-v4-css';
   s.textContent=`
-    .commander-pack-arsenal-v2{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px!important}
-    .commander-pack-card-v2{position:relative;min-height:136px!important;padding:7px!important;border:2px solid rgba(255,255,255,.1)!important;border-radius:14px!important;background:linear-gradient(160deg,#17293d,#102033)!important;color:#fff!important;text-align:left!important;cursor:pointer!important;overflow:visible!important;transition:transform .12s,border-color .12s,box-shadow .12s,background .12s!important}
-    .commander-pack-card-v2:hover{transform:translateY(-2px)!important;border-color:#6fd9ff!important;background:linear-gradient(160deg,#1d344b,#13283c)!important;box-shadow:0 9px 22px rgba(0,0,0,.22)!important}
-    .commander-pack-card-v2.selected{border-color:#ffd45e!important;box-shadow:0 0 0 2px rgba(255,212,94,.2),0 10px 24px rgba(0,0,0,.22)!important}
-    .commander-pack-card-v2.locked{opacity:.62}
-    .commander-pack-art-v2{height:62px;display:grid;place-items:center}
-    .commander-pack-art-v2>*{max-width:62px!important;max-height:62px!important}
-    .commander-pack-art-v2 svg{width:62px!important;height:62px!important;display:block!important}
-    .commander-pack-name-v2{font-size:10px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .commander-pack-meta-v2{font-size:8px;color:#9eb5c9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
-    .commander-pack-stats-v2{font-size:7.5px;color:#d3e3ee;line-height:1.35;margin-top:4px}
-    .commander-pack-cost-v2{font-size:8px;font-weight:950;color:#ffd76c;margin-top:4px}
-    .commander-pack-lock-v2{position:absolute;right:6px;top:6px;padding:3px 5px;border-radius:999px;background:rgba(5,14,24,.75);font-size:7px;font-weight:950;color:#ffd76c}
-    .commander-pack-hint-v2{margin:0 0 8px;padding:7px 9px;border-radius:10px;background:#14283d;border:1px solid #35536d;color:#bfe3f5;font-size:8px;font-weight:850;line-height:1.35}
-    .commander-pack-unit-layer-v2{position:absolute;inset:0;z-index:8;pointer-events:none}
-    .commander-pack-unit-v2{position:absolute;transform:translate(-50%,-50%);width:78px;height:92px;pointer-events:auto;display:grid;place-items:center;filter:drop-shadow(0 7px 9px rgba(0,0,0,.32));cursor:pointer}
-    .commander-pack-unit-v2:hover{z-index:30}
-    .commander-pack-unit-art-v2{width:72px;height:72px;display:grid;place-items:center}
-    .commander-pack-unit-art-v2 svg{width:72px!important;height:72px!important}
-    .commander-pack-unit-name-v2{position:absolute;top:69px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:4px 7px;border-radius:999px;background:rgba(7,19,33,.94);border:1px solid rgba(255,255,255,.12);color:#fff;font:900 8px system-ui;pointer-events:none}
-    .commander-pack-unit-role-v2{position:absolute;bottom:75px;left:50%;transform:translateX(-50%);white-space:nowrap;padding:3px 6px;border-radius:999px;background:#fff;color:#15283a;font:900 7px system-ui;pointer-events:none}
-    .commander-pack-unit-ring-v2{position:absolute;left:50%;top:50%;width:150px;height:150px;transform:translate(-50%,-50%);border:3px solid #37d990;border-radius:50%;background:rgba(55,217,144,.10);opacity:0;pointer-events:none}
-    .commander-pack-unit-v2:hover .commander-pack-unit-ring-v2{opacity:1}
-    .commander-pack-unit-tip-v2{position:absolute;left:100%;top:0;width:210px;padding:10px;border-radius:12px;background:rgba(7,19,33,.97);border:1px solid #3f6a88;color:#fff;box-shadow:0 14px 30px rgba(0,0,0,.3);opacity:0;transform:translateX(8px);transition:.12s;pointer-events:none;z-index:50}
-    .commander-pack-unit-v2:hover .commander-pack-unit-tip-v2{opacity:1}
-    .commander-pack-unit-tip-v2 b{font-size:11px}
-    .commander-pack-ghost-v2{position:absolute;transform:translate(-50%,-50%);width:82px;height:82px;z-index:9;pointer-events:none;display:grid;place-items:center}
-    .commander-pack-ghost-ring-v2{position:absolute;width:154px;height:154px;border-radius:50%;border:3px solid #37d990;background:rgba(55,217,144,.12)}
-    .commander-pack-ghost-ring-v2.blocked{border-color:#ed5d6a;background:rgba(237,93,106,.12)}
-    .commander-pack-ghost-art-v2{width:70px;height:70px;opacity:.68;filter:drop-shadow(0 6px 8px rgba(0,0,0,.35))}
-    .commander-pack-ghost-art-v2 svg{width:70px!important;height:70px!important}
-    .commander-pack-ghost-label-v2{position:absolute;top:60px;white-space:nowrap;padding:4px 7px;border-radius:8px;background:rgba(7,19,33,.95);border:1px solid #37d990;color:#d9ffef;font:900 8px system-ui}
-    .commander-pack-ghost-label-v2.blocked{border-color:#ed5d6a;color:#ffe3e6}
-    .commander-pack-fallback-v2{font-size:28px}
-    @media(max-width:760px){.commander-pack-arsenal-v2{grid-template-columns:1fr!important}.commander-pack-unit-tip-v2{left:auto;right:100%;transform:translateX(-8px)}}
+    .commander-pack-v4{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px 0 10px}
+    .commander-pack-v4-card{position:relative;min-height:150px;border:2px solid rgba(255,255,255,.10);border-radius:14px;background:linear-gradient(155deg,#172a40,#0f2033);color:#fff;padding:7px;text-align:left;cursor:pointer;transition:transform .12s,border-color .12s,box-shadow .12s}
+    .commander-pack-v4-card:hover{transform:translateY(-2px);border-color:#73dcff;box-shadow:0 8px 20px rgba(0,0,0,.22)}
+    .commander-pack-v4-card.selected{border-color:#ffd75d;box-shadow:0 0 0 2px rgba(255,215,93,.18),0 8px 20px rgba(0,0,0,.22)}
+    .commander-pack-v4-art{height:70px;display:grid;place-items:center}
+    .commander-pack-v4-art>div{width:67px!important;height:67px!important}
+    .commander-pack-v4-art svg{width:67px!important;height:67px!important}
+    .commander-pack-v4-name{font:950 10px system-ui;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .commander-pack-v4-meta{font:800 7.5px system-ui;color:#a8c0d3;margin-top:2px}
+    .commander-pack-v4-stats{font:700 7.2px/1.3 system-ui;color:#dcebf4;margin-top:4px}
+    .commander-pack-v4-attack{font:900 7.2px/1.25 system-ui;color:#ffd867;margin-top:4px}
+    .commander-pack-v4-cost{font:950 7.5px system-ui;color:#77e1b4;margin-top:4px}
+    .commander-pack-v4-pill{display:inline-block;padding:2px 5px;border-radius:999px;background:rgba(255,255,255,.09);margin-right:3px}
+    .commander-pack-v4-filter{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 4px}
+    .commander-pack-v4-filter button{border:1px solid #36536c;background:#12263a;color:#b8d3e6;border-radius:999px;padding:4px 7px;font:900 7px system-ui;cursor:pointer}
+    .commander-pack-v4-filter button.active{background:#2dbd8b;border-color:#5de2b5;color:#061a16}
+    .commander-pack-v4-empty{padding:18px 8px;color:#9eb7cb;font:800 10px/1.4 system-ui;text-align:center}
+    .commander-pack-v4-unit-layer{position:absolute;inset:0;z-index:20;pointer-events:none}
+    .commander-pack-v4-unit{position:absolute;transform:translate(-50%,-50%);width:90px;height:100px;pointer-events:auto;cursor:pointer;display:grid;place-items:center;filter:drop-shadow(0 8px 10px rgba(0,0,0,.32))}
+    .commander-pack-v4-unit-art{width:84px;height:84px;display:grid;place-items:center}
+    .commander-pack-v4-unit-art svg{width:84px!important;height:84px!important}
+    .commander-pack-v4-ring{position:absolute;width:156px;height:156px;border-radius:50%;border:3px solid #39db94;background:rgba(57,219,148,.09);opacity:0;transition:opacity .12s;pointer-events:none}
+    .commander-pack-v4-unit:hover .commander-pack-v4-ring,.commander-pack-v4-unit.pinned .commander-pack-v4-ring{opacity:1}
+    .commander-pack-v4-nameplate{position:absolute;top:78px;left:50%;transform:translateX(-50%);padding:4px 7px;border-radius:999px;background:rgba(5,15,26,.94);color:#fff;white-space:nowrap;font:950 8px system-ui;pointer-events:none}
+    .commander-pack-v4-role{position:absolute;bottom:78px;left:50%;transform:translateX(-50%);padding:3px 6px;border-radius:999px;background:#fff;color:#14283b;white-space:nowrap;font:950 7px system-ui;pointer-events:none}
+    .commander-pack-v4-tip{position:absolute;left:92%;top:-4px;width:220px;padding:11px;border-radius:13px;background:rgba(6,17,29,.98);border:1px solid #426b88;color:#fff;box-shadow:0 16px 34px rgba(0,0,0,.32);opacity:0;transform:translateX(8px);transition:.12s;pointer-events:none;z-index:80}
+    .commander-pack-v4-unit:hover .commander-pack-v4-tip,.commander-pack-v4-unit.pinned .commander-pack-v4-tip{opacity:1}
+    .commander-pack-v4-tip b{font:950 12px system-ui}
+    .commander-pack-v4-tip .gold{color:#ffd867}
+    .commander-pack-v4-tip .blue{color:#a9e5ff}
+    .commander-pack-v4-ghost{position:absolute;transform:translate(-50%,-50%);width:90px;height:94px;z-index:25;pointer-events:none;display:grid;place-items:center}
+    .commander-pack-v4-ghost-art{width:78px;height:78px;opacity:.68}
+    .commander-pack-v4-ghost-art svg{width:78px!important;height:78px!important}
+    .commander-pack-v4-ghost-ring{position:absolute;width:160px;height:160px;border-radius:50%;border:3px solid #38db94;background:rgba(56,219,148,.10)}
+    .commander-pack-v4-ghost-ring.blocked{border-color:#ec5d6a;background:rgba(236,93,106,.11)}
+    .commander-pack-v4-ghost-label{position:absolute;top:66px;white-space:nowrap;padding:4px 7px;border-radius:8px;background:rgba(5,15,26,.94);color:#cffff0;border:1px solid #38db94;font:950 8px system-ui}
+    .commander-pack-v4-ghost-label.blocked{border-color:#ec5d6a;color:#ffdfe3}
+    @media(max-width:1250px){.commander-pack-v4{grid-template-columns:repeat(2,minmax(0,1fr))}}
   `;
   document.head.appendChild(s);
 }
 
-function isBattle(){
-  return !!document.querySelector('#games-stage .commander-auth-battle');
+function actualRight(){
+  var stage=document.getElementById('games-stage');
+  return stage&&stage.querySelector('.commander-auth-battle .commander-auth-side-right');
 }
-function stage(){
-  return document.getElementById('games-stage');
-}
-function clearLegacy(){
-  ['indexling-battlefield-overlay','indexling-battlefield-stats'].forEach(function(id){
-    var e=document.getElementById(id);if(e)e.remove();
-  });
-  document.querySelectorAll('.ibp-hint,.ibp-unit').forEach(function(e){e.remove();});
-}
-function renderArsenal(){
-  var st=stage();if(!st||!isBattle())return;
-  var box=st.querySelector('.commander-auth-roster');
-  var g=typeof state!=='undefined'?state.games:null;
-  if(!box||!g||g.active!=='commander'||g.phase!=='battle')return;
-
-  var p;
-  try{p=commanderFinalProfile();}catch(e){p={owned:{},levels:{}};}
-  var sig=IDS.map(function(id){return id+':'+(p.owned&&p.owned[id]?'1':'0')+':'+(g.selectedTroop===id?'1':'0');}).join('|');
-  if(box.dataset.packV2Sig===sig&&box.querySelector('.commander-pack-arsenal-v2'))return;
-
-  var html='<div class="commander-pack-hint-v2">Choose an Indexling from your pack collection. Click a card to select it, then click an open area of the battlefield to place it. Hover a placed Indexling for its range and stats.</div><div class="commander-pack-arsenal-v2">';
-  IDS.forEach(function(id){
-    var t=troop(id),c=cosmetic(id);
-    if(!t||!c)return;
-    var own=!!(p.owned&&p.owned[id]),info=stats(id),stt=info.st,lvl=info.lvl,cost=Math.max(0,Number(t.cost)||5);
-    html+='<button type="button" class="commander-pack-card-v2 '+(g.selectedTroop===id?'selected ':'')+(!own?'locked':'')+'" data-pack-troop="'+id+'">'+
-      (!own?'<span class="commander-pack-lock-v2">LOCKED</span>':'')+
-      '<div class="commander-pack-art-v2">'+art(id,true)+'</div>'+
-      '<div class="commander-pack-name-v2">'+esc(c.name)+' · Lv '+lvl+'</div>'+
-      '<div class="commander-pack-meta-v2">'+esc(t.category||t.role||'Indexling')+' · '+esc(t.role||'Defense')+'</div>'+
-      '<div class="commander-pack-stats-v2">⚔ '+stt.damage+' DMG · ◉ '+stt.range+' RNG · ⚡ '+(Math.round(1000/stt.rate*10)/10)+'/s<br>✦ '+esc(t.ability||'Unique Attack')+'</div>'+
-      '<div class="commander-pack-cost-v2">Deploy · '+cost+' 🪙</div>'+
+function buildCard(c,g){
+  var t=tdef(c.id)||buildDef(c,0);
+  var level=1;
+  try{level=Math.max(1,Number(commanderFinalProfile().levels[c.id])||1);}catch(e){}
+  var mult=rarityMultiplier(c.rarity);
+  var damage=Math.max(1,Math.round((Number(t.damage)||8)*mult));
+  var range=Math.round(Number(t.range)||120);
+  var dps=Math.round((damage*1000/Math.max(400,Number(t.rate)||1200))*10)/10;
+  return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected':'')+'" data-pack-v4-troop="'+esc(c.id)+'">'+
+    '<div class="commander-pack-v4-art">'+getArt(c.id,true)+'</div>'+
+    '<div class="commander-pack-v4-name">'+esc(c.name)+' · Lv '+level+'</div>'+
+    '<div class="commander-pack-v4-meta"><span class="commander-pack-v4-pill">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+'</span><span class="commander-pack-v4-pill">'+esc(c.rarity)+'</span></div>'+
+    '<div class="commander-pack-v4-stats">⚔ '+damage+' DMG · ◉ '+range+' RNG · '+dps+' DPS</div>'+
+    '<div class="commander-pack-v4-attack">✦ '+esc(t.ability||c.name+' Signature')+'</div>'+
+    '<div class="commander-pack-v4-cost">Deploy · '+Math.max(1,Number(t.cost)||35)+' 🪙</div>'+
     '</button>';
-  });
-  html+='</div>';
-  box.innerHTML=html;
-  box.dataset.packV2Sig=sig;
-
-  box.querySelectorAll('[data-pack-troop]').forEach(function(card){
-    card.addEventListener('click',function(e){
-      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-      var id=card.dataset.packTroop,g=state.games;
-      if(!g||g.running||g.questionGateOpen)return;
-      if(typeof window.__commanderSelectFinal==='function'){
-        window.__commanderSelectFinal(id,e);
-      }else{
-        g.selectedTroop=g.selectedTroop===id?null:id;
-        if(typeof window.commanderRenderScreen==='function')window.commanderRenderScreen();
-      }
-    },true);
-  });
 }
-
-function renderUnitLayer(){
-  var st=stage(),world=st&&st.querySelector('.commander-auth-world'),g=typeof state!=='undefined'?state.games:null;
-  if(!world||!g||g.active!=='commander'||g.phase!=='battle')return;
-  var old=world.querySelector('.commander-pack-unit-layer-v2');
-  if(!old){old=document.createElement('div');old.className='commander-pack-unit-layer-v2';world.appendChild(old);}
-  var key=(g.towers||[]).map(function(t){return [t.id,t.x,t.y,t.level,t.hp].join(':');}).join('|')+'#'+String(g.selectedTroop||'')+'#'+String(g.cursor?g.cursor.x+'|'+g.cursor.y+'|'+g.cursor.valid:'');
-  if(old.dataset.key===key)return;
-  old.dataset.key=key;
+function selectCard(card,e){
+  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+  var g=state.games;if(!g||g.running||g.questionGateOpen)return;
+  var id=card.getAttribute('data-pack-v4-troop');
+  if(!tdef(id))return;
+  g.selectedTroop=g.selectedTroop===id?null:id;
+  g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;g.cursor=null;
+  try{v6Save(g);}catch(err){}
+  renderBattle(g);
+  setTimeout(sync,0);
+}
+function renderRight(){
+  ensurePackDefs();
+  var right=actualRight(),g=typeof state!=='undefined'?state.games:null;
+  if(!right||!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
+  var list=unlockedPackIds();
+  var currentFilter=g.packV4Filter||'All';
+  var filtered=list.filter(function(c){
+    if(currentFilter==='All')return true;
+    if(currentFilter==='Pack')return true;
+    return String((tdef(c.id)||{}).category||'')===currentFilter;
+  });
+  var categories=['All','Damage','Support','Splash','Control','Tank'];
+  var oldStart=right.querySelector('.commander-auth-start'),oldChange=right.querySelectorAll('.commander-auth-change');
+  var tail='<button class="commander-auth-start" type="button" id="commander-pack-v4-start">▶ Start Wave</button><button class="commander-auth-change" type="button" id="commander-pack-v4-map">Change Map</button><button class="commander-auth-change" type="button" id="commander-pack-v4-topic">Change AP Topic</button>';
+  var title='<div class="commander-auth-title">Indexling Arsenal</div>';
+  var p;try{p=commanderFinalProfile();}catch(e){p={coins:0};}
+  var round='<div class="commander-auth-budget">🪙 Deployment budget: <b>'+Math.floor(g.waveCoins||0)+'</b> · Persistent coins: <b>'+Math.floor(p.coins||0)+'</b></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>';
+  var filters='<div class="commander-pack-v4-filter">'+categories.map(function(cat){return '<button type="button" class="'+(currentFilter===cat?'active':'')+'" data-pack-v4-filter="'+cat+'">'+cat+'</button>';}).join('')+'</div>';
+  var cards=filtered.map(function(c){return buildCard(c,g);}).join('');
+  right.innerHTML=title+round+filters+(cards?'<div class="commander-pack-v4">'+cards+'</div>':'<div class="commander-pack-v4-empty">No pack Indexlings are unlocked yet. Open a pack and return here to deploy them.</div>')+tail;
+  right.querySelectorAll('[data-pack-v4-troop]').forEach(function(card){card.addEventListener('click',function(e){selectCard(card,e);},true);});
+  right.querySelectorAll('[data-pack-v4-filter]').forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();g.packV4Filter=b.getAttribute('data-pack-v4-filter');renderRight();},true);});
+  var sb=right.querySelector('#commander-pack-v4-start');if(sb)sb.addEventListener('click',function(e){if(typeof window.__commanderStartWaveFinal==='function')window.__commanderStartWaveFinal(e);},true);
+  var mb=right.querySelector('#commander-pack-v4-map');if(mb)mb.addEventListener('click',function(e){if(typeof window.__commanderChangeMapFinal==='function')window.__commanderChangeMapFinal(e);},true);
+  var tb=right.querySelector('#commander-pack-v4-topic');if(tb)tb.addEventListener('click',function(e){if(typeof window.__commanderChangeTopicFinal==='function')window.__commanderChangeTopicFinal(e);},true);
+}
+function syncLayers(){
+  ensurePackDefs();
+  var world=document.querySelector('#games-stage .commander-auth-battle .commander-auth-world'),g=typeof state!=='undefined'?state.games:null;
+  if(!world||!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
+  injectCss();renderRight();
+  var layer=world.querySelector('.commander-pack-v4-unit-layer');
+  if(!layer){layer=document.createElement('div');layer.className='commander-pack-v4-unit-layer';world.appendChild(layer);}
+  var key=(g.towers||[]).map(function(t){return[t.id,t.x,t.y,t.level,t.hp].join(':');}).join('|')+'#'+String(g.selectedTroop||'')+'#'+String(g.cursor?g.cursor.x+','+g.cursor.y+','+g.cursor.valid:'');
+  if(layer.dataset.key===key)return;
+  layer.dataset.key=key;
   var html='';
   (g.towers||[]).forEach(function(t,i){
-    var td=troop(t.id),info=stats(t.id),stt=info.st,lvl=info.lvl;
-    if(!td)return;
-    var c=cosmetic(t.id);
-    html+='<div class="commander-pack-unit-v2" style="left:'+(t.x*100)+'%;top:'+(t.y*100)+'%;" data-pack-unit-index="'+i+'">'+
-      '<div class="commander-pack-unit-ring-v2"></div>'+
-      '<div class="commander-pack-unit-art-v2">'+art(t.id,false)+'</div>'+
-      '<div class="commander-pack-unit-role-v2">'+esc(td.category||td.role||'Indexling')+'</div>'+
-      '<div class="commander-pack-unit-name-v2">'+esc((c&&c.name)||td.name||'Indexling')+' · Lv '+lvl+'</div>'+
-      '<div class="commander-pack-unit-tip-v2"><b>'+esc((c&&c.name)||td.name||'Indexling')+' · Lv '+lvl+'</b><br>'+
-      '<span style="color:#9fdfff">'+esc(td.category||td.role||'Indexling')+'</span><br>'+
-      '⚔ '+stt.damage+' DMG · ◉ '+stt.range+' RNG · ⚡ '+(Math.round(1000/stt.rate*10)/10)+'/s<br>'+
-      '<span style="color:#ffd66e">✦ '+esc(td.ability||'Unique Attack')+'</span></div>'+
+    var c=getCos(t.id),td=tdef(t.id);if(!c||!td)return;
+    var lvl=Math.max(1,Number(t.level)||1);
+    var pinned=Number(g.selectedTowerIndex)===i;
+    var st={damage:Math.max(1,Number(td.damage)||1),range:Math.max(1,Number(td.range)||100),rate:Math.max(400,Number(td.rate)||1200)};
+    var dps=Math.round(st.damage*1000/st.rate*10)/10;
+    html+='<div class="commander-pack-v4-unit '+(pinned?'pinned':'')+'" data-pack-v4-unit="'+i+'" style="left:'+(t.x*100)+'%;top:'+(t.y*100)+'%;">'+
+      '<div class="commander-pack-v4-ring"></div>'+
+      '<div class="commander-pack-v4-unit-art">'+getArt(t.id,false)+'</div>'+
+      '<div class="commander-pack-v4-role">'+esc(td.category||td.role||'Indexling')+'</div>'+
+      '<div class="commander-pack-v4-nameplate">'+esc(c.name)+' · Lv '+lvl+'</div>'+
+      '<div class="commander-pack-v4-tip"><b>'+esc(c.name)+' · Lv '+lvl+'</b><br><span class="blue">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+' · '+esc(c.rarity)+'</span><br>⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · '+dps+' DPS<br><span class="gold">♥ '+Math.ceil(Number(t.hp)||0)+' / '+Math.ceil(Number(t.maxHp)||100)+' HP</span><br><span class="gold">✦ '+esc(td.ability||c.name+' Signature')+'</span><br><span style="color:#a9bed0">Click to pin stats · hover for range</span></div>'+
     '</div>';
   });
   if(g.selectedTroop&&g.cursor&&!g.running){
-    var info2=stats(g.selectedTroop),td2=troop(g.selectedTroop);
-    if(td2){
-      html+='<div class="commander-pack-ghost-v2" style="left:'+(g.cursor.x*100)+'%;top:'+(g.cursor.y*100)+'%;">'+
-        '<div class="commander-pack-ghost-ring-v2 '+(g.cursor.valid?'':'blocked')+'"></div>'+
-        '<div class="commander-pack-ghost-art-v2">'+art(g.selectedTroop,false)+'</div>'+
-        '<div class="commander-pack-ghost-label-v2 '+(g.cursor.valid?'':'blocked')+'">'+(g.cursor.valid?'PLACE':'BLOCKED')+' · '+esc(td2.name)+'</div>'+
+    var pc=getCos(g.selectedTroop),pt=tdef(g.selectedTroop);
+    if(pc&&pt){
+      html+='<div class="commander-pack-v4-ghost" style="left:'+(g.cursor.x*100)+'%;top:'+(g.cursor.y*100)+'%;">'+
+        '<div class="commander-pack-v4-ghost-ring '+(g.cursor.valid?'':'blocked')+'"></div>'+
+        '<div class="commander-pack-v4-ghost-art">'+getArt(g.selectedTroop,false)+'</div>'+
+        '<div class="commander-pack-v4-ghost-label '+(g.cursor.valid?'':'blocked')+'">'+(g.cursor.valid?'PLACE':'BLOCKED')+' · '+esc(pc.name)+'</div>'+
       '</div>';
     }
   }
-  old.innerHTML=html;
+  layer.innerHTML=html;
+  layer.querySelectorAll('[data-pack-v4-unit]').forEach(function(unit){
+    unit.addEventListener('click',function(e){
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      var idx=Number(unit.getAttribute('data-pack-v4-unit')),gg=state.games;
+      if(!gg||!gg.towers[idx])return;
+      gg.selectedTowerIndex=gg.selectedTowerIndex===idx?-1:idx;
+      gg.selectedTroop=null;gg.hoverTowerIndex=idx;gg.cursor=null;
+      renderBattle(gg);setTimeout(syncLayers,0);
+    },true);
+  });
 }
-
-function bindWorldEvents(){
-  var cv=document.getElementById('commander-auth-canvas');
-  if(!cv||cv.dataset.packV2Bound==='1')return;
-  cv.dataset.packV2Bound='1';
-  cv.addEventListener('pointermove',function(){requestAnimationFrame(function(){renderUnitLayer();});},{passive:true});
-  cv.addEventListener('pointerleave',function(){requestAnimationFrame(function(){renderUnitLayer();});},{passive:true});
+function patchPlacementGuard(){
+  if(window.__packPlacementGuardV4)return;
+  window.__packPlacementGuardV4=true;
+  var original=window.__commanderSelectFinal;
+  window.__commanderSelectFinal=function(id,e){
+    if(getCos(id)){
+      if(e){e.preventDefault();e.stopPropagation();}
+      var g=state.games;if(!g||g.running||g.questionGateOpen)return false;
+      ensurePackDefs();
+      g.selectedTroop=g.selectedTroop===id?null:id;
+      g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;g.cursor=null;
+      renderBattle(g);setTimeout(sync,0);return false;
+    }
+    return typeof original==='function'?original(id,e):false;
+  };
 }
-
 function sync(){
-  clearLegacy();
-  if(!isBattle())return;
-  css();
-  renderArsenal();
-  bindWorldEvents();
-  renderUnitLayer();
+  ensurePackDefs();patchPlacementGuard();
+  var stage=document.getElementById('games-stage');
+  if(!stage||!stage.querySelector('.commander-auth-battle'))return;
+  syncLayers();
 }
-
-var mo=new MutationObserver(function(){
-  clearTimeout(window.__indexCommanderPackArsenalTimer);
-  window.__indexCommanderPackArsenalTimer=setTimeout(sync,20);
-});
-var st=stage();
-if(st)mo.observe(st,{childList:true,subtree:true});
-setInterval(sync,700);
+var timer=0;
+var mo=new MutationObserver(function(){clearTimeout(timer);timer=setTimeout(sync,25);});
+function observe(){var st=document.getElementById('games-stage');if(st)mo.observe(st,{childList:true,subtree:true});sync();}
+setTimeout(observe,0);
 setTimeout(sync,120);
-setTimeout(sync,700);
-
+setInterval(sync,500);
 })();
