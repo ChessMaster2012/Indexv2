@@ -7014,6 +7014,7 @@ function clearRunTimers(g){
 }
 function canPlace(g,x,y){
   var m=COMMANDER_MAPS_FINAL.find(function(v){return v.id===g.mapId;});if(!m||g.running||g.finished)return false;
+  if(g.selectedTroop){var placementTroop=troopDef(g.selectedTroop);if((g.waveCoins||0)<Math.max(0,Number(placementTroop.cost)||0))return false;}
   if(x<.035||x>.965||y<.05||y>.95)return false;
   for(var i=0;i<m.route.length-1;i++)if(commanderDistanceFinal(x,y,m.route[i][0],m.route[i][1],m.route[i+1][0],m.route[i+1][1])<.07)return false;
   for(var j=0;j<m.detail.length;j++)for(var k=0;k<m.detail[j].length-1;k++)if(commanderDistanceFinal(x,y,m.detail[j][k][0],m.detail[j][k][1],m.detail[j][k+1][0],m.detail[j][k+1][1])<.045)return false;
@@ -8041,6 +8042,7 @@ function hitSplash(g,x,y,radius,damage,skipId){
 }
 function fireV6(g,t,target,st,now){
   var type=t.attackType||'basic';
+  if(!target && type!=='medic' && type!=='coin' && type!=='coinburst' && type!=='vault')return false;
   if(type==='medic'){
     var healTarget=g.towers.filter(function(q){return q!==t&&q.hp<q.maxHp;}).sort(function(a,b){return Math.hypot(a.x-t.x,a.y-t.y)-Math.hypot(b.x-t.x,b.y-t.y);})[0];
     if(healTarget&&Math.hypot(healTarget.x-t.x,healTarget.y-t.y)<=st.range/850){
