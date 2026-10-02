@@ -726,14 +726,21 @@ window.commanderCanPlaceFinal=function(x,y){
     return !!g&&g.active==='commander'&&g.phase==='battle'&&commanderCanPlaceCompat(g,x,y);
   }catch(e){return false;}
 };
-var commanderAuthoritativeStartWaveV13=window.__commanderStartWaveFinal;
- window.__commanderStartWaveFinal=function(e){
+window.__commanderStartWaveFinal=function(e){
    try{
-     if(typeof commanderAuthoritativeStartWaveV13!=='function'){
+     /* Resolve the authoritative handler at click time. The Commander page can
+        define/redefine it after this fix script loads, so never capture an
+        early undefined/stale reference. */
+     var handler=window.__commanderStartWaveAuthoritative;
+     if(typeof handler!=='function'){
+       handler=window.__commanderStartWaveBase;
+     }
+     if(typeof handler!=='function'){
        console.error('Commander authoritative Start Wave handler is unavailable.');
+       if(typeof showRewardToast==='function')showRewardToast('Start Wave is still loading. Please try again.');
        return false;
      }
-     return commanderAuthoritativeStartWaveV13(e);
+     return handler(e);
    }catch(err){
      console.error('Commander Start Wave failed',err);
      try{if(typeof showRewardToast==='function')showRewardToast('Commander could not start the wave.');}catch(e2){}
