@@ -139,8 +139,13 @@ function injectCss(){
     .commander-pack-v4-tip b{font:950 12px system-ui}
     .commander-pack-v4-tip .gold{color:#ffd867}
     .commander-pack-v4-tip .blue{color:#a9e5ff}
+    .commander-pack-v4-wallet{display:grid!important;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;padding:10px 12px!important;margin-bottom:8px!important}
+    .commander-pack-v4-wallet>span:first-child{font:900 10px system-ui;color:#d5e6f4;text-transform:uppercase;letter-spacing:.06em}
+    .commander-pack-v4-wallet>b{font:950 19px system-ui;color:#ffe06a;line-height:1}
+    .commander-pack-v4-wallet-persistent{grid-column:1/-1;font:800 8px system-ui;color:#9db7ca;margin-top:2px}
     .commander-pack-v4-ghost{position:absolute;transform:translate(-50%,-50%);width:90px;height:94px;z-index:25;pointer-events:none;display:grid;place-items:center}
-    .commander-pack-v4-ghost-art{width:78px;height:78px;opacity:.68}
+    .commander-pack-v4-ghost-shadow{position:absolute;left:50%;top:74%;width:52px;height:15px;transform:translate(-50%,-50%);border-radius:50%;background:rgba(0,0,0,.42);filter:blur(5px);opacity:.8}
+    .commander-pack-v4-ghost-art{width:78px;height:78px;opacity:.58;filter:drop-shadow(0 7px 10px rgba(0,0,0,.35))}
     .commander-pack-v4-ghost-art svg{width:78px!important;height:78px!important}
     .commander-pack-v4-ghost-ring{position:absolute;width:160px;height:160px;border-radius:50%;border:3px solid #38db94;background:rgba(56,219,148,.10)}
     .commander-pack-v4-ghost-ring.blocked{border-color:#ec5d6a;background:rgba(236,93,106,.11)}
@@ -191,6 +196,7 @@ function renderRight(){
   ensurePackDefs();
   var right=actualRight(),g=typeof state!=='undefined'?state.games:null;
   if(!right||!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
+  ensureInitialDeploymentBudget(g);
   var list=unlockedPackIds();
   if(g.selectedTroop&&tdef(g.selectedTroop)&&Number(g.waveCoins||0)<Math.max(1,Number(tdef(g.selectedTroop).cost)||1))g.selectedTroop=null;
   var currentFilter=g.packV4Filter||'All';
@@ -204,7 +210,7 @@ function renderRight(){
   var tail='<button class="commander-auth-start" type="button" id="commander-pack-v4-start">▶ Start Wave</button><button class="commander-auth-change" type="button" id="commander-pack-v4-map">Change Map</button><button class="commander-auth-change" type="button" id="commander-pack-v4-topic">Change AP Topic</button>';
   var title='<div class="commander-auth-title">Indexling Arsenal</div>';
   var p;try{p=commanderFinalProfile();}catch(e){p={coins:0};}
-  var round='<div class="commander-auth-budget">🪙 Deployment budget: <b>'+Math.floor(g.waveCoins||0)+'</b> · Persistent coins: <b>'+Math.floor(p.coins||0)+'</b></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>';
+  var round='<div class="commander-auth-budget commander-pack-v4-wallet"><span>🪙 Deployment coins</span><b>'+Math.floor(g.waveCoins||0)+'</b><span class="commander-pack-v4-wallet-persistent">Persistent coins: '+Math.floor(p.coins||0)+'</span></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>';
   var filters='<div class="commander-pack-v4-filter">'+categories.map(function(cat){return '<button type="button" class="'+(currentFilter===cat?'active':'')+'" data-pack-v4-filter="'+cat+'">'+cat+'</button>';}).join('')+'</div>';
   var cards=filtered.map(function(c){return buildCard(c,g);}).join('');
   right.innerHTML=title+round+filters+(cards?'<div class="commander-pack-v4">'+cards+'</div>':'<div class="commander-pack-v4-empty">No pack Indexlings are unlocked yet. Open a pack and return here to deploy them.</div>')+tail;
@@ -218,7 +224,7 @@ function syncLayers(){
   ensurePackDefs();
   var world=document.querySelector('#games-stage .commander-auth-battle .commander-auth-world'),g=typeof state!=='undefined'?state.games:null;
   if(!world||!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
-  injectCss();renderRight();
+  injectCss();renderRight();installPreviewHandlers(world);
   var layer=world.querySelector('.commander-pack-v4-unit-layer');
   if(!layer){layer=document.createElement('div');layer.className='commander-pack-v4-unit-layer';world.appendChild(layer);}
   var key=(g.towers||[]).map(function(t){return[t.id,t.x,t.y,t.level,t.hp].join(':');}).join('|')+'#'+String(g.selectedTroop||'')+'#'+String(g.cursor?g.cursor.x+','+g.cursor.y+','+g.cursor.valid:'');
@@ -243,6 +249,7 @@ function syncLayers(){
     var pc=getCos(g.selectedTroop),pt=tdef(g.selectedTroop);
     if(pc&&pt){
       html+='<div class="commander-pack-v4-ghost" style="left:'+(g.cursor.x*100)+'%;top:'+(g.cursor.y*100)+'%;">'+
+        '<div class="commander-pack-v4-ghost-shadow"></div>'+
         '<div class="commander-pack-v4-ghost-ring '+(g.cursor.valid?'':'blocked')+'"></div>'+
         '<div class="commander-pack-v4-ghost-art">'+getArt(g.selectedTroop,false)+'</div>'+
         '<div class="commander-pack-v4-ghost-label '+(g.cursor.valid?'':'blocked')+'">'+(g.cursor.valid?'PLACE':'BLOCKED')+' · '+esc(pc.name)+'</div>'+
@@ -260,6 +267,36 @@ function syncLayers(){
       renderBattle(gg);setTimeout(syncLayers,0);
     },true);
   });
+}
+function updatePreviewGhost(g){
+  var world=document.querySelector('#games-stage .commander-auth-battle .commander-auth-world');
+  var layer=world&&world.querySelector('.commander-pack-v4-unit-layer');
+  if(!world||!layer)return;
+  var ghost=layer.querySelector('.commander-pack-v4-ghost');
+  if(!g||!g.selectedTroop||g.running||g.questionGateOpen||!g.cursor||!ghost){if(ghost)ghost.remove();return;}
+  ghost.style.left=(g.cursor.x*100)+'%';
+  ghost.style.top=(g.cursor.y*100)+'%';
+  var ring=ghost.querySelector('.commander-pack-v4-ghost-ring');
+  var label=ghost.querySelector('.commander-pack-v4-ghost-label');
+  if(ring)ring.classList.toggle('blocked',!g.cursor.valid);
+  if(label){
+    label.classList.toggle('blocked',!g.cursor.valid);
+    label.textContent=(g.cursor.valid?'PLACE':'BLOCKED')+' · '+((getCos(g.selectedTroop)||{}).name||'Indexling');
+  }
+}
+function installPreviewHandlers(world){
+  var cv=world&&world.querySelector('#commander-auth-canvas');
+  if(!cv||cv.dataset.packPreviewBound==='1')return;
+  cv.dataset.packPreviewBound='1';
+  cv.addEventListener('pointermove',function(){
+    var g=typeof state!=='undefined'?state.games:null;
+    if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen)return;
+    updatePreviewGhost(g);
+  },false);
+  cv.addEventListener('pointerleave',function(){
+    var g=typeof state!=='undefined'?state.games:null;
+    if(g){g.cursor=null;updatePreviewGhost(g);}
+  },false);
 }
 function patchPlacementGuard(){
   if(window.__packPlacementGuardV4)return;
