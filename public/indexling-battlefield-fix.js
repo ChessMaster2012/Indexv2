@@ -411,7 +411,8 @@ function renderRight(){
   right.innerHTML=title+round+selectionHint+filters+(cards?'<div class="commander-pack-v4">'+cards+'</div>':'<div class="commander-pack-v4-empty">No pack Indexlings are unlocked yet. Open a pack and return here to deploy them.</div>')+tail;
   bindPackCardClicks(right);
   right.querySelectorAll('[data-pack-v4-filter]').forEach(function(b){b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();g.packV4Filter=b.getAttribute('data-pack-v4-filter');renderRight();},true);});
-  var sb=right.querySelector('#commander-pack-v4-start');if(sb)sb.addEventListener('click',function(e){var fn=window.__commanderStartWaveAuthoritative||window.__commanderStartWaveFinal;if(typeof fn==='function')fn(e);},true);
+  /* Start Wave is handled only by the single document-level Commander
+     listener below; do not attach a second button listener here. */
   var mb=right.querySelector('#commander-pack-v4-map');if(mb)mb.addEventListener('click',function(e){if(typeof window.__commanderChangeMapFinal==='function')window.__commanderChangeMapFinal(e);},true);
   var tb=right.querySelector('#commander-pack-v4-topic');if(tb)tb.addEventListener('click',function(e){if(typeof window.__commanderChangeTopicFinal==='function')window.__commanderChangeTopicFinal(e);},true);
 }
