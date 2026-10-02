@@ -12,6 +12,14 @@ var PACK_META={
   cosmic:{label:'Cosmic Odyssey',costBase:70}
 };
 var ROLE_SEQ=['Damage','Support','Splash','Control','Tank','Damage','Support','Splash'];
+var PACK_ATTACK_TYPES={
+  candy:['sugar-stinger','gumdrop-bounce','taffy-lash','choco-burst','jelly-spray','caramel-arc','sprinkle-storm','lolli-spin'],
+  medieval:['shield-boomerang','bardic-note','hammer-smash','lance-thrust','alchemy-flask','dragon-flame','arcane-orb','royal-sigil'],
+  robo:['pulse-beam','circuit-arc','servo-punch','drone-laser','mecha-rocket','reactor-ring','cyber-disc','overclock-bolt'],
+  ocean:['bubble-shot','coral-spear','pearl-burst','harpoon','kelp-snare','kraken-tentacle','abyss-wave','trident-bolt'],
+  arcade:['pixel-bolt','joystick-pulse','pixel-burst','glitch-beam','synth-wave','racer-boost','arcade-cannon','highscore-ray'],
+  cosmic:['comet-trail','moon-ray','star-burst','nebula-pulse','eclipse-orb','quasar-beam','void-collapse','supernova']
+};
 var ATTACK_PREFIX={
   candy:['Sugar Sting','Gumdrop Bounce','Taffy Whip','Choco Crush','Jelly Burst','Caramel Lash','Sprinkle Volley','Lolli Crown'],
   medieval:['Shield Bash','Bardic Inspire','Hammer Strike','Lance Charge','Alchemy Bomb','Dragon Flame','Arcane Volley','Royal Decree'],
@@ -57,7 +65,7 @@ function buildDef(c,i){
     cooldown:Math.max(4,8-(tier-1)*.5),
     power:Math.round((10+idx*2)*rarity),
     ability:attack,
-    attackType:'basic',
+    attackType:(PACK_ATTACK_TYPES[pack]&&PACK_ATTACK_TYPES[pack][idx%PACK_ATTACK_TYPES[pack].length])||'basic',
     description:c.name+' uses '+attack+' as its signature attack.'
   };
 }
