@@ -7976,6 +7976,26 @@ window.commanderRenderScreen=function(){
   stage.innerHTML=commanderSaveSlotsHtmlV2();
 };
 
+/* Commander public bridge for the external pack Arsenal. */
+window.COMMANDER_MAPS_FINAL=COMMANDER_MAPS_FINAL;
+window.COMMANDER_TROOPS_FINAL=COMMANDER_TROOPS_FINAL;
+window.COMMANDER_ENEMIES_FINAL=COMMANDER_ENEMIES_FINAL;
+try{window.REWARD_COSMETICS=REWARD_COSMETICS;}catch(e){}
+window.commanderFinalProfile=commanderFinalProfile;
+window.commanderQuestionPoolFinal=commanderQuestionPoolFinal;
+window.commanderSaveFinal=commanderSaveFinal;
+window.v6Save=v6Save;
+window.profile=profile;
+window.tdef=tdef;
+window.richStats=richStats;
+window.canPlace=canPlace;
+window.renderBattle=renderBattle;
+window.spawnV6=spawnV6;
+window.fireV6=fireV6;
+window.updateProjectile=updateProjectile;
+window.ensureCommanderTroopRegistryV9=ensureCommanderTroopRegistryV9;
+window.syncLayers=window.syncLayers||null;
+
 /*
  * COMMANDER WAVE ENGINE V10
  * Final wave controller. It owns the wave loop directly instead of delegating
