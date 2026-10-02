@@ -8161,6 +8161,9 @@ window.spawnV6=spawnV6;
 window.fireV6=fireV6;
 window.updateProjectile=updateProjectile;
 window.ensureCommanderTroopRegistryV9=ensureCommanderTroopRegistryV9;
+window.commanderDrawEnemyFinal=commanderDrawEnemyFinal;
+window.projectileDraw=projectileDraw;
+window.commanderAdvanceToNextQuestion=commanderAdvanceToNextQuestion;
 window.syncLayers=window.syncLayers||null;
 
 try{ensureInlinePackTroops();}catch(e){}
@@ -8366,14 +8369,15 @@ document.addEventListener('click',function(e){
   e.preventDefault();
   e.stopPropagation();
   e.stopImmediatePropagation();
-  commanderStartWaveEngineV10(e);
+  var handler=window.__commanderStartWaveAuthoritative;
+  if(typeof handler==='function')handler(e);
 },true);
 
 setInterval(function(){
   try{
     var g=state&&state.games;
     if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return;
-    if(g.running&&!g.frame&&!commanderWaveEngineV10.active)commanderStartWaveEngineV10();
+    if(g.running&&!g.__commanderRuntimeWave&&!g.frame&&!commanderWaveEngineV10.active)commanderStartWaveEngineV10();
   }catch(err){console.error('[Commander V10] watchdog failed',err);}
 },250);
 
