@@ -9,6 +9,7 @@ const battlefieldTag = '<script src="/indexling-battlefield-fix.js?v=22"></scrip
 const v14Tag = '<script src="/commander-runtime-v14.js?v=2"></script>';
 const hotfixTag = '<script src="/indexling-commander-hotfix-v20.js?v=24"></script>';
 const runtimeTag = '<script src="/commander-runtime-v16.js?v=1"></script>';
+const runtimeV17Tag = '<script src="/commander-runtime-v17.js?v=1"></script>';
 
 try {
   let html = fs.readFileSync(htmlPath, 'utf8');
@@ -25,15 +26,17 @@ try {
   html = html.replace(/<script src="\/commander-runtime-v14\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v15\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v16\.js(?:\?v=[^"]*)?"><\/script>/g, '');
+  html = html.replace(/<script src="\/commander-runtime-v17\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.split(battlefieldTag).join('');
   html = html.split(v14Tag).join('');
   html = html.split(hotfixTag).join('');
   html = html.split(runtimeTag).join('');
+  html = html.split(runtimeV17Tag).join('');
 
   if (!html.includes(marker)) {
-    html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag + '\n</body>');
+    html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag + '\n' + runtimeV17Tag + '\n</body>');
   } else {
-    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag);
+    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag + '\n' + runtimeV17Tag);
   }
 
   fs.writeFileSync(htmlPath, html, 'utf8');
