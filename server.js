@@ -1097,7 +1097,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
 
-    const raw=await callVireonix(messages,true,19000,1200);
+    const raw=await callVireonix(messages,true,29600,1200);
     const data=parseCommanderQuestionJson(raw);
     if(!data){
       return res.status(502).json({
