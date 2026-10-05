@@ -591,6 +591,25 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   }
 }
 
+async function callVireonixCommanderBank(messages){
+  const deadline=Date.now()+29200;
+  let lastError=null;
+  for(let attempt=0;attempt<2;attempt++){
+    const remaining=Math.max(900,deadline-Date.now());
+    if(remaining<900) break;
+    const timeout=Math.min(14500,remaining-500);
+    try{
+      return await callVireonix(messages,true,timeout,1200);
+    }catch(e){
+      lastError=e;
+      if(!providerRetryable(e)||attempt===1) throw e;
+      const wait=Math.min(900,Math.max(200,Number(e?.retryAfter||0)*1000));
+      await new Promise(resolve=>setTimeout(resolve,Math.min(wait,Math.max(100,deadline-Date.now()-600))));
+    }
+  }
+  throw lastError||new Error('Vireonix Commander request failed.');
+}
+
 async function tryVireonix(messages,complex=false){
   // Vireonix Auto is the ONLY cloud AI provider.
   // One request only: there is no retry and no alternate model, so every
@@ -1097,7 +1116,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
 
-    const raw=await callVireonix(messages,true,29600,1200);
+    const raw=await callVireonixCommanderBank(messages);
     const data=parseCommanderQuestionJson(raw);
     if(!data){
       return res.status(502).json({
