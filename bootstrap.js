@@ -10,6 +10,7 @@ const v14Tag = '<script src="/commander-runtime-v14.js?v=2"></script>';
 const hotfixTag = '<script src="/indexling-commander-hotfix-v20.js?v=24"></script>';
 const runtimeTag = '<script src="/commander-runtime-v16.js?v=1"></script>';
 const runtimeV17Tag = '<script src="/commander-runtime-v17.js?v=1"></script>';
+const runtimeV18Tag = '<script src="/commander-runtime-v18.js?v=1"></script>';
 
 try {
   let html = fs.readFileSync(htmlPath, 'utf8');
@@ -17,26 +18,25 @@ try {
   html = html.split('<!-- INDEXLING_CUSTOM_V1 -->').join('');
   html = html.split('<script src="/indexling-custom.js"></script>').join('');
   html = html.split(questTag).join('');
-  /* Remove every previously injected Commander fix version before adding the
-     current one. Version bumps must not accumulate duplicate script handlers. */
   html = html.replace(/<script src="\/indexling-battlefield-fix\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/indexling-commander-hotfix-v20\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v13\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v14\.js(?:\?v=[^"]*)?"><\/script>/g, '');
-  html = html.replace(/<script src="\/commander-runtime-v14\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v15\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v16\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v17\.js(?:\?v=[^"]*)?"><\/script>/g, '');
+  html = html.replace(/<script src="\/commander-runtime-v18\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.split(battlefieldTag).join('');
   html = html.split(v14Tag).join('');
   html = html.split(hotfixTag).join('');
   html = html.split(runtimeTag).join('');
   html = html.split(runtimeV17Tag).join('');
+  html = html.split(runtimeV18Tag).join('');
 
   if (!html.includes(marker)) {
-    html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag + '\n' + runtimeV17Tag + '\n</body>');
+    html = html.replace('</body>', '\n' + marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag + '\n' + runtimeV17Tag + '\n' + runtimeV18Tag + '\n</body>');
   } else {
-    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag + '\n' + runtimeV17Tag);
+    html = html.replace(marker, marker + '\n' + questTag + '\n' + battlefieldTag + '\n' + v14Tag + '\n' + hotfixTag + '\n' + runtimeTag + '\n' + runtimeV17Tag + '\n' + runtimeV18Tag);
   }
 
   fs.writeFileSync(htmlPath, html, 'utf8');
