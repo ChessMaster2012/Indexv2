@@ -1802,7 +1802,8 @@ function accountStatePayload(){
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
     progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,gameProgress:state.progress.gameProgress&&typeof state.progress.gameProgress==='object'?state.progress.gameProgress:{},dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||'',bio:state.profile.bio||'',favoriteSubject:state.profile.favoriteSubject||'',studyGoal:state.profile.studyGoal||'',profileAccent:state.profile.profileAccent||'purple',showProgress:state.profile.showProgress!==false,reducedMotion:state.profile.reducedMotion===true},
-    quests:(typeof questPayload==='function'?questPayload():undefined)
+    quests:(typeof questPayload==='function'?questPayload():undefined),
+    membershipOnboardingCompleted: membershipOnboardingCompleted()
   };
 }
 let accountSyncNoticeAt=0;
@@ -1863,6 +1864,7 @@ async function loadAccountState(){
       return;
     }
     const a=d.state;
+    if(a.membershipOnboardingCompleted===true){const onboardingKey=membershipOnboardingKey();if(onboardingKey)try{localStorage.setItem(onboardingKey,'1');}catch(e){}}
     if(Array.isArray(a.notes)) state.notes=a.notes;
     if(Array.isArray(a.studySets)) state.studySets=a.studySets;
     if(a.customTopics && typeof a.customTopics==='object') state.customTopics=a.customTopics;
@@ -1943,6 +1945,7 @@ function membershipOnboardingCompleted(){
 function markMembershipOnboardingCompleted(){
   const key=membershipOnboardingKey();
   if(key)try{localStorage.setItem(key,'1');}catch(e){}
+  if(state.account)scheduleAccountStateSync();
 }
 function openNewUserMembershipPrompt(force=false){
   if(!state.account||(!force&&membershipOnboardingCompleted()))return;
@@ -2284,6 +2287,11 @@ function buildReelItems(reward, kind='study'){
   items.splice(9,0,reward);
   return items;
 }
+function indexCoinIconSvg(size){
+  const px=Math.max(12,Math.min(32,Math.round(Number(size)||16)));
+  return '<svg class="index-coin-svg" viewBox="0 0 24 24" width="'+px+'" height="'+px+'" aria-label="coins" role="img" style="display:inline-block;vertical-align:-0.22em;flex:none"><circle cx="12" cy="12" r="9.2" fill="#f4c542" stroke="#805716" stroke-width="1.6"/><circle cx="12" cy="12" r="6.4" fill="#ffdf78" stroke="#c28a24" stroke-width="1.1"/><path d="M14.8 8.3c-.7-.7-1.7-1-2.8-1-1.8 0-3 .9-3 2.1 0 1.2 1.1 1.7 3 2.1 1.7.4 2.8.9 2.8 2.1 0 1.3-1.2 2.2-3.1 2.2-1.2 0-2.3-.4-3.1-1.2M12 6.9v10.2" fill="none" stroke="#805716" stroke-width="1.3" stroke-linecap="round"/></svg>';
+}
+window.indexCoinIconSvg=indexCoinIconSvg;
 function updateCoinDisplays(){
   const coins=state.progress.coins||0;
   document.querySelectorAll('.wallet-coins,.coin-balance,.account-coin-value').forEach(el=>{ el.textContent=coins; });
@@ -2784,7 +2792,7 @@ function renderRewards(){
     </button>
   </aside>`;
   const tabHtml=`<div class="reward-tabs"><button type="button" class="reward-tab ${tab==='battlepass'?'active':''}" data-action="reward-tab" data-tab="battlepass" onclick="setRewardsTab('battlepass')">🏆 Battle Pass</button><button type="button" class="reward-tab ${tab==='avatar'?'active':''}" data-action="reward-tab" data-tab="avatar" onclick="setRewardsTab('avatar')">🧑 Avatar</button><button type="button" class="reward-tab ${tab==='packs'?'active':''}" data-action="reward-tab" data-tab="packs" onclick="setRewardsTab('packs')">📦 Packs</button><button type="button" class="reward-tab ${tab==='daily'?'active':''}" data-action="reward-tab" data-tab="daily" onclick="setRewardsTab('daily')">🎡 Daily Wheel</button></div>`;
-  const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Teacher-hosted Live Games are the source of coins for cosmetic packs.</p></div><div class="rewards-wallet"><span>🪙</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
+  const head=`<div class="rewards-topline"><div><div class="rewards-eyebrow">Index Rewards</div><h2 class="rewards-title">Learn. Level up. Unlock.</h2><p class="lede rewards-subtitle">Every lesson, practice set, quiz, and game can push your XP forward. Teacher-hosted Live Games are the source of coins for cosmetic packs.</p></div><div class="rewards-wallet"><span>${indexCoinIconSvg(26)}</span><span><small style="display:block;opacity:.65;font-size:9px;text-transform:uppercase;letter-spacing:.12em;">Wallet</small><span class="wallet-coins">${state.progress.coins||0}</span></span></div></div>${tabHtml}<div class="daily-cap"><div class="daily-cap-head"><span>Daily coin earning limit</span><span>${daily.earned}/${DAILY_COIN_CAP} earned · ${remaining} left</span></div><div class="daily-cap-track"><div class="daily-cap-fill" style="width:${pct}%"></div></div><div class="reward-muted">${remaining===0?'<span class="coin-cap-reached">You reached today’s cap. Your coin balance is still yours to spend.</span>':'Coins reset toward the earning limit tomorrow. The cap does not remove coins you already own.'}</div></div>`;
   let body='';
   if(tab==='battlepass'){
     const bpCards=BP_REWARDS.map(r=>{
@@ -2843,11 +2851,11 @@ function renderRewards(){
     const labels=values.map((v,i)=>'<span class="daily-wheel-label" style="--wi:'+i+'">'+v+'</span>').join('');
     const colors=['#ffcf8a','#ffd6a5','#ffb4a2','#ff8fb1','#d9a7ff','#b9a1ff','#8fc8ff','#8bd9c0','#9ee493','#d4e27a','#ffd56a','#ffbc73','#ffa17d','#ff8fa3','#cf9bff'];
     const stops=colors.map((c,i)=>c+' '+(i/15*100)+'% '+((i+1)/15*100)+'%').join(',');
-    body='<div class="daily-wheel-card"><div class="rewards-eyebrow">DAILY REWARD</div><h3>Spin for coins</h3><p class="reward-muted">15 different coin values. The server chooses your reward, then the wheel launches into a rapid spin and smoothly slows to the winning value.</p><div class="daily-wheel-wrap"><div class="daily-wheel-pointer"></div><div id="daily-wheel" class="daily-wheel" style="--wheel-segments:conic-gradient('+stops+')">'+labels+'<div class="daily-wheel-center">INDEX</div></div></div><div id="daily-wheel-result" class="daily-wheel-result">'+(wheelToday?'You already spun today'+(lastReward?' · +🪙 '+lastReward:'')+'.':'')+'</div><div id="daily-wheel-countdown" class="reward-muted">Next spin countdown loading…</div><button class="btn btn-primary" data-action="daily-wheel-spin" '+(wheelToday?'disabled':'')+'>'+(wheelToday?'✓ Already spun today':'🎡 Spin for coins')+'</button><div class="wheel-values">'+values.map(v=>'<span>🪙 '+v+'</span>').join('')+'</div></div>';
+    body='<div class="daily-wheel-card"><div class="rewards-eyebrow">DAILY REWARD</div><h3>Spin for coins</h3><p class="reward-muted">15 different coin values. The server chooses your reward, then the wheel launches into a rapid spin and smoothly slows to the winning value.</p><div class="daily-wheel-wrap"><div class="daily-wheel-pointer"></div><div id="daily-wheel" class="daily-wheel" style="--wheel-segments:conic-gradient('+stops+')">'+labels+'<div class="daily-wheel-center">INDEX</div></div></div><div id="daily-wheel-result" class="daily-wheel-result">'+(wheelToday?'You already spun today'+(lastReward?' · +🪙 '+lastReward:'')+'.':'')+'</div><div id="daily-wheel-countdown" class="reward-muted">Next spin countdown loading…</div><button class="btn btn-primary" data-action="daily-wheel-spin" '+(wheelToday?'disabled':'')+'>'+(wheelToday?'✓ Already spun today':'🎡 Spin for coins')+'</button><div class="wheel-values">'+values.map(v=>'<span>'+indexCoinIconSvg(14)+' '+v+'</span>').join('')+'</div></div>';
     setTimeout(updateDailyWheelCountdown,0);
   } else {
-    const packCard=(kind)=>{const c=packConfig(kind),tokens=Math.max(0,Number(state.progress.freePackTokens)||0),can=(tokens>0||(state.progress.coins||0)>=c.cost)&&!state.rewardPackOpening;const contents=packContents(kind);const buttonText=tokens>0?'Open free pack':can?'Open pack':'Not enough coins';return '<div class="pack-option" data-pack="'+kind+'" style="--pack-accent:'+c.accent+'"><div class="pack-rarity-line" style="background:linear-gradient(90deg,'+c.accent+',#fff)"></div><div class="pack-box">'+indexPackArt(c,kind)+'</div><div class="pack-name" aria-label="'+esc(c.name)+'">'+esc(c.name)+'</div><div class="pack-desc">8 original Indexlings from the '+esc(c.theme||c.name)+' collection.</div><div class="pack-theme-line">'+contents.map(item=>'<span class="mini-ling">'+indexlingArtHtml(item,true)+'</span>').join('')+'</div><div class="pack-count">8 collectibles · '+c.weights.Common+'% Common · '+c.weights.Rare+'% Rare · '+c.weights.Epic+'% Epic · '+c.weights.Legendary+'% Legendary</div><div class="pack-cost"><span class="coin-pill">🪙 '+c.cost+'</span></div><button class="btn '+(can?'btn-primary':'btn-ghost')+'" data-action="open-pack" data-pack="'+kind+'" '+(can?'':'disabled')+'>'+buttonText+'</button></div>';};
-    body='<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">INDEXLING VAULT</div><div class="pack-showcase-title">Pick a world.</div><div class="pack-showcase-copy">Candy, medieval, robo, ocean, arcade, and cosmic packs each have a different collectible set.</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="coin-pill">🪙 <span class="coin-balance">'+(state.progress.coins||0)+'</span></div><div class="coin-pill">🎁 <span>'+(Math.max(0,Number(state.progress.freePackTokens)||0))+'</span> free pack'+((Number(state.progress.freePackTokens)||0)===1?'':'s')+'</div></div></div><div class="pack-shelf">'+PACK_ORDER.map(packCard).join('')+'</div></div></div>';
+    const packCard=(kind)=>{const c=packConfig(kind),tokens=Math.max(0,Number(state.progress.freePackTokens)||0),can=(tokens>0||(state.progress.coins||0)>=c.cost)&&!state.rewardPackOpening;const contents=packContents(kind);const buttonText=tokens>0?'Open free pack':can?'Open pack':'Not enough coins';return '<div class="pack-option" data-pack="'+kind+'" style="--pack-accent:'+c.accent+'"><div class="pack-rarity-line" style="background:linear-gradient(90deg,'+c.accent+',#fff)"></div><div class="pack-box">'+indexPackArt(c,kind)+'</div><div class="pack-name" aria-label="'+esc(c.name)+'">'+esc(c.name)+'</div><div class="pack-desc">8 original Indexlings from the '+esc(c.theme||c.name)+' collection.</div><div class="pack-theme-line">'+contents.map(item=>'<span class="mini-ling">'+indexlingArtHtml(item,true)+'</span>').join('')+'</div><div class="pack-count">8 collectibles · '+c.weights.Common+'% Common · '+c.weights.Rare+'% Rare · '+c.weights.Epic+'% Epic · '+c.weights.Legendary+'% Legendary</div><div class="pack-cost"><span class="coin-pill">'+indexCoinIconSvg(14)+' '+c.cost+'</span></div><button class="btn '+(can?'btn-primary':'btn-ghost')+'" data-action="open-pack" data-pack="'+kind+'" '+(can?'':'disabled')+'>'+buttonText+'</button></div>';};
+    body='<div class="pack-showcase"><div class="pack-showcase-inner"><div class="pack-showcase-head"><div><div class="rewards-eyebrow" style="color:#d9d0ff">INDEXLING VAULT</div><div class="pack-showcase-title">Pick a world.</div><div class="pack-showcase-copy">Candy, medieval, robo, ocean, arcade, and cosmic packs each have a different collectible set.</div></div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="coin-pill">${indexCoinIconSvg(14)} <span class="coin-balance">'+(state.progress.coins||0)+'</span></div><div class="coin-pill">🎁 <span>'+(Math.max(0,Number(state.progress.freePackTokens)||0))+'</span> free pack'+((Number(state.progress.freePackTokens)||0)===1?'':'s')+'</div></div></div><div class="pack-shelf">'+PACK_ORDER.map(packCard).join('')+'</div></div></div>';
 
   }
   root.innerHTML=`<div class="rewards-page"><div class="rewards-layout">${rail}<div class="rewards-main">${head}${body}</div></div></div>`;
@@ -3090,7 +3098,7 @@ function renderDashboard(){
     <div class="pb-item"><b>🔥 ${streak}</b>day streak</div>
     <div class="pb-item"><b>${state.progress.lessonsLearned.length}</b>lessons learned</div>
     <div class="pb-item"><b>${due}</b>cards due today</div>
-    <div class="pb-item"><b>🪙 ${state.progress.coins||0}</b>coins</div>
+    <div class="pb-item"><b>${indexCoinIconSvg(16)} ${state.progress.coins||0}</b>coins</div>
     <button class="btn btn-dark btn-sm" data-action="goto" data-view="rewards">🏆 Rewards</button>`;
   renderDashboardMembershipCard();
   document.getElementById('stat-row').innerHTML = `
@@ -3111,7 +3119,7 @@ function renderDashboard(){
 }
 function renderSidebarBadge(){
   const lvl = levelInfo(state.progress.xp); const streak = computeStreak();
-  document.getElementById('sidebar-foot').innerHTML = `<div class="sidebar-badge"><span>Lv ${lvl.level}</span><span>·</span><span>${state.progress.xp} XP</span><span>·</span><span>🪙 ${state.progress.coins||0}</span></div>`;
+  document.getElementById('sidebar-foot').innerHTML = `<div class="sidebar-badge"><span>Lv ${lvl.level}</span><span>·</span><span>${state.progress.xp} XP</span><span>·</span><span>${indexCoinIconSvg(14)} ${state.progress.coins||0}</span></div>`;
 }
 function displayName(){
   if(state.account && state.account.name) return state.account.name;
@@ -4898,7 +4906,7 @@ async function authSubmit(){
       document.getElementById('account-contact').textContent = `@${d.user.username} · ${d.user.email} · Account type: ${currentAccountTypeLabel()}`;
       await loadAccountCustomization();
       hydrateAccountCustomizer(); applyAccountProfilePreferences(); bindAccountCustomizerAutosave(); renderAccountSetupStep(1);
-      setTimeout(()=>openNewUserMembershipPrompt(true),250);
+      setTimeout(()=>openNewUserMembershipPrompt(),250);
     }else{
       closeSignin();
     }
@@ -5460,7 +5468,7 @@ async function handleAuthRedirectResult(){
     return;
   }
   if(state.account){
-    if(welcome)setTimeout(()=>openNewUserMembershipPrompt(true),350);
+    if(welcome)setTimeout(()=>openNewUserMembershipPrompt(),350);
     document.getElementById('signin-modal').classList.remove('hidden');
     document.getElementById('auth-panel').classList.add('hidden');
     document.getElementById('guest-panel').classList.add('hidden');
@@ -7268,7 +7276,7 @@ function battle(g){
   var p;try{p=profile();}catch(e){p={coins:0};}
   var active;try{active=activeHtml(g);}catch(e){active='<div class="commander-auth-empty">No Indexlings deployed yet.</div>';}
   var roster;try{roster=rosterHtml(g);}catch(e){console.error('Commander roster renderer failed:',e);roster=commanderSafeRosterHtml(g);}
-  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>🪙 '+Math.floor(Number(p.coins)||0)+'</b><span>Persistent Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+active+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div><div id="commander-live-hud" style="position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:25;padding:9px 14px;border-radius:999px;background:rgba(5,16,29,.82);border:1px solid rgba(140,220,255,.24);color:#e9fbff;font:900 10px/1 system-ui;letter-spacing:.04em;box-shadow:0 10px 28px rgba(0,0,0,.22);pointer-events:none;">ROUND 1 · ENEMIES 0 · REMAINING 0 · BASE 100</div><div class="commander-auth-ghost-label">'+(g.selectedTroop?'Hover the map to preview '+esc(tdef(g.selectedTroop).name)+' · green = place · red = blocked':'Select an Indexling to deploy')+'</div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexling Arsenal</div><div class="commander-auth-budget">🪙 Deployment budget: <b>'+Math.floor(g.waveCoins||0)+'</b> · Persistent coins: <b>'+Math.floor(p.coins||0)+'</b></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>'+roster+'<button type="button" id="commander-auth-start-wave" class="commander-auth-start" data-commander-start-wave="true" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
+  return '<div class="commander-authoritative-root commander-auth-battle"><aside class="commander-auth-side-left"><div class="commander-auth-title">Troops Deployed</div><div class="commander-auth-wallet"><div><b>'+indexCoinIconSvg(16)+' '+Math.floor(Number(p.coins)||0)+'</b><span>Persistent Coins</span></div><div><b>♥ '+Math.max(0,g.base)+'</b><span>Base</span></div></div><div class="commander-auth-active">'+active+'</div></aside><main class="commander-auth-world"><canvas id="commander-auth-canvas" class="commander-auth-canvas"></canvas><div id="commander-auth-unit-layer" class="commander-auth-unit-layer"></div><div class="commander-auth-map-label"><b>'+esc(m.name)+'</b><span>'+esc(m.difficulty)+' · Round '+Math.max(1,g.wave)+'</span></div><div id="commander-live-hud" style="position:absolute;left:50%;top:16px;transform:translateX(-50%);z-index:25;padding:9px 14px;border-radius:999px;background:rgba(5,16,29,.82);border:1px solid rgba(140,220,255,.24);color:#e9fbff;font:900 10px/1 system-ui;letter-spacing:.04em;box-shadow:0 10px 28px rgba(0,0,0,.22);pointer-events:none;">ROUND 1 · ENEMIES 0 · REMAINING 0 · BASE 100</div><div class="commander-auth-ghost-label">'+(g.selectedTroop?'Hover the map to preview '+esc(tdef(g.selectedTroop).name)+' · green = place · red = blocked':'Select an Indexling to deploy')+'</div></main><aside class="commander-auth-side-right"><div class="commander-auth-title">Indexling Arsenal</div><div class="commander-auth-budget">'+indexCoinIconSvg(16)+' Deployment budget: <b>'+Math.floor(g.waveCoins||0)+'</b> · Persistent coins: <b>'+Math.floor(p.coins||0)+'</b></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>'+roster+'<button type="button" id="commander-auth-start-wave" class="commander-auth-start" data-commander-start-wave="true" '+(g.running?'disabled':'')+'>▶ Start Wave</button><button class="commander-auth-change" onclick="return window.__commanderChangeMapFinal(event)">Change Map</button><button class="commander-auth-change" onclick="return window.__commanderChangeTopicFinal(event)">Change AP Topic</button></aside></div>';
 }
 function renderBattle(g){
   var stage=document.getElementById('games-stage');if(!stage)return;
