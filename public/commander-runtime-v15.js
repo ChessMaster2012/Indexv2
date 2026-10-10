@@ -28,7 +28,7 @@ function hardenLegacyWaveGuard(){
 function upgradeCost(t){
   var td=null;
   try{td=window.tdef?window.tdef(t.id):null;}catch(e){}
-  return Math.round(Math.max(8,Number(td&&td.cost)||8)*(1+Math.max(0,(Number(t.level)||1)-1)*.65));
+  return Math.round(Math.max(4,Number(td&&td.cost)||6)*(0.65+Math.max(0,(Number(t.level)||1)-1)*.45));
 }
 function syncActionLabels(){
   var g=game();
