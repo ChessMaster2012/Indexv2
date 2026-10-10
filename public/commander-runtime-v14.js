@@ -38,7 +38,7 @@ function draw(g){
   updateHud(g);
 }
 function spawn(g,m){
-  var i=Number(g.spawnCount)||0,defs=Array.isArray(COMMANDER_ENEMIES_FINAL)?COMMANDER_ENEMIES_FINAL:[],cycle=['runner','raider','flier','splitter','caster','elite','warden','brute'],kind=cycle[i%cycle.length],d=defs.find(function(x){return x&&x.id===kind;})||defs[0]||{hp:25,speed:.8,size:18,color:'#d85d70',baseDamage:3},p=m.route[0],n=m.route[1]||p,hp=Math.max(10,Math.round((d.hp||25)*(1+(Number(g.wave)||1)*.075)));
+  var i=Number(g.spawnCount)||0,defs=Array.isArray(COMMANDER_ENEMIES_FINAL)?COMMANDER_ENEMIES_FINAL:[],cycle=['runner','raider','flier','splitter','caster','elite','warden','brute'],kind=cycle[i%cycle.length],d=defs.find(function(x){return x&&x.id===kind;})||defs[0]||{hp:25,speed:.8,size:18,color:'#d85d70',baseDamage:3},p=m.route[0],n=m.route[1]||p,hp=Math.max(10,Math.round((d.hp||25)*(1+(Number(g.wave)||1)*.11)));
   g.enemies.push({id:'v14-'+Date.now()+'-'+i,kind:kind,shape:d.shape||kind,wp:0,x:p[0],y:p[1],hp:hp,maxHp:hp,speed:(d.speed||.8)*m.speed,baseDamage:d.baseDamage||3,size:d.size||18,color:d.color||'#d85d70',rot:Math.atan2(n[1]-p[1],n[0]-p[0]),slow:1,slowUntil:0,hit:0});g.spawnCount=i+1;
 }
 function fallbackProjectile(g,t,target,stats,now){if(!target)return false;g.projectiles.push({type:'v14-basic',x:t.x,y:t.y,prevX:t.x,prevY:t.y,tx:target.id,speed:.75,damage:Math.max(1,Number(stats.damage)||5),color:stats.shot||'#9fe8ff',life:1200});t.cool=Math.max(350,Number(stats.rate)||900);t.recoil=now+100;return true;}
@@ -51,7 +51,7 @@ function launchWave(e){
   if(g.frame){try{cancelAnimationFrame(g.frame);}catch(err){}g.frame=null;}
   g.__commanderStandaloneWave=true;g.__v14WaveOwner=true;g.__commanderWaveStartLock=true;
   if(!g.running)g.wave=Math.max(0,Number(g.wave)||0)+1;
-  g.running=true;g.spawnCount=0;g.spawnTotal=8+Math.min(14,(Number(g.wave)||1)*2);g.enemies=[];g.projectiles=[];g.effects=[];g.nextSpawnAt=performance.now()+180;g.lastFrame=performance.now();g.waveBanner='ROUND '+g.wave;g.waveBannerUntil=Date.now()+900;
+  g.running=true;g.spawnCount=0;g.spawnTotal=8+Math.min(20,(Number(g.wave)||1)*2);g.enemies=[];g.projectiles=[];g.effects=[];g.nextSpawnAt=performance.now()+180;g.lastFrame=performance.now();g.waveBanner='ROUND '+g.wave;g.waveBannerUntil=Date.now()+900;
   try{if(window.v6Save)window.v6Save(g);}catch(err){}lock(true);draw(g);
   function step(now){
     if(game()!==g||!g.__v14WaveOwner||!g.running||g.finished||g.questionGateOpen){stop();if(g)g.__v14WaveOwner=false;lock(false);return;}
