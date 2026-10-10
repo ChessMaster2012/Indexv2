@@ -58,7 +58,7 @@ function buildDef(c,i){
   var tier=c.rarity==='Legendary'?4:c.rarity==='Epic'?3:c.rarity==='Rare'?2:1;
   return {
     id:c.id,name:c.name,role:role+' Indexling',category:role,
-    cost:5+(tier-1)*3+Math.min(2,idx%3),
+    cost:42+(tier-1)*14+Math.min(2,idx%3)*4,
     damage:Math.round((9+idx*2)*rarity),
     range:118+(idx%8)*16+(tier-1)*8,
     rate:Math.max(650,1220-(idx%6)*65-(tier-1)*40),
@@ -87,6 +87,20 @@ function ensurePackDefs(){
     });
   }catch(e){}
 }
+/* Commander economy rebalance: apply once to built-in and pack-generated Indexlings. */
+function rebalanceCommanderCosts(){
+  try{
+    if(!Array.isArray(window.COMMANDER_TROOPS_FINAL))return;
+    window.COMMANDER_TROOPS_FINAL.forEach(function(t){
+      if(!t||!t.id)return;
+      if(typeof t.__commanderBaseCost!=='number')t.__commanderBaseCost=Math.max(1,Number(t.cost)||8);
+      var rarity=t.rarity||'';
+      var tier=rarity==='Legendary'?4:rarity==='Epic'?3:rarity==='Rare'?2:1;
+      var base=Number(t.__commanderBaseCost)||8;
+      t.cost=Math.round(Math.max(42,Math.min(90,42+(tier-1)*14+Math.max(0,Math.min(2,Math.round((base-8)/4)))*4)));
+    });
+  }catch(e){console.warn('[Commander economy] cost rebalance skipped',e);}
+}
 function tdef(id){
   try{
     var t=COMMANDER_TROOPS_FINAL.find(function(x){return x.id===id;});
@@ -95,6 +109,7 @@ function tdef(id){
   var c=getCos(id);
   return c?buildDef(c,0):null;
 }
+rebalanceCommanderCosts();
 function unlockedPackIds(){
   ensurePackDefs();
   var set={};
@@ -707,7 +722,7 @@ function normalizeQuestionAfterTransition(g){
 function ensureInitialDeploymentBudget(g){
   if(!g||g.phase!=='battle')return;
   if(Number(g.wave||0)===0&&!g.running&&!g.finished&&!g.initialDeploymentBudgetGranted){
-    g.waveCoins=Math.max(50,Number(g.waveCoins||0));
+    g.waveCoins=Math.max(90,Number(g.waveCoins||0));
     g.initialDeploymentBudgetGranted=true;
     try{commanderSaveFinal(g);}catch(e){}
   }
