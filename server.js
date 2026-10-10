@@ -2127,6 +2127,28 @@ app.put('/api/account/state', async (req,res)=>{
       return res.status(403).json({error:'Your '+limits.name+' plan allows up to '+limits.noteLimit+' saved notes. Upgrade your membership to save more.'});
     }
     const mergedAccountState={...incomingAccountState};
+    // XP and achievement history are monotonic. A stale tab on another device
+    // must not lower the account level or erase lessons/dates already saved.
+    const existingProgress=existingAccountState.progress&&typeof existingAccountState.progress==='object'?existingAccountState.progress:{};
+    const incomingProgress=mergedAccountState.progress&&typeof mergedAccountState.progress==='object'?mergedAccountState.progress:{};
+    const mergedActiveDates=Array.from(new Set([
+      ...(Array.isArray(existingProgress.activeDates)?existingProgress.activeDates:[]),
+      ...(Array.isArray(incomingProgress.activeDates)?incomingProgress.activeDates:[])
+    ].map(v=>String(v||'').slice(0,10)).filter(Boolean))).slice(-500);
+    const lessonMap=new Map();
+    [...(Array.isArray(existingProgress.lessonsLearned)?existingProgress.lessonsLearned:[]),
+      ...(Array.isArray(incomingProgress.lessonsLearned)?incomingProgress.lessonsLearned:[])].forEach(item=>{
+        let key;
+        try{key=typeof item==='string'?item:JSON.stringify(item);}catch(e){key=String(item);}
+        if(!lessonMap.has(key))lessonMap.set(key,item);
+      });
+    mergedAccountState.progress={
+      ...existingProgress,
+      ...incomingProgress,
+      xp:Math.max(0,Number(existingProgress.xp)||0,Number(incomingProgress.xp)||0),
+      activeDates:mergedActiveDates,
+      lessonsLearned:Array.from(lessonMap.values()).slice(-5000)
+    };
     // Membership is server-owned and only changes after verified Stripe events.
     if(existingAccountState.membership) mergedAccountState.membership=existingAccountState.membership;
     const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
