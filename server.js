@@ -1567,6 +1567,23 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 
+function sanitizeGameProgressValue(value, depth=0){
+  if(depth>8)return null;
+  if(value===null||typeof value==='boolean')return value;
+  if(typeof value==='number')return Number.isFinite(value)?Math.max(-1000000000,Math.min(1000000000,value)):0;
+  if(typeof value==='string')return value.slice(0,5000);
+  if(Array.isArray(value))return value.slice(0,1500).map(v=>sanitizeGameProgressValue(v,depth+1));
+  if(value&&typeof value==='object'){
+    const out={};
+    Object.entries(value).slice(0,1000).forEach(([key,item])=>{
+      const k=String(key).slice(0,100);
+      if(!k||k==='__proto__'||k==='constructor'||k==='prototype')return;
+      out[k]=sanitizeGameProgressValue(item,depth+1);
+    });
+    return out;
+  }
+  return null;
+}
 function sanitizeAccountState(input){
   const src = input && typeof input === 'object' ? input : {};
   const p = src.progress && typeof src.progress === 'object' ? src.progress : {};
@@ -1615,6 +1632,7 @@ function sanitizeAccountState(input){
       },
       openedPacks: Math.max(0, Math.min(1000000, Number(p.openedPacks)||0)),
       liveGames: Math.max(0, Math.min(1000000, Number(p.liveGames)||0)),
+      gameProgress: sanitizeGameProgressValue(p.gameProgress) || {},
       dailyCoinDate: String(p.dailyCoinDate || '').slice(0, 10),
       dailyCoinEarned: Math.max(0, Math.min(DAILY_COIN_CAP, Number(p.dailyCoinEarned)||0)),
       dailyWheelDate: String(p.dailyWheelDate || '').slice(0, 10),
@@ -1641,6 +1659,7 @@ function sanitizeAccountState(input){
       showProgress: profile.showProgress !== false,
       reducedMotion: profile.reducedMotion === true
     },
+    membershipOnboardingCompleted: src.membershipOnboardingCompleted === true,
     savedAt: Date.now()
   };
   const serializedSize = Buffer.byteLength(JSON.stringify(candidate), 'utf8');
