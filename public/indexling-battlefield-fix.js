@@ -30,6 +30,7 @@ var ATTACK_PREFIX={
 };
 
 function esc(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function coinIconHtml(){return '<svg class="commander-coin-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9.1" fill="#f6c945" stroke="#8b5e14" stroke-width="1.7"/><circle cx="12" cy="12" r="6.3" fill="#ffdf72" stroke="#c48a16" stroke-width="1.1"/><path d="M14.8 8.4c-.7-.7-1.7-1-2.8-1-1.8 0-3 .9-3 2.1 0 1.2 1.1 1.7 3 2.1 1.7.4 2.8.9 2.8 2.1 0 1.3-1.2 2.2-3.1 2.2-1.2 0-2.3-.4-3.1-1.2M12 6.9v10.2" fill="none" stroke="#8b5e14" stroke-width="1.3" stroke-linecap="round"/></svg>';}
 function cosmetics(){
   try{return Array.isArray(REWARD_COSMETICS)?REWARD_COSMETICS.filter(function(c){return c&&c.type==='indexling';}):[];}catch(e){return[];}
 }
@@ -97,7 +98,8 @@ function rebalanceCommanderCosts(){
       var rarity=t.rarity||'';
       var tier=rarity==='Legendary'?4:rarity==='Epic'?3:rarity==='Rare'?2:1;
       var base=Number(t.__commanderBaseCost)||8;
-      t.cost=Math.round(Math.max(6,Math.min(12,6+(tier-1)*2+Math.max(0,Math.min(2,Math.round((base-8)/4)))));
+      var costBonus=Math.max(0,Math.min(2,Math.round((base-8)/4)));
+      t.cost=Math.round(Math.max(6,Math.min(12,6+(tier-1)*2+costBonus)));
     });
   }catch(e){console.warn('[Commander economy] cost rebalance skipped',e);}
 }
@@ -144,6 +146,7 @@ function injectCss(){
     .commander-pack-v4-stats{font:700 7.2px/1.3 system-ui;color:#dcebf4;margin-top:4px}
     .commander-pack-v4-attack{font:900 7.2px/1.25 system-ui;color:#ffd867;margin-top:4px}
     .commander-pack-v4-cost{font:950 7.5px system-ui;color:#77e1b4;margin-top:4px}
+    .commander-coin-icon{display:inline-block;width:16px;height:16px;vertical-align:-3px;flex:none;}
     .commander-pack-v4-pill{display:inline-block;padding:2px 5px;border-radius:999px;background:rgba(255,255,255,.09);margin-right:3px}
     .commander-pack-v4-filter{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 4px}
     .commander-pack-v4-filter button{border:1px solid #36536c;background:#12263a;color:#b8d3e6;border-radius:999px;padding:4px 7px;font:900 7px system-ui;cursor:pointer}
@@ -338,7 +341,7 @@ function buildCard(c,g){
     '<div class="commander-pack-v4-meta"><span class="commander-pack-v4-pill">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+'</span><span class="commander-pack-v4-pill">'+esc(c.rarity)+'</span></div>'+
     '<div class="commander-pack-v4-stats">⚔ '+damage+' DMG · ◉ '+range+' RNG · '+dps+' DPS</div>'+
     '<div class="commander-pack-v4-attack">✦ '+esc(t.ability||c.name+' Signature')+'</div>'+
-    '<div class="commander-pack-v4-cost">Deploy · '+cost+' 🪙</div>'+
+    '<div class="commander-pack-v4-cost">Deploy · '+cost+' '+coinIconHtml()+'</div>'+
     '</button>';
 }
 window.__commanderArsenalSelectV7=function(card,e){
@@ -427,7 +430,7 @@ function renderRight(){
   var tail='<button class="commander-auth-start" type="button" id="commander-pack-v4-start">▶ Start Wave</button><button class="commander-auth-change" type="button" id="commander-pack-v4-map">Change Map</button><button class="commander-auth-change" type="button" id="commander-pack-v4-topic">Change AP Topic</button>';
   var title='<div class="commander-auth-title">Indexling Arsenal</div>';
   var p;try{p=commanderFinalProfile();}catch(e){p={coins:0};}
-  var round='<div class="commander-auth-budget commander-pack-v4-wallet"><span>🪙 Deployment coins</span><b>'+Math.floor(g.waveCoins||0)+'</b><span class="commander-pack-v4-wallet-persistent">Persistent coins: '+Math.floor(p.coins||0)+'</span></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>';
+  var round='<div class="commander-auth-budget commander-pack-v4-wallet"><span>'+coinIconHtml()+' Deployment coins</span><b>'+Math.floor(g.waveCoins||0)+'</b><span class="commander-pack-v4-wallet-persistent">Persistent coins: '+Math.floor(p.coins||0)+'</span></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>';
   var filters='<div class="commander-pack-v4-filter">'+categories.map(function(cat){return '<button type="button" class="'+(currentFilter===cat?'active':'')+'" data-pack-v4-filter="'+cat+'">'+cat+'</button>';}).join('')+'</div>';
   var selectionHint=g.selectedTroop&&tdef(g.selectedTroop)?'<div class="commander-pack-v4-selected">✓ Selected: <b>'+esc((getCos(g.selectedTroop)||{}).name||'Indexling')+'</b> · Move onto the battlefield to see its green/red range.</div>':'';
   var cards=filtered.map(function(c){return buildCard(c,g);}).join('');
