@@ -59,8 +59,29 @@ function launchWave(e){
       var dt=Math.min(.05,Math.max(0,(now-(g.lastFrame||now))/1000));g.lastFrame=now;var m2=mapFor(g);if(!m2)throw new Error('Map unavailable');
       while(g.spawnCount<g.spawnTotal&&now>=g.nextSpawnAt){spawn(g,m2);g.nextSpawnAt+=Math.max(420,Number(m2.spawn)||900);}
       (g.enemies||[]).forEach(function(en){var tar=m2.route[Math.min(en.wp+1,m2.route.length-1)];if(!tar)return;var speed=Math.max(.25,Number(en.speed)||.8)*(en.slowUntil>Date.now()?(en.slow||.5):1),mv=speed*dt*.18,dx=tar[0]-en.x,dy=tar[1]-en.y,d=Math.hypot(dx,dy)||1;if(d<=mv){en.x=tar[0];en.y=tar[1];en.wp++;if(en.wp>=m2.route.length-1){en.hp=0;g.base=Math.max(0,Number(g.base||0)-(Number(en.baseDamage)||3));}}else{en.x+=dx/d*mv;en.y+=dy/d*mv;}en.hit=Math.max(0,(en.hit||0)-dt*1000);});
-      (g.towers||[]).forEach(function(t){try{var stats=window.richStats?window.richStats(t.id,t.level):{range:150,rate:1000,damage:5,shot:'#9fe8ff'};var td=window.tdef?window.tdef(t.id):{};if(!t.attackType)t.attackType=td.attackType||td.ability||'basic';t.cool=Math.max(0,(Number(t.cool)||0)-dt*1000);if(t.cool>0)return;var target=null,best=Infinity,maxR=Math.max(.08,Number(stats.range||150)/850),maxR2=maxR*maxR;(g.enemies||[]).forEach(function(en){if(en.hp<=0)return;var dx=en.x-t.x,dy=en.y-t.y,dd=dx*dx+dy*dy;if(dd<=maxR2&&dd<best){target=en;best=dd;}});if(!target)return;var before=(g.projectiles||[]).length,ok=false;try{if(window.fireV6)ok=window.fireV6(g,t,target,stats,now)===true;}catch(err){}if(!ok&&g.projectiles.length===before)fallbackProjectile(g,t,target,stats,now);}catch(err){console.error('[Commander V14] tower error',err);}});
-      (g.projectiles||[]).forEach(function(q){try{if(q.type==='v14-basic')updateFallbackProjectile(g,q,dt);else if(window.updateProjectile)window.updateProjectile(g,q,dt);else q.life=0;}catch(err){q.life=0;}});
+      (g.towers||[]).forEach(function(t){try{var stats=window.richStats?window.richStats(t.id,t.level):{range:150,rate:1000,damage:5,shot:'#9fe8ff'};var td=window.tdef?window.tdef(t.id):{};if(!t.attackType)t.attackType=td.attackType||td.ability||'basic';t.cool=Math.max(0,(Number(t.cool)||0)-dt*1000);if(t.cool>0)return;var target=null,best=Infinity,maxR=Math.max(.2,Number(stats.range||150)/700),maxR2=maxR*maxR;(g.enemies||[]).forEach(function(en){if(en.hp<=0)return;var dx=en.x-t.x,dy=en.y-t.y,dd=dx*dx+dy*dy;if(dd<=maxR2&&dd<best){target=en;best=dd;}});if(!target)return;var before=(g.projectiles||[]).length,ok=false;try{if(window.fireV6)ok=window.fireV6(g,t,target,stats,now)===true;}catch(err){}if(!ok&&g.projectiles.length===before)fallbackProjectile(g,t,target,stats,now);}catch(err){console.error('[Commander V14] tower error',err);}});
+      (g.projectiles||[]).forEach(function(q){
+        var target=null,beforeHp=null;
+        try{
+          if(q&&q.tx!=null){
+            target=(g.enemies||[]).find(function(en){return en.id===q.tx&&en.hp>0;})||null;
+            beforeHp=target?Number(target.hp):null;
+          }
+          if(q.type==='v14-basic')updateFallbackProjectile(g,q,dt);
+          else if(window.updateProjectile)window.updateProjectile(g,q,dt);
+          else q.life=0;
+        }catch(err){q.life=0;}
+        /*
+         * Last-resort hit confirmation: if the projectile expires without
+         * changing its still-living target's HP, register its stored damage.
+         * Normal impacts are unaffected and are never double-counted.
+         */
+        if(q&&Number(q.life)<=0&&target&&target.hp>0&&beforeHp!==null&&
+           Number(target.hp)>=beforeHp-0.001&&Number(q.damage)>0){
+          target.hp=Math.max(0,Number(target.hp)-Math.max(1,Number(q.damage)||5));
+          target.hit=150;
+        }
+      });
       (g.enemies||[]).forEach(function(en){if(en.burnUntil>Date.now())en.hp-=Number(en.burnDps||0)*dt;if(en.poisonUntil>Date.now())en.hp-=Number(en.poisonDps||0)*dt;});
       g.projectiles=(g.projectiles||[]).filter(function(q){return q.life>0;});g.enemies=(g.enemies||[]).filter(function(en){return en.hp>0;});
       if(g.base<=0){g.base=0;g.running=false;g.finished=true;g.__v14WaveOwner=false;g.__commanderStandaloneWave=false;g.__commanderWaveStartLock=false;stop();lock(false);try{window.v6Save(g);}catch(e){}draw(g);return;}
