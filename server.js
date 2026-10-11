@@ -2108,6 +2108,10 @@ app.get('/api/account/state', async (req,res)=>{
 app.put('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try {
+    // Refresh Supabase before merging a full snapshot from any browser. This
+    // is essential when the same account is active on multiple devices: don't
+    // merge against an old in-memory session copy.
+    await refreshAccountUserWithState(req);
     // Supabase is the durable source of truth in production. The request does
     // not report success until the complete account snapshot is committed.
     const incomingAccountState=req.body?.state&&typeof req.body.state==='object'?req.body.state:{};
