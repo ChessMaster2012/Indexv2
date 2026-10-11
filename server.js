@@ -2131,14 +2131,21 @@ app.put('/api/account/state', async (req,res)=>{
       return res.status(403).json({error:'Your '+limits.name+' plan allows up to '+limits.noteLimit+' saved notes. Upgrade your membership to save more.'});
     }
     const mergedAccountState={...incomingAccountState};
-    // XP and achievement history are monotonic. A stale tab on another device
-    // must not lower the account level or erase lessons/dates already saved.
+    // XP, achievements, owned cosmetics, and unlocked Commander units are
+    // monotonic. A stale browser must not lower a level or erase inventory.
     const existingProgress=existingAccountState.progress&&typeof existingAccountState.progress==='object'?existingAccountState.progress:{};
     const incomingProgress=mergedAccountState.progress&&typeof mergedAccountState.progress==='object'?mergedAccountState.progress:{};
-    const mergedActiveDates=Array.from(new Set([
-      ...(Array.isArray(existingProgress.activeDates)?existingProgress.activeDates:[]),
-      ...(Array.isArray(incomingProgress.activeDates)?incomingProgress.activeDates:[])
-    ].map(v=>String(v||'').slice(0,10)).filter(Boolean))).slice(-500);
+    const unionList=(a,b,limit=500)=>{
+      const out=[],seen=new Set();
+      [...(Array.isArray(a)?a:[]),...(Array.isArray(b)?b:[])].forEach(item=>{
+        let key;
+        try{key=typeof item==='string'?item:JSON.stringify(item);}catch(e){key=String(item);}
+        if(!seen.has(key)){seen.add(key);out.push(item);}
+      });
+      return out.slice(-limit);
+    };
+    const mergedActiveDates=unionList(existingProgress.activeDates,incomingProgress.activeDates,500)
+      .map(v=>String(v||'').slice(0,10)).filter(Boolean);
     const lessonMap=new Map();
     [...(Array.isArray(existingProgress.lessonsLearned)?existingProgress.lessonsLearned:[]),
       ...(Array.isArray(incomingProgress.lessonsLearned)?incomingProgress.lessonsLearned:[])].forEach(item=>{
@@ -2146,12 +2153,37 @@ app.put('/api/account/state', async (req,res)=>{
         try{key=typeof item==='string'?item:JSON.stringify(item);}catch(e){key=String(item);}
         if(!lessonMap.has(key))lessonMap.set(key,item);
       });
+    const existingGameProgress=existingProgress.gameProgress&&typeof existingProgress.gameProgress==='object'?existingProgress.gameProgress:{};
+    const incomingGameProgress=incomingProgress.gameProgress&&typeof incomingProgress.gameProgress==='object'?incomingProgress.gameProgress:{};
+    const mergedGameProgress={...existingGameProgress,...incomingGameProgress};
+    const existingCommander=existingGameProgress.commanderFinal&&typeof existingGameProgress.commanderFinal==='object'?existingGameProgress.commanderFinal:{};
+    const incomingCommander=incomingGameProgress.commanderFinal&&typeof incomingGameProgress.commanderFinal==='object'?incomingGameProgress.commanderFinal:{};
+    if(Object.keys(existingCommander).length||Object.keys(incomingCommander).length){
+      const owned={...(existingCommander.owned&&typeof existingCommander.owned==='object'?existingCommander.owned:{}),...(incomingCommander.owned&&typeof incomingCommander.owned==='object'?incomingCommander.owned:{})};
+      const oldLevels=existingCommander.levels&&typeof existingCommander.levels==='object'?existingCommander.levels:{};
+      const newLevels=incomingCommander.levels&&typeof incomingCommander.levels==='object'?incomingCommander.levels:{};
+      const levels={...oldLevels,...newLevels};
+      Object.keys(oldLevels).forEach(id=>{levels[id]=Math.max(1,Number(oldLevels[id])||1,Number(newLevels[id])||1);});
+      Object.keys(newLevels).forEach(id=>{levels[id]=Math.max(1,Number(oldLevels[id])||1,Number(newLevels[id])||1);});
+      mergedGameProgress.commanderFinal={
+        ...existingCommander,
+        ...incomingCommander,
+        owned,
+        levels,
+        coins:Math.max(0,Math.floor(Number(incomingCommander.coins??existingCommander.coins)||0))
+      };
+    }
     mergedAccountState.progress={
       ...existingProgress,
       ...incomingProgress,
       xp:Math.max(0,Number(existingProgress.xp)||0,Number(incomingProgress.xp)||0),
       activeDates:mergedActiveDates,
-      lessonsLearned:Array.from(lessonMap.values()).slice(-5000)
+      lessonsLearned:Array.from(lessonMap.values()).slice(-5000),
+      unlockedCosmetics:unionList(existingProgress.unlockedCosmetics,incomingProgress.unlockedCosmetics,500),
+      unlockedSkins:unionList(existingProgress.unlockedSkins,incomingProgress.unlockedSkins,500),
+      claimedBPLevels:unionList(existingProgress.claimedBPLevels,incomingProgress.claimedBPLevels,100),
+      claimedSkinCrateLevels:unionList(existingProgress.claimedSkinCrateLevels,incomingProgress.claimedSkinCrateLevels,50),
+      gameProgress:mergedGameProgress
     };
     // Membership is server-owned and only changes after verified Stripe events.
     if(existingAccountState.membership) mergedAccountState.membership=existingAccountState.membership;
