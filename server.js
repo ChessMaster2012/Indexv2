@@ -2159,7 +2159,12 @@ app.put('/api/account/state', async (req,res)=>{
     const existingCommander=existingGameProgress.commanderFinal&&typeof existingGameProgress.commanderFinal==='object'?existingGameProgress.commanderFinal:{};
     const incomingCommander=incomingGameProgress.commanderFinal&&typeof incomingGameProgress.commanderFinal==='object'?incomingGameProgress.commanderFinal:{};
     if(Object.keys(existingCommander).length||Object.keys(incomingCommander).length){
-      const owned={...(existingCommander.owned&&typeof existingCommander.owned==='object'?existingCommander.owned:{}),...(incomingCommander.owned&&typeof incomingCommander.owned==='object'?incomingCommander.owned:{})};
+      const existingOwned=existingCommander.owned&&typeof existingCommander.owned==='object'?existingCommander.owned:{};
+      const incomingOwned=incomingCommander.owned&&typeof incomingCommander.owned==='object'?incomingCommander.owned:{};
+      const owned={...existingOwned};
+      Object.keys(incomingOwned).forEach(id=>{
+        if(incomingOwned[id]===true||!(id in owned))owned[id]=incomingOwned[id];
+      });
       const oldLevels=existingCommander.levels&&typeof existingCommander.levels==='object'?existingCommander.levels:{};
       const newLevels=incomingCommander.levels&&typeof incomingCommander.levels==='object'?incomingCommander.levels:{};
       const levels={...oldLevels,...newLevels};
