@@ -6,7 +6,7 @@ const htmlPath = path.join(root, 'public', 'index.html');
 const marker = '<!-- INDEX_REWARDS_V2 -->';
 const questTag = '<script src="/quests-avatar-pack.js"></script>';
 const battlefieldTag = '<script src="/indexling-battlefield-fix.js?v=25"></script>';
-const v14Tag = '<script src="/commander-runtime-v14.js?v=5"></script>';
+const v14Tag = '<script src="/commander-runtime-v14.js?v=6"></script>';
 const hotfixTag = '<script src="/indexling-commander-hotfix-v20.js?v=25"></script>';
 const runtimeTag = '<script src="/commander-runtime-v16.js?v=2"></script>';
 const runtimeV17Tag = '<script src="/commander-runtime-v17.js?v=2"></script>';
