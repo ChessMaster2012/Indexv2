@@ -12,7 +12,7 @@ function updateHud(g){
   var hud=document.getElementById('commander-live-hud');
   if(hud)hud.textContent='ROUND '+Math.max(1,Number(g.wave)||1)+'  •  ENEMIES '+(g.enemies||[]).length+'  •  SPAWNED '+(g.spawnCount||0)+' / '+(g.spawnTotal||0)+'  •  BASE '+Math.max(0,Math.floor(Number(g.base)||0));
   var left=document.querySelector('#games-stage .commander-auth-side-left .commander-auth-wallet');
-  if(left){var p=null;try{p=typeof commanderFinalProfile==='function'?commanderFinalProfile():null;}catch(e){}left.innerHTML='<div><b>🪙 '+Math.floor(Number(p&&p.coins)||0)+'</b><span>Persistent Coins</span></div><div><b>♥ '+Math.max(0,Math.floor(Number(g.base)||0))+'</b><span>Base</span></div>';}
+  if(left){var p=null;try{p=typeof commanderFinalProfile==='function'?commanderFinalProfile():null;}catch(e){}left.innerHTML='<div><b>'+(window.indexCoinIconSvg?window.indexCoinIconSvg(16):'🪙')+' '+Math.floor(Number(p&&p.coins)||0)+'</b><span>Persistent Coins</span></div><div><b>♥ '+Math.max(0,Math.floor(Number(g.base)||0))+'</b><span>Base</span></div>';}
 }
 function terrain(m,w,h,dpr){
   var c=document.createElement('canvas');c.width=Math.max(1,Math.floor(w*dpr));c.height=Math.max(1,Math.floor(h*dpr));
