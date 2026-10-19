@@ -1,0 +1,188 @@
+/* ==========================================================================
+   Troop Commander — battle UI polish (presentation only)
+   Companion to commander-fx.js. Sizes, layout and click targets are unchanged;
+   only surfaces, borders, typography, shadows and states are refined.
+   Revert by removing the <link> to this file from index.html.
+   ========================================================================== */
+.commander-authoritative-root {
+  --cfx-navy-0: #070d1a;
+  --cfx-navy-1: #0c1626;
+  --cfx-navy-2: #12213a;
+  --cfx-line: rgba(150, 190, 255, .16);
+  --cfx-line-2: rgba(150, 190, 255, .3);
+  --cfx-text: #eef5ff;
+  --cfx-text-2: #a9bdd6;
+  --cfx-teal: #34d6a0;
+  --cfx-blue: #3fa9f5;
+  --cfx-violet: #8b7bff;
+  --cfx-gold: #ffd166;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* side panels ------------------------------------------------------------- */
+.commander-authoritative-root .commander-auth-side-left,
+.commander-authoritative-root .commander-auth-side-right {
+  background:
+    radial-gradient(260px 160px at 100% 0%, rgba(139, 123, 255, .12), transparent 70%),
+    linear-gradient(180deg, var(--cfx-navy-2), var(--cfx-navy-0)) !important;
+  border-color: var(--cfx-line) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(150, 190, 255, .28) transparent;
+}
+.commander-authoritative-root .commander-auth-title {
+  color: var(--cfx-text-2);
+  letter-spacing: .16em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.commander-authoritative-root .commander-auth-title::before {
+  content: "";
+  width: 3px;
+  height: 11px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--cfx-teal), var(--cfx-blue));
+}
+
+/* stat tiles (coins / base) ----------------------------------------------- */
+.commander-authoritative-root .commander-auth-wallet > div,
+.commander-authoritative-root .commander-auth-budget {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0)), var(--cfx-navy-2) !important;
+  border: 1px solid var(--cfx-line) !important;
+  box-shadow: 0 6px 16px rgba(2, 6, 20, .28);
+}
+.commander-authoritative-root .commander-auth-wallet b {
+  color: var(--cfx-text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+.commander-authoritative-root .commander-auth-wallet span,
+.commander-authoritative-root .commander-pack-v4-wallet-persistent { color: var(--cfx-text-2); letter-spacing: .08em; }
+.commander-authoritative-root .commander-pack-v4-wallet > b {
+  color: var(--cfx-gold);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 14px rgba(255, 209, 102, .35);
+}
+
+/* round status chip ------------------------------------------------------- */
+.commander-authoritative-root .commander-auth-round {
+  background: linear-gradient(90deg, rgba(52, 214, 160, .14), rgba(63, 169, 245, .08)) !important;
+  border: 1px solid rgba(52, 214, 160, .28);
+  color: #bff3df !important;
+  letter-spacing: .1em;
+}
+
+/* deployed troop cards: same layout, softer depth ------------------------- */
+.commander-authoritative-root .commander-auth-active-card {
+  border: 1px solid rgba(255, 255, 255, .6) !important;
+  box-shadow: 0 10px 24px rgba(2, 6, 20, .35) !important;
+  transition: transform .14s ease, box-shadow .14s ease;
+}
+.commander-authoritative-root .commander-auth-active-card:hover { transform: translateY(-1px); box-shadow: 0 14px 30px rgba(2, 6, 20, .42) !important; }
+.commander-authoritative-root .commander-auth-active-actions button {
+  transition: background .12s ease, border-color .12s ease, transform .12s ease;
+}
+.commander-authoritative-root .commander-auth-active-actions button:hover { transform: translateY(-1px); }
+.commander-authoritative-root .commander-auth-active-actions button:active { transform: translateY(0); }
+.commander-authoritative-root .commander-auth-active-actions button:focus-visible,
+.commander-authoritative-root .commander-pack-v4-card:focus-visible,
+.commander-authoritative-root .commander-auth-start:focus-visible,
+.commander-authoritative-root .commander-pack-v4-filter button:focus-visible,
+#cmd-fx-mute:focus-visible { outline: 2px solid var(--cfx-blue); outline-offset: 2px; }
+
+/* arsenal filter chips ---------------------------------------------------- */
+.commander-authoritative-root .commander-pack-v4-filter button {
+  border: 1px solid var(--cfx-line) !important;
+  background: rgba(150, 190, 255, .07) !important;
+  color: var(--cfx-text-2) !important;
+  transition: background .14s ease, color .14s ease, border-color .14s ease;
+}
+.commander-authoritative-root .commander-pack-v4-filter button:hover { background: rgba(150, 190, 255, .16) !important; color: var(--cfx-text) !important; }
+.commander-authoritative-root .commander-pack-v4-filter button.active {
+  background: linear-gradient(135deg, var(--cfx-teal), var(--cfx-blue)) !important;
+  color: #05202e !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 14px rgba(52, 214, 160, .3);
+}
+
+/* arsenal cards ----------------------------------------------------------- */
+.commander-authoritative-root .commander-pack-v4-card {
+  border: 1px solid var(--cfx-line) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0) 55%), var(--cfx-navy-1) !important;
+}
+.commander-authoritative-root .commander-pack-v4-card:hover:not([aria-disabled="true"]) {
+  border-color: rgba(63, 169, 245, .6) !important;
+  box-shadow: 0 12px 28px rgba(2, 6, 20, .5), 0 0 0 1px rgba(63, 169, 245, .25) !important;
+}
+.commander-authoritative-root .commander-pack-v4-card.selected,
+.commander-authoritative-root .commander-pack-v4-card.active {
+  border-color: var(--cfx-gold) !important;
+  box-shadow: 0 0 0 2px rgba(255, 209, 102, .35), 0 12px 28px rgba(2, 6, 20, .5) !important;
+}
+.commander-authoritative-root .commander-pack-v4-card[aria-disabled="true"] { filter: saturate(.55) brightness(.85); }
+.commander-authoritative-root .commander-pack-v4-cost { color: var(--cfx-teal); }
+.commander-authoritative-root .commander-pack-v4-attack { color: var(--cfx-gold); }
+
+/* start wave -------------------------------------------------------------- */
+.commander-authoritative-root .commander-auth-start {
+  background: linear-gradient(135deg, #34d6a0 0%, #3fa9f5 100%) !important;
+  color: #04202c !important;
+  letter-spacing: .02em;
+  box-shadow: 0 10px 24px rgba(52, 214, 160, .28), inset 0 1px 0 rgba(255, 255, 255, .35);
+}
+.commander-authoritative-root .commander-auth-start:disabled { opacity: .5; box-shadow: none; filter: saturate(.6); }
+.commander-authoritative-root .commander-auth-change { transition: color .12s ease; }
+
+/* map label + live HUD ---------------------------------------------------- */
+.commander-authoritative-root .commander-auth-map-label {
+  background: linear-gradient(180deg, rgba(18, 33, 58, .88), rgba(7, 13, 26, .9)) !important;
+  border: 1px solid var(--cfx-line-2) !important;
+  border-left: 3px solid var(--cfx-teal) !important;
+  box-shadow: 0 10px 28px rgba(2, 6, 20, .4);
+  backdrop-filter: blur(8px);
+}
+.commander-authoritative-root .commander-auth-map-label b { color: var(--cfx-text); letter-spacing: -.01em; }
+.commander-authoritative-root .commander-auth-map-label span { color: var(--cfx-text-2); letter-spacing: .06em; }
+#commander-live-hud {
+  background: linear-gradient(180deg, rgba(18, 33, 58, .9), rgba(7, 13, 26, .92)) !important;
+  border: 1px solid var(--cfx-line-2, rgba(150, 190, 255, .3)) !important;
+  color: #eef5ff !important;
+  font: 800 11px/1 Inter, ui-sans-serif, system-ui, sans-serif !important;
+  letter-spacing: .07em !important;
+  font-variant-numeric: tabular-nums;
+  padding: 10px 18px !important;
+  box-shadow: 0 12px 30px rgba(2, 6, 20, .45), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  backdrop-filter: blur(8px);
+  text-shadow: none !important;
+}
+
+
+/* sound toggle (top-right of the battlefield; the only interactive addition) */
+#cmd-fx-mute {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 30;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: #eef5ff;
+  background: linear-gradient(180deg, rgba(18, 33, 58, .9), rgba(7, 13, 26, .92));
+  border: 1px solid rgba(150, 190, 255, .3);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(2, 6, 20, .4);
+  transition: transform .12s ease, border-color .12s ease, background .12s ease;
+}
+#cmd-fx-mute:hover { transform: translateY(-1px); border-color: rgba(63, 169, 245, .65); }
+#cmd-fx-mute:active { transform: translateY(0); }
+#cmd-fx-mute[aria-pressed="true"] { opacity: .75; }
+
+@media (prefers-reduced-motion: reduce) {
+  .commander-authoritative-root * { transition: none !important; }
+}
