@@ -4181,61 +4181,75 @@ function setsForTopic(subjectId, topic){
   return state.studySets.filter(s=>s.subjectId===subjectId && s.title.toLowerCase()===targetTitle);
 }
 function normalizeGeneratedQuestions(parsed){
-  const raw = Array.isArray(parsed) ? parsed : (
-    parsed.questions || parsed.quiz || parsed.mcqs || parsed.items ||
-    parsed.data?.questions || parsed.result?.questions ||
-    parsed.data?.quiz || parsed.result?.quiz || parsed.output?.questions || []
-  );
+  // Providers occasionally wrap the requested JSON inside content/output/result
+  // fields, or use different names for the question collection.
+  const collectionKeys = ['questions','quiz','mcqs','items','practiceQuestions','practice_questions','multipleChoiceQuestions','multiple_choice_questions'];
+  const wrapperKeys = ['data','result','output','response','content','message','parsed','payload'];
+  function findQuestionList(value, depth=0){
+    if(depth>5 || value==null) return null;
+    if(typeof value==='string'){
+      const str=value.trim();
+      if(!str) return null;
+      try{return findQuestionList(JSON.parse(str),depth+1);}catch{return null;}
+    }
+    if(Array.isArray(value)){
+      if(value.length && value.some(x=>x && typeof x==='object' && (x.q||x.question||x.prompt||x.text))) return value;
+      for(const item of value){const found=findQuestionList(item,depth+1);if(found)return found;}
+      return null;
+    }
+    if(typeof value!=='object') return null;
+    for(const key of collectionKeys) if(Array.isArray(value[key])) return value[key];
+    for(const key of wrapperKeys){
+      if(value[key]!==undefined){const found=findQuestionList(value[key],depth+1);if(found)return found;}
+    }
+    return null;
+  }
+  const raw=findQuestionList(parsed);
   if(!Array.isArray(raw)) return [];
   return raw.map(item=>{
     if(typeof item==='string'){
-      try{ item=JSON.parse(item); }catch{return null;}
+      try{item=JSON.parse(item);}catch{return null;}
     }
     if(!item || typeof item!=='object') return null;
-    let options = item.options || item.choices || item.answers || item.answerOptions || item.answer_options;
+    let options=item.options ?? item.choices ?? item.answers ?? item.answerOptions ?? item.answer_options ?? item.optionsList ?? item.options_list;
     if(!Array.isArray(options) && options && typeof options==='object'){
-      const keys = ['A','B','C','D','a','b','c','d','optionA','optionB','optionC','optionD'];
-      const keyed = keys.map(k=>options[k]).filter(v=>v!==undefined && v!==null);
-      options = keyed.length===4 ? keyed : Object.values(options);
+      const keys=['A','B','C','D','a','b','c','d','optionA','optionB','optionC','optionD'];
+      const keyed=keys.map(k=>options[k]).filter(v=>v!==undefined&&v!==null);
+      options=keyed.length===4?keyed:Object.values(options);
     }
     if(!Array.isArray(options) || options.length!==4) return null;
-    const cleanOptions = options.map(option=>{
-      if(option && typeof option==='object') return String(option.text ?? option.label ?? option.answer ?? option.value ?? option.content ?? '').trim();
+    const cleanOptions=options.map(option=>{
+      if(option && typeof option==='object') return String(option.text ?? option.label ?? option.answer ?? option.value ?? option.content ?? '').trim().replace(/^[A-D][).:]\\s*/i,'');
       return String(option==null?'':option).trim().replace(/^[A-D][).:]\\s*/i,'');
     });
-    if(cleanOptions.some(opt=>opt.length===0)) return null;
-    const qText = String((item.q || item.question || item.prompt || item.text || '')).trim();
+    if(cleanOptions.some(opt=>!opt)) return null;
+    const qText=String(item.q ?? item.question ?? item.prompt ?? item.text ?? item.stem ?? '').trim();
     if(!qText) return null;
-    let correct = item.correct ?? item.correctIndex ?? item.correct_index ??
-      item.correctAnswer ?? item.correct_answer ?? item.answerIndex ?? item.answer_index ??
-      item.correctOption ?? item.correct_option ?? item.correctChoice ?? item.correct_choice;
-    if(correct && typeof correct==='object') correct = correct.index ?? correct.value ?? correct.label ?? correct.text ?? correct.answer;
-    if(!Number.isInteger(correct) && typeof correct==='string'){
-      const answerText=correct.trim();
-      const numeric = Number(answerText);
-      if(answerText!=='' && Number.isInteger(numeric) && numeric>=0 && numeric<=3) correct=numeric;
-      else {
-        const letter=answerText.match(/^([A-D])(?:[).:\\s]|$)/i);
-        const number=answerText.match(/^([1-4])(?:[).:\\s]|$)/);
-        if(letter) correct=letter[1].toUpperCase().charCodeAt(0)-65;
-        else if(number) correct=Number(number[1])-1;
-        else correct=cleanOptions.findIndex(option=>option.toLowerCase()===answerText.toLowerCase());
-      }
+    let correct=item.correct ?? item.correctIndex ?? item.correct_index ?? item.correctAnswer ?? item.correct_answer ??
+      item.answerIndex ?? item.answer_index ?? item.correctOption ?? item.correct_option ?? item.correctChoice ??
+      item.correct_choice ?? item.correctOptionIndex ?? item.correct_option_index ?? item.solution;
+    if(correct && typeof correct==='object') correct=correct.index ?? correct.value ?? correct.label ?? correct.text ?? correct.answer;
+    function resolveAnswer(value){
+      if(value===undefined || value===null) return -1;
+      const answerText=String(value).trim();
+      if(!answerText) return -1;
+      const numeric=Number(answerText);
+      if(Number.isInteger(numeric) && numeric>=0 && numeric<=3) return numeric;
+      const letter=answerText.match(/^([A-D])(?:[).:\\s]|$)/i);
+      if(letter) return letter[1].toUpperCase().charCodeAt(0)-65;
+      const number=answerText.match(/^([1-4])(?:[).:\\s]|$)/);
+      if(number) return Number(number[1])-1;
+      const normalized=answerText.replace(/^[A-D][).:]\\s*/i,'').toLowerCase();
+      return cleanOptions.findIndex(option=>option.toLowerCase()===normalized);
     }
-    if(!Number.isInteger(correct) && item.answer!==undefined){
-      const answerText=String(item.answer).trim();
-      const answerLetter=answerText.match(/^([A-D])(?:[).:\\s]|$)/i);
-      const answerNumber=answerText.match(/^([1-4])(?:[).:\\s]|$)/);
-      if(answerLetter) correct=answerLetter[1].toUpperCase().charCodeAt(0)-65;
-      else if(answerNumber) correct=Number(answerNumber[1])-1;
-      else correct=cleanOptions.findIndex(option=>option.toLowerCase()===answerText.toLowerCase());
-    }
-    if(!Number.isInteger(correct) || correct<0 || correct>3) return null;
+    let correct=resolveAnswer(correct);
+    if(correct<0) correct=resolveAnswer(item.answer ?? item.correctAnswerText ?? item.correct_answer_text ?? item.solutionText);
+    if(correct<0) return null;
     return {
-      q: qText.slice(0,400),
-      options: cleanOptions.map(opt=>opt.slice(0,200)),
+      q:qText.slice(0,400),
+      options:cleanOptions.map(opt=>opt.slice(0,200)),
       correct,
-      explanation: String(item.explanation || item.reason || item.rationale || '').slice(0,400)
+      explanation:String(item.explanation ?? item.reason ?? item.rationale ?? item.feedback ?? '').slice(0,400)
     };
   }).filter(Boolean);
 }
