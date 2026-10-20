@@ -4181,7 +4181,7 @@ function setsForTopic(subjectId, topic){
   return state.studySets.filter(s=>s.subjectId===subjectId && s.title.toLowerCase()===targetTitle);
 }
 function normalizeGeneratedQuestions(parsed){
-  const raw = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.quiz || parsed.items || []);
+  const raw = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.quiz || parsed.mcqs || parsed.items || parsed.data?.questions || parsed.result?.questions || []);
   if(!Array.isArray(raw)) return [];
   return raw.map(item=>{
     if(!item || typeof item!=='object') return null;
@@ -4200,14 +4200,19 @@ function normalizeGeneratedQuestions(parsed){
     if(cleanOptions.some(opt=>opt.length===0)) return null; // reject blank/missing options — this is the "answers don't show up" bug
     const qText = String((item.q || item.question || '')).trim();
     if(!qText) return null;
-    let correct = item.correct ?? item.correctIndex;
+    let correct = item.correct ?? item.correctIndex ?? item.correctAnswer ?? item.answerIndex ?? item.answer_index;
     if(!Number.isInteger(correct) && typeof correct==='string'){
       const numeric = Number(correct);
       if(Number.isInteger(numeric)) correct = numeric;
       else correct = cleanOptions.findIndex(option=>option.toLowerCase()===correct.trim().toLowerCase());
     }
     if(!Number.isInteger(correct) && item.answer!==undefined){
-      correct = cleanOptions.findIndex(option=>option.toLowerCase()===String(item.answer).trim().toLowerCase());
+      const answerText=String(item.answer).trim();
+      const answerLetter=answerText.match(/^([A-D])(?:[).:]|$)/i);
+      const answerNumber=answerText.match(/^([1-4])(?:[).:]|$)/);
+      if(answerLetter) correct=answerLetter[1].toUpperCase().charCodeAt(0)-65;
+      else if(answerNumber) correct=Number(answerNumber[1])-1;
+      else correct = cleanOptions.findIndex(option=>option.toLowerCase()===answerText.toLowerCase());
     }
     if(!Number.isInteger(correct) || correct<0 || correct>3) return null;
     return {
@@ -4275,7 +4280,14 @@ async function buildStudySet({subjectId, topic, unit, type, count, sourceText, r
       parsed = await askJSON(retryPrompt);
       questions = normalizeGeneratedQuestions(parsed);
     }
-    if(!questions.length) throw new Error('empty');
+    if(!questions.length) {
+      console.error('[Study Sets] Quiz response contained no valid questions after normalization.', {
+        topLevelKeys: parsed && typeof parsed==='object' ? Object.keys(parsed) : [],
+        itemCount: Array.isArray(parsed) ? parsed.length : (Array.isArray(parsed?.questions) ? parsed.questions.length : Array.isArray(parsed?.quiz) ? parsed.quiz.length : Array.isArray(parsed?.mcqs) ? parsed.mcqs.length : Array.isArray(parsed?.items) ? parsed.items.length : 0),
+        sample: JSON.stringify(parsed).slice(0,1200)
+      });
+      throw new Error('The AI returned quiz questions in an unsupported format. Please try again.');
+    }
     setObj.questions = questions; setObj.attempts = [];
   }
   state.studySets.push(setObj); persistSets(); return setObj;
