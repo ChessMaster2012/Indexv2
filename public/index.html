@@ -2250,11 +2250,23 @@ function parseLooseJson(text){
   try{return JSON.parse(cleaned.slice(start,end+1));}catch(e){throw new Error('The AI returned invalid JSON. Try again.');}
 }
 async function askJSON(prompt){
+  const system='You generate accurate study materials for Index. Follow the requested JSON schema exactly. Never add commentary, markdown fences, or repeated filler.';
   const instruction=`${prompt}\n\nIMPORTANT: Return valid JSON only. Start immediately with { and include every requested field. Do not add markdown fences or commentary.`;
-  return parseLooseJson(await runLocalAi([
-    {role:'system',content:'You generate accurate study materials for Index. Follow the requested JSON schema exactly. Never add commentary, markdown fences, or repeated filler.'},
-    {role:'user',content:instruction}
-  ],{timeoutMs:28500}));
+  const turns=[{role:'system',content:system},{role:'user',content:instruction}];
+  // Keep the existing AI provider/model, while flagging structured study generation
+  // so the server can apply its study-set response budget.
+  const first=await runLocalAi(turns,{timeoutMs:28500,intent:'study-set'});
+  try{return parseLooseJson(first);}catch(parseError){
+    const retryTurns=[
+      {role:'system',content:system},
+      {role:'user',content:instruction+'\n\nRegenerate the complete answer from scratch as one valid JSON object. Escape all strings correctly. No markdown or text outside the JSON.'}
+    ];
+    const retry=await runLocalAi(retryTurns,{timeoutMs:28500,intent:'study-set'});
+    try{return parseLooseJson(retry);}catch(retryError){
+      console.error('[Study Sets] JSON parse failed after retry.',{firstError:String(parseError&&parseError.message||parseError),retryError:String(retryError&&retryError.message||retryError)});
+      throw new Error('The AI could not format this study set. Please try again.');
+    }
+  }
 }
 async function askText(turns){ return runLocalAi(turns,{timeoutMs:28500}); }
 function explainAiError(error,label='AI request'){
