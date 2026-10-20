@@ -4214,7 +4214,9 @@ async function buildStudySet({subjectId, topic, unit, type, count, sourceText, r
   if(type==='flashcards'){
     let cards = normalizeGeneratedCards(parsed);
     if(!cards.length){
-      const retryPrompt = `Create ${count} flashcards ONLY for AP ${subj.name} unit "${unit || focus}"${topic ? ` with optional focus "${topic}"` : ''}. The unit is a hard boundary: do not use content from other units or generic repeated course vocabulary. Return ONLY valid JSON in this exact shape: {"cards":[{"front":"short prompt","back":"the answer"}]}. Every card needs a non-empty front AND a non-empty back. Never return an empty array.`;
+      const retryPrompt = sourceText
+        ? `Create exactly ${count} useful flashcards based ONLY on the student's notes below for AP ${subj.name}. Preserve the notes' specific vocabulary, definitions, and related questions. Return ONLY valid JSON in this exact shape: {"cards":[{"front":"short prompt or term","back":"accurate answer or definition"}]}. Every card needs a non-empty front AND a non-empty back. Do not invent unrelated content and never return an empty array.\n\nNOTES:\n${sourceText}`
+        : `Create exactly ${count} flashcards ONLY for AP ${subj.name} unit "${unit || focus}"${topic ? ` with optional focus "${topic}"` : ''}. The unit is a hard boundary: do not use content from other units or generic repeated course vocabulary. Return ONLY valid JSON in this exact shape: {"cards":[{"front":"short prompt","back":"the answer"}]}. Every card needs a non-empty front AND a non-empty back. Never return an empty array.`;
       parsed = await askJSON(retryPrompt);
       cards = normalizeGeneratedCards(parsed);
     }
@@ -4224,7 +4226,9 @@ async function buildStudySet({subjectId, topic, unit, type, count, sourceText, r
   else{
     let questions = normalizeGeneratedQuestions(parsed);
     if(!questions.length){
-      const retryPrompt = `Create 4 multiple-choice quiz questions ONLY for AP ${subj.name} unit "${unit || focus}"${topic ? ` with optional focus "${topic}"` : ''}. The unit is a hard boundary: do not use content from other units or generic repeated course vocabulary. Return ONLY valid JSON in this exact shape: {"questions":[{"q":"question","options":["option 1","option 2","option 3","option 4"],"correct":0,"explanation":"brief explanation"}]}. Every option must be non-empty text. The correct value must be 0, 1, 2, or 3. Never return an empty array.`;
+      const retryPrompt = sourceText
+        ? `Create exactly ${count} multiple-choice practice questions based ONLY on the student's notes below for AP ${subj.name}. Each question must have four non-empty options, one correct answer, and a brief explanation. Return ONLY valid JSON in this exact shape: {"questions":[{"q":"question","options":["option 1","option 2","option 3","option 4"],"correct":0,"explanation":"brief explanation"}]}. The correct value must be 0, 1, 2, or 3. Do not invent unrelated content and never return an empty array.\n\nNOTES:\n${sourceText}`
+        : `Create exactly ${count} multiple-choice quiz questions ONLY for AP ${subj.name} unit "${unit || focus}"${topic ? ` with optional focus "${topic}"` : ''}. The unit is a hard boundary: do not use content from other units or generic repeated course vocabulary. Return ONLY valid JSON in this exact shape: {"questions":[{"q":"question","options":["option 1","option 2","option 3","option 4"],"correct":0,"explanation":"brief explanation"}]}. Every option must be non-empty text. The correct value must be 0, 1, 2, or 3. Never return an empty array.`;
       parsed = await askJSON(retryPrompt);
       questions = normalizeGeneratedQuestions(parsed);
     }
@@ -4258,7 +4262,11 @@ async function generateStudySet(){
     const setObj = await buildStudySet({subjectId, topic:source==='notes'?topicLabel:customTopic, unit, type, count, sourceText, reminderAt});
     statusEl.innerHTML = `<div class="loading-line" style="color:var(--green-deep);">Done — "${esc(setObj.title)}" is ready. 🎉</div>`;
     renderStudySets(); openStudySetViewer(setObj.id);
-  }catch(e){ statusEl.innerHTML = `<div class="error-note">Couldn't build that study set. Please try again.</div>`; }
+  }catch(e){
+    console.error('[Study Sets] Generation failed', { source, type, subjectId, error: String(e&&e.message||e), stack: e&&e.stack });
+    const message = explainAiError(e, 'Study set generation');
+    statusEl.innerHTML = `<div class="error-note">${esc(message)} <button type="button" class="btn btn-ghost btn-sm" data-action="generate-set" style="margin-left:8px;">Try again</button></div>`;
+  }
 }
 
 /* ============================== VIEWER: FLASHCARDS / QUIZ ============================== */
