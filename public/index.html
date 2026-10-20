@@ -2281,16 +2281,18 @@ async function askJSON(prompt){
   const system='You generate accurate study materials for Index. Follow the requested JSON schema exactly. Never add commentary, markdown fences, or repeated filler.';
   const instruction=`${prompt}\n\nIMPORTANT: Return valid JSON only. Start immediately with { and include every requested field. Do not add markdown fences or commentary.`;
   const turns=[{role:'system',content:system},{role:'user',content:instruction}];
+  // Mark structured study generation so the existing server-side AI route can
+  // allocate enough output tokens for a complete JSON set. Model stays unchanged.
   // First attempt uses the existing configured AI route/model. If its response
   // is malformed, retry the same request once with stricter formatting guidance.
-  const first=await runLocalAi(turns,{timeoutMs:28500});
+  const first=await runLocalAi(turns,{timeoutMs:28500,intent:'study-set'});
   try{return parseLooseJson(first);}catch(parseError){
     console.warn('[Study Sets] AI response was not valid JSON; retrying once with the same configured model/route.');
     const retryTurns=[
       {role:'system',content:system},
       {role:'user',content:instruction+'\n\nYour previous response could not be parsed as JSON. Regenerate the complete answer from scratch. Return one valid JSON object only, with all strings properly escaped. Do not include markdown, comments, or text outside the JSON.'}
     ];
-    const retry=await runLocalAi(retryTurns,{timeoutMs:28500});
+    const retry=await runLocalAi(retryTurns,{timeoutMs:28500,intent:'study-set'});
     try{return parseLooseJson(retry);}catch(retryError){
       console.error('[Study Sets] JSON parsing failed after same-model retry.',{firstError:String(parseError&&parseError.message||parseError),retryError:String(retryError&&retryError.message||retryError)});
       throw new Error('The AI response could not be formatted as valid JSON after one retry. Please try again.');
