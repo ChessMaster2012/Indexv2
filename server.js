@@ -478,6 +478,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // Tutor requests have a firm sub-10-second upstream deadline; background AI
   // generation keeps the longer compatibility deadline used by other Index features.
   const tutorMode=String(options.mode||'')==='tutor';
+  const studySetMode=String(options.mode||'')==='study-set';
   const fastTutor=false; // Keep Tutor on streaming for low-latency first output.
   let sentAnyChunk=false;
   // ~10s is the Tutor target; difficult Auto generations get a ~30s fail-safe
@@ -499,7 +500,8 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           model:'auto',
           messages,
           stream:true,
-          max_tokens:complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420),
+          // Study-set JSON needs room for all requested cards/questions; retain the same Auto model.
+          max_tokens:studySetMode ? 1800 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420)),
           temperature:0
         }),
         signal:controller.signal
@@ -961,7 +963,9 @@ app.post('/api/ai/chat',async(req,res)=>{
     // directly through this server so the first generated tokens reach the UI
     // immediately. No fallback model and no second AI request.
     try{
-      await streamVireonixToResponse(messages,complex,res,{mode:String(req.body?.intent||'')==='tutor'?'tutor':'background'});
+      const requestIntent=String(req.body?.intent||'');
+      const responseMode=requestIntent==='tutor'?'tutor':requestIntent==='study-set'?'study-set':'background';
+      await streamVireonixToResponse(messages,complex,res,{mode:responseMode});
     }catch(e){
       console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
       if(!res.headersSent){
