@@ -7850,7 +7850,7 @@ function renderGateV6(g){
     return '<button class="'+cls+'" '+(fb?'disabled':'')+' onclick="return window.__commanderAnswerV6('+i+',event)"><span class="letter">'+String.fromCharCode(65+i)+'</span><span>'+esc(o)+'</span></button>';
   }).join('');
   var feedback=fb?'<div class="commander-auth-feedback '+(fb.correct?'correct':'wrong')+'"><b>'+(fb.correct?'Correct! Wave unlocked.':'Not quite — review the answer, then continue.')+'</b><p>'+esc(fb.explanation||q.explanation||'The highlighted green answer is correct.')+'</p><button type="button" id="commander-gate-continue-btn">'+(fb.correct?'Enter Battlefield →':'Next Question →')+'</button></div>':'';
-  return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer before each wave. Correct answers award +10 deployment coins. Every answered question awards +10 deployment coins and prepares another AP question.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>1/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>AI ready</b><span>Fresh review</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><div class="commander-auth-ai-badge">'+(g.questionSource==='ai'?'✦ AI-GENERATED · FRESH FOR THIS RUN':(g.aiNextQuestion?'✦ AI READY · NEXT QUESTION PRELOADED':(g.aiQuestionRequest?'✦ AI GENERATING · FRESH QUESTIONS':'◈ LOCAL BACKUP · AI PREFETCH FAILED')))+'</div><h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">Correct answers turn green. Wrong choices turn red. The next question is generated ahead of time and is required to be different from the questions already used in this run.</div></div></div>';
+  return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer before each wave. Correct answers award +20 deployment coins; wrong answers still award +5. Answer one correctly to unlock the next wave.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>1/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>AI ready</b><span>Fresh review</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><div class="commander-auth-ai-badge">'+(g.questionSource==='ai'?'✦ AI-GENERATED · FRESH FOR THIS RUN':(g.aiNextQuestion?'✦ AI READY · NEXT QUESTION PRELOADED':(g.aiQuestionRequest?'✦ AI GENERATING · FRESH QUESTIONS':'◈ LOCAL BACKUP · AI PREFETCH FAILED')))+'</div><h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">Correct answers turn green. Wrong choices turn red. The next question is generated ahead of time and is required to be different from the questions already used in this run.</div></div></div>';
 }
 function pickV6(g,exclude){
   var list=[];
@@ -8227,7 +8227,7 @@ function place(g,x,y){
     showRewardToast('Not enough deployment coins for '+((td&&td.name)||(c&&c.name)||'this Indexling')+'.');
     return;
   }
-  var p=v6Profile(),lvl=Math.max(1,Number(p.levels[id])||1),hp=100+(lvl-1)*18;
+  var p=v6Profile(),lvl=1,hp=100+(lvl-1)*18;
   g.waveCoins-=cost;
   g.towers.push({id:id,x:x,y:y,level:lvl,hp:hp,maxHp:hp,cool:0,abilityReady:performance.now()+1200,recoil:0});
   g.selectedTroop=null;g.cursor=null;v6Save(g);renderBattle(g);
@@ -8553,7 +8553,7 @@ window.__commanderPlaceAtClient=function(clientX,clientY,e){
   if(!valid)return false;
   var cost=Math.max(1,Number(td&&td.cost)||1);
   if(Number(g.waveCoins||0)<cost)return false;
-  var p=commanderFinalProfile(),lvl=Math.max(1,Number(p.levels[id])||1),hp=100+(lvl-1)*18;
+  var p=commanderFinalProfile(),lvl=1,hp=100+(lvl-1)*18;
   g.waveCoins=Math.max(0,Number(g.waveCoins||0)-cost);
   g.towers=g.towers||[];
   g.towers.push({id:id,x:x,y:y,level:lvl,hp:hp,maxHp:hp,cool:0,abilityReady:performance.now()+1200,recoil:0});
@@ -8564,7 +8564,7 @@ window.__commanderPlaceAtClient=function(clientX,clientY,e){
 };
 window.__commanderCategoryFinal=function(cat,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running)return false;g.troopCategory=cat;renderBattle(g);return false;};
 window.__commanderSelectFinal=function(id,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||g.running||g.questionGateOpen)return false;var p=profile();if(!p.owned[id]){if(p.coins>=tdef(id).cost){p.coins-=tdef(id).cost;p.owned[id]=true;p.levels[id]=1;persistProgress();showRewardToast(tdef(id).name+' unlocked');}else{showRewardToast('Unlock '+tdef(id).name+' for '+tdef(id).cost+' coins first.');}return false;}g.selectedTroop=g.selectedTroop===id?null:id;g.selectedTowerIndex=-1;g.hoverTowerIndex=-1;renderBattle(g);return false;};
-window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||!g.question||g.questionFeedback)return false;var q=g.question,answeredQuestion={q:q.q,options:q.options,correct:q.correct,explanation:q.explanation},correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;g.waveCoins=(g.waveCoins||0)+10;if(correct){g.questionCorrectCount=1;}if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,answeredQuestion,correct,false);g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};try{v6Save(g);}catch(err){console.warn('Commander gate save failed',err);}renderBattle(g);commanderRequestAiQuestion(g,true);return false;};
+window.__commanderAnswerV6=function(i,e){if(e){e.preventDefault();e.stopPropagation();}var g=state.games;if(!g||!g.questionGateOpen||!g.question||g.questionFeedback)return false;var q=g.question,answeredQuestion={q:q.q,options:q.options,correct:q.correct,explanation:q.explanation},correct=Number(i)===Number(q.correct);g.questionAskedCount=(g.questionAskedCount||0)+1;g.waveCoins=(g.waveCoins||0)+(correct?20:5);if(correct){g.questionCorrectCount=1;}if(window.__indexCommanderRecordGateAnswerV5)window.__indexCommanderRecordGateAnswerV5(g,answeredQuestion,correct,false);g.questionFeedback={chosen:Number(i),correct:correct,explanation:q.explanation||''};try{v6Save(g);}catch(err){console.warn('Commander gate save failed',err);}renderBattle(g);commanderRequestAiQuestion(g,true);return false;};
 window.__commanderEnterBattlefieldV7=function(e){
   if(e&&e.preventDefault){e.preventDefault();e.stopPropagation();}
   var g=state.games;
@@ -8686,6 +8686,8 @@ window.commanderQuestionPoolFinal=commanderQuestionPoolFinal;
 window.commanderSaveFinal=commanderSaveFinal;
 window.v6Save=v6Save;
 window.profile=profile;
+/* Expose the in-closure question flow that the wave runtime calls at wave end (otherwise unreachable because tdef below is undefined and halts this block). */
+try{window.commanderAdvanceToNextQuestion=commanderAdvanceToNextQuestion;window.__cmdRenderBattle=renderBattle;}catch(e){}
 window.tdef=tdef;
 function richStats(id,lvl){
   try{
@@ -8928,9 +8930,10 @@ setInterval(function(){
 })();
 </script>
 <link rel="stylesheet" href="/redesign.css?v=11">
-<link rel="stylesheet" href="/commander-fx.css?v=2">
+<link rel="stylesheet" href="/commander-fx.css?v=4">
 <link rel="stylesheet" href="/commander-screens.css?v=1">
 <script src="/commander-maps.js?v=1"></script>
 <script src="/commander-fx.js?v=2"></script>
+<script src="/commander-rules.js?v=1"></script>
 </body>
 </html>
