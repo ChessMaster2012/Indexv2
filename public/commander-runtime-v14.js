@@ -48,16 +48,17 @@ function launchWave(e){
   var g=game();if(!g||g.active!=='commander'||g.phase!=='battle'||g.questionGateOpen||g.finished)return false;
   if(g.__v14WaveOwner&&g.running)return false;
   var m=mapFor(g);if(!m||!Array.isArray(m.route)||m.route.length<2)return false;
+  if(!g.running&&!(g.towers&&g.towers.length)){try{if(typeof showRewardToast==='function')showRewardToast('Deploy at least one Indexling before starting the wave.');}catch(err){}return false;}
   if(g.frame){try{cancelAnimationFrame(g.frame);}catch(err){}g.frame=null;}
   g.__commanderStandaloneWave=true;g.__v14WaveOwner=true;g.__commanderWaveStartLock=true;
   if(!g.running)g.wave=Math.max(0,Number(g.wave)||0)+1;
-  g.running=true;g.spawnCount=0;g.spawnTotal=8+Math.min(20,(Number(g.wave)||1)*2);g.enemies=[];g.projectiles=[];g.effects=[];g.nextSpawnAt=performance.now()+180;g.lastFrame=performance.now();g.waveBanner='ROUND '+g.wave;g.waveBannerUntil=Date.now()+900;
+  g.running=true;g.spawnCount=0;g.spawnTotal=8+Math.min(20,(Number(g.wave)||1)*2);g.enemies=[];g.projectiles=[];g.effects=[];g.__vt=performance.now();g.nextSpawnAt=g.__vt+180;g.lastFrame=performance.now();g.waveBanner='ROUND '+g.wave;g.waveBannerUntil=Date.now()+900;
   try{if(window.v6Save)window.v6Save(g);}catch(err){}lock(true);draw(g);
   function step(now){
     if(game()!==g||!g.__v14WaveOwner||!g.running||g.finished||g.questionGateOpen){stop();if(g)g.__v14WaveOwner=false;lock(false);return;}
     try{
-      var dt=Math.min(.05,Math.max(0,(now-(g.lastFrame||now))/1000));g.lastFrame=now;var m2=mapFor(g);if(!m2)throw new Error('Map unavailable');
-      while(g.spawnCount<g.spawnTotal&&now>=g.nextSpawnAt){spawn(g,m2);g.nextSpawnAt+=Math.max(420,Number(m2.spawn)||900);}
+      var rawDt=Math.min(.05,Math.max(0,(now-(g.lastFrame||now))/1000)),spd=Math.max(.25,Math.min(3,Number(window.__cmdSpeed)||1)),dt=rawDt*spd;g.lastFrame=now;g.__vt=(g.__vt||now)+rawDt*1000*spd;var m2=mapFor(g);if(!m2)throw new Error('Map unavailable');
+      while(g.spawnCount<g.spawnTotal&&g.__vt>=g.nextSpawnAt){spawn(g,m2);g.nextSpawnAt+=Math.max(420,Number(m2.spawn)||900);}
       (g.enemies||[]).forEach(function(en){var tar=m2.route[Math.min(en.wp+1,m2.route.length-1)];if(!tar)return;var speed=Math.max(.25,Number(en.speed)||.8)*(en.slowUntil>Date.now()?(en.slow||.5):1),mv=speed*dt*.18,dx=tar[0]-en.x,dy=tar[1]-en.y,d=Math.hypot(dx,dy)||1;if(d<=mv){en.x=tar[0];en.y=tar[1];en.wp++;if(en.wp>=m2.route.length-1){en.hp=0;g.base=Math.max(0,Number(g.base||0)-(Number(en.baseDamage)||3));}}else{en.x+=dx/d*mv;en.y+=dy/d*mv;}en.hit=Math.max(0,(en.hit||0)-dt*1000);});
       (g.towers||[]).forEach(function(t){try{var stats=window.richStats?window.richStats(t.id,t.level):{range:150,rate:1000,damage:5,shot:'#9fe8ff'};var td=window.tdef?window.tdef(t.id):{};if(!t.attackType)t.attackType=td.attackType||td.ability||'basic';t.cool=Math.max(0,(Number(t.cool)||0)-dt*1000);if(t.cool>0)return;var target=null,best=Infinity,maxR=Math.max(.2,Number(stats.range||150)/700),maxR2=maxR*maxR;(g.enemies||[]).forEach(function(en){if(en.hp<=0)return;var dx=en.x-t.x,dy=en.y-t.y,dd=dx*dx+dy*dy;if(dd<=maxR2&&dd<best){target=en;best=dd;}});if(!target)return;var before=(g.projectiles||[]).length,ok=false;try{if(window.fireV6)ok=window.fireV6(g,t,target,stats,now)===true;}catch(err){}if(!ok&&g.projectiles.length===before)fallbackProjectile(g,t,target,stats,now);}catch(err){console.error('[Commander V14] tower error',err);}});
       (g.projectiles||[]).forEach(function(q){

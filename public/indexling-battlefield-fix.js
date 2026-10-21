@@ -11,6 +11,19 @@ var PACK_META={
   arcade:{label:'Arcade Afterdark',costBase:65},
   cosmic:{label:'Cosmic Odyssey',costBase:70}
 };
+/* Everyone fights with the same fixed roster; rarity does not affect stats or cost. */
+var ROSTER=[
+  {id:'ling-sugarbug',cost:6,category:'Damage'},
+  {id:'ling-squire',cost:9,category:'Tank'},
+  {id:'ling-bard',cost:10,category:'Support'},
+  {id:'ling-knight',cost:14,category:'Tank'},
+  {id:'ling-alchemist',cost:16,category:'Splash'},
+  {id:'ling-comet',cost:18,category:'Splash'},
+  {id:'ling-nebula',cost:18,category:'Control'},
+  {id:'ling-voidling',cost:22,category:'Control'},
+  {id:'ling-supernova',cost:28,category:'Damage'}
+];
+function rosterEntry(id){for(var i=0;i<ROSTER.length;i++)if(ROSTER[i].id===id)return ROSTER[i];return null;}
 var ROLE_SEQ=['Damage','Support','Splash','Control','Tank','Damage','Support','Splash'];
 var PACK_ATTACK_TYPES={
   candy:['sugar-stinger','gumdrop-bounce','taffy-lash','choco-burst','jelly-spray','caramel-arc','sprinkle-storm','lolli-spin'],
@@ -48,7 +61,7 @@ function getArt(id,mini){
   return '<span style="font-size:30px">'+esc(c.icon||'✦')+'</span>';
 }
 function rarityMultiplier(r){
-  return r==='Legendary'?1.6:r==='Epic'?1.35:r==='Rare'?1.18:1;
+  return 1;
 }
 function buildDef(c,i){
   var pack=c.pack||'candy', group=cosmetics().filter(function(x){return x.pack===pack;});
@@ -56,7 +69,7 @@ function buildDef(c,i){
   var role=ROLE_SEQ[idx%ROLE_SEQ.length];
   var rarity=rarityMultiplier(c.rarity);
   var attack=((ATTACK_PREFIX[pack]||['Signature Strike'])[idx%((ATTACK_PREFIX[pack]||['Signature Strike']).length)])||'Signature Strike';
-  var tier=c.rarity==='Legendary'?4:c.rarity==='Epic'?3:c.rarity==='Rare'?2:1;
+  var tier=1;
   return {
     id:c.id,name:c.name,role:role+' Indexling',category:role,
     cost:6+(tier-1)*2+Math.min(2,idx%3),
@@ -95,11 +108,9 @@ function rebalanceCommanderCosts(){
     window.COMMANDER_TROOPS_FINAL.forEach(function(t){
       if(!t||!t.id)return;
       if(typeof t.__commanderBaseCost!=='number')t.__commanderBaseCost=Math.max(1,Number(t.cost)||6);
-      var rarity=t.rarity||'';
-      var tier=rarity==='Legendary'?4:rarity==='Epic'?3:rarity==='Rare'?2:1;
-      var base=Number(t.__commanderBaseCost)||8;
-      var costBonus=Math.max(0,Math.min(2,Math.round((base-8)/4)));
-      t.cost=Math.round(Math.max(6,Math.min(12,6+(tier-1)*2+costBonus)));
+      var re=rosterEntry(t.id);
+      t.cost=re?re.cost:10;
+      if(re)t.category=re.category;
     });
   }catch(e){console.warn('[Commander economy] cost rebalance skipped',e);}
 }
@@ -114,18 +125,8 @@ function tdef(id){
 rebalanceCommanderCosts();
 function unlockedPackIds(){
   ensurePackDefs();
-  var set={};
-  try{
-    (state.progress&&state.progress.unlockedCosmetics||[]).forEach(function(id){
-      if(getCos(id))set[id]=true;
-    });
-    var eq=state.progress&&state.progress.equipped&&state.progress.equipped.indexling;
-    if(eq&&getCos(eq))set[eq]=true;
-    var p=commanderFinalProfile();
-    Object.keys(p.owned||{}).forEach(function(id){if(p.owned[id]&&getCos(id))set[id]=true;});
-  }catch(e){}
-  if(!Object.keys(set).length)set['ling-sugarbug']=true;
-  return cosmetics().filter(function(c){return set[c.id];});
+  var all=cosmetics();
+  return ROSTER.map(function(r){return all.find(function(c){return c.id===r.id;});}).filter(Boolean);
 }
 
 function injectCss(){
@@ -329,19 +330,21 @@ function actualRight(){
 function buildCard(c,g){
   var t=tdef(c.id)||buildDef(c,0);
   var level=1;
-  try{level=Math.max(1,Number(commanderFinalProfile().levels[c.id])||1);}catch(e){}
-  var mult=rarityMultiplier(c.rarity);
+  level=1;
   var cost=Math.max(1,Number(t.cost)||1),unaffordable=!g.running&&Number(g.waveCoins||0)<cost;
-  var damage=Math.max(1,Math.round((Number(t.damage)||8)*mult));
-  var range=Math.round(Number(t.range)||120);
-  var dps=Math.round((damage*1000/Math.max(400,Number(t.rate)||1200))*10)/10;
+  var st;try{st=window.richStats?window.richStats(c.id,level):null;}catch(e){st=null;}
+  var damage=Math.max(1,Math.round(Number(st&&st.damage)||Number(t.damage)||8));
+  var range=Math.round(Number(st&&st.range)||Number(t.range)||120);
+  var rate=Math.max(300,Number(st&&st.rate)||Number(t.rate)||1200);
+  var dps=Math.round((damage*1000/rate)*10)/10;
+  var role=t.category||'Damage';
   return '<button type="button" class="commander-pack-v4-card '+(g.selectedTroop===c.id?'selected ':'')+(unaffordable?'unaffordable':'')+'" data-pack-v4-troop="'+esc(c.id)+'" aria-disabled="'+(unaffordable?'true':'false')+'" onclick="return window.__commanderArsenalSelectV7(this,event)" '+(unaffordable?'title="Need '+cost+' deployment coins"':'')+'>'+
+    '<div class="cp-price" aria-label="Cost '+cost+' coins">'+coinIconHtml()+'<b>'+cost+'</b></div>'+
     '<div class="commander-pack-v4-art">'+getArt(c.id,true)+'</div>'+
-    '<div class="commander-pack-v4-name">'+esc(c.name)+' · Lv '+level+'</div>'+
-    '<div class="commander-pack-v4-meta"><span class="commander-pack-v4-pill">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+'</span><span class="commander-pack-v4-pill">'+esc(c.rarity)+'</span></div>'+
-    '<div class="commander-pack-v4-stats">⚔ '+damage+' DMG · ◉ '+range+' RNG · '+dps+' DPS</div>'+
+    '<div class="commander-pack-v4-name">'+esc(c.name)+'<span class="cp-lv">Lv '+level+'</span></div>'+
+    '<div class="commander-pack-v4-meta"><span class="commander-pack-v4-pill cp-role cp-role-'+esc(String(role).toLowerCase())+'">'+esc(role)+'</span></div>'+
+    '<div class="cp-stats"><span><i>DMG</i><b>'+damage+'</b></span><span><i>RNG</i><b>'+range+'</b></span><span><i>DPS</i><b>'+dps+'</b></span></div>'+
     '<div class="commander-pack-v4-attack">✦ '+esc(t.ability||c.name+' Signature')+'</div>'+
-    '<div class="commander-pack-v4-cost">Deploy · '+cost+' '+coinIconHtml()+'</div>'+
     '</button>';
 }
 window.__commanderArsenalSelectV7=function(card,e){
@@ -427,7 +430,7 @@ function renderRight(){
   });
   var categories=['All','Damage','Support','Splash','Control','Tank'];
   var oldStart=right.querySelector('.commander-auth-start'),oldChange=right.querySelectorAll('.commander-auth-change');
-  var tail='<button class="commander-auth-start" type="button" id="commander-pack-v4-start">▶ Start Wave</button><button class="commander-auth-change" type="button" id="commander-pack-v4-map">Change Map</button><button class="commander-auth-change" type="button" id="commander-pack-v4-topic">Change AP Topic</button>';
+  var tail='<div class="cmd-dock"><div class="cmd-speed" role="group" aria-label="Wave speed"><span>Wave speed</span><button type="button" data-cmd-speed="0.5">0.5×</button><button type="button" data-cmd-speed="1">1×</button><button type="button" data-cmd-speed="2">2×</button></div><button class="commander-auth-start" type="button" id="commander-pack-v4-start">▶ Start Wave</button></div><button class="commander-auth-change" type="button" id="commander-pack-v4-map">Change Map</button><button class="commander-auth-change" type="button" id="commander-pack-v4-topic">Change AP Topic</button>';
   var title='<div class="commander-auth-title">Indexling Arsenal</div>';
   var p;try{p=commanderFinalProfile();}catch(e){p={coins:0};}
   var round='<div class="commander-auth-budget commander-pack-v4-wallet"><span>'+coinIconHtml()+' Deployment coins</span><b>'+Math.floor(g.waveCoins||0)+'</b><span class="commander-pack-v4-wallet-persistent">Persistent coins: '+Math.floor(p.coins||0)+'</span></div><div class="commander-auth-round">Round '+Math.max(1,g.wave)+' · '+(g.running?'WAVE IN PROGRESS':'READY TO DEPLOY')+'</div>';
@@ -457,14 +460,14 @@ function syncLayers(){
     var c=getCos(t.id),td=tdef(t.id);if(!c||!td)return;
     var lvl=Math.max(1,Number(t.level)||1);
     var pinned=Number(g.selectedTowerIndex)===i;
-    var st={damage:Math.max(1,Number(td.damage)||1),range:Math.max(1,Number(td.range)||100),rate:Math.max(400,Number(td.rate)||1200)};
+    var st={damage:Math.max(1,Number(td.damage)||1),range:Math.max(1,Number(td.range)||100),rate:Math.max(400,Number(td.rate)||1200)};try{if(window.richStats){var rs=window.richStats(t.id,lvl);st={damage:rs.damage,range:rs.range,rate:Math.max(300,rs.rate)};}}catch(e){}
     var dps=Math.round(st.damage*1000/st.rate*10)/10;
     html+='<div class="commander-pack-v4-unit '+(pinned?'pinned':'')+'" data-pack-v4-unit="'+i+'" style="left:'+(t.x*100)+'%;top:'+(t.y*100)+'%;">'+
       '<div class="commander-pack-v4-ring"></div>'+
       '<div class="commander-pack-v4-unit-art">'+getArt(t.id,false)+'</div>'+
       '<div class="commander-pack-v4-role">'+esc(td.category||td.role||'Indexling')+'</div>'+
       '<div class="commander-pack-v4-nameplate">'+esc(c.name)+' · Lv '+lvl+'</div>'+
-      '<div class="commander-pack-v4-tip"><b>'+esc(c.name)+' · Lv '+lvl+'</b><br><span class="blue">'+esc(PACK_META[c.pack]?.label||c.pack||'Pack')+' · '+esc(c.rarity)+'</span><br>⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · '+dps+' DPS<br><span class="gold">♥ '+Math.ceil(Number(t.hp)||0)+' / '+Math.ceil(Number(t.maxHp)||100)+' HP</span><br><span class="gold">✦ '+esc(td.ability||c.name+' Signature')+'</span><br><span style="color:#a9bed0">Click to pin stats · hover for range</span></div>'+
+      '<div class="commander-pack-v4-tip"><b>'+esc(c.name)+' · Lv '+lvl+'</b><br><span class="blue">'+esc(td.category||td.role||'Indexling')+'</span><br>⚔ '+st.damage+' DMG · ◉ '+st.range+' RNG · '+dps+' DPS<br><span class="gold">♥ '+Math.ceil(Number(t.hp)||0)+' / '+Math.ceil(Number(t.maxHp)||100)+' HP</span><br><span class="gold">✦ '+esc(td.ability||c.name+' Signature')+'</span><br><span style="color:#a9bed0">Click to pin stats · hover for range</span></div>'+
     '</div>';
   });
   if(g.selectedTroop&&g.cursor&&!g.running){
