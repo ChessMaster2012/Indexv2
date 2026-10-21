@@ -21,7 +21,13 @@ var ROSTER=[
   {id:'ling-comet',cost:18,category:'Splash'},
   {id:'ling-nebula',cost:18,category:'Control'},
   {id:'ling-voidling',cost:22,category:'Control'},
-  {id:'ling-supernova',cost:28,category:'Damage'}
+  {id:'ling-supernova',cost:28,category:'Damage'},
+  {id:'ling-botlet',cost:7,category:'Damage',damage:8,range:120,rate:650,shot:'#aab7c9'},
+  {id:'ling-gumdrop',cost:8,category:'Support',damage:6,range:150,rate:600,shot:'#8ed8ff'},
+  {id:'ling-taffy',cost:12,category:'Splash',damage:12,range:140,rate:1100,shot:'#b7f08a'},
+  {id:'ling-choco',cost:13,category:'Control',damage:10,range:160,rate:1000,shot:'#d9a77f'},
+  {id:'ling-drone',cost:15,category:'Control',damage:14,range:175,rate:1100,shot:'#8db4ef'},
+  {id:'ling-kraken',cost:20,category:'Damage',damage:24,range:150,rate:1350,shot:'#8e9cf5'}
 ];
 function rosterEntry(id){for(var i=0;i<ROSTER.length;i++)if(ROSTER[i].id===id)return ROSTER[i];return null;}
 var ROLE_SEQ=['Damage','Support','Splash','Control','Tank','Damage','Support','Splash'];
@@ -110,7 +116,8 @@ function rebalanceCommanderCosts(){
       if(typeof t.__commanderBaseCost!=='number')t.__commanderBaseCost=Math.max(1,Number(t.cost)||6);
       var re=rosterEntry(t.id);
       t.cost=re?re.cost:10;
-      if(re)t.category=re.category;
+      if(re){t.category=re.category;
+        if(re.damage){t.damage=re.damage;t.range=re.range;t.rate=re.rate;t.shot=re.shot;t.cooldown=8;t.power=Math.max(2,re.damage);}}
     });
   }catch(e){console.warn('[Commander economy] cost rebalance skipped',e);}
 }
@@ -125,6 +132,7 @@ function tdef(id){
 rebalanceCommanderCosts();
 function unlockedPackIds(){
   ensurePackDefs();
+  rebalanceCommanderCosts();
   var all=cosmetics();
   return ROSTER.map(function(r){return all.find(function(c){return c.id===r.id;});}).filter(Boolean);
 }

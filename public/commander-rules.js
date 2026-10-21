@@ -215,5 +215,70 @@
     if (c) flash(c.getAttribute('data-cmd-i'), false);
   });
 
-  setInterval(function () { try { rerender(false); paintSpeed(); } catch (e) { console.error('[Commander rules] panel update failed', e); } }, 200);
+  /* ---------- Coin rewards ----------
+   * Older runtime layers adjust the gate reward after the fact (one subtracts
+   * 10 on a wrong answer, another can re-set the balance). This outermost
+   * wrapper makes the reward deterministic: +20 correct, +5 wrong. */
+  var REWARD_CORRECT = 20, REWARD_WRONG = 5, WAVE_CLEAR_BONUS = 5;
+  function rerenderGate(g) { try { if (window.__cmdRenderBattle) window.__cmdRenderBattle(g); } catch (e) { } }
+  function wrapAnswer() {
+    var inner = window.__commanderAnswerV6;
+    if (typeof inner !== 'function' || inner.__cmdReward) return;
+    var outer = function (i, e) {
+      var g = game();
+      var ok = !!(g && g.active === 'commander' && g.questionGateOpen && g.question && !g.questionFeedback);
+      var before = ok ? Number(g.waveCoins || 0) : 0;
+      var correct = ok && Number(i) === Number(g.question.correct);
+      var r = inner.apply(this, arguments);
+      g = game();
+      if (ok && g && g.questionFeedback) {
+        var reward = correct ? REWARD_CORRECT : REWARD_WRONG;
+        g.waveCoins = before + reward;
+        g.__cmdBanked = g.waveCoins;
+        save(g);
+        rerenderGate(g);
+        toast('🪙 +' + reward + ' deployment coins');
+      }
+      return r;
+    };
+    outer.__cmdReward = true;
+    window.__commanderAnswerV6 = outer;
+  }
+  function wrapEnter() {
+    var inner = window.__commanderEnterBattlefieldV7;
+    if (typeof inner !== 'function' || inner.__cmdBank) return;
+    var outer = function (e) {
+      var g = game();
+      var banked = g && Number(g.__cmdBanked) || 0;
+      var r = inner.apply(this, arguments);
+      g = game();
+      if (g && banked > 0 && Number(g.waveCoins || 0) < banked) { g.waveCoins = banked; save(g); }
+      if (g) g.__cmdBanked = 0;
+      return r;
+    };
+    outer.__cmdBank = true;
+    window.__commanderEnterBattlefieldV7 = outer;
+  }
+  /* This file loads before the later runtime layers that also wrap these handlers,
+   * so re-wrap until ours is the outermost one. */
+  function ensureWrapped() { if (document.readyState !== "complete") return; wrapAnswer(); wrapEnter(); }
+
+  /* +5 coins for every cleared wave (granted once, as the question gate opens). */
+  var wasRunning = false;
+  function watchWaveClear() {
+    var g = game();
+    if (!g || g.active !== 'commander') { wasRunning = false; return; }
+    if (g.running) { wasRunning = true; return; }
+    if (wasRunning && g.questionGateOpen && !g.finished && Number(g.base) > 0 && g.__cmdBonusWave !== g.wave) {
+      g.__cmdBonusWave = g.wave;
+      g.waveCoins = Number(g.waveCoins || 0) + WAVE_CLEAR_BONUS;
+      g.__cmdBanked = Math.max(Number(g.__cmdBanked) || 0, 0);
+      save(g);
+      rerenderGate(g);
+      toast('🪙 +' + WAVE_CLEAR_BONUS + ' coins for clearing wave ' + g.wave);
+    }
+    wasRunning = false;
+  }
+
+  setInterval(function () { try { ensureWrapped(); watchWaveClear(); rerender(false); paintSpeed(); } catch (e) { console.error('[Commander rules] panel update failed', e); } }, 200);
 })();
