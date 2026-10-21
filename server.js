@@ -538,7 +538,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
       let data=null;
       try{data=raw?JSON.parse(raw):null;}catch{}
       const detail=data?.error?.message || data?.error || data?.message || raw.slice(0,300) || ('HTTP '+upstream.status);
-      const err=new Error('HTTP '+upstream.status+': '+String(detail).replace(/\\s+/g,' ').trim().slice(0,300));
+      const err=new Error('HTTP '+upstream.status+': '+String(detail).replace(/\s+/g,' ').trim().slice(0,300));
       err.status=upstream.status;
       throw err;
     }
@@ -1130,7 +1130,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       });
     }
 
-    const seen=new Set(excluded.map(q=>String(q).toLowerCase().replace(/\\s+/g,' ').replace(/[^a-z0-9 ]/g,'').trim()));
+    const seen=new Set(excluded.map(q=>String(q).toLowerCase().replace(/\s+/g,' ').replace(/[^a-z0-9 ]/g,'').trim()));
     const questions=[];
     for(const q of (Array.isArray(data?.questions)?data.questions:[])){
       if(!q||typeof q.q!=='string'||!q.q.trim()||!Array.isArray(q.options)||q.options.length!==4||!q.options.every(o=>typeof o==='string'&&o.trim())||!Number.isInteger(Number(q.correct))||Number(q.correct)<0||Number(q.correct)>3) continue;
@@ -1140,7 +1140,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
         correct:Number(q.correct),
         explanation:q.explanation?String(q.explanation):''
       };
-      const key=clean.q.toLowerCase().replace(/\\s+/g,' ').replace(/[^a-z0-9 ]/g,'').trim();
+      const key=clean.q.toLowerCase().replace(/\s+/g,' ').replace(/[^a-z0-9 ]/g,'').trim();
       if(!key||seen.has(key)) continue;
       seen.add(key);
       questions.push(clean);
