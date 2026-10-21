@@ -8472,9 +8472,9 @@ function draw(g){
   if(cv.width!==pw||cv.height!==ph){cv.width=pw;cv.height=ph;}
   var ctx=cv.getContext('2d');if(!ctx)return;
   ctx.setTransform(d,0,0,d,0,0);
-  var key=String(m.id)+'|'+w+'|'+h+'|'+d;
+  var key=String(m.id)+'|'+w+'|'+h+'|'+d+(window.__cmdTerrain?'|n':'');
   if(commanderCanvasCacheV13.key!==key||!commanderCanvasCacheV13.canvas){
-    commanderCanvasCacheV13={key:key,canvas:buildCommanderMapV13(m,w,h,d),w:w,h:h,dpr:d};
+    commanderCanvasCacheV13={key:key,canvas:(window.__cmdTerrain&&window.__cmdTerrain(m,w,h,d))||buildCommanderMapV13(m,w,h,d),w:w,h:h,dpr:d};
   }
   ctx.clearRect(0,0,w,h);ctx.drawImage(commanderCanvasCacheV13.canvas,0,0,w,h);
   var now=Date.now();
@@ -8917,6 +8917,8 @@ setInterval(function(){
 </script>
 <link rel="stylesheet" href="/redesign.css?v=11">
 <link rel="stylesheet" href="/commander-fx.css?v=1">
-<script src="/commander-fx.js?v=1"></script>
+<link rel="stylesheet" href="/commander-screens.css?v=1">
+<script src="/commander-maps.js?v=1"></script>
+<script src="/commander-fx.js?v=2"></script>
 </body>
 </html>

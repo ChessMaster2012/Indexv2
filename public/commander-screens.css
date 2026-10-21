@@ -1,0 +1,349 @@
+/* ==========================================================================
+   Troop Commander — screen system (presentation only)
+   Save slots, study mission, map select, question gate, end screen.
+   Same markup, same handlers, same layout slots; only surfaces, type, colour,
+   borders and states change so every Commander screen shares the battle UI's
+   dark glass look. Revert by removing the <link> to this file from index.html.
+   ========================================================================== */
+.commander-fullscreen.commander-ocean-ref,
+.commander-authoritative-root.commander-auth-gate,
+.commander-fullscreen.commander-battle-bg-ref {
+  --sx-0: #060b17;
+  --sx-1: #0b1424;
+  --sx-2: #122038;
+  --sx-3: #1a2c4b;
+  --sx-line: rgba(150, 190, 255, .16);
+  --sx-line-2: rgba(150, 190, 255, .32);
+  --sx-text: #eef5ff;
+  --sx-text-2: #a9bdd6;
+  --sx-text-3: #7f93b0;
+  --sx-teal: #34d6a0;
+  --sx-blue: #3fa9f5;
+  --sx-violet: #8b7bff;
+  --sx-gold: #ffd166;
+  --sx-red: #ff6b81;
+  --sx-grad: linear-gradient(135deg, #34d6a0 0%, #3fa9f5 100%);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  color: var(--sx-text);
+}
+
+/* ---- shared backdrop ---------------------------------------------------- */
+.commander-fullscreen.commander-ocean-ref {
+  background:
+    radial-gradient(900px 520px at 85% -8%, rgba(139, 123, 255, .22), transparent 62%),
+    radial-gradient(800px 480px at 6% 4%, rgba(52, 214, 160, .13), transparent 60%),
+    radial-gradient(700px 420px at 50% 110%, rgba(63, 169, 245, .14), transparent 62%),
+    linear-gradient(180deg, var(--sx-1), var(--sx-0)) !important;
+}
+.commander-fullscreen.commander-ocean-ref:before {
+  background:
+    radial-gradient(circle at 1px 1px, rgba(150, 190, 255, .09) 1px, transparent 1.5px) 0 0 / 26px 26px !important;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 20%, transparent 78%);
+  mask-image: radial-gradient(ellipse at 50% 30%, #000 20%, transparent 78%);
+}
+
+/* ---- back button -------------------------------------------------------- */
+.commander-fullscreen .commander-back-ref {
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 12px !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .02)), var(--sx-2) !important;
+  box-shadow: 0 8px 20px rgba(2, 6, 20, .35) !important;
+  color: var(--sx-text) !important;
+  font-weight: 700 !important;
+  letter-spacing: .01em;
+  text-shadow: none !important;
+  transition: transform .14s ease, border-color .14s ease, background .14s ease;
+}
+.commander-fullscreen .commander-back-ref:hover { transform: translateY(-1px); border-color: rgba(63, 169, 245, .65) !important; }
+.commander-fullscreen .commander-back-ref:active { transform: translateY(0); }
+
+/* ---- screen titles (were wooden signs) ---------------------------------- */
+.commander-fullscreen .commander-wood-title-ref {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 6px 12px !important;
+  margin: 10px auto 34px !important;
+  color: var(--sx-text) !important;
+  font-weight: 800 !important;
+  letter-spacing: -.03em !important;
+  text-shadow: none !important;
+  -webkit-text-stroke: 0 !important;
+  background-image: linear-gradient(135deg, #ffffff 30%, #9fd8ff 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+.commander-fullscreen .commander-wood-title-ref::after {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 4px;
+  margin: 12px auto 0;
+  border-radius: 4px;
+  background: var(--sx-grad) !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+}
+
+/* ---- primary / danger buttons ------------------------------------------- */
+.commander-fullscreen .commander-blue-button-ref {
+  border: 1px solid rgba(255, 255, 255, .22) !important;
+  border-radius: 12px !important;
+  background: var(--sx-grad) !important;
+  color: #04202c !important;
+  font-weight: 800 !important;
+  letter-spacing: .01em;
+  text-shadow: none !important;
+  box-shadow: 0 10px 24px rgba(52, 214, 160, .26), inset 0 1px 0 rgba(255, 255, 255, .4) !important;
+  transition: transform .14s ease, filter .14s ease, box-shadow .14s ease;
+}
+.commander-fullscreen .commander-blue-button-ref:hover { transform: translateY(-1px); filter: brightness(1.07); box-shadow: 0 14px 30px rgba(52, 214, 160, .36), inset 0 1px 0 rgba(255, 255, 255, .45) !important; }
+.commander-fullscreen .commander-blue-button-ref:active { transform: translateY(0); }
+.commander-fullscreen .commander-danger-ref {
+  border: 1px solid rgba(255, 107, 129, .5) !important;
+  border-radius: 12px !important;
+  background: rgba(255, 107, 129, .1) !important;
+  color: #ffc2cc !important;
+  font-weight: 700 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  transition: background .14s ease, border-color .14s ease;
+}
+.commander-fullscreen .commander-danger-ref:hover { background: rgba(255, 107, 129, .2) !important; border-color: rgba(255, 107, 129, .8) !important; }
+.commander-fullscreen :is(.commander-back-ref, .commander-blue-button-ref, .commander-danger-ref, .commander-map-card-final-v3):focus-visible,
+.commander-authoritative-root.commander-auth-gate :is(button):focus-visible { outline: 2px solid var(--sx-blue); outline-offset: 3px; }
+
+/* ---- save slots --------------------------------------------------------- */
+.commander-fullscreen .commander-save-grid-ref { gap: 28px !important; }
+.commander-fullscreen .commander-save-card-ref {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0) 55%), var(--sx-2) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 22px 50px rgba(2, 6, 20, .5), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  color: var(--sx-text) !important;
+  position: relative;
+  overflow: hidden;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.commander-fullscreen .commander-save-card-ref::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--sx-grad);
+  opacity: .85;
+}
+.commander-fullscreen .commander-save-card-ref:hover { transform: translateY(-3px); border-color: rgba(63, 169, 245, .6) !important; box-shadow: 0 28px 60px rgba(2, 6, 20, .55), 0 0 0 1px rgba(63, 169, 245, .2) !important; }
+.commander-fullscreen .commander-save-card-ref.empty { background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, 0)), var(--sx-1) !important; border-style: dashed !important; }
+.commander-fullscreen .commander-save-card-ref.empty::before { opacity: .35; }
+.commander-fullscreen .commander-slot-small { color: var(--sx-text-3) !important; letter-spacing: .22em !important; font-weight: 800 !important; text-shadow: none !important; }
+.commander-fullscreen .commander-empty { color: var(--sx-text) !important; font-weight: 800 !important; letter-spacing: -.02em; text-shadow: none !important; }
+.commander-fullscreen .commander-save-card-ref.empty .commander-empty { color: var(--sx-text-3) !important; }
+.commander-fullscreen .commander-save-map-ref { color: var(--sx-gold) !important; font-weight: 800 !important; text-shadow: none !important; }
+.commander-fullscreen .commander-save-meta-ref { color: var(--sx-text-2) !important; text-shadow: none !important; }
+
+/* ---- study mission ------------------------------------------------------ */
+.commander-fullscreen .commander-study-card-final {
+  background:
+    radial-gradient(520px 240px at 100% 0%, rgba(139, 123, 255, .16), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0) 45%), var(--sx-2) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 26px !important;
+  box-shadow: 0 30px 80px rgba(2, 6, 20, .6), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  color: var(--sx-text) !important;
+}
+.commander-fullscreen .commander-study-kicker-final { color: var(--sx-teal) !important; letter-spacing: .24em !important; font-weight: 800 !important; }
+.commander-fullscreen .commander-study-card-final h1 {
+  background: linear-gradient(135deg, #ffffff 25%, #9fd8ff 70%, #b6a8ff 100%) !important;
+  -webkit-background-clip: text !important; background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  letter-spacing: -.035em !important;
+}
+.commander-fullscreen .commander-study-lead-final { color: var(--sx-text-2) !important; }
+.commander-fullscreen .commander-reward-pill-final {
+  background: rgba(255, 209, 102, .12) !important;
+  border: 1px solid rgba(255, 209, 102, .4) !important;
+  color: #ffe3a1 !important;
+}
+.commander-fullscreen .commander-reward-pill-final strong { color: var(--sx-gold) !important; }
+.commander-fullscreen .commander-field-final label { color: var(--sx-text-2) !important; letter-spacing: .02em; }
+.commander-fullscreen .commander-field-final :is(select, input, textarea) {
+  background: var(--sx-1) !important;
+  color: var(--sx-text) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  transition: border-color .14s ease, box-shadow .14s ease;
+  color-scheme: dark;
+}
+.commander-fullscreen .commander-field-final :is(select, input, textarea)::placeholder { color: var(--sx-text-3) !important; }
+.commander-fullscreen .commander-field-final :is(select, input, textarea):hover { border-color: rgba(150, 190, 255, .5) !important; }
+.commander-fullscreen .commander-field-final :is(select, input, textarea):focus { border-color: var(--sx-blue) !important; box-shadow: 0 0 0 3px rgba(63, 169, 245, .3) !important; outline: none !important; }
+.commander-fullscreen .commander-study-helper-final {
+  background: rgba(139, 123, 255, .1) !important;
+  border: 1px solid rgba(139, 123, 255, .3) !important;
+  border-radius: 14px !important;
+  color: var(--sx-text-2) !important;
+}
+.commander-fullscreen .commander-study-helper-final * { color: inherit !important; }
+.commander-fullscreen .commander-study-helper-final strong, .commander-fullscreen .commander-study-helper-final b { color: var(--sx-text) !important; }
+
+/* ---- map select --------------------------------------------------------- */
+.commander-fullscreen .commander-map-grid-final-v3 { gap: 22px !important; }
+.commander-fullscreen .commander-map-card-final-v3 {
+  --mc: var(--sx-teal);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0) 50%), var(--sx-2) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 18px 44px rgba(2, 6, 20, .5), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  color: var(--sx-text) !important;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.commander-fullscreen .commander-map-card-final-v3:nth-child(1), .commander-fullscreen .commander-map-card-final-v3:nth-child(2) { --mc: #34d6a0; }
+.commander-fullscreen .commander-map-card-final-v3:nth-child(3) { --mc: #ffd166; }
+.commander-fullscreen .commander-map-card-final-v3:nth-child(4) { --mc: #ff9a4d; }
+.commander-fullscreen .commander-map-card-final-v3:nth-child(5) { --mc: #ff6b81; }
+.commander-fullscreen .commander-map-card-final-v3:hover {
+  transform: translateY(-5px);
+  border-color: var(--mc) !important;
+  box-shadow: 0 26px 56px rgba(2, 6, 20, .6), 0 0 0 1px var(--mc) !important;
+}
+.commander-fullscreen .commander-map-art-final-v3 {
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 22px rgba(2, 6, 20, .45) !important;
+  overflow: hidden;
+}
+.commander-fullscreen .commander-map-name-final-v3 { color: var(--sx-text) !important; text-shadow: none !important; letter-spacing: -.02em; font-weight: 800 !important; }
+.commander-fullscreen .commander-map-diff-final-v3 {
+  background: color-mix(in srgb, var(--mc) 16%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--mc) 55%, transparent) !important;
+  color: color-mix(in srgb, var(--mc) 70%, #ffffff) !important;
+  text-shadow: none !important;
+}
+.commander-fullscreen .commander-map-desc-final-v3 { color: var(--sx-text-2) !important; text-shadow: none !important; }
+
+/* ---- question gate ------------------------------------------------------ */
+.commander-authoritative-root.commander-auth-gate {
+  background:
+    radial-gradient(900px 520px at 85% -8%, rgba(139, 123, 255, .2), transparent 62%),
+    radial-gradient(800px 480px at 6% 4%, rgba(52, 214, 160, .12), transparent 60%),
+    linear-gradient(180deg, var(--sx-1), var(--sx-0)) !important;
+}
+.commander-authoritative-root.commander-auth-gate .commander-auth-card {
+  background:
+    radial-gradient(520px 240px at 100% 0%, rgba(139, 123, 255, .14), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0) 40%), var(--sx-2) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 26px !important;
+  box-shadow: 0 30px 80px rgba(2, 6, 20, .6), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  color: var(--sx-text) !important;
+}
+.commander-auth-gate .commander-auth-kicker { color: var(--sx-teal) !important; letter-spacing: .2em !important; font-weight: 800 !important; }
+.commander-auth-gate .commander-auth-card h1 {
+  background: linear-gradient(135deg, #ffffff 25%, #9fd8ff 70%, #b6a8ff 100%) !important;
+  -webkit-background-clip: text !important; background-clip: text !important;
+  -webkit-text-fill-color: transparent !important; color: transparent !important;
+  letter-spacing: -.035em !important;
+}
+.commander-auth-gate .commander-auth-sub, .commander-auth-gate .commander-auth-note { color: var(--sx-text-2) !important; }
+.commander-auth-gate .commander-auth-note { color: var(--sx-text-3) !important; }
+.commander-auth-gate .commander-auth-exit {
+  background: rgba(150, 190, 255, .08) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  color: var(--sx-text) !important;
+  border-radius: 11px !important;
+  transition: background .14s ease, border-color .14s ease;
+}
+.commander-auth-gate .commander-auth-exit:hover { background: rgba(255, 107, 129, .16) !important; border-color: rgba(255, 107, 129, .6) !important; }
+.commander-auth-gate .commander-auth-stat {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0)), var(--sx-1) !important;
+  border: 1px solid var(--sx-line) !important;
+  box-shadow: none !important;
+  border-radius: 16px !important;
+}
+.commander-auth-gate .commander-auth-stat b { color: var(--sx-text) !important; font-variant-numeric: tabular-nums; }
+.commander-auth-gate .commander-auth-stat:first-child b { color: var(--sx-gold) !important; }
+.commander-auth-gate .commander-auth-stat span { color: var(--sx-text-3) !important; letter-spacing: .1em; }
+.commander-auth-gate .commander-auth-question {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .03), rgba(255, 255, 255, 0)), var(--sx-0) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .05) !important;
+  border-radius: 20px !important;
+}
+.commander-auth-gate .commander-auth-meta { color: var(--sx-blue) !important; letter-spacing: .14em; }
+.commander-auth-gate .commander-auth-ai-badge { color: var(--sx-text-3) !important; letter-spacing: .08em; }
+.commander-auth-gate .commander-auth-question h2 { color: var(--sx-text) !important; letter-spacing: -.02em; }
+.commander-auth-gate .commander-auth-option {
+  background: var(--sx-2) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  color: var(--sx-text) !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+  transition: transform .14s ease, border-color .14s ease, background .14s ease;
+}
+.commander-auth-gate .commander-auth-option .letter {
+  background: rgba(63, 169, 245, .18) !important;
+  border: 1px solid rgba(63, 169, 245, .5);
+  color: #bfe3ff !important;
+}
+.commander-auth-gate .commander-auth-option:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--sx-blue) !important;
+  background: var(--sx-3) !important;
+}
+.commander-auth-gate .commander-auth-option.correct {
+  background: rgba(52, 214, 160, .16) !important;
+  border-color: rgba(52, 214, 160, .8) !important;
+  color: #d4fff0 !important;
+  box-shadow: 0 0 0 3px rgba(52, 214, 160, .16) !important;
+}
+.commander-auth-gate .commander-auth-option.correct .letter { background: var(--sx-teal) !important; border-color: transparent; color: #04202c !important; }
+.commander-auth-gate .commander-auth-option.incorrect {
+  background: rgba(255, 107, 129, .14) !important;
+  border-color: rgba(255, 107, 129, .75) !important;
+  color: #ffd3da !important;
+}
+.commander-auth-gate .commander-auth-option.incorrect .letter { background: var(--sx-red) !important; border-color: transparent; color: #2b0a12 !important; }
+.commander-auth-gate .commander-auth-option:disabled:not(.correct):not(.incorrect) { opacity: .5; }
+.commander-auth-gate .commander-auth-feedback {
+  border-radius: 16px !important;
+  background: rgba(52, 214, 160, .1) !important;
+  border: 1px solid rgba(52, 214, 160, .5) !important;
+  color: #d4fff0 !important;
+}
+.commander-auth-gate .commander-auth-feedback.wrong {
+  background: rgba(255, 107, 129, .1) !important;
+  border-color: rgba(255, 107, 129, .55) !important;
+  color: #ffd3da !important;
+}
+.commander-auth-gate .commander-auth-feedback b, .commander-auth-gate .commander-auth-feedback p { color: inherit !important; }
+.commander-auth-gate .commander-auth-feedback button {
+  background: var(--sx-grad) !important;
+  color: #04202c !important;
+  border: 1px solid rgba(255, 255, 255, .22) !important;
+  border-radius: 12px !important;
+  font-weight: 800 !important;
+  box-shadow: 0 10px 24px rgba(52, 214, 160, .26), inset 0 1px 0 rgba(255, 255, 255, .4) !important;
+  transition: transform .14s ease, filter .14s ease;
+}
+.commander-auth-gate .commander-auth-feedback button:hover { transform: translateY(-1px); filter: brightness(1.07); }
+
+/* ---- end screen --------------------------------------------------------- */
+.commander-fullscreen.commander-battle-bg-ref .commander-result-ref {
+  background:
+    radial-gradient(520px 240px at 50% 0%, rgba(255, 107, 129, .14), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, 0) 45%), var(--sx-2) !important;
+  border: 1px solid var(--sx-line-2) !important;
+  border-radius: 26px !important;
+  box-shadow: 0 30px 80px rgba(2, 6, 20, .6), inset 0 1px 0 rgba(255, 255, 255, .06) !important;
+  color: var(--sx-text) !important;
+}
+.commander-fullscreen.commander-battle-bg-ref .commander-result-ref :is(h1, p) { color: var(--sx-text) !important; text-shadow: none !important; }
+.commander-fullscreen.commander-battle-bg-ref .commander-result-ref p { color: var(--sx-text-2) !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .commander-fullscreen *, .commander-authoritative-root.commander-auth-gate * { transition: none !important; }
+}

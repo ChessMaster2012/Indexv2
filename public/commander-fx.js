@@ -578,6 +578,7 @@
 
   function render(dt) {
     ctx2.clearRect(0, 0, W, H);
+    var gm = game(); if (gm && window.__cmdAmbient) { try { window.__cmdAmbient.draw(ctx2, W, H, gm.mapId, dt); } catch (e) { } }
     // particles
     for (var i = parts.length - 1; i >= 0; i--) {
       var p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; }
