@@ -1709,8 +1709,10 @@ function sanitizeAccountState(input){
         progress: src.quests.progress && typeof src.quests.progress==='object' ? src.quests.progress : {},
         claimed: src.quests.claimed && typeof src.quests.claimed==='object' ? src.quests.claimed : {},
         announced: src.quests.announced && typeof src.quests.announced==='object' ? src.quests.announced : {},
-        crateRewardsClaimed: src.quests.crateRewardsClaimed && typeof src.quests.crateRewardsClaimed==='object' ? src.quests.crateRewardsClaimed : {}
+        crateRewardsClaimed: src.quests.crateRewardsClaimed && typeof src.quests.crateRewardsClaimed==='object' ? src.quests.crateRewardsClaimed : {},
+        chestClaimed: src.quests.chestClaimed && typeof src.quests.chestClaimed==='object' ? src.quests.chestClaimed : {}
       } : null,
+      achievements: src.achievements && typeof src.achievements==='object' && src.achievements.claimed && typeof src.achievements.claimed==='object' ? {claimed:Object.fromEntries(Object.entries(src.achievements.claimed).slice(0,200).map(([k,v])=>[String(k).slice(0,40),Number(v)||1]))} : {claimed:{}},
     profile: {
       name: String(profile.name||'').slice(0,60),
       district: String(profile.district||'').slice(0,200),
@@ -1818,7 +1820,8 @@ function mergeQuestState(existingQuest,incomingQuest){
     progress,
     claimed:{...exClaimed,...inClaimed},
     announced:{...exAnnounced,...inAnnounced},
-    crateRewardsClaimed:{...exCrateRewards,...inCrateRewards}
+    crateRewardsClaimed:{...exCrateRewards,...inCrateRewards},
+    chestClaimed:{...(existing.chestClaimed&&typeof existing.chestClaimed==='object'?existing.chestClaimed:{}),...(incoming.chestClaimed&&typeof incoming.chestClaimed==='object'?incoming.chestClaimed:{})}
   };
 }
 
@@ -2256,6 +2259,8 @@ app.put('/api/account/state', async (req,res)=>{
     };
     // Membership is server-owned and only changes after verified Stripe events.
     if(existingAccountState.membership) mergedAccountState.membership=existingAccountState.membership;
+    // Achievement claims are server-owned; a browser snapshot can never remove or add them.
+    mergedAccountState.achievements=existingAccountState.achievements||{claimed:{}};
     const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
     if(mergedQuests) mergedAccountState.quests=mergedQuests;
     req.user.accountData = sanitizeAccountState(mergedAccountState);
@@ -2312,20 +2317,8 @@ app.put('/api/account/quests', async (req,res)=>{
 });
 // Quest claim is server-authoritative: the quest flag and Battle Pass XP are
 // committed together so a sign-out/reload cannot lose the reward or duplicate it.
-const QUEST_REWARDS = Object.freeze({
-  login:{xp:25,coins:20,packTokens:0},
-  ai:{xp:50,coins:0,packTokens:0},
-  set:{xp:75,coins:10,packTokens:0},
-  lessons:{xp:100,coins:0,packTokens:0},
-  live:{xp:100,coins:15,packTokens:0},
-  ai2:{xp:75,coins:20,packTokens:0},
-  lessons2:{xp:125,coins:25,packTokens:0},
-  packs2:{xp:100,coins:25,packTokens:1,skinCrates:1},
-  ai10:{xp:150,coins:35,packTokens:1},
-  xp:{xp:75,coins:15,packTokens:0},
-  xp2:{xp:150,coins:30,packTokens:1,skinCrates:1},
-  lessons6:{xp:200,coins:40,packTokens:1,skinCrates:1}
-});
+const QUEST_CATALOG = require('./public/quest-catalog.js');
+const QUEST_REWARDS = Object.freeze(Object.fromEntries(QUEST_CATALOG.DAILY.map(q=>[q.id,{xp:q.xp,coins:q.coins,packTokens:q.packTokens,skinCrates:q.skinCrates}])));
 /* Battle Pass rewards. Row = [coins, skinCrates, freePackTokens, indexlingId]. MIRRORED in public/index.html (BP_TABLE): keep both tables identical. */
 const BP_TABLE = [[60,0,0,''],[20,0,1,''],[20,1,0,''],[90,0,0,''],[150,5,1,''],[60,0,0,''],[20,0,1,'ling-gumdrop'],[20,1,0,''],[90,0,0,''],[150,5,2,''],[70,0,0,''],[25,0,1,''],[25,1,0,'ling-squire'],[100,0,0,''],[175,5,1,''],[70,0,0,''],[25,0,1,'ling-botlet'],[25,1,0,''],[100,0,0,''],[175,5,2,''],[80,0,0,''],[30,0,1,''],[30,1,0,'ling-guppy'],[110,0,0,''],[200,5,1,''],[80,0,0,''],[30,0,1,'ling-token'],[30,1,0,''],[110,0,0,''],[200,5,2,''],[90,0,0,''],[35,0,1,''],[35,1,0,'ling-knight'],[120,0,0,''],[225,5,1,''],[90,0,0,''],[35,0,1,'ling-alchemist'],[35,1,0,''],[120,0,0,''],[225,5,2,''],[100,0,0,''],[40,0,1,''],[40,1,0,'ling-nebula'],[130,0,0,''],[250,5,1,''],[100,0,0,''],[40,0,1,'ling-royalmage'],[40,1,0,''],[130,0,0,'ling-voidling'],[1500,10,5,'*legendary']];
 const BP_FINALE_ORDER = ['ling-supernova','ling-crownling','ling-overclock','ling-tideking','ling-lolliking','ling-highscore'];
@@ -2358,20 +2351,7 @@ function applyQuestBattlePassRewards(progress){
   return {...p,coins,skinCrates,freePackTokens,unlockedCosmetics:owned,claimedBPLevels:claimedBP,claimedSkinCrateLevels:claimedSkin};
 }
 
-const QUEST_GOALS = Object.freeze({
-  login:{goal:1,metric:'login'},
-  ai:{goal:3,metric:'ai'},
-  set:{goal:1,metric:'sets'},
-  lessons:{goal:2,metric:'lessons'},
-  live:{goal:1,metric:'liveGames'},
-  ai2:{goal:6,metric:'ai'},
-  lessons2:{goal:4,metric:'lessons'},
-  packs2:{goal:2,metric:'packs'},
-  ai10:{goal:10,metric:'ai'},
-  xp:{goal:100,metric:'xp'},
-  xp2:{goal:250,metric:'xp'},
-  lessons6:{goal:6,metric:'lessons'}
-});
+const QUEST_GOALS = Object.freeze(Object.fromEntries(QUEST_CATALOG.DAILY.map(q=>[q.id,{goal:q.goal,metric:q.metric}])));
 app.post('/api/account/quest-claim', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
@@ -2380,6 +2360,7 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     const reward=QUEST_REWARDS[questId];
     const definition=QUEST_GOALS[questId];
     if(!reward||!definition) return res.status(400).json({error:'That quest is not claimable.'});
+    if(!QUEST_CATALOG.board(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())).some(q=>q.id===questId)) return res.status(409).json({error:'That quest is not on today\'s board.'});
 
     const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
     const currentQuests=existing.quests&&typeof existing.quests==='object'?existing.quests:null;
@@ -2459,6 +2440,79 @@ app.post('/api/account/quest-claim', async (req,res)=>{
     console.error('Quest claim error:',e.message);
     res.status(503).json({error:'Could not save the quest reward right now. Please try again.'});
   }
+});
+
+function grantQuestReward(progress,r){
+  const p=progress&&typeof progress==='object'?progress:{};
+  return applyQuestBattlePassRewards({
+    ...p,
+    xp:Math.max(0,Number(p.xp)||0)+Number(r.xp||0),
+    coins:Math.max(0,Number(p.coins)||0)+Number(r.coins||0),
+    freePackTokens:Math.max(0,Number(p.freePackTokens)||0)+Number(r.packTokens||0),
+    skinCrates:Math.max(0,Math.floor(Number(p.skinCrates)||0))+Math.max(0,Math.floor(Number(r.skinCrates)||0))
+  });
+}
+function achievementValues(progress){
+  const p=progress&&typeof progress==='object'?progress:{};
+  return {
+    lessons:Array.isArray(p.lessonsLearned)?p.lessonsLearned.length:0,
+    level:Math.min(50,Math.max(1,Math.floor((Number(p.xp)||0)/100)+1)),
+    collection:Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics.length:0,
+    skins:Array.isArray(p.unlockedSkins)?p.unlockedSkins.length:0,
+    packs:Math.max(0,Number(p.openedPacks)||0),
+    liveGames:Math.max(0,Number(p.liveGames)||0),
+    activeDays:Array.isArray(p.activeDates)?new Set(p.activeDates).size:0
+  };
+}
+app.get('/api/account/achievements', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const d=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    res.json({ok:true,claimed:(d.achievements&&d.achievements.claimed)||{},values:achievementValues(d.progress)});
+  }catch(e){ res.status(503).json({error:'Could not load achievements.'}); }
+});
+app.post('/api/account/achievement-claim', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const def=QUEST_CATALOG.achById(String(req.body?.id||''));
+    if(!def) return res.status(400).json({error:'Unknown achievement.'});
+    const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const claimed={...((existing.achievements&&existing.achievements.claimed)||{})};
+    if(claimed[def.id]) return res.status(409).json({error:'Already claimed.',state:existing});
+    const value=achievementValues(existing.progress)[def.metric]||0;
+    if(value<def.goal) return res.status(409).json({error:'Not complete yet.',value,goal:def.goal});
+    claimed[def.id]=Date.now();
+    const updated=sanitizeAccountState({...existing,progress:grantQuestReward(existing.progress,def),achievements:{claimed}});
+    req.user.accountData=updated;
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    usersById.set(req.user.id,req.user);
+    res.json({ok:true,rewardText:QUEST_CATALOG.rewardText(def),state:updated,claimed});
+  }catch(e){ console.error('Achievement claim error:',e.message); res.status(503).json({error:'Could not save the reward right now. Please try again.'}); }
+});
+app.post('/api/account/quest-chest-claim', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const def=QUEST_CATALOG.chestById(String(req.body?.tier||''));
+    if(!def) return res.status(400).json({error:'Unknown chest.'});
+    const existing=req.user.accountData&&typeof req.user.accountData==='object'?req.user.accountData:{};
+    const cq=existing.quests&&typeof existing.quests==='object'?existing.quests:null;
+    const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+    if(!cq||String(cq.day||'')!==today) return res.status(409).json({error:'This quest day has expired. Refresh your quests.'});
+    const chestClaimed={...(cq.chestClaimed&&typeof cq.chestClaimed==='object'?cq.chestClaimed:{})};
+    if(chestClaimed[def.id]) return res.status(409).json({error:'Already claimed.',state:existing,quests:cq});
+    const ids=new Set(QUEST_CATALOG.board(today).map(q=>q.id));
+    const done=Object.keys(cq.claimed&&typeof cq.claimed==='object'?cq.claimed:{}).filter(k=>ids.has(k)).length;
+    if(done<def.need) return res.status(409).json({error:'Claim more quests first.',done,need:def.need});
+    chestClaimed[def.id]=Date.now();
+    const updated=sanitizeAccountState({...existing,progress:grantQuestReward(existing.progress,def),quests:{...cq,chestClaimed}});
+    req.user.accountData=updated;
+    if(SUPABASE_ENABLED) await dbSaveUser(req.user); else saveUsers();
+    usersById.set(req.user.id,req.user);
+    res.json({ok:true,rewardText:QUEST_CATALOG.rewardText(def),state:updated,quests:updated.quests});
+  }catch(e){ console.error('Quest chest error:',e.message); res.status(503).json({error:'Could not save the reward right now. Please try again.'}); }
 });
 
 app.put('/api/account/equipped', async (req,res)=>{
