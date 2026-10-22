@@ -1026,7 +1026,7 @@ function parseCommanderQuestionJson(rawText){
       const ch=s[i];
       if(inString){
         if(escaped){escaped=false;continue;}
-        if(ch==='\\\\'){escaped=true;continue;}
+        if(ch==='\\'){escaped=true;continue;}
         if(ch==='"')inString=false;
         continue;
       }
