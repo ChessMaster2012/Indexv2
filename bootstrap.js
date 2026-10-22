@@ -4,7 +4,8 @@ const path = require('path');
 const root = __dirname;
 const htmlPath = path.join(root, 'public', 'index.html');
 const marker = '<!-- INDEX_REWARDS_V2 -->';
-const questTag = '<script src="/quests-avatar-pack.js"></script>';
+const catalogTag = '<script src="/quest-catalog.js?v=1"></script>';
+const questTag = catalogTag + '\n<script src="/quests-avatar-pack.js?v=7"></script>';
 const battlefieldTag = '<script src="/indexling-battlefield-fix.js?v=25"></script>';
 const v14Tag = '<script src="/commander-runtime-v14.js?v=6"></script>';
 const hotfixTag = '<script src="/indexling-commander-hotfix-v20.js?v=25"></script>';
@@ -18,6 +19,8 @@ try {
   html = html.split('<!-- INDEXLING_CUSTOM_V1 -->').join('');
   html = html.split('<script src="/indexling-custom.js"></script>').join('');
   html = html.split(questTag).join('');
+  html = html.replace(/<script src="\/quest-catalog\.js(?:\?v=[^"]*)?"><\/script>\n?/g, '');
+  html = html.replace(/<script src="\/quests-avatar-pack\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/indexling-battlefield-fix\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/indexling-commander-hotfix-v20\.js(?:\?v=[^"]*)?"><\/script>/g, '');
   html = html.replace(/<script src="\/commander-runtime-v13\.js(?:\?v=[^"]*)?"><\/script>/g, '');
