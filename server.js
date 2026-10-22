@@ -1139,10 +1139,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
   try{
     if(!VIREONIX_COMMANDER_BULK_ENABLED){
       return res.status(503).json({
-        error:'Commander AI bulk generation is paused pending provider approval.',
-        provider:'Vireonix Auto',
-        model:'auto',
-        detail:'Vireonix rejected automated bulk tasks and requested a custom policy. Until approval is granted, Commander is using local questions. Contact main@vireonix.ai to request authorization.'
+        error:'Live AI questions are temporarily unavailable. Built-in questions will be used.'
       });
     }
     const course=String(req.body?.course||'').trim();
