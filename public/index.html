@@ -2147,7 +2147,7 @@ async function runLocalAi(messages, options={}){
       };
 
       const consumeEvent=(event)=>{
-        const lines=event.split(/\\r?\\n/).filter(line=>line.startsWith('data:'));
+        const lines=event.split(/\r?\n/).filter(line=>line.startsWith('data:'));
         if(!lines.length) return;
         const payload=lines.map(line=>line.slice(5).trim()).join('');
         if(!payload) return;
@@ -3883,7 +3883,7 @@ Answer the student's latest question first. Use earlier turns only when they are
 
 If the user gives a short school-style question, do not invent a new topic. Answer that exact question. Never replace a math question with history, civics, social commentary, or generic classroom advice.
 
-For writing tasks (essay, paragraph, speech, report, response, thesis, introduction, conclusion, or draft), produce the requested draft directly. Use a clear structure, concrete details, and natural student-friendly wording. Do not spend the answer on a plan unless the student explicitly asks for an outline. Keep the draft focused enough to finish quickly for a fast school-tutor response.
+For writing tasks (essay, paragraph, speech, report, response, thesis, introduction, conclusion, or draft), produce the requested draft directly. Use a clear structure, concrete details, and natural student-friendly wording. Do not spend the answer on a plan unless the student explicitly asks for an outline. For multi-part questions, answer every labeled part in order and finish all requested sections; don't stop after the opening part. Keep simple questions concise, but give complex prompts enough detail to answer completely.
 
 Teach the reasoning clearly without filler. Be accurate, distinguish facts from guesses, and say when you are unsure. For math/science, show important steps and use Unicode symbols such as √, ×, ÷, ±, ≤, ≥, ≠, ≈, →, ∑, π, and °. NEVER use LaTeX delimiters or raw commands such as \sqrt or \frac. If the student asks “as a radical,” give the simplified radical form directly.
 
@@ -3901,7 +3901,7 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
   const historyToSend = followUp ? history.slice(-8) : history.slice(-1);
   historyToSend.forEach(m=>{
     if(m && typeof m.text==='string' && m.text.trim()){
-      turns.push({role: m.role==='user'?'user':'assistant', content: m.text.slice(0,4000)});
+      turns.push({role: m.role==='user'?'user':'assistant', content: m.text === text ? m.text.slice(0,12000) : m.text.slice(0,4000)});
     }
   });
   let streamText='';
