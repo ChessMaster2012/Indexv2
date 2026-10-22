@@ -1040,7 +1040,13 @@ function parseCommanderQuestionJson(rawText){
     return null;
   }
 
-  const whole=parseCandidate(s);
+  let whole=parseCandidate(s);
+  // Some compatible endpoints wrap the generated JSON in a JSON string.
+  // Decode that wrapper before scanning for question objects.
+  for(let unwrap=0;typeof whole==='string'&&unwrap<2;unwrap++){
+    s=whole.trim();
+    whole=parseCandidate(s);
+  }
   if(whole&&typeof whole==='object'){
     if(Array.isArray(whole.questions))return whole;
     if(isQuestion(whole.question))return {questions:[whole.question]};
