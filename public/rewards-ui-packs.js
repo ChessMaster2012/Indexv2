@@ -67,28 +67,35 @@
   }
 
   /* ============ Daily Wheel tab ============ */
+  var WSH = ['#d6602a', '#d9971c', '#2fa879', '#2f7fe0', '#7a52e6', '#e0488f'];
   var WCOL = ['#ff9f6b', '#ffcc5c', '#7be0a8', '#6cc6ff', '#b79bff', '#ff8fc3'];
   function polar(r, deg) { var a = (deg - 90) * Math.PI / 180; return [(100 + r * Math.cos(a)).toFixed(2), (100 + r * Math.sin(a)).toFixed(2)]; }
   function wheelSvg() {
-    var vals = DAILY_WHEEL_VALUES, n = vals.length, seg = 360 / n, out = '';
+    var vals = DAILY_WHEEL_VALUES, n = vals.length, seg = 360 / n, out = '', defs = '';
     vals.forEach(function (v, i) {
-      var a0 = i * seg, a1 = (i + 1) * seg, p0 = polar(92, a0), p1 = polar(92, a1), big = v >= 250, col = big ? '#ffd24a' : WCOL[i % WCOL.length];
-      out += '<path d="M100 100L' + p0 + 'A92 92 0 0 1 ' + p1 + 'Z" fill="' + col + '" stroke="#1a1445" stroke-width="1.5"/>';
-      out += '<path d="M100 100L' + p0 + 'A92 92 0 0 1 ' + p1 + 'Z" fill="url(#rwwsh)" opacity=".5"/>';
-      var m = a0 + seg / 2, tp = polar(68, m);
-      out += '<text x="' + tp[0] + '" y="' + tp[1] + '" transform="rotate(' + m + ' ' + tp[0] + ' ' + tp[1] + ')" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,Nunito,system-ui,sans-serif" font-weight="900" font-size="' + (v >= 100 ? 13 : 14) + '" fill="#1a1445">' + v + '</text>';
+      var a0 = i * seg, a1 = (i + 1) * seg, p0 = polar(93, a0), p1 = polar(93, a1), big = v >= 250, hi = v >= 75;
+      var c1 = big ? '#fff3a0' : WCOL[i % WCOL.length], c2 = big ? '#f09a1a' : WSH[i % WSH.length];
+      defs += '<radialGradient id="rwsg' + i + '" cx="100" cy="100" r="93" gradientUnits="userSpaceOnUse"><stop offset=".18" stop-color="' + c2 + '"/><stop offset="1" stop-color="' + c1 + '"/></radialGradient>';
+      out += '<path d="M100 100L' + p0 + 'A93 93 0 0 1 ' + p1 + 'Z" fill="url(#rwsg' + i + ')"/>';
+      var m = a0 + seg / 2, tp = polar(70, m), cp = polar(52, m);
+      out += '<g transform="rotate(' + m + ' ' + tp[0] + ' ' + tp[1] + ')"><text x="' + tp[0] + '" y="' + tp[1] + '" text-anchor="middle" dominant-baseline="central" font-family="Fredoka,Nunito,system-ui,sans-serif" font-weight="900" font-size="' + (v >= 100 ? 14 : 16) + '" fill="#fff" stroke="#2a1f78" stroke-width="3.2" paint-order="stroke" stroke-linejoin="round">' + v + '</text></g>';
+      out += '<g transform="rotate(' + m + ' ' + cp[0] + ' ' + cp[1] + ')"><circle cx="' + cp[0] + '" cy="' + cp[1] + '" r="4.2" fill="' + (big ? '#fff' : '#ffd24a') + '" stroke="#8b5e14" stroke-width="1"/></g>';
     });
+    var lines = '', pegs = '';
+    for (var i = 0; i < n; i++) { var q = polar(93, i * seg), r2 = polar(30, i * seg); lines += '<line x1="' + r2[0] + '" y1="' + r2[1] + '" x2="' + q[0] + '" y2="' + q[1] + '" stroke="#fff" stroke-opacity=".55" stroke-width="1.2"/>'; pegs += '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="2.6" fill="#fff6c8" stroke="#8b5e14" stroke-width=".8"/>'; }
     var bulbs = '';
-    for (var i = 0; i < 30; i++) { var bp = polar(96.5, i * 12 + 6); bulbs += '<circle class="rw-bulb b' + (i % 2) + '" cx="' + bp[0] + '" cy="' + bp[1] + '" r="2.1"/>'; }
-    return '<svg viewBox="0 0 200 200" class="rw-wsvg" aria-hidden="true"><defs><radialGradient id="rwwsh" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".9"/></radialGradient></defs>' +
-      '<circle cx="100" cy="100" r="99" fill="#2a1f78"/><circle cx="100" cy="100" r="99" fill="none" stroke="#ffd56a" stroke-width="2"/>' + out + bulbs + '</svg>';
+    for (var j = 0; j < 30; j++) { var bp = polar(97, j * 12 + 6); bulbs += '<circle class="rw-bulb b' + (j % 2) + '" cx="' + bp[0] + '" cy="' + bp[1] + '" r="2.2"/>'; }
+    return '<svg viewBox="0 0 200 200" class="rw-wsvg" aria-hidden="true"><defs>' + defs + '<radialGradient id="rwgloss" cx=".35" cy=".25" r=".8"><stop offset="0" stop-color="#fff" stop-opacity=".38"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>' +
+      '<circle cx="100" cy="100" r="99.5" fill="#2a1f78"/>' + out + lines + '<circle cx="100" cy="100" r="93" fill="none" stroke="#2a1f78" stroke-width="2.5"/>' + pegs + bulbs +
+      '<circle cx="100" cy="100" r="93" fill="url(#rwgloss)"/><circle cx="100" cy="100" r="99" fill="none" stroke="#ffd56a" stroke-width="1.6"/></svg>';
   }
   function dailyHtml() {
     var p = state.progress || {}, today = String(p.dailyWheelDate || '') === coinDayStr(), last = Number(p.dailyWheelReward) || 0;
-    var vals = DAILY_WHEEL_VALUES;
+    var vals = DAILY_WHEEL_VALUES, landed = '', li = vals.indexOf(last);
+    if (today && li >= 0) { var rot = 360 * 3 + (360 - (li * 24 + 12)); landed = 'data-rotation="' + rot + '" style="transform:rotate(' + rot + 'deg)"'; }
     return '<div class="rw-daily"><section class="rw-wheel-stage"><div class="rw-wheel-rays"></div>' +
       '<div class="daily-wheel-wrap rw-wheel-wrap"><div class="rw-pointer"><svg viewBox="0 0 40 56"><path d="M20 54 4 18A18 18 0 1 1 36 18Z" fill="#ff4f6a" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="20" cy="17" r="6" fill="#fff"/></svg></div>' +
-      '<div id="daily-wheel" class="daily-wheel rw-wheel">' + wheelSvg() + '</div><div class="rw-hub"><span>INDEX</span></div></div></section>' +
+      '<div id="daily-wheel" class="daily-wheel rw-wheel" ' + landed + '>' + wheelSvg() + '</div><div class="rw-hub"><span>INDEX</span></div></div></section>' +
       '<section class="rw-wheel-side"><div class="rw-eyebrow">DAILY WHEEL</div><h3>Spin once a day.</h3>' +
       '<p>Fifteen coin prizes from 5 to a golden 500 jackpot. The server picks your prize the moment you spin — the wheel just lands on it.</p>' +
       '<div id="daily-wheel-result" class="daily-wheel-result rw-wres">' + (today ? 'Already spun today' + (last ? ' · +' + last + ' coins' : '') + '.' : 'Ready when you are.') + '</div>' +
@@ -133,6 +140,8 @@
     if (!card) return;
     ['common', 'rare', 'epic', 'legendary'].forEach(function (t) { card.classList.remove('rw-rev-' + t); });
     card.classList.add('rw-rev-' + tier);
+    card.classList.add('rw-revealed');
+    try { var sc = card.closest('.pack-modal,.skin-crate-modal'); if (sc) sc.scrollTop = 0; } catch (e) { }
     var old = card.querySelector('.rw-flash'); if (old) old.remove();
     var f = document.createElement('div'); f.className = 'rw-flash'; card.appendChild(f);
     burst(card, tier === 'legendary' ? 90 : tier === 'epic' ? 46 : tier === 'rare' ? 28 : 16, tier === 'legendary');
@@ -155,6 +164,7 @@
     var hero = card.querySelector('.pack-box-hero');
     if (hero) hero.innerHTML = '<div class="rw-hero-rays"></div><div class="rw-hero-pack">' + packLogo(kind) + '</div>';
     ['common', 'rare', 'epic', 'legendary'].forEach(function (x) { card.classList.remove('rw-rev-' + x); });
+    card.classList.remove('rw-revealed');
     return card;
   }
   var _open = window.openRewardPack;
@@ -178,7 +188,7 @@
       if (!before && state.skinCrateOpening && lastSkin) {
         var modal = document.getElementById('skin-crate-modal'), card = modal && modal.querySelector('.skin-crate-card');
         if (card) {
-          modal.classList.add('rw-cine');
+          modal.classList.add('rw-cine'); card.classList.remove('rw-revealed');
           var rar = tierOf(lastSkin.skin && lastSkin.skin.rarity), tier = rar === 'epic' ? 'legendary' : rar;
           setTimeout(function () { reveal(card, tier); }, 5910);
         }

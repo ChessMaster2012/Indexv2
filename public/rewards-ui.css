@@ -247,3 +247,23 @@
 .rw-cine .pack-result.reveal .result-rarity{color:var(--rrc,#4aa8ff)!important}
 .rw-rev-common{--rrc:#9aa0c8}.rw-rev-rare{--rrc:#4aa8ff}.rw-rev-epic{--rrc:#b67bff}.rw-rev-legendary{--rrc:#ffd24a}
 .rw-rev-legendary .pack-result.reveal .result-name{background:linear-gradient(135deg,rgba(255,210,74,.35),rgba(255,111,60,.2))!important}
+/* modal must always fit and scroll */
+.pack-modal.rw-cine,.skin-crate-modal.rw-cine{overflow-y:auto;align-items:flex-start;padding:16px}
+.rw-cine .pack-opening,.rw-cine .skin-crate-card{margin:auto;max-height:none;width:min(620px,100%)}
+.rw-cine .pack-box-hero{height:150px}
+.rw-hero-pack{width:96px}
+.rw-cine .reel-window{height:min(300px,38vh)}
+.rw-cine .reel-window,.rw-cine .skin-reel-window{-webkit-mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent);mask-image:linear-gradient(transparent,#000 22%,#000 78%,transparent)}
+/* after reveal: collapse the reel and show only the result */
+.rw-cine .rw-revealed .reel-window,.rw-cine .rw-revealed .pack-box-hero,.rw-cine .rw-revealed .pack-opening-note,
+.rw-cine.rw-revealed .reel-window,.rw-cine .skin-crate-card.rw-revealed .skin-reel-window,.rw-cine .skin-crate-card.rw-revealed>.reward-muted,
+.rw-cine .pack-opening.rw-revealed .reel-window,.rw-cine .pack-opening.rw-revealed .pack-box-hero{display:none!important}
+.rw-cine .pack-opening.rw-revealed,.rw-cine .skin-crate-card.rw-revealed{padding-top:18px}
+.rw-cine .rw-revealed .pack-result{animation:rwResultIn .6s cubic-bezier(.2,1.4,.4,1)}
+@keyframes rwResultIn{from{transform:scale(.5);opacity:0}to{transform:none;opacity:1}}
+/* energy during spin */
+.rw-cine .pack-opening.is-opening .rw-hero-pack{filter:drop-shadow(0 0 18px var(--pa,#fff))}
+.rw-cine .pack-opening.is-opening::after{content:"";position:absolute;left:0;right:0;top:0;height:200px;background:radial-gradient(circle at 50% 60%,color-mix(in srgb,var(--pa,#fff) 40%,transparent),transparent 60%);animation:rwPulse 1s ease-in-out infinite;pointer-events:none}
+#rewards-stage .rw-wheel-wrap{width:min(360px,calc(100% - 28px))}
+.rw-wheel-stage{min-width:0}
+@media(max-width:1100px){.rw-daily{grid-template-columns:1fr}}
