@@ -27,6 +27,8 @@ const STRIPE_WEBHOOK_SECRET = String(process.env.STRIPE_WEBHOOK_SECRET || '');
 const STRIPE_GOLD_PRICE_ID = String(process.env.STRIPE_GOLD_PRICE_ID || '');
 const STRIPE_PLATINUM_PRICE_ID = String(process.env.STRIPE_PLATINUM_PRICE_ID || '');
 const STRIPE_DIAMOND_PRICE_ID = String(process.env.STRIPE_DIAMOND_PRICE_ID || '');
+// Commander batch generation stays disabled until Vireonix expressly approves this bulk workflow.
+const VIREONIX_COMMANDER_BULK_ENABLED = String(process.env.VIREONIX_COMMANDER_BULK_ENABLED || '').toLowerCase() === 'true';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -1135,6 +1137,14 @@ app.post('/api/ai/commander-question',async(req,res)=>{
 });
 app.post('/api/ai/commander-bank',async(req,res)=>{
   try{
+    if(!VIREONIX_COMMANDER_BULK_ENABLED){
+      return res.status(503).json({
+        error:'Commander AI bulk generation is paused pending provider approval.',
+        provider:'Vireonix Auto',
+        model:'auto',
+        detail:'Vireonix rejected automated bulk tasks and requested a custom policy. Until approval is granted, Commander is using local questions. Contact main@vireonix.ai to request authorization.'
+      });
+    }
     const course=String(req.body?.course||'').trim();
     const unit=String(req.body?.unit||'').trim();
     const topic=String(req.body?.topic||'').trim();
