@@ -503,7 +503,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           messages,
           stream:true,
           // Study-set JSON needs room for all requested cards/questions; retain the same Auto model.
-          max_tokens:studySetMode ? 1800 : (tutorMode && complex ? 2600 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420))),
+          max_tokens:studySetMode ? 1800 : (tutorMode && complex ? 3500 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420))),
           temperature:0
         }),
         signal:controller.signal
