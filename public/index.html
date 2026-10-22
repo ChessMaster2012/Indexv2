@@ -2634,11 +2634,23 @@ const INDEXLING_SKINS = [
   {id:'skin-ice',name:'Ice / Frost',icon:'❄',rarity:'Epic',effect:'ice',main:'#a8e8ff',dark:'#3d7fa1',accent:'#effcff'}
 ];
 
-const BP_REWARDS = Array.from({length:50},(_,i)=>{
-  const level=i+1;
-  if(level%5===0) return {level,kind:'bundle',skinCrates:5,coins:150,label:'5 Skin Crates + 150 coins',icon:'🧰'};
-  const coins=level<=10?50:level<=20?60:level<=30?75:level<=40?90:100;
-  return {level,kind:'coins',amount:coins,label:coins+' coins',icon:'🪙'};
+/* Battle Pass rewards. Row = [coins, skinCrates, freePackTokens, indexlingId]. MIRRORED in server.js (applyQuestBattlePassRewards): keep both tables identical. */
+const BP_TABLE = [[60,0,0,''],[20,0,1,''],[20,1,0,''],[90,0,0,''],[150,5,1,''],[60,0,0,''],[20,0,1,'ling-gumdrop'],[20,1,0,''],[90,0,0,''],[150,5,2,''],[70,0,0,''],[25,0,1,''],[25,1,0,'ling-squire'],[100,0,0,''],[175,5,1,''],[70,0,0,''],[25,0,1,'ling-botlet'],[25,1,0,''],[100,0,0,''],[175,5,2,''],[80,0,0,''],[30,0,1,''],[30,1,0,'ling-guppy'],[110,0,0,''],[200,5,1,''],[80,0,0,''],[30,0,1,'ling-token'],[30,1,0,''],[110,0,0,''],[200,5,2,''],[90,0,0,''],[35,0,1,''],[35,1,0,'ling-knight'],[120,0,0,''],[225,5,1,''],[90,0,0,''],[35,0,1,'ling-alchemist'],[35,1,0,''],[120,0,0,''],[225,5,2,''],[100,0,0,''],[40,0,1,''],[40,1,0,'ling-nebula'],[130,0,0,''],[250,5,1,''],[100,0,0,''],[40,0,1,'ling-royalmage'],[40,1,0,''],[130,0,0,'ling-voidling'],[1500,10,5,'*legendary']];
+const BP_NAMES = ["Welcome Stash", "Pocket Ticket", "Crate Cadet", "Coin Cache", "Starter Chest", "Lucky Purse", "Gumdrop Recruit", "Spare Ticket", "Skin Surprise", "Copper Haul", "Scholar's Chest", "Bronze Satchel", "Squire Reporting", "Quick Ticket", "Crate Courier", "Pocket Jackpot", "Botlet Boost", "Study Streak Stash", "Mighty Mail", "Silver Chest", "Sharp Mind Cache", "Ticket Twist", "Guppy Greeting", "Deep Dive Purse", "Chrome Crate", "Token of Thanks", "Token Joy", "Treasure Tide", "Crate Carnival", "Gold Chest", "Rising Star Stash", "Prize Ticket", "Knight Arrives", "Honor Roll Haul", "Skin Spree", "Alchemist's Gift", "Brainy Bundle", "Triple Threat", "Hero's Hoard", "Platinum Chest", "Focus Fortune", "Elite Ticket", "Nebula Nomad", "Master Cache", "Crate Crescendo", "Royal Mage Rises", "Voidling Vow", "Grand Haul", "Almost Legend", "Index Legend"];
+const BP_FINALE_ORDER = ['ling-supernova','ling-crownling','ling-overclock','ling-tideking','ling-lolliking','ling-highscore'];
+const BP_DUPLICATE_BONUS = 40;   /* coins instead of an Indexling the player already owns */
+const BP_FINALE_DUPLICATE_BONUS = 1000;
+const BP_REWARDS = BP_TABLE.map(function(r,i){
+  const level=i+1, parts=[];
+  if(r[0]) parts.push(r[0]+' coins');
+  if(r[1]) parts.push(r[1]+' Skin Crate'+(r[1]>1?'s':''));
+  if(r[2]) parts.push(r[2]+' Free Pack'+(r[2]>1?'s':''));
+  const finale=level===50, ling=finale?'':String(r[3]||'');
+  if(finale) parts.push('a guaranteed Legendary Indexling');
+  else if(ling) parts.push('the '+((REWARD_COSMETICS.find(c=>c.id===ling)||{}).name||'Indexling'));
+  return {level,name:BP_NAMES[i],coins:r[0],skinCrates:r[1],packTokens:r[2],indexling:ling,finale,
+    kind:finale?'finale':(level%5===0?'bundle':'standard'),label:parts.join(' + '),
+    icon:finale?'👑':ling?'🧬':level%5===0?'🧰':r[1]?'🧰':r[2]?'🎟️':'🪙'};
 });
 function skinById(id){ return Array.isArray(INDEXLING_SKINS)?INDEXLING_SKINS.find(s=>s.id===id):null; }
 function indexPackArt(c,kind){
@@ -3463,22 +3475,37 @@ function computeStreak(){
   return streak;
 }
 function levelInfo(xp){ const level=Math.floor(xp/100)+1; const into=xp%100; return {level, into}; }
+function bpPickFinaleLegendary(){
+  const owned=state.progress.unlockedCosmetics||[];
+  return BP_FINALE_ORDER.find(id=>!owned.includes(id)&&cosmeticById(id))||'';
+}
 function applyBattlePassRewards(){
   if(!Array.isArray(state.progress.claimedBPLevels)) state.progress.claimedBPLevels=[];
   if(!Array.isArray(state.progress.unlockedCosmetics)) state.progress.unlockedCosmetics=[];
   if(!Array.isArray(state.progress.unlockedSkins)) state.progress.unlockedSkins=[];
   if(!Array.isArray(state.progress.claimedSkinCrateLevels)) state.progress.claimedSkinCrateLevels=[];
   state.progress.skinCrates=Math.max(0,Math.floor(Number(state.progress.skinCrates)||0));
+  state.progress.freePackTokens=Math.max(0,Math.floor(Number(state.progress.freePackTokens)||0));
   const lvl=battlePassLevel();
   for(let level=1; level<=lvl; level++){
-    const reward=rewardForLevel(level);
-    if(reward?.kind==='bundle' && !state.progress.claimedSkinCrateLevels.includes(level)){
-      state.progress.skinCrates += Number(reward.skinCrates||0);
-      state.progress.claimedSkinCrateLevels.push(level);
-    }
     if(state.progress.claimedBPLevels.includes(level)) continue;
-    if(reward?.kind==='coins') state.progress.coins=(state.progress.coins||0)+reward.amount;
-    if(reward?.kind==='bundle') state.progress.coins=(state.progress.coins||0)+Number(reward.coins||0);
+    const reward=rewardForLevel(level);
+    if(reward){
+      state.progress.coins=(state.progress.coins||0)+Number(reward.coins||0);
+      if(reward.skinCrates && !state.progress.claimedSkinCrateLevels.includes(level)){
+        state.progress.skinCrates+=Number(reward.skinCrates);
+        state.progress.claimedSkinCrateLevels.push(level);
+      }
+      state.progress.freePackTokens+=Number(reward.packTokens||0);
+      if(reward.finale){
+        const id=bpPickFinaleLegendary();
+        if(id) state.progress.unlockedCosmetics.push(id);
+        else state.progress.coins+=BP_FINALE_DUPLICATE_BONUS;
+      }else if(reward.indexling){
+        if(state.progress.unlockedCosmetics.includes(reward.indexling)) state.progress.coins+=BP_DUPLICATE_BONUS;
+        else state.progress.unlockedCosmetics.push(reward.indexling);
+      }
+    }
     state.progress.claimedBPLevels.push(level);
   }
   persistProgress();
@@ -8961,5 +8988,8 @@ setInterval(function(){
 <script src="/commander-maps.js?v=1"></script>
 <script src="/commander-fx.js?v=2"></script>
 <script src="/commander-rules.js?v=2"></script>
+<link rel="stylesheet" href="/rewards-ui.css?v=5">
+<script src="/rewards-ui.js?v=3"></script>
+<script src="/rewards-ui-packs.js?v=1"></script>
 </body>
 </html>

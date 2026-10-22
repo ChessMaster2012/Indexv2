@@ -2326,28 +2326,36 @@ const QUEST_REWARDS = Object.freeze({
   xp2:{xp:150,coins:30,packTokens:1,skinCrates:1},
   lessons6:{xp:200,coins:40,packTokens:1,skinCrates:1}
 });
+/* Battle Pass rewards. Row = [coins, skinCrates, freePackTokens, indexlingId]. MIRRORED in public/index.html (BP_TABLE): keep both tables identical. */
+const BP_TABLE = [[60,0,0,''],[20,0,1,''],[20,1,0,''],[90,0,0,''],[150,5,1,''],[60,0,0,''],[20,0,1,'ling-gumdrop'],[20,1,0,''],[90,0,0,''],[150,5,2,''],[70,0,0,''],[25,0,1,''],[25,1,0,'ling-squire'],[100,0,0,''],[175,5,1,''],[70,0,0,''],[25,0,1,'ling-botlet'],[25,1,0,''],[100,0,0,''],[175,5,2,''],[80,0,0,''],[30,0,1,''],[30,1,0,'ling-guppy'],[110,0,0,''],[200,5,1,''],[80,0,0,''],[30,0,1,'ling-token'],[30,1,0,''],[110,0,0,''],[200,5,2,''],[90,0,0,''],[35,0,1,''],[35,1,0,'ling-knight'],[120,0,0,''],[225,5,1,''],[90,0,0,''],[35,0,1,'ling-alchemist'],[35,1,0,''],[120,0,0,''],[225,5,2,''],[100,0,0,''],[40,0,1,''],[40,1,0,'ling-nebula'],[130,0,0,''],[250,5,1,''],[100,0,0,''],[40,0,1,'ling-royalmage'],[40,1,0,''],[130,0,0,'ling-voidling'],[1500,10,5,'*legendary']];
+const BP_FINALE_ORDER = ['ling-supernova','ling-crownling','ling-overclock','ling-tideking','ling-lolliking','ling-highscore'];
+const BP_DUPLICATE_BONUS = 40;
+const BP_FINALE_DUPLICATE_BONUS = 1000;
 function applyQuestBattlePassRewards(progress){
   const p=progress&&typeof progress==='object'?progress:{};
   const xp=Math.max(0,Math.floor(Number(p.xp)||0));
-  const level=Math.max(1,Math.floor(xp/100)+1);
+  const level=Math.min(50,Math.max(1,Math.floor(xp/100)+1));
   const claimedBP=Array.isArray(p.claimedBPLevels)?p.claimedBPLevels.slice():[];
   const claimedSkin=Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels.slice():[];
+  const owned=Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics.slice():[];
   let coins=Math.max(0,Number(p.coins)||0);
   let skinCrates=Math.max(0,Math.floor(Number(p.skinCrates)||0));
-  const skinCrateLevels=[];
+  let freePackTokens=Math.max(0,Math.floor(Number(p.freePackTokens)||0));
   for(let bpLevel=1;bpLevel<=level;bpLevel++){
-    if(bpLevel%5===0) skinCrateLevels.push(bpLevel);
     if(claimedBP.indexOf(bpLevel)>=0) continue;
-    const amount=bpLevel<=10?50:bpLevel<=20?60:bpLevel<=30?75:bpLevel<=40?90:100;
-    coins+=bpLevel%5===0?150:amount;
+    const row=BP_TABLE[bpLevel-1]||[0,0,0,''];
+    coins+=row[0];
+    if(row[1]&&claimedSkin.indexOf(bpLevel)<0){ skinCrates+=row[1]; claimedSkin.push(bpLevel); }
+    freePackTokens+=row[2];
+    if(bpLevel===50){
+      const id=BP_FINALE_ORDER.find(x=>owned.indexOf(x)<0);
+      if(id) owned.push(id); else coins+=BP_FINALE_DUPLICATE_BONUS;
+    }else if(row[3]){
+      if(owned.indexOf(row[3])>=0) coins+=BP_DUPLICATE_BONUS; else owned.push(row[3]);
+    }
     claimedBP.push(bpLevel);
   }
-  for(const bpLevel of skinCrateLevels){
-    if(claimedSkin.indexOf(bpLevel)>=0) continue;
-    skinCrates+=5;
-    claimedSkin.push(bpLevel);
-  }
-  return {...p,coins,skinCrates,claimedBPLevels:claimedBP,claimedSkinCrateLevels:claimedSkin};
+  return {...p,coins,skinCrates,freePackTokens,unlockedCosmetics:owned,claimedBPLevels:claimedBP,claimedSkinCrateLevels:claimedSkin};
 }
 
 const QUEST_GOALS = Object.freeze({
