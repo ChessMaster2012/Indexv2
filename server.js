@@ -601,7 +601,7 @@ async function callVireonixCommanderBank(messages){
     if(remaining<900) break;
     const timeout=Math.min(14500,remaining-500);
     try{
-      return await callVireonix(messages,true,timeout,1200);
+      return await callVireonix(messages,true,timeout,2400);
     }catch(e){
       lastError=e;
       if(!providerRetryable(e)||attempt===1) throw e;

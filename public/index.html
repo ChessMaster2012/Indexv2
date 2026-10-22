@@ -7856,7 +7856,15 @@ function pickV6(g,exclude){
   var list=[];
   try{if(typeof window.commanderQuestionPoolForLesson==='function'){var info=window.commanderQuestionPoolForLesson(g);if(info&&info.pool&&info.pool.length)list=info.lesson===0?info.all:info.pool;}}catch(e){}
   if(!list.length){try{list=commanderQuestionPoolFinal(g);}catch(e){}}
-  if(!list.length)list=[{q:'Natural selection acts directly on which level?',options:['Genotypes only','Phenotypes','Species names','Mutations only'],correct:1,explanation:'Selection acts on observable phenotypes.'}];
+  if(!list.length){
+    var subject=subjectById(g&&g.subjectId)||{};
+    var subjectName=String(subject.name||g&&g.subjectId||'').toLowerCase();
+    if((g&&g.subjectId)==='usgov'||/government|politics/.test(subjectName)){
+      list=[{q:'Which principle holds that the government gets its authority from the people?',options:['Popular sovereignty','Judicial review','Federalism','Separation of powers'],correct:0,explanation:'Popular sovereignty means that the people are the source of government authority.'}];
+    }else{
+      list=[{q:'Natural selection acts directly on which level?',options:['Genotypes only','Phenotypes','Species names','Mutations only'],correct:1,explanation:'Selection acts on observable phenotypes.'}];
+    }
+  }
   var used=g&&Array.isArray(g.usedQuestionKeys)?g.usedQuestionKeys:[];
   var f=list.filter(function(q){var key=commanderQuestionKey(q&&q.q);return (!exclude||q.q!==exclude)&&used.indexOf(key)<0;});
   if(!f.length)f=list.filter(function(q){return !exclude||q.q!==exclude;});
@@ -8109,7 +8117,11 @@ async function commanderRequestAiQuestionV9(g,background){
       });
       if(timeoutId)clearTimeout(timeoutId);
       var data=await response.json().catch(function(){return{};});
-      if(!response.ok)throw new Error(data&&data.error||'AI question bank request failed.');
+      if(!response.ok){
+        var reason=data&&data.error||'AI question bank request failed.';
+        if(data&&data.detail)reason+=' (Details: '+data.detail+')';
+        throw new Error(reason);
+      }
       var list=Array.isArray(data.questions)?data.questions:[];
       list.forEach(function(q){commanderQueueQuestionV9(g,q);});
       if(!Array.isArray(g.aiQuestionQueue))g.aiQuestionQueue=[];
@@ -8129,6 +8141,7 @@ async function commanderRequestAiQuestionV9(g,background){
       return g.question||g.aiQuestionQueue[0]||null;
     }catch(err){
       if(state.games===g){
+        var hadVisibleQuestion=!!g.question;
         g.aiPrefetchError=String(err&&err.message||err);
         if(!g.question&&g.questionGateOpen){
           var fb=commanderFallbackUniqueV9(g);
@@ -8143,6 +8156,12 @@ async function commanderRequestAiQuestionV9(g,background){
           /* A foreground failure still gets a local unseen question. */
           var fb2=commanderFallbackUniqueV9(g);
           if(fb2)commanderQueueQuestionV9(g,fb2);
+        }
+        /* A background failure must repaint the already-visible gate so its
+           diagnostic is visible; it must not replace the current question. */
+        if(background&&hadVisibleQuestion){
+          renderBattle(g);
+          try{v6Save(g);}catch(e){}
         }
       }
       return null;
