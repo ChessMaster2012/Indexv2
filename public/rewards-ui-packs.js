@@ -62,7 +62,7 @@
         '<button class="rw-btn ' + (can ? 'rw-btn-gold' : 'rw-btn-ghost') + '" data-action="open-pack" data-pack="' + kind + '" ' + (can ? '' : 'disabled') + '>' + btn + '</button></div></article>';
     }).join('');
     return '<div class="rw-packs"><section class="rw-packs-hero"><div><div class="rw-eyebrow">INDEXLING VAULT</div><h3>Pick a world. Crack a pack.</h3><p>Six collections of eight Indexlings each. Duplicates are fine — spend a free token and nothing is lost.</p></div>' +
-      '<div class="rw-packs-tok"><span class="rw-chip-ic rw-ic-ticket">' + (window.__rwIcons ? '' : '') + '</span><b>' + tokens + '</b><small>free pack ' + (tokens === 1 ? 'token' : 'tokens') + '</small></div></section>' +
+      '<div class="rw-packs-right"><button type="button" class="rw-auto' + (window.__rwAutoOn ? ' on' : '') + '" data-rw-auto title="Open packs one after another automatically"><i></i><span>Auto open: ' + (window.__rwAutoOn ? 'ON' : 'OFF') + '</span></button><div class="rw-packs-tok"><span class="rw-chip-ic rw-ic-ticket">' + (window.__rwIcons ? '' : '') + '</span><b>' + tokens + '</b><small>free pack ' + (tokens === 1 ? 'token' : 'tokens') + '</small></div></div></section>' +
       '<div class="rw-pack-grid">' + cards + '</div></div>';
   }
 
@@ -196,6 +196,7 @@
       return r;
     };
   }
+  window.__rwFx = { reveal: reveal, dressPackModal: dressPackModal, packLogo: packLogo, E: E, art: art, THEME: THEME };
   /* Preview hooks (no coins, no rolls, nothing saved) — used for QA and demos. */
   window.__rwPreviewPackReveal = function (kind, rarity) {
     var modal = document.getElementById('pack-modal'); if (!modal) return;
