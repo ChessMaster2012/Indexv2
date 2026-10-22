@@ -1003,36 +1003,86 @@ app.post('/api/ai/chat',async(req,res)=>{
 
 
 function parseCommanderQuestionJson(rawText){
-  let s=String(rawText||'').replace(/^\\uFEFF/,'').trim();
+  let s=String(rawText||'').replace(/^\uFEFF/,'').trim();
   if(!s)return null;
-  s=s.replace(/^\`\`\`(?:json)?/i,'').replace(/\`\`\`$/,'').trim();
-  const first=s.indexOf('{');
-  if(first<0)return null;
-  let depth=0,inString=false,escaped=false,end=-1;
-  for(let i=first;i<s.length;i++){
-    const ch=s[i];
-    if(inString){
-      if(escaped){escaped=false;continue;}
-      if(ch==='\\'){escaped=true;continue;}
-      if(ch==='"')inString=false;
-      continue;
+  s=s.replace(/^\s*```(?:json)?\s*/i,'').replace(/\s*```\s*$/,'').trim();
+
+  function parseCandidate(candidate){
+    const text=String(candidate||'').trim();
+    if(!text)return null;
+    try{return JSON.parse(text);}catch{}
+    try{return JSON.parse(text.replace(/,\s*([}\]])/g,'$1'));}catch{}
+    return null;
+  }
+  function isQuestion(value){
+    return !!value && typeof value.q==='string' && value.q.trim() &&
+      Array.isArray(value.options) && value.options.length===4 &&
+      value.options.every(o=>typeof o==='string'&&o.trim()) &&
+      Number.isInteger(Number(value.correct)) && Number(value.correct)>=0 && Number(value.correct)<=3;
+  }
+  function scanObject(start){
+    let depth=0,inString=false,escaped=false;
+    for(let i=start;i<s.length;i++){
+      const ch=s[i];
+      if(inString){
+        if(escaped){escaped=false;continue;}
+        if(ch==='\\'){escaped=true;continue;}
+        if(ch==='"')inString=false;
+        continue;
+      }
+      if(ch==='"'){inString=true;continue;}
+      if(ch==='{')depth++;
+      else if(ch==='}'){
+        depth--;
+        if(depth===0)return {end:i,value:parseCandidate(s.slice(start,i+1))};
+      }
     }
-    if(ch==='"'){inString=true;continue;}
-    if(ch==='{')depth++;
-    else if(ch==='}'){
-      depth--;
-      if(depth===0){end=i;break;}
+    return null;
+  }
+
+  let whole=parseCandidate(s);
+  // Some compatible endpoints wrap the generated JSON in a JSON string.
+  // Decode that wrapper before scanning for question objects.
+  for(let unwrap=0;typeof whole==='string'&&unwrap<2;unwrap++){
+    s=whole.trim();
+    whole=parseCandidate(s);
+  }
+  if(whole&&typeof whole==='object'){
+    if(Array.isArray(whole.questions))return whole;
+    if(isQuestion(whole.question))return {questions:[whole.question]};
+    if(isQuestion(whole))return {questions:[whole]};
+  }
+
+  // Try every object start, rather than stopping at an earlier brace in
+  // introductory text. This also recovers complete question objects when the
+  // provider truncates the outer JSON wrapper after generating valid items.
+  const recovered=[];
+  for(let start=0;start<s.length;start++){
+    if(s[start]!=='{')continue;
+    const scanned=scanObject(start);
+    if(!scanned)continue;
+    const value=scanned.value;
+    if(value&&typeof value==='object'){
+      if(Array.isArray(value.questions)&&value.questions.length)return value;
+      if(isQuestion(value.question))return {questions:[value.question]};
+      if(isQuestion(value))recovered.push(value);
     }
   }
-  if(end<0)return null;
-  const candidate=s.slice(first,end+1).trim();
-  try{return JSON.parse(candidate);}catch{}
-  // Remove trailing commas before } or ] — a common model formatting mistake.
-  const repaired=candidate.replace(/,\s*([}\]])/g,'$1');
-  try{return JSON.parse(repaired);}catch{}
+  if(recovered.length)return {questions:recovered};
   return null;
 }
 
+function commanderJsonFailureDetail(rawText){
+  const s=String(rawText||'').trim();
+  const opens=(s.match(/{/g)||[]).length;
+  const closes=(s.match(/}/g)||[]).length;
+  const head=s.slice(0,90).replace(/\s+/g,' ');
+  const tail=s.slice(-90).replace(/\s+/g,' ');
+  const looksTruncated=opens>closes || (opens>0 && !/[}\]]\s*`?`?$/.test(s));
+  return 'AI response chars='+s.length+'; object braces '+opens+'/'+closes+
+    '; '+(looksTruncated?'response may be truncated or missing its JSON closing braces':'response was not parseable as JSON')+
+    '; start="'+head+'"; end="'+tail+'".';
+}
 
 app.post('/api/ai/commander-question',async(req,res)=>{
   try{
@@ -1123,10 +1173,13 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
     const raw=await callVireonixCommanderBank(messages);
     const data=parseCommanderQuestionJson(raw);
     if(!data){
+      const detail=commanderJsonFailureDetail(raw);
+      console.warn('[AI] Commander question-bank JSON parse failed:',detail);
       return res.status(502).json({
         error:'Vireonix Auto did not return a complete JSON question set for Commander.',
         provider:'Vireonix Auto',
-        model:'auto'
+        model:'auto',
+        detail
       });
     }
 
