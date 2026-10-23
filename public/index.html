@@ -2224,7 +2224,7 @@ async function runLocalAi(messages, options={}){
         ]);
         try{
           const continuation=await runLocalAi(continuationMessages,{...options,_continuationAttempt:true});
-          return fullText+(continuation ? (/\\s$/.test(fullText)||/^\\s/.test(continuation)?'':' ')+continuation : '');
+          return fullText+(continuation ? (fullText.endsWith(' ') || fullText.endsWith('\n') || continuation.startsWith(' ') || continuation.startsWith('\n') ? '' : ' ')+continuation : '');
         }catch(continuationError){
           continuationError.partialText=fullText;
           throw continuationError;
