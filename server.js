@@ -237,6 +237,7 @@ function latestUserQuestion(messages){
 function isLikelyFollowUp(question){
   const q=String(question||'').trim().toLowerCase();
   if(!q) return false;
+  if(/^(continue|continue from where|keep going|finish the answer|complete the answer|pick up where you stopped)\b/i.test(q)) return true;
   const shortFollow=/^(why|how|how so|explain|explain that|explain it|simpler|make it simpler|shorter|more detail|elaborate|clarify|show (?:me )?(?:the )?(?:steps|work)|show your work|what does that mean|what did you mean|can you explain(?: that| it)?|can you simplify(?: that| it)?)\b[?!.,\s]*$/i;
   if(shortFollow.test(q)) return true;
   // “What about the other one?” is a follow-up; “What about the Boston Tea Party?”
@@ -482,9 +483,9 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   const tutorMode=String(options.mode||'')==='tutor';
   const studySetMode=String(options.mode||'')==='study-set';
   const fastTutor=false; // Keep Tutor on streaming for low-latency first output.
-  let sentAnyChunk=false;
-  // ~10s is the Tutor target; difficult Auto generations get a ~30s fail-safe
-  // so a valid deep answer is not discarded just because first-token latency is high.
+  // The server enforces the quick-vs-deep deadline. The browser waits up to
+  // the deep ceiling for Tutor intent so contextual follow-ups cannot be aborted
+  // early by a shorter client-side timer.
   const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : 29500);
 
   async function requestAttempt(){
@@ -570,7 +571,6 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
     for await (const chunk of upstream.body){
       if(Date.now()>=deadline) throw new Error('Vireonix Auto request timed out.');
       if(chunk){
-        sentAnyChunk=true;
         res.write(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
       }
     }
@@ -579,14 +579,13 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   }catch(e){
     if(!res.headersSent) throw e;
 
-    // If useful text already reached the browser, finish the stream cleanly
-    // instead of converting an almost-complete answer into a total failure.
+    // Never mark a failed stream as a successful [DONE]: the client needs to
+    // know that any text already shown may be incomplete.
     try{
       const message=e?.name==='AbortError'
         ? 'Vireonix Auto request timed out.'
         : String(e?.message||'Vireonix Auto stream failed.');
-      if(sentAnyChunk) res.write('data: [DONE]\\n\\n');
-      else res.write('data: '+JSON.stringify({type:'error',error:message})+'\\n\\n');
+      res.write('data: '+JSON.stringify({type:'error',error:message})+'\n\n');
       res.end();
     }catch{}
   }finally{
@@ -970,23 +969,33 @@ app.post('/api/ai/chat',async(req,res)=>{
       await streamVireonixToResponse(messages,complex,res,{mode:responseMode});
     }catch(e){
       console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
+      const message=String(e?.message||'');
+      const match=message.match(/^HTTP\s+(\d+)\s*:/i);
+      const upstreamStatus=Number(e?.status||match?.[1]||0);
+      let statusCode=504;
+      let publicError='The Tutor response timed out before completion. Please try again.';
+      if(upstreamStatus===429){
+        statusCode=429;
+        publicError='Vireonix Auto is busy right now. Please try again shortly.';
+      }else if(upstreamStatus===504){
+        statusCode=504;
+        publicError='Vireonix Auto timed out before completing the answer. Please try again.';
+      }else if(upstreamStatus>=500&&upstreamStatus<=599){
+        statusCode=upstreamStatus;
+        publicError='Vireonix Auto is temporarily unavailable (HTTP '+upstreamStatus+'). Please try again shortly.';
+      }else if(!/timed out|timeout|abort/i.test(message)){
+        publicError='The Tutor could not complete this response. Please try again.';
+      }
       if(!res.headersSent){
-        return res.status(504).json({
-          error:complex
-            ? 'Vireonix Auto did not complete this deep Tutor response within the extended reasoning window. No fallback model was used.'
-            : 'Vireonix Auto did not answer within the quick Tutor target. No fallback model was used.',
+        return res.status(statusCode).json({
+          error:publicError,
           provider:'Vireonix Auto',
           model:'auto',
           detail:providerFailureLabel(e)
         });
       }
       try{
-        res.write('data: '+JSON.stringify({
-          type:'error',
-          error:complex
-            ? 'Vireonix Auto did not complete this deep Tutor response within the extended reasoning window. No fallback model was used.'
-            : 'Vireonix Auto did not answer within the quick Tutor target. No fallback model was used.'
-        })+'\\n\\n');
+        res.write('data: '+JSON.stringify({type:'error',error:publicError})+'\n\n');
         res.end();
       }catch{}
     }
