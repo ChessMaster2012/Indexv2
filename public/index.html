@@ -3963,9 +3963,14 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
   // Do not upload an entire old chat for a brand-new question. It adds school-
   // network latency before the server can even reach Vireonix. Keep only a small
   // recent window for genuine follow-ups.
-  const followUp=/^(why|how|how so|explain(?: that| it)?|simpler|make it simpler|shorter|more detail|elaborate|clarify|show (?:me )?(?:the )?(?:steps|work)|show your work|what does that mean|what did you mean|can you explain(?: that| it)?|can you simplify(?: that| it)?)\s*[?!.,]*$/i.test(text)
+  const continuationRequest=/^(?:continue(?:\s+from\s+where\s+you\s+stopped)?|keep\s+going|finish\s+the\s+answer|complete\s+the\s+answer|pick\s+up\s+where\s+you\s+stopped)\b[.!?\s]*$/i.test(text);
+  const followUp=continuationRequest
+    || /^(why|how|how so|explain(?: that| it)?|simpler|make it simpler|shorter|more detail|elaborate|clarify|show (?:me )?(?:the )?(?:steps|work)|show your work|what does that mean|what did you mean|can you explain(?: that| it)?|can you simplify(?: that| it)?)\s*[?!.,]*$/i.test(text)
     || (/^(?:and\s+)?what about\b/i.test(text) && /\b(the other|that|it|this|these|those|first|second|above|previous|one)\b/i.test(text))
     || (/(?:that|it|this|these|those|the above|the previous|the other one|the first one|the second one)/i.test(text) && /^(?:what|why|how|which|does|did|is|are|was|were|can|could|would|should|so)\b/i.test(text));
+  if(continuationRequest){
+    turns.push({role:'system',content:'The student is asking you to continue an answer that was interrupted. Use the immediately preceding assistant message as the partial answer. Continue from the point where it stopped; do not restart, repeat completed sections, or claim you lack conversation history. Finish all remaining parts clearly.'});
+  }
   const history = state.chat.slice(0,-1);
   const historyToSend = followUp ? history.slice(-8) : history.slice(-1);
   historyToSend.forEach(m=>{
