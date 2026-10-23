@@ -969,14 +969,14 @@ app.post('/api/ai/chat',async(req,res)=>{
     }catch(e){
       console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
       const message=String(e?.message||'');
-      const match=message.match(/^HTTP\\s+(\\d+)\\s*:/i);
+      const match=message.match(/^HTTP\s+(\d+)\s*:/i);
       const upstreamStatus=Number(e?.status||match?.[1]||0);
       let statusCode=504;
       let publicError='The Tutor response timed out before completion. Please try again.';
       if(upstreamStatus===429){
         statusCode=429;
         publicError='Vireonix Auto is busy right now. Please try again shortly.';
-      }else if(upstreamStatus===502||upstreamStatus===503){
+      }else if(upstreamStatus>=500&&upstreamStatus<=599){
         statusCode=upstreamStatus;
         publicError='Vireonix Auto is temporarily unavailable (HTTP '+upstreamStatus+'). Please try again shortly.';
       }else if(upstreamStatus===504){
