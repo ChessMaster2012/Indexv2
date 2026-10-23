@@ -2767,7 +2767,7 @@ function rewardRarityClass(r){ return String(r||'Common').toLowerCase(); }
 // All packs use the same transparent rarity odds. Costs differ, but pack tier does not
 // change the chance of each rarity. Odds are represented in 10,000 units so
 // the 0.1% Legendary chance is rolled exactly.
-const SHARED_PACK_ODDS = {Common:66.9,Rare:24,Epic:9,Legendary:0.1};
+const SHARED_PACK_ODDS = {Common:66.5,Rare:24,Epic:9,Legendary:0.5};
 const PACK_ORDER = ['candy','medieval','robo','ocean','arcade','cosmic'];
 const PACK_DEFS = {
   candy:{name:'Candy Carnival',theme:'Candy Carnival',cost:20,icon:'🍬',accent:'#ff82b8',weights:SHARED_PACK_ODDS,contents:['ling-sugarbug','ling-gumdrop','ling-taffy','ling-choco','ling-jellybean','ling-caramel','ling-sprinkle','ling-lolliking']},
@@ -2791,7 +2791,7 @@ function rollPack(kind='study'){
   const cfg=packConfig(kind), contents=packContents(kind), by={};
   Object.keys(cfg.weights).forEach(r=>by[r]=contents.filter(c=>c.rarity===r));
   const total=10000;
-  const scaled={Common:6690,Rare:2400,Epic:900,Legendary:10};
+  const scaled={Common:6650,Rare:2400,Epic:900,Legendary:50};
   let n=Math.floor(randomUnit()*total), rarity='Common';
   for(const [r,w] of Object.entries(scaled)){ n-=w; if(n<0){rarity=r;break;} }
   const pool=by[rarity]?.length ? by[rarity] : contents;
