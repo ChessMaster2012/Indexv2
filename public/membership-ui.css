@@ -1,0 +1,59 @@
+/* Membership redesign (markup in index.html: membershipPlanCardsHtml / renderMembershipPage) */
+.membership-page.mx{--ink:#f3f0ff;--mut:#b4aee0;--line:rgba(255,255,255,.14);color:var(--ink);background:radial-gradient(1000px 460px at 90% -10%,#6a35c9 0,transparent 60%),radial-gradient(800px 420px at -10% 30%,#1f6fb8 0,transparent 55%),#14103a;border-radius:26px;padding:26px 26px 30px;box-shadow:0 24px 60px rgba(20,16,58,.35);font-family:var(--font-body,Nunito,system-ui,sans-serif)}
+.mx .membership-hero{background:none;box-shadow:none;padding:0 0 18px;margin:0;display:flex;justify-content:space-between;gap:20px;align-items:flex-end;flex-wrap:wrap;border-radius:0}
+.mx-eyebrow{font-size:11px;font-weight:900;letter-spacing:.16em;color:#ffd56a}
+.mx .membership-hero h2{font-family:var(--font-display,Fredoka,sans-serif);font-size:clamp(28px,4vw,42px);line-height:1.05;margin:4px 0 8px;background:linear-gradient(90deg,#fff,#ffd56a 60%,#ff8fc3);-webkit-background-clip:text;background-clip:text;color:transparent}
+.mx .membership-hero p{margin:0;max-width:560px;color:var(--mut);font-size:14px;line-height:1.55}
+.mx-hero-copy{flex:1;min-width:260px}
+.mx .membership-current-banner{margin:0;background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--ink);border-radius:18px;padding:14px 16px;min-width:280px;backdrop-filter:blur(6px)}
+.mx-k{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-weight:800}
+.mx .membership-current-banner strong{font:800 22px var(--font-display,Fredoka,sans-serif)}
+.mx .membership-current-banner div[style]{color:var(--mut)!important}
+.mx-banner-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mx .btn.btn-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid var(--line)}
+.mx .btn.btn-ghost:hover:not(:disabled){background:rgba(255,255,255,.18)}
+.mx-perks{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.mx-perks div{padding:14px;border-radius:16px;background:rgba(255,255,255,.07);border:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.mx-perks span{font-size:22px}.mx-perks b{font-size:13px}.mx-perks small{font-size:11.5px;color:var(--mut)}
+.mx .membership-grid-page{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:stretch}
+/* cards — also used by the new-user onboarding modal */
+.membership-card{--c1:#8d92b8;--c2:#5a5f86;position:relative;display:flex;flex-direction:column;background:linear-gradient(180deg,#241c62,#171046);color:#f3f0ff;border:1px solid rgba(255,255,255,.14);border-top:4px solid var(--c1);border-radius:22px;padding:20px;box-shadow:0 12px 30px rgba(0,0,0,.28);transition:transform .25s,box-shadow .25s;overflow:hidden}
+.membership-card:hover{transform:translateY(-5px);box-shadow:0 20px 44px rgba(0,0,0,.4),0 0 0 1px var(--c1)}
+.membership-card.gold{--c1:#ffcf4a;--c2:#e08f12}.membership-card.platinum{--c1:#8fd3ff;--c2:#4a7ee0}.membership-card.diamond{--c1:#c79bff;--c2:#ff7bc8;border-color:rgba(199,155,255,.5);box-shadow:0 18px 44px rgba(124,92,252,.4);transform:none}
+.membership-card.diamond{background:linear-gradient(180deg,#34227f,#1b1252)}
+.membership-card.active{box-shadow:0 0 0 2px #35c98a,0 12px 30px rgba(0,0,0,.28)}
+.mc-ribbon{position:absolute;top:14px;right:-34px;transform:rotate(38deg);background:linear-gradient(90deg,#c79bff,#ff7bc8);color:#1a1445;font-size:9.5px;font-weight:950;letter-spacing:.12em;padding:4px 40px}
+.membership-card-top{display:flex;justify-content:space-between;align-items:center;min-height:24px}
+.membership-card .membership-tag,.membership-card .membership-best{background:rgba(255,255,255,.12);color:var(--c1);font-size:9.5px;font-weight:950;letter-spacing:.12em;border-radius:999px;padding:5px 10px}
+.membership-card .membership-current{color:#7be0a8;font-size:10.5px;font-weight:900}
+.mc-head{display:flex;gap:12px;align-items:center;margin-top:12px}
+.membership-card .membership-plan-icon{width:52px;height:52px;flex:none;margin:0;border-radius:16px;background:linear-gradient(135deg,var(--c1),var(--c2));display:grid;place-items:center;font-size:26px;box-shadow:0 6px 16px rgba(0,0,0,.3)}
+.membership-card h3{font-family:var(--font-display,Fredoka,sans-serif);font-size:26px;margin:0;color:#fff}
+.membership-card p{color:var(--mut,#b4aee0);font-size:12px;line-height:1.4;margin:2px 0 0;min-height:0}
+.membership-card .membership-price{font:800 36px var(--font-display,Fredoka,sans-serif);margin:16px 0 12px;color:#fff}
+.membership-card .membership-price span{font-size:12px;color:var(--mut,#b4aee0);font-family:var(--font-body,Nunito,sans-serif);font-weight:700}
+.mc-meters{display:grid;gap:9px;margin-bottom:14px;padding:12px;border-radius:14px;background:rgba(0,0,0,.28)}
+.mc-meter-l{display:flex;justify-content:space-between;font-size:11px;font-weight:800;color:var(--mut,#b4aee0);margin-bottom:4px}.mc-meter-l b{color:#fff}
+.mc-meter-b{height:7px;border-radius:99px;background:rgba(255,255,255,.12);overflow:hidden}.mc-meter-b i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--c1),var(--c2))}
+.membership-card .membership-features{display:grid;gap:8px;min-height:0;flex:1;color:#e4dfff;font-size:12.5px;font-weight:700;margin-bottom:16px}
+.membership-features div{display:flex;gap:8px;align-items:flex-start}
+.membership-features i{flex:none;width:18px;height:18px;border-radius:50%;background:rgba(53,201,138,.25);color:#7be0a8;font-style:normal;font-size:11px;display:grid;place-items:center;margin-top:1px}
+/* buttons */
+.membership-card .membership-action{width:100%;border:0;border-radius:14px;padding:13px 16px;font:900 14px var(--font-body,Nunito,sans-serif);cursor:pointer;transition:transform .15s,filter .2s,box-shadow .2s;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)}
+.membership-card .membership-action:hover:not(:disabled){transform:translateY(-2px);filter:brightness(1.1)}
+.membership-card .membership-action:disabled{opacity:.55;cursor:default}
+.membership-card.gold .membership-action[data-action="start-membership-checkout"]{background:linear-gradient(135deg,#ffe07a,#ff9f1c);color:#3a2300;border:0;box-shadow:0 8px 20px rgba(255,159,28,.35)}
+.membership-card.platinum .membership-action[data-action="start-membership-checkout"]{background:linear-gradient(135deg,#a8e0ff,#4a7ee0);color:#06204a;border:0;box-shadow:0 8px 20px rgba(74,126,224,.35)}
+.membership-card.diamond .membership-action[data-action="start-membership-checkout"]{background:linear-gradient(135deg,#d3b0ff,#ff7bc8);color:#2a0f4a;border:0;box-shadow:0 8px 22px rgba(255,123,200,.4)}
+.membership-card .membership-action[data-action="manage-membership"]{background:rgba(53,201,138,.18);border-color:#35c98a;color:#b9f5d6}
+/* trust + faq + legal */
+.mx .membership-trust{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;padding:0;background:none;border:0;color:var(--mut)}
+.mx .membership-trust span{padding:8px 13px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid var(--line);font-size:11.5px;font-weight:800}
+.mx-faq{margin-top:18px}.mx-faq h3{font:800 20px var(--font-display,Fredoka,sans-serif);margin:0 0 10px;color:#fff}
+.mx-faq>div{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.mx-faq details{padding:13px 15px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid var(--line)}
+.mx-faq summary{cursor:pointer;font-weight:800;font-size:13.5px}.mx-faq details p{margin:8px 0 0;color:var(--mut);font-size:12.5px;line-height:1.5}
+.mx .membership-legal{color:var(--mut);margin-top:14px}.mx .membership-legal a{color:#ffd56a}
+@media(max-width:1100px){.mx .membership-grid-page,.mx-perks{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.mx .membership-grid-page,.mx-perks,.mx-faq>div{grid-template-columns:1fr}.membership-page.mx{padding:16px;border-radius:20px}}
+@media(min-width:1101px){.membership-card .mc-head{min-height:96px}}
