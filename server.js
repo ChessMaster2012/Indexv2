@@ -237,6 +237,7 @@ function latestUserQuestion(messages){
 function isLikelyFollowUp(question){
   const q=String(question||'').trim().toLowerCase();
   if(!q) return false;
+  if(/^(continue|continue from where|keep going|finish the answer|complete the answer|pick up where you stopped)\b/i.test(q)) return true;
   const shortFollow=/^(why|how|how so|explain|explain that|explain it|simpler|make it simpler|shorter|more detail|elaborate|clarify|show (?:me )?(?:the )?(?:steps|work)|show your work|what does that mean|what did you mean|can you explain(?: that| it)?|can you simplify(?: that| it)?)\b[?!.,\s]*$/i;
   if(shortFollow.test(q)) return true;
   // “What about the other one?” is a follow-up; “What about the Boston Tea Party?”
@@ -976,12 +977,12 @@ app.post('/api/ai/chat',async(req,res)=>{
       if(upstreamStatus===429){
         statusCode=429;
         publicError='Vireonix Auto is busy right now. Please try again shortly.';
-      }else if(upstreamStatus>=500&&upstreamStatus<=599){
-        statusCode=upstreamStatus;
-        publicError='Vireonix Auto is temporarily unavailable (HTTP '+upstreamStatus+'). Please try again shortly.';
       }else if(upstreamStatus===504){
         statusCode=504;
         publicError='Vireonix Auto timed out before completing the answer. Please try again.';
+      }else if(upstreamStatus>=500&&upstreamStatus<=599){
+        statusCode=upstreamStatus;
+        publicError='Vireonix Auto is temporarily unavailable (HTTP '+upstreamStatus+'). Please try again shortly.';
       }else if(!/timed out|timeout|abort/i.test(message)){
         publicError='The Tutor could not complete this response. Please try again.';
       }
