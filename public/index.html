@@ -2108,7 +2108,9 @@ async function runLocalAi(messages, options={}){
   }
 
   const complexMode=options.complex===true;
-  const timeoutMs=complexMode ? 90000 : (Number(options.timeoutMs)||28500);
+  // Let the server's quick-vs-deep routing enforce Tutor's real deadline.
+  // This prevents short contextual follow-ups from hitting a shorter client timer.
+  const timeoutMs=options.intent==='tutor' ? 90000 : (complexMode ? 90000 : (Number(options.timeoutMs)||28500));
   const controller=new AbortController();
   let timer=null;
   const armTimer=(ms)=>{
@@ -2139,6 +2141,7 @@ async function runLocalAi(messages, options={}){
       let buffer='';
       let fullText='';
       let sawDone=false;
+      let finishReason='';
 
       const emitChunk=(chunk)=>{
         if(!chunk) return;
@@ -2171,13 +2174,9 @@ async function runLocalAi(messages, options={}){
           if(!fullText && data.text) fullText=String(data.text);
         }else if(data?.type==='error'){
           const message=String(data.error||'Vireonix Auto failed.');
-          if(fullText.trim()){
-            // Keep already-streamed Tutor content instead of replacing it with
-            // a timeout/error after the server has delivered useful text.
-            sawDone=true;
-            return;
-          }
-          throw new Error(message);
+          const streamError=new Error(message);
+          streamError.partialText=fullText;
+          throw streamError;
         }else{
           // Native OpenAI-compatible streaming:
           // choices[0].delta.content is the generated token/chunk.
@@ -2190,7 +2189,10 @@ async function runLocalAi(messages, options={}){
             ''
           );
           if(chunk) emitChunk(chunk);
-          if(data?.choices?.[0]?.finish_reason) sawDone=true;
+          if(data?.choices?.[0]?.finish_reason){
+            finishReason=String(data.choices[0].finish_reason);
+            sawDone=true;
+          }
         }
       }
 
@@ -2208,6 +2210,35 @@ async function runLocalAi(messages, options={}){
 
       if(!fullText.trim()){
         throw new Error(sawDone ? 'Vireonix Auto returned an empty response.' : 'Vireonix Auto ended without an answer.');
+      }
+
+      // A token-limit finish or stream disappearance without a terminal marker
+      // is not complete. Continue once with the same provider/model only.
+      const needsContinuation=options.intent==='tutor'
+        && options._continuationAttempt!==true
+        && (finishReason==='length' || (!sawDone && !finishReason));
+      if(needsContinuation){
+        const continuationMessages=messages.concat([
+          {role:'assistant',content:fullText},
+          {role:'user',content:'Continue the immediately preceding answer from exactly where it stopped. Do not repeat existing text. Finish the interrupted sentence, then complete every remaining requested part. Preserve the original structure and answer only with the continuation.'}
+        ]);
+        try{
+          const continuation=await runLocalAi(continuationMessages,{...options,_continuationAttempt:true});
+          return fullText+(continuation ? (/\\s$/.test(fullText)||/^\\s/.test(continuation)?'':' ')+continuation : '');
+        }catch(continuationError){
+          continuationError.partialText=fullText;
+          throw continuationError;
+        }
+      }
+      if(finishReason==='length'){
+        const lengthError=new Error('The answer reached the output limit and the continuation was also incomplete.');
+        lengthError.partialText=fullText;
+        throw lengthError;
+      }
+      if(!sawDone && !finishReason){
+        const incompleteError=new Error('The AI response ended before the stream was marked complete.');
+        incompleteError.partialText=fullText;
+        throw incompleteError;
       }
       return fullText.trim();
     }
@@ -2230,7 +2261,9 @@ async function runLocalAi(messages, options={}){
     return answer;
   }catch(e){
     if(e?.name==='AbortError'){
-      throw new Error('The AI service took too long to respond. Please try again.');
+      const timeoutError=new Error('The AI service took too long to respond. Please try again.');
+      timeoutError.partialText=e?.partialText||'';
+      throw timeoutError;
     }
     throw e;
   }finally{
@@ -3949,8 +3982,14 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
     state.chat[assistantIndex] = {role:'assistant', text:reply || streamText || "I couldn't come up with an answer — try rephrasing your question."};
     addXP(2);
   }catch(e){
-    if(streamText.trim()) state.chat[assistantIndex] = {role:'assistant', text:streamText.trim()};
-    else state.chat[assistantIndex] = {role:'assistant', text: explainAiError(e, 'The tutor')};
+    if(streamText.trim()){
+      state.chat[assistantIndex] = {
+        role:'assistant',
+        text:streamText.trim()+'\n\n⚠️ The response was interrupted before completion. Ask “continue from where you stopped” to finish it.'
+      };
+    }else{
+      state.chat[assistantIndex] = {role:'assistant', text: explainAiError(e, 'The tutor')};
+    }
   }
   state.chatLoading = false; stopAiWorkStatus(); document.getElementById('tutor-send').disabled = false; renderChatLog();
 }
