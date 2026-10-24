@@ -1229,9 +1229,47 @@ app.post('/api/ai/commander-question',async(req,res)=>{
 app.post('/api/ai/commander-bank',async(req,res)=>{
   try{
     if(!VIREONIX_COMMANDER_BULK_ENABLED){
-      return res.status(503).json({
-        error:'Live AI questions are temporarily unavailable. Built-in questions will be used.'
-      });
+      // Backward compatibility for already-open Tower Defense tabs that still
+      // call the old bank route. Keep bulk generation disabled: generate ONE
+      // question for this request and wrap it in the bank response shape.
+      const course=String(req.body?.course||'').trim();
+      const unit=String(req.body?.unit||'').trim();
+      const topic=String(req.body?.topic||'').trim();
+      const seed=String(req.body?.seed||'').trim().slice(0,120);
+      const excluded=Array.isArray(req.body?.exclude)
+        ? Array.from(new Set(req.body.exclude.map(v=>String(v||'').trim()).filter(Boolean))).slice(-30)
+        : [];
+      if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
+      const avoidText=excluded.length
+        ? 'Do NOT repeat or lightly reword these previously used question stems: '+excluded.map((q,i)=>'['+(i+1)+'] '+q.slice(0,240)).join(' | ')
+        : '';
+      const messages=[
+        {role:'system',content:'You are Index AP study-material generator. Return one valid multiple-choice question as JSON only. Follow the selected course, unit, and topic exactly.'},
+        {role:'user',content:[
+          'Create ONE AP-level multiple-choice question for AP '+course+' UNIT "'+unit+'".',
+          topic?'Focus specifically on topic "'+topic+'".':'',
+          'Choose a varied concept, application, or scenario within the selected topic, not merely a basic definition.',
+          seed?'Variation cue: '+seed+'. Use it to vary the concept or scenario.':'',
+          avoidText,
+          'Return ONLY JSON in this exact shape: {"question":{"q":"question","options":["A","B","C","D"],"correct":0,"explanation":"brief"}}.',
+          'The correct field must be an integer from 0 to 3. No markdown or commentary.'
+        ].filter(Boolean).join(' ')}
+      ];
+      if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+      try{
+        const raw=await callVireonixWithRetry(messages,false,26000,700,0.85);
+        const data=parseCommanderQuestionJson(raw);
+        const q=data?.question || (Array.isArray(data?.questions)?data.questions[0]:null);
+        if(!q || typeof q.q!=='string' || !q.q.trim() || !Array.isArray(q.options) || q.options.length!==4 || !q.options.every(o=>typeof o==='string'&&o.trim()) || !Number.isInteger(Number(q.correct)) || Number(q.correct)<0 || Number(q.correct)>3){
+          return res.status(502).json({error:'Vireonix Auto returned an unusable AP question.',provider:'Vireonix Auto',model:'auto'});
+        }
+        const clean={q:q.q.trim(),options:q.options.map(o=>String(o).trim()),correct:Number(q.correct),explanation:q.explanation?String(q.explanation):''};
+        console.info('[AI] Legacy Commander bank call served one fresh Vireonix question.');
+        return res.json({questions:[clean],provider:'Vireonix Auto',model:'auto'});
+      }catch(e){
+        console.warn('[AI] Legacy Commander bank single-question fallback failed:',e?.message||e);
+        return res.status(Number(e?.status)||504).json({error:'Vireonix Auto could not prepare a fresh Commander question right now.',provider:'Vireonix Auto',model:'auto',detail:providerFailureLabel(e)});
+      }
     }
     const course=String(req.body?.course||'').trim();
     const unit=String(req.body?.unit||'').trim();
