@@ -1838,7 +1838,7 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
 
     <section class="view" id="view-live">
       <div class="row">
-        <div><h2 style="font-size:24px;font-weight:600;">Live Game</h2><p class="lede" style="margin-top:4px;">Host a live round from a quiz and play it with anyone in real time, or join one with a room code — no sign-in needed.</p></div>
+        <div><h2 style="font-size:24px;font-weight:600;">Live Game</h2><p class="lede" style="margin-top:4px;">Host real-time quiz games, build and publish your own question sets, or join a round with a room code.</p></div>
         <button class="btn btn-ghost btn-sm hidden" id="live-exit-btn" data-action="live-exit">Leave</button>
       </div>
       <div id="live-stage"></div>
@@ -2357,6 +2357,7 @@ function accountStatePayload(){
   return {
     notes: Array.isArray(state.notes) ? state.notes : [],
     studySets: Array.isArray(state.studySets) ? state.studySets : [],
+    customSets: Array.isArray(state.customSets) ? state.customSets : [],
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
     progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,gameProgress:state.progress.gameProgress&&typeof state.progress.gameProgress==='object'?state.progress.gameProgress:{},dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||'',bio:state.profile.bio||'',favoriteSubject:state.profile.favoriteSubject||'',studyGoal:state.profile.studyGoal||'',profileAccent:state.profile.profileAccent||'purple',showProgress:state.profile.showProgress!==false,reducedMotion:state.profile.reducedMotion===true},
@@ -2425,6 +2426,7 @@ async function loadAccountState(){
     if(a.membershipOnboardingCompleted===true){const onboardingKey=membershipOnboardingKey();if(onboardingKey)try{localStorage.setItem(onboardingKey,'1');}catch(e){}}
     if(Array.isArray(a.notes)) state.notes=a.notes;
     if(Array.isArray(a.studySets)) state.studySets=a.studySets;
+    if(Array.isArray(a.customSets)&&a.customSets.length) state.customSets=a.customSets;
     if(a.customTopics && typeof a.customTopics==='object') state.customTopics=a.customTopics;
     if(a.progress) state.progress={...state.progress,...a.progress,equipped:{...state.progress.equipped,...(a.progress.equipped||{})}};
     await loadMembershipStatus();
@@ -9036,5 +9038,9 @@ setInterval(function(){
 <script src="/rewards-ui.js?v=3"></script>
 <script src="/rewards-ui-packs.js?v=3"></script>
 <script src="/rewards-ui-reel.js?v=3"></script>
+<link rel="stylesheet" href="/live-ui.css?v=5">
+<script src="/live-ui.js?v=1"></script>
+<script src="/live-creator.js?v=1"></script>
+
 </body>
 </html>
