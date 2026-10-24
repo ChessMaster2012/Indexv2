@@ -506,11 +506,12 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // Tutor requests have a firm sub-10-second upstream deadline; background AI
   // generation keeps the longer compatibility deadline used by other Index features.
   const tutorMode=String(options.mode||'')==='tutor';
+  const studySetMode=String(options.mode||'')==='study-set';
   const fastTutor=false; // Keep Tutor on streaming for low-latency first output.
   // The server enforces the quick-vs-deep deadline. The browser waits up to
   // the deep ceiling for Tutor intent so contextual follow-ups cannot be aborted
   // early by a shorter client-side timer.
-  const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : 29500);
+  const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 21500 : 29500));
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -528,7 +529,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           messages,
           stream:true,
           // Study-set JSON needs room for all requested cards/questions; retain the same Auto model.
-          max_tokens:tutorMode && complex ? 3500 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420)),
+          max_tokens:studySetMode ? 1800 : (tutorMode && complex ? 3500 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420))),
           temperature:0
         }),
         signal:controller.signal
@@ -1003,9 +1004,17 @@ app.post('/api/ai/chat',async(req,res)=>{
     // JSON mode; Tutor and other background requests retain their existing stream.
     try{
       if(requestIntent==='study-set'){
-        // JSON-mode generation is a better fit for flashcards and quizzes than SSE.
-        const generatedText=await callVireonixWithRetry(messages,false,26000,1800);
-        return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
+        // Prefer standard JSON responses, but fall back to the provider's streaming
+        // transport if its JSON gateway returns transient failures. Keep the exact
+        // prompt and Auto model; reserve time for the fallback inside the client budget.
+        try{
+          const generatedText=await callVireonixWithRetry(messages,false,6000,1800);
+          return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
+        }catch(jsonError){
+          console.warn('[AI] Study-set JSON mode failed; retrying the same Vireonix Auto prompt with streaming:',jsonError?.message||jsonError);
+          await streamVireonixToResponse(messages,false,res,{mode:'study-set'});
+          return;
+        }
       }
       const responseMode=requestIntent==='tutor'?'tutor':'background';
       await streamVireonixToResponse(messages,complex,res,{mode:responseMode});
