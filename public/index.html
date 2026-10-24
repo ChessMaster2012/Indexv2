@@ -8190,7 +8190,7 @@ async function commanderRequestAiQuestionV9(g,background){
     try{
       var controller=(typeof AbortController==='function')?new AbortController():null;
       var timeoutId=controller?setTimeout(function(){try{controller.abort();}catch(e){}},31000):null;
-      var response=await fetch('/api/ai/commander-bank',{
+      var response=await fetch('/api/ai/commander-question',{
         method:'POST',
         headers:{'Content-Type':'application/json','Cache-Control':'no-cache'},
         cache:'no-store',
@@ -8205,8 +8205,8 @@ async function commanderRequestAiQuestionV9(g,background){
           : 'A live question could not be loaded. Built-in questions will be used.';
         throw new Error(reason);
       }
-      var list=Array.isArray(data.questions)?data.questions:[];
-      list.forEach(function(q){commanderQueueQuestionV9(g,q);});
+      var q=data.question&&typeof data.question==='object'?data.question:null;
+      if(q)commanderQueueQuestionV9(g,q);
       if(!Array.isArray(g.aiQuestionQueue))g.aiQuestionQueue=[];
       if(!g.question&&g.questionGateOpen&&g.aiQuestionQueue.length){
         g.question=g.aiQuestionQueue.shift();

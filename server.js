@@ -1193,6 +1193,7 @@ app.post('/api/ai/commander-question',async(req,res)=>{
       topic?'Focus specifically on "'+topic+'".':'',
       'Use only concepts from this unit.',
       avoidText,
+      'Choose a randomly varied concept or scenario within the selected topic; vary the reasoning task and avoid defaulting to a basic definition question.',
       'Make the question meaningfully different from prior questions even when the same topic is selected.',
       'Return ONLY JSON in exactly this shape: {"question":{"q":"question","options":["A","B","C","D"],"correct":0}}.',
       'The correct field must be an integer 0-3. No markdown or commentary.'
@@ -1204,7 +1205,7 @@ app.post('/api/ai/commander-question',async(req,res)=>{
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
 
-    const raw=await callVireonix(messages,false,15000,700);
+    const raw=await callVireonixWithRetry(messages,false,26000,700);
     const data=parseCommanderQuestionJson(raw);
     const q=data?.question || (Array.isArray(data?.questions)?data.questions[0]:null);
     if(!q || typeof q.q!=='string' || !Array.isArray(q.options) || q.options.length!==4 || !q.options.every(o=>typeof o==='string'&&o.trim()) || !Number.isInteger(Number(q.correct)) || Number(q.correct)<0 || Number(q.correct)>3){
