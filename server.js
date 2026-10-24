@@ -522,16 +522,22 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   let attempt=await requestAttempt();
   let upstream=attempt.response;
 
-  // Same-model retry for transient rate limiting/server errors only.
-  if((upstream.status===429 || upstream.status>=500) && Date.now()<deadline-1200){
+  // Retry transient provider failures a couple of times before surfacing them.
+  // Keep the same Vireonix Auto model and stay inside the existing request deadline.
+  for(let retry=0;retry<2 && (upstream.status===429 || upstream.status>=500) && Date.now()<deadline-1800;retry++){
     const retryAfter=Number(upstream.headers.get('retry-after')||0)||0;
-    const wait=Math.min(900,Math.max(150,retryAfter*1000));
+    const backoff=retry===0?350:750;
+    const wait=Math.min(1200,Math.max(backoff,retryAfter*1000));
     try{ await upstream.arrayBuffer(); }catch{}
     clearTimeout(attempt.timer);
-    await new Promise(resolve=>setTimeout(resolve,Math.min(wait,Math.max(100,deadline-Date.now()-300))));
-    if(Date.now()<deadline-300){
+    const remaining=deadline-Date.now()-500;
+    if(remaining<=0) break;
+    await new Promise(resolve=>setTimeout(resolve,Math.min(wait,remaining)));
+    if(Date.now()<deadline-500){
       attempt=await requestAttempt();
       upstream=attempt.response;
+    }else{
+      break;
     }
   }
 
