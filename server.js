@@ -976,29 +976,31 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
-    const routeFollowUp=isLikelyFollowUp(question);
+    const routeFollowUp=requestIntent==='study-set' ? false : isLikelyFollowUp(question);
     const priorUsers=messages.filter(m=>m && m.role==='user' && String(m.content||'').trim()).slice(0,-1);
 
-    // Tiny deterministic arithmetic/radical questions bypass network latency.
-    // Substantive Tutor questions still go only to Vireonix Auto.
-    const dateAnswer=tutorDateAnswer(question);
-    if(dateAnswer){
-      return res.json({text:'Today is '+dateAnswer+'.',provider:'Index date',model:'server-clock'});
-    }
+    // Deterministic shortcuts apply only to Tutor/direct-question requests.
+    // A study-set prompt must always go through structured generation.
+    if(requestIntent!=='study-set'){
+      const dateAnswer=tutorDateAnswer(question);
+      if(dateAnswer){
+        return res.json({text:'Today is '+dateAnswer+'.',provider:'Index date',model:'server-clock'});
+      }
 
-    const fastAnswer=fastDeterministicTutor(question,messages);
-    if(fastAnswer){
-      return res.json({text:fastAnswer,provider:'Index fast math',model:'deterministic'});
+      const fastAnswer=fastDeterministicTutor(question,messages);
+      if(fastAnswer){
+        return res.json({text:fastAnswer,provider:'Index fast math',model:'deterministic'});
+      }
     }
 
     // A contextual follow-up inherits the difficulty of the problem it refers to.
-    const complex=aiQuestionIsComplex(question) ||
-      (routeFollowUp && priorUsers.some(m=>aiQuestionIsComplex(m.content)));
+    const complex=requestIntent==='study-set' ? false : (
+      aiQuestionIsComplex(question) ||
+      (routeFollowUp && priorUsers.some(m=>aiQuestionIsComplex(m.content)))
+    );
 
-    // Keep Vireonix Auto as the only provider/model. If the streaming endpoint
-    // returns an immediate gateway error for a non-Tutor generation request,
-    // retry that same request once through the provider's JSON response mode.
-    // This avoids making study-set and Live Game generation depend on SSE health.
+    // Keep Vireonix Auto as the only provider/model. Structured study sets use
+    // JSON mode; Tutor and other background requests retain their existing stream.
     try{
       if(requestIntent==='study-set'){
         // JSON-mode generation is a better fit for flashcards and quizzes than SSE.
