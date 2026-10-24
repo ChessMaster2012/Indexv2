@@ -8112,9 +8112,9 @@ function commanderBeginGateQuestion(g){
     renderBattle(g);
   }
 
-  /* AI generation is best-effort here; its result is queued for the next
-     transition and can never leave the current gate stuck on loading. */
-  var pending=commanderRequestAiQuestionV9(g,true);
+  /* Ask for one fresh question when this wave opens. Avoid speculative
+     background prefetch because Vireonix has flagged automated bulk traffic. */
+  var pending=commanderRequestAiQuestionV9(g,false);
   if(pending&&typeof pending.catch==='function'){
     pending.catch(function(err){
       if(state.games===g)g.aiPrefetchError=String(err&&err.message||err);
@@ -8194,49 +8194,6 @@ function commanderFallbackUniqueV9(g){
   }
   return null;
 }
-async function commanderDirectVireonixQuestionV9(course,unit,topic,exclusions,seed){
-  var avoid=Array.isArray(exclusions)&&exclusions.length
-    ?'Do NOT repeat or lightly reword these previously-used question stems. Create a genuinely different question: '+exclusions.slice(-30).map(function(q,i){return '['+(i+1)+'] '+String(q).slice(0,300);}).join(' | ')
-    :'';
-  var prompt=[
-    'Create ONE AP-level multiple-choice question ONLY about AP '+course+' UNIT "'+unit+'".',
-    topic?'Focus specifically on "'+topic+'".':'',
-    'Use only concepts from this unit.',
-    avoid,
-    'Choose a randomly varied concept or scenario within the selected topic; vary the reasoning task and avoid a basic definition question.',
-    seed?'Variation seed '+seed+': use this to choose a different concept, real-world scenario, or reasoning angle.':'',
-    'Make the question meaningfully different from prior questions.',
-    'Return ONLY JSON in exactly this shape: {"question":{"q":"question","options":["A","B","C","D"],"correct":0}}.',
-    'The correct field must be an integer 0-3. No markdown or commentary.'
-  ].filter(Boolean).join(' ');
-  var messages=[
-    {role:'system',content:'You are Index AP study-material generator. Follow the selected AP course and unit exactly. Return only valid JSON and do not repeat prior question stems.'},
-    {role:'user',content:prompt}
-  ];
-  var response=await fetch('https://vireonix.ai/v1/chat/completions',{
-    method:'POST',
-    mode:'cors',
-    cache:'no-store',
-    headers:{'Content-Type':'application/json','Accept':'application/json'},
-    body:JSON.stringify({model:'auto',messages:messages,max_tokens:700,temperature:0.85})
-  });
-  var payload=await response.json().catch(function(){return{};});
-  if(!response.ok) throw new Error('Direct Vireonix Auto request returned HTTP '+response.status+'.');
-  var raw=payload&&payload.choices&&payload.choices[0]&&payload.choices[0].message&&payload.choices[0].message.content;
-  if(typeof raw!=='string'||!raw.trim()) throw new Error('Direct Vireonix Auto returned no text.');
-  var txt=raw.trim().replace(/^\`\`\`(?:json)?\s*/i,'').replace(/\s*\`\`\`$/,'');
-  var parsed;
-  try{parsed=JSON.parse(txt);}catch(parseErr){
-    var a=txt.indexOf('{'),b=txt.lastIndexOf('}');
-    if(a<0||b<=a) throw new Error('Direct Vireonix Auto returned invalid question JSON.');
-    parsed=JSON.parse(txt.slice(a,b+1));
-  }
-  var q=parsed&&parsed.question?parsed.question:(Array.isArray(parsed&&parsed.questions)?parsed.questions[0]:null);
-  if(!q||typeof q.q!=='string'||!q.q.trim()||!Array.isArray(q.options)||q.options.length!==4||!q.options.every(function(o){return typeof o==='string'&&o.trim();})||!Number.isInteger(Number(q.correct))||Number(q.correct)<0||Number(q.correct)>3){
-    throw new Error('Direct Vireonix Auto returned an unusable AP question.');
-  }
-  return {q:q.q.trim(),options:q.options.map(function(o){return String(o).trim();}),correct:Number(q.correct),explanation:q.explanation?String(q.explanation):''};
-}
 async function commanderRequestAiQuestionV9(g,background){
   if(!g||state.games!==g)return null;
   if(g.aiQuestionRequest)return g.aiQuestionRequest;
@@ -8260,26 +8217,13 @@ async function commanderRequestAiQuestionV9(g,background){
       var data=await response.json().catch(function(){return{};});
       var q=data.question&&typeof data.question==='object'?data.question:null;
       if(!response.ok){
-        if(response.status>=500){
-          // Server-side Vireonix calls are currently receiving 5xx responses.
-          // Try the same public Vireonix Auto endpoint from the player's browser
-          // as a last route; never change model/provider and never run this for 4xx.
-          try{
-            q=await commanderDirectVireonixQuestionV9(
-              course,unit,topic,exclusions,
-              String(Date.now())+'-'+String(Math.random()).slice(2)
-            );
-            console.info('[Commander] Direct Vireonix Auto fallback generated a fresh question.');
-          }catch(directError){
-            console.warn('[Commander] Direct Vireonix Auto fallback failed:',directError&&directError.message||directError);
-            throw new Error('Vireonix Auto is returning errors from both the server and direct request. Built-in questions will be used.');
-          }
-        }else{
-          var reason=response.status===503
-            ? 'Live AI questions are temporarily unavailable. Built-in questions will be used.'
-            : 'A live question could not be loaded. Built-in questions will be used.';
-          throw new Error(reason);
+        var detail=String(data.detail||data.error||'');
+        if(/automated-use policy block|automated bulk tasks|future requests will be blocked|tos violation/i.test(detail)){
+          throw new Error('Vireonix has blocked automated requests pending provider review. Built-in questions will be used until access is restored.');
         }
+        throw new Error(response.status===503
+          ? 'Live AI questions are temporarily unavailable. Built-in questions will be used.'
+          : 'A live question could not be loaded. Built-in questions will be used.');
       }
       if(q)commanderQueueQuestionV9(g,q);
       if(!Array.isArray(g.aiQuestionQueue))g.aiQuestionQueue=[];
@@ -8351,18 +8295,14 @@ commanderAdvanceToNextQuestion=function(g){
   g.aiPrefetchError='';
   if(commanderConsumeNextAiQuestionV9(g)){
     renderBattle(g);
-    commanderRequestAiQuestionV9(g,true);
     try{v6Save(g);}catch(e){}
     return;
   }
   renderBattle(g);
   var pending=commanderRequestAiQuestionV9(g,false);
   if(pending&&typeof pending.then==='function')pending.then(function(){
-    if(state.games===g){
-      if(g.question)renderBattle(g);
-      commanderRequestAiQuestionV9(g,true);
-      try{v6Save(g);}catch(e){}
-    }
+    if(state.games===g&&g.question)renderBattle(g);
+    try{v6Save(g);}catch(e){}
   });
 };
 function v6Profile(){return commanderFinalProfile();}

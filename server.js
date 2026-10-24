@@ -464,72 +464,40 @@ function providerRetryable(error){
 async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOverride=null,temperature=0){
   const data=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
     method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'Accept':'application/json'
-    },
+    headers:{'Content-Type':'application/json','Accept':'application/json'},
     body:JSON.stringify({
       model:'auto',
       messages,
-      max_tokens: maxTokensOverride || (complex ? 1200 : 700),
-      temperature: Number.isFinite(Number(temperature)) ? Math.max(0,Math.min(1.5,Number(temperature))) : 0
+      max_tokens:maxTokensOverride || (complex ? 1200 : 700),
+      temperature:Number.isFinite(Number(temperature))?Math.max(0,Math.min(1.5,Number(temperature))):0
     })
   },timeoutMs);
   const text=extractText(data);
   if(!text) throw new Error('Vireonix returned no text.');
+  if(/automated bulk tasks detected|future requests will be blocked|tos violation|automated-use policy block/i.test(text)){
+    const blocked=new Error('Vireonix Auto reports an automated-use policy block. Further automated calls are paused pending provider review.');
+    blocked.status=403;
+    blocked.code='VIREONIX_AUTOMATION_BLOCK';
+    console.warn('[AI] Vireonix Auto returned an automated-use policy block; Commander will not retry or switch routes.');
+    throw blocked;
+  }
   return text;
 }
-
+// Tower Defense makes one provider request per needed wave. Previous production
+// logs show Vireonix returned a policy notice that automated bulk tasks were
+// detected and future requests would be blocked. Do not amplify this with
+// retries or extra endpoints while provider access is under review.
 async function callVireonixCommanderRoute(messages,timeoutMs=12000,maxTokensOverride=700,temperature=0.85){
-  try{
-    return await callVireonix(messages,false,timeoutMs,maxTokensOverride,temperature);
-  }catch(primaryError){
-    const status=Number(primaryError?.status||0);
-    if(status!==502&&status!==503) throw primaryError;
-    // Vireonix documents /api/chat as an alternate route for the same Auto
-    // chat service. Use it only for Tower Defense when /v1 returns a gateway
-    // or service error; do not switch providers or models.
-    console.warn('[AI] Commander Vireonix /v1 route returned HTTP '+status+'; trying Vireonix /api/chat.');
-    let data;
-    try{
-      // Keep the alternate request to the minimum documented contract. Some
-      // gateway routes accept only model + messages, even when /v1 accepts
-      // sampling/token options.
-      data=await fetchJsonWithTimeout('https://vireonix.ai/api/chat',{
-        method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
-        body:JSON.stringify({model:'auto',messages})
-      },timeoutMs);
-    }catch(alternateError){
-      console.warn('[AI] Commander Vireonix /api/chat fallback failed:',alternateError?.message||alternateError);
-      throw alternateError;
-    }
-    const text=extractText(data);
-    if(!text) throw new Error('Vireonix /api/chat returned no usable text.');
-    return text;
-  }
+  return callVireonix(messages,false,timeoutMs,maxTokensOverride,temperature);
 }
 
 async function callVireonixCommanderWithRetry(messages,timeoutMs=26000,maxTokensOverride=700,temperature=0.85){
-  const deadline=Date.now()+timeoutMs;
-  let lastError=null;
-  for(let attempt=0;attempt<3;attempt++){
-    const remaining=deadline-Date.now();
-    if(remaining<1000) break;
-    try{
-      return await callVireonixCommanderRoute(messages,Math.min(12000,Math.max(1000,remaining-250)),maxTokensOverride,temperature);
-    }catch(e){
-      lastError=e;
-      if(!providerRetryable(e)||attempt===2) throw e;
-      const backoff=attempt===0?1000:2500;
-      const retryAfterMs=Math.max(0,Number(e?.retryAfter||0)*1000);
-      const waitMs=Math.min(Math.max(backoff,retryAfterMs),Math.max(0,deadline-Date.now()-1000));
-      if(waitMs<=0) throw e;
-      console.warn('[AI] Commander Vireonix retry '+(attempt+1)+'/2 after '+providerFailureLabel(e)+'; waiting '+waitMs+'ms.');
-      await sleep(waitMs);
-    }
-  }
-  throw lastError||new Error('Vireonix Auto Commander generation timed out.');
+  return callVireonixCommanderRoute(
+    messages,
+    Math.min(12000,Math.max(1000,Number(timeoutMs)||12000)),
+    maxTokensOverride,
+    temperature
+  );
 }
 
 async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxTokensOverride=null,temperature=0){
