@@ -511,7 +511,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // The server enforces the quick-vs-deep deadline. The browser waits up to
   // the deep ceiling for Tutor intent so contextual follow-ups cannot be aborted
   // early by a shorter client-side timer.
-  const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 15500 : 29500));
+  const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 35000 : 29500));
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -1012,7 +1012,7 @@ app.post('/api/ai/chat',async(req,res)=>{
         // transport if its JSON request stalls or returns transient failures. Keep the exact
         // prompt and Auto model; split the client budget between both attempts.
         try{
-          const generatedText=await callVireonixWithRetry(messages,false,12500,1800);
+          const generatedText=await callVireonixWithRetry(messages,false,18000,1800);
           return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
         }catch(jsonError){
           console.warn('[AI] Study-set JSON mode failed; retrying the same Vireonix Auto prompt with streaming:',jsonError?.message||jsonError);
@@ -1042,7 +1042,11 @@ app.post('/api/ai/chat',async(req,res)=>{
       }
 
       let statusCode=504;
-      let publicError='The Tutor response timed out before completion. Please try again.';
+      let publicError=requestIntent==='tutor'
+        ? 'The Tutor response timed out before completion. Please try again.'
+        : requestIntent==='study-set'
+          ? 'Quiz generation timed out before Vireonix Auto finished. Please try again.'
+          : 'Vireonix Auto timed out before completing the response. Please try again.';
       if(upstreamStatus===429){
         statusCode=429;
         publicError='Vireonix Auto is busy right now. Please try again shortly.';
