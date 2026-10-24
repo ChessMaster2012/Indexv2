@@ -493,9 +493,15 @@ async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxT
     }catch(e){
       lastError=e;
       if(!providerRetryable(e)||attempt===2) throw e;
-      const pause=attempt===0?350:750;
-      const waitMs=Math.min(pause,Math.max(0,deadline-Date.now()-1000));
+      // Honor the provider's Retry-After when supplied. The JSON request previously
+      // retried almost immediately, unlike the streaming path, which can make a
+      // short-lived upstream 5xx persist across all attempts.
+      const exponentialBackoff=attempt===0?1000:2500;
+      const retryAfterMs=Math.max(0,Number(e?.retryAfter||0)*1000);
+      const requestedWait=Math.max(exponentialBackoff,retryAfterMs);
+      const waitMs=Math.min(requestedWait,Math.max(0,deadline-Date.now()-1000));
       if(waitMs<=0) throw e;
+      console.warn('[AI] Study-set JSON retry '+(attempt+1)+'/'+2+' after '+providerFailureLabel(e)+'; waiting '+waitMs+'ms.');
       await sleep(waitMs);
     }
   }
