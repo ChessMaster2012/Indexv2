@@ -479,6 +479,54 @@ async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOver
   return text;
 }
 
+async function callVireonixCommanderRoute(messages,timeoutMs=12000,maxTokensOverride=700,temperature=0.85){
+  try{
+    return await callVireonix(messages,false,timeoutMs,maxTokensOverride,temperature);
+  }catch(primaryError){
+    const status=Number(primaryError?.status||0);
+    if(status!==502&&status!==503) throw primaryError;
+    // Vireonix documents /api/chat as an alternate route for the same Auto
+    // chat service. Use it only for Tower Defense when /v1 returns a gateway
+    // or service error; do not switch providers or models.
+    console.warn('[AI] Commander Vireonix /v1 route returned HTTP '+status+'; trying Vireonix /api/chat.');
+    const data=await fetchJsonWithTimeout('https://vireonix.ai/api/chat',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({
+        model:'auto',
+        messages,
+        max_tokens:maxTokensOverride||700,
+        temperature:Math.max(0,Math.min(1.5,Number(temperature)||0))
+      })
+    },timeoutMs);
+    const text=extractText(data);
+    if(!text) throw new Error('Vireonix /api/chat returned no usable text.');
+    return text;
+  }
+}
+
+async function callVireonixCommanderWithRetry(messages,timeoutMs=26000,maxTokensOverride=700,temperature=0.85){
+  const deadline=Date.now()+timeoutMs;
+  let lastError=null;
+  for(let attempt=0;attempt<3;attempt++){
+    const remaining=deadline-Date.now();
+    if(remaining<1000) break;
+    try{
+      return await callVireonixCommanderRoute(messages,Math.min(12000,Math.max(1000,remaining-250)),maxTokensOverride,temperature);
+    }catch(e){
+      lastError=e;
+      if(!providerRetryable(e)||attempt===2) throw e;
+      const backoff=attempt===0?1000:2500;
+      const retryAfterMs=Math.max(0,Number(e?.retryAfter||0)*1000);
+      const waitMs=Math.min(Math.max(backoff,retryAfterMs),Math.max(0,deadline-Date.now()-1000));
+      if(waitMs<=0) throw e;
+      console.warn('[AI] Commander Vireonix retry '+(attempt+1)+'/2 after '+providerFailureLabel(e)+'; waiting '+waitMs+'ms.');
+      await sleep(waitMs);
+    }
+  }
+  throw lastError||new Error('Vireonix Auto Commander generation timed out.');
+}
+
 async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxTokensOverride=null,temperature=0){
   // Structured study-set generation should use JSON responses, not the Tutor's
   // streaming path. Retry only transient provider/network failures, within the
@@ -1207,7 +1255,7 @@ app.post('/api/ai/commander-question',async(req,res)=>{
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
 
-    const raw=await callVireonixWithRetry(messages,false,26000,700,0.85);
+    const raw=await callVireonixCommanderWithRetry(messages,26000,700,0.85);
     const data=parseCommanderQuestionJson(raw);
     const q=data?.question || (Array.isArray(data?.questions)?data.questions[0]:null);
     if(!q || typeof q.q!=='string' || !Array.isArray(q.options) || q.options.length!==4 || !q.options.every(o=>typeof o==='string'&&o.trim()) || !Number.isInteger(Number(q.correct)) || Number(q.correct)<0 || Number(q.correct)>3){
@@ -1257,7 +1305,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       ];
       if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
       try{
-        const raw=await callVireonixWithRetry(messages,false,26000,700,0.85);
+        const raw=await callVireonixCommanderWithRetry(messages,26000,700,0.85);
         const data=parseCommanderQuestionJson(raw);
         const q=data?.question || (Array.isArray(data?.questions)?data.questions[0]:null);
         if(!q || typeof q.q!=='string' || !q.q.trim() || !Array.isArray(q.options) || q.options.length!==4 || !q.options.every(o=>typeof o==='string'&&o.trim()) || !Number.isInteger(Number(q.correct)) || Number(q.correct)<0 || Number(q.correct)>3){
