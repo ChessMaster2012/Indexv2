@@ -489,16 +489,20 @@ async function callVireonixCommanderRoute(messages,timeoutMs=12000,maxTokensOver
     // chat service. Use it only for Tower Defense when /v1 returns a gateway
     // or service error; do not switch providers or models.
     console.warn('[AI] Commander Vireonix /v1 route returned HTTP '+status+'; trying Vireonix /api/chat.');
-    const data=await fetchJsonWithTimeout('https://vireonix.ai/api/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body:JSON.stringify({
-        model:'auto',
-        messages,
-        max_tokens:maxTokensOverride||700,
-        temperature:Math.max(0,Math.min(1.5,Number(temperature)||0))
-      })
-    },timeoutMs);
+    let data;
+    try{
+      // Keep the alternate request to the minimum documented contract. Some
+      // gateway routes accept only model + messages, even when /v1 accepts
+      // sampling/token options.
+      data=await fetchJsonWithTimeout('https://vireonix.ai/api/chat',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body:JSON.stringify({model:'auto',messages})
+      },timeoutMs);
+    }catch(alternateError){
+      console.warn('[AI] Commander Vireonix /api/chat fallback failed:',alternateError?.message||alternateError);
+      throw alternateError;
+    }
     const text=extractText(data);
     if(!text) throw new Error('Vireonix /api/chat returned no usable text.');
     return text;
