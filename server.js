@@ -506,7 +506,6 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // Tutor requests have a firm sub-10-second upstream deadline; background AI
   // generation keeps the longer compatibility deadline used by other Index features.
   const tutorMode=String(options.mode||'')==='tutor';
-  const studySetMode=String(options.mode||'')==='study-set';
   const fastTutor=false; // Keep Tutor on streaming for low-latency first output.
   // The server enforces the quick-vs-deep deadline. The browser waits up to
   // the deep ceiling for Tutor intent so contextual follow-ups cannot be aborted
@@ -529,7 +528,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           messages,
           stream:true,
           // Study-set JSON needs room for all requested cards/questions; retain the same Auto model.
-          max_tokens:studySetMode ? 1800 : (tutorMode && complex ? 3500 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420))),
+          max_tokens:tutorMode && complex ? 3500 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420)),
           temperature:0
         }),
         signal:controller.signal
@@ -1015,12 +1014,12 @@ app.post('/api/ai/chat',async(req,res)=>{
       const upstreamStatus=Number(e?.status||match?.[1]||0);
 
       // A 502/503 can affect streaming separately from ordinary JSON responses.
-      // For generation flows (including Live Game and study sets), try the same
-      // Vireonix Auto model without streaming before returning the original error.
+      // For other background requests, try the same Vireonix Auto model without
+      // streaming before returning the original error.
       if((upstreamStatus===502 || upstreamStatus===503) && requestIntent!=='tutor' && requestIntent!=='study-set' && !res.headersSent){
         try{
           console.warn('[AI] Streaming endpoint returned HTTP '+upstreamStatus+'; trying non-streaming Vireonix Auto fallback for '+(requestIntent||'background')+'.');
-          const fallbackText=await callVireonix(messages,complex,10000,requestIntent==='study-set'?1800:1400);
+          const fallbackText=await callVireonix(messages,complex,10000,1400);
           return res.json({text:fallbackText,provider:'Vireonix Auto',model:'auto'});
         }catch(fallbackError){
           console.warn('[AI] Vireonix Auto non-streaming fallback failed:',fallbackError?.message||fallbackError);
