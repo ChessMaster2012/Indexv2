@@ -460,7 +460,7 @@ function providerRetryable(error){
     /AbortError|fetch failed|ECONNRESET|ETIMEDOUT|socket hang up/i.test(msg);
 }
 
-async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOverride=null){
+async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOverride=null,temperature=0){
   const data=await fetchJsonWithTimeout('https://vireonix.ai/v1/chat/completions',{
     method:'POST',
     headers:{
@@ -471,7 +471,7 @@ async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOver
       model:'auto',
       messages,
       max_tokens: maxTokensOverride || (complex ? 1200 : 700),
-      temperature: 0
+      temperature: Number.isFinite(Number(temperature)) ? Math.max(0,Math.min(1.5,Number(temperature))) : 0
     })
   },timeoutMs);
   const text=extractText(data);
@@ -479,7 +479,7 @@ async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOver
   return text;
 }
 
-async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxTokensOverride=null){
+async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxTokensOverride=null,temperature=0){
   // Structured study-set generation should use JSON responses, not the Tutor's
   // streaming path. Retry only transient provider/network failures, within the
   // browser's existing request deadline, and always keep Vireonix Auto.
@@ -489,7 +489,7 @@ async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxT
     const remaining=deadline-Date.now();
     if(remaining<1000) break;
     try{
-      return await callVireonix(messages,complex,Math.min(12000,Math.max(1000,remaining-250)),maxTokensOverride);
+      return await callVireonix(messages,complex,Math.min(12000,Math.max(1000,remaining-250)),maxTokensOverride,temperature);
     }catch(e){
       lastError=e;
       if(!providerRetryable(e)||attempt===2) throw e;
@@ -1179,6 +1179,7 @@ app.post('/api/ai/commander-question',async(req,res)=>{
     const course=String(req.body?.course||'').trim();
     const unit=String(req.body?.unit||'').trim();
     const topic=String(req.body?.topic||'').trim();
+    const seed=String(req.body?.seed||'').trim().slice(0,120);
     const excluded=Array.isArray(req.body?.exclude)
       ? req.body.exclude.map(v=>String(v||'').trim()).filter(Boolean).slice(-30)
       : [];
@@ -1194,6 +1195,7 @@ app.post('/api/ai/commander-question',async(req,res)=>{
       'Use only concepts from this unit.',
       avoidText,
       'Choose a randomly varied concept or scenario within the selected topic; vary the reasoning task and avoid defaulting to a basic definition question.',
+      seed?'Variation seed '+seed+': use this to choose a different concept, real-world scenario, or reasoning angle.':'',
       'Make the question meaningfully different from prior questions even when the same topic is selected.',
       'Return ONLY JSON in exactly this shape: {"question":{"q":"question","options":["A","B","C","D"],"correct":0}}.',
       'The correct field must be an integer 0-3. No markdown or commentary.'
@@ -1205,7 +1207,7 @@ app.post('/api/ai/commander-question',async(req,res)=>{
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
 
-    const raw=await callVireonixWithRetry(messages,false,26000,700);
+    const raw=await callVireonixWithRetry(messages,false,26000,700,0.85);
     const data=parseCommanderQuestionJson(raw);
     const q=data?.question || (Array.isArray(data?.questions)?data.questions[0]:null);
     if(!q || typeof q.q!=='string' || !Array.isArray(q.options) || q.options.length!==4 || !q.options.every(o=>typeof o==='string'&&o.trim()) || !Number.isInteger(Number(q.correct)) || Number(q.correct)<0 || Number(q.correct)>3){
