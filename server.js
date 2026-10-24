@@ -967,12 +967,13 @@ app.post('/api/ai/chat',async(req,res)=>{
     // A contextual follow-up inherits the difficulty of the problem it refers to.
     const complex=aiQuestionIsComplex(question) ||
       (routeFollowUp && priorUsers.some(m=>aiQuestionIsComplex(m.content)));
+    const requestIntent=String(req.body?.intent||'');
 
-    // ONLY Vireonix Auto answers substantive requests. One upstream request, streamed
-    // directly through this server so the first generated tokens reach the UI
-    // immediately. No fallback model and no second AI request.
+    // Keep Vireonix Auto as the only provider/model. If the streaming endpoint
+    // returns an immediate gateway error for a non-Tutor generation request,
+    // retry that same request once through the provider's JSON response mode.
+    // This avoids making study-set and Live Game generation depend on SSE health.
     try{
-      const requestIntent=String(req.body?.intent||'');
       const responseMode=requestIntent==='tutor'?'tutor':requestIntent==='study-set'?'study-set':'background';
       await streamVireonixToResponse(messages,complex,res,{mode:responseMode});
     }catch(e){
@@ -980,6 +981,20 @@ app.post('/api/ai/chat',async(req,res)=>{
       const message=String(e?.message||'');
       const match=message.match(/^HTTP\s+(\d+)\s*:/i);
       const upstreamStatus=Number(e?.status||match?.[1]||0);
+
+      // A 502/503 can affect streaming separately from ordinary JSON responses.
+      // For generation flows (including Live Game and study sets), try the same
+      // Vireonix Auto model without streaming before returning the original error.
+      if((upstreamStatus===502 || upstreamStatus===503) && requestIntent!=='tutor' && !res.headersSent){
+        try{
+          console.warn('[AI] Streaming endpoint returned HTTP '+upstreamStatus+'; trying non-streaming Vireonix Auto fallback for '+(requestIntent||'background')+'.');
+          const fallbackText=await callVireonix(messages,complex,10000,requestIntent==='study-set'?1800:1400);
+          return res.json({text:fallbackText,provider:'Vireonix Auto',model:'auto'});
+        }catch(fallbackError){
+          console.warn('[AI] Vireonix Auto non-streaming fallback failed:',fallbackError?.message||fallbackError);
+        }
+      }
+
       let statusCode=504;
       let publicError='The Tutor response timed out before completion. Please try again.';
       if(upstreamStatus===429){
