@@ -3,6 +3,8 @@ const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const express = require('express');
+const LIBRARY = require('./library');
+const LIBRARY_QUESTIONS = LIBRARY.normalizeQuestions;
 const http = require('http');
 const { Server } = require('socket.io');
 
@@ -1665,10 +1667,18 @@ function sanitizeAccountState(input){
   const notes = Array.isArray(src.notes) ? src.notes.slice(0, 500) : [];
   const studySets = Array.isArray(src.studySets) ? src.studySets.slice(0, 1000) : [];
   const customTopics = src.customTopics && typeof src.customTopics === 'object' ? src.customTopics : {};
+  // Question sets the student authored in the Live Game creator (separate from AI study sets / plan limits).
+  const customSets = (Array.isArray(src.customSets) ? src.customSets : []).slice(0, 100).map(cs => {
+    if (!cs || typeof cs !== 'object') return null;
+    const questions = LIBRARY_QUESTIONS(cs.questions, 50);
+    if (!questions.length) return null;
+    return { id: String(cs.id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || genId(), title: String(cs.title || 'Untitled set').replace(/[<>]/g, '').slice(0, 80), description: String(cs.description || '').replace(/[<>]/g, '').slice(0, 240), subject: String(cs.subject || 'general').slice(0, 20), questions, updatedAt: Math.max(0, Number(cs.updatedAt) || 0), publishedId: String(cs.publishedId || '').replace(/[^a-f0-9]/g, '').slice(0, 20) };
+  }).filter(Boolean);
   const candidate = {
     version: 2,
     notes,
     studySets,
+    customSets,
     customTopics,
     membership: (() => {
       const m=src.membership&&typeof src.membership==='object'?src.membership:{};
@@ -2819,22 +2829,18 @@ function shuffleArray(arr) {
   }
   return a;
 }
+LIBRARY.init({
+  app, express, dataDir: DATA_DIR, containsConductViolation,
+  supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest }
+});
 function sanitizeQuestions(questions, config = {}) {
-  if (!Array.isArray(questions)) return [];
-  let clean = questions
-    .filter(q => q && typeof q.q === 'string' && Array.isArray(q.options) && q.options.length === 4 && Number.isInteger(q.correct))
-    .slice(0, 30)
-    .map(q => ({
-      q: String(q.q).slice(0, 400),
-      options: q.options.map(o => String(o).slice(0, 200)),
-      correct: Math.max(0, Math.min(3, q.correct)),
-      explanation: q.explanation ? String(q.explanation).slice(0, 400) : ''
-    }));
+  let clean = LIBRARY.normalizeQuestions(questions, 50);
   if (config.shuffleQuestions) clean = shuffleArray(clean);
-  const count = Math.max(1, Math.min(30, Number(config.questionCount) || clean.length));
+  const count = Math.max(1, Math.min(50, Number(config.questionCount) || clean.length));
   clean = clean.slice(0, count);
   if (config.shuffleAnswers) {
     clean = clean.map(q => {
+      if (q.type !== 'mc') return q;
       const pairs = q.options.map((label, idx) => ({ label, correct: idx === q.correct }));
       const shuffled = shuffleArray(pairs);
       return { ...q, options: shuffled.map(x => x.label), correct: shuffled.findIndex(x => x.correct) };
@@ -2844,7 +2850,7 @@ function sanitizeQuestions(questions, config = {}) {
 }
 function publicPlayers(room) {
   return Array.from(room.players.values())
-    .map(p => ({ id: p.id, name: p.name, score: p.score, correctCount: p.correctCount, gold: p.gold, online: p.online, alive: p.alive !== false, streak: p.streak || 0 }))
+    .map(p => ({ id: p.id, name: p.name, score: p.score, correctCount: p.correctCount, gold: p.gold, online: p.online, alive: p.alive !== false, streak: p.streak || 0, lives: p.lives }))
     .sort((a, b) => b.score - a.score);
 }
 function questionForClients(room) {
@@ -2853,9 +2859,10 @@ function questionForClients(room) {
     index: room.currentQuestion,
     total: room.questions.length,
     q: q.q,
-    options: q.options,
+    type: q.type || 'mc',
+    options: q.options || [],
     mode: room.mode,
-    questionDurationMs: room.questionDurationMs,
+    questionDurationMs: room.curDurationMs || room.questionDurationMs,
     startedAt: room.questionStartedAt
   };
 }
@@ -2873,22 +2880,35 @@ function startQuestion(room, index) {
   room.currentQuestion = index;
   room.status = 'question';
   room.questionStartedAt = Date.now();
+  room.curDurationMs = (room.questions[index].time ? room.questions[index].time * 1000 : room.questionDurationMs);
   io.to(room.code).emit('room:question', questionForClients(room));
   io.to(room.code).emit('room:answered-count', { index, count: 0, total: room.players.size });
-  room.revealTimer = setTimeout(() => revealQuestion(room), room.questionDurationMs + 300);
+  room.revealTimer = setTimeout(() => revealQuestion(room), room.curDurationMs + 300);
 }
 function revealQuestion(room) {
   if (room.status !== 'question') return;
   clearRevealTimer(room);
   room.status = 'reveal';
   const q = room.questions[room.currentQuestion];
-  const counts = [0, 0, 0, 0];
+  const type = q.type || 'mc';
+  const counts = type === 'type' ? [0, 0] : q.options.map(() => 0);
   for (const [key, ans] of room.answers.entries()) {
-    if (key.startsWith(room.currentQuestion + ':') && ans.idx >= 0 && ans.idx < 4) counts[ans.idx]++;
+    if (!key.startsWith(room.currentQuestion + ':')) continue;
+    if (type === 'type') counts[ans.correct ? 0 : 1]++;
+    else if (ans.idx >= 0 && ans.idx < counts.length) counts[ans.idx]++;
+  }
+  // wrong/unanswered streaks reset for players who never answered
+  for (const p of room.players.values()) {
+    if (room.answers.has(room.currentQuestion + ':' + p.id)) continue;
+    p.streak = 0;
+    if (room.mode === 'elimination' && p.alive !== false && p.online) { p.lives = (p.lives || 1) - 1; if (p.lives <= 0) p.alive = false; }
   }
   io.to(room.code).emit('room:reveal', {
     index: room.currentQuestion,
-    correct: q.correct,
+    type,
+    correct: type === 'type' ? -1 : q.correct,
+    answer: type === 'type' ? q.answers[0] : q.options[q.correct],
+    acceptedAnswers: type === 'type' ? q.answers : undefined,
     explanation: q.explanation,
     counts,
     players: publicPlayers(room)
@@ -2899,7 +2919,7 @@ function revealQuestion(room) {
       const next = room.currentQuestion + 1;
       if (next >= room.questions.length) endRoom(room);
       else startQuestion(room, next);
-    }, 3000);
+    }, (room.config.autoAdvanceDelay || 3) * 1000);
   }
 }
 function endRoom(room) {
@@ -2935,13 +2955,19 @@ io.on('connection', socket => {
     try {
       const { title, subjectId, mode, questions, hostName, config: rawConfig } = payload || {};
       const config = {
-        questionCount: Math.max(1, Math.min(30, Number(rawConfig?.questionCount) || 10)),
+        questionCount: Math.max(1, Math.min(50, Number(rawConfig?.questionCount) || 10)),
         timePerQuestion: Math.max(5, Math.min(60, Number(rawConfig?.timePerQuestion) || 20)),
         shuffleQuestions: rawConfig?.shuffleQuestions !== false,
         shuffleAnswers: rawConfig?.shuffleAnswers === true,
         showLeaderboard: rawConfig?.showLeaderboard !== false,
         autoAdvance: rawConfig?.autoAdvance === true,
-        maxPlayers: Math.max(2, Math.min(100, Number(rawConfig?.maxPlayers) || 50))
+        maxPlayers: Math.max(2, Math.min(100, Number(rawConfig?.maxPlayers) || 50)),
+        pointsMode: ['speed', 'flat', 'double'].includes(rawConfig?.pointsMode) ? rawConfig.pointsMode : 'speed',
+        autoAdvanceDelay: Math.max(2, Math.min(15, Number(rawConfig?.autoAdvanceDelay) || 4)),
+        allowLateJoin: rawConfig?.allowLateJoin === true,
+        showAnswerCounts: rawConfig?.showAnswerCounts !== false,
+        lives: Math.max(1, Math.min(3, Number(rawConfig?.lives) || 1)),
+        locked: false
       };
       const clean = sanitizeQuestions(questions, config);
       if (clean.length === 0) return cb && cb({ ok: false, error: 'No valid questions provided.' });
@@ -2981,20 +3007,24 @@ io.on('connection', socket => {
     const safeName = cleanDisplayName(name, 'Player');
     const room = rooms.get((code || '').toUpperCase());
     if (!room) return cb && cb({ ok: false, error: 'No game found with that code.' });
-    if (room.status !== 'lobby') return cb && cb({ ok: false, error: 'That game has already started.' });
     const existingId = playerId && room.players.has(playerId) ? playerId : null;
+    if (room.status === 'ended' && !existingId) return cb && cb({ ok: false, error: 'That game has already ended.' });
+    if (!existingId && room.config.locked) return cb && cb({ ok: false, error: 'The host has locked this game.' });
+    if (!existingId && room.status !== 'lobby' && !room.config.allowLateJoin) return cb && cb({ ok: false, error: 'That game has already started.' });
+    if (!existingId && Array.from(room.players.values()).some(p => p.name.toLowerCase() === safeName.toLowerCase() && p.online)) return cb && cb({ ok: false, error: 'That name is taken in this game. Pick another.' });
     if (!existingId && room.players.size >= room.config.maxPlayers) return cb && cb({ ok: false, error: 'This game is full.' });
     const id = existingId || genId();
     const existing = room.players.get(id);
     if (existing) {
       existing.online = true; existing.socketId = socket.id; existing.name = safeName;
     } else {
-      room.players.set(id, { id, name: safeName, score: 0, correctCount: 0, gold: 0, chestsAvailable: 0, alive: true, streak: 0, online: true, socketId: socket.id });
+      room.players.set(id, { id, name: safeName, score: 0, correctCount: 0, gold: 0, chestsAvailable: 0, alive: true, lives: room.config.lives || 1, streak: 0, online: true, socketId: socket.id });
     }
     socket.join(code.toUpperCase());
     joined = { code: room.code, playerId: id, role: 'player' };
     io.to(room.code).emit('room:roster', { players: publicPlayers(room), title: room.title, mode: room.mode, hostName: room.hostName, config: room.config });
-    cb && cb({ ok: true, code: room.code, playerId: id, title: room.title, mode: room.mode, hostName: room.hostName, config: room.config });
+    cb && cb({ ok: true, code: room.code, playerId: id, title: room.title, mode: room.mode, hostName: room.hostName, config: room.config, status: room.status,
+      question: room.status === 'question' ? questionForClients(room) : null });
   });
 
   socket.on('host:sync', (payload, cb) => {
@@ -3030,13 +3060,32 @@ io.on('connection', socket => {
     else startQuestion(room, next);
   });
 
+  socket.on('host:lock', ({ code, hostToken, locked } = {}) => {
+    const room = rooms.get((code || '').toUpperCase());
+    if (!requireHost(room, hostToken)) return;
+    room.config.locked = !!locked;
+    io.to(room.code).emit('room:roster', { players: publicPlayers(room), config: room.config });
+  });
+
+  socket.on('host:kick', ({ code, hostToken, playerId } = {}) => {
+    const room = rooms.get((code || '').toUpperCase());
+    if (!requireHost(room, hostToken)) return;
+    const p = room.players.get(playerId);
+    if (!p) return;
+    const sock = io.sockets.sockets.get(p.socketId);
+    if (sock) { sock.emit('room:kicked'); sock.leave(room.code); }
+    room.players.delete(playerId);
+    io.to(room.code).emit('room:roster', { players: publicPlayers(room), config: room.config });
+    if (room.status === 'question' && room.players.size && answeredCount(room) >= room.players.size) revealQuestion(room);
+  });
+
   socket.on('host:end', ({ code, hostToken } = {}) => {
     const room = rooms.get((code || '').toUpperCase());
     if (!requireHost(room, hostToken)) return;
     endRoom(room);
   });
 
-  socket.on('player:answer', ({ code, playerId, idx } = {}) => {
+  socket.on('player:answer', ({ code, playerId, idx, text } = {}) => {
     const room = rooms.get((code || '').toUpperCase());
     if (!room || room.status !== 'question') return;
     const player = room.players.get(playerId);
@@ -3046,8 +3095,17 @@ io.on('connection', socket => {
     if (room.answers.has(key)) return; // already answered
     const q = room.questions[room.currentQuestion];
     const elapsed = Date.now() - room.questionStartedAt;
-    const correct = idx === q.correct;
-    let points = correct ? Math.max(100, Math.round(1000 * (1 - Math.min(elapsed, room.questionDurationMs) / room.questionDurationMs))) : 0;
+    const dur = room.curDurationMs || room.questionDurationMs;
+    let correct, shownIdx = -1;
+    if (q.type === 'type') {
+      correct = LIBRARY.typedMatches(q, String(text == null ? '' : text).slice(0, 200));
+    } else {
+      shownIdx = Number.isInteger(idx) ? idx : -1;
+      correct = shownIdx === q.correct;
+    }
+    const pm = room.config.pointsMode || 'speed';
+    let points = correct ? (pm === 'flat' ? 600 : Math.max(100, Math.round(1000 * (1 - Math.min(elapsed, dur) / dur)))) : 0;
+    if (correct && pm === 'double' && room.currentQuestion === room.questions.length - 1) points *= 2;
     if (room.mode === 'streak') {
       points = correct ? Math.round(points * (1 + Math.min(player.streak || 0, 8) * 0.15)) : 0;
       player.streak = correct ? (player.streak || 0) + 1 : 0;
@@ -3056,15 +3114,15 @@ io.on('connection', socket => {
     } else {
       player.streak = 0;
     }
-    if (room.mode === 'elimination' && !correct) player.alive = false;
-    room.answers.set(key, { idx, correct, points, ts: Date.now() });
+    if (room.mode === 'elimination' && !correct) { player.lives = (player.lives || 1) - 1; if (player.lives <= 0) player.alive = false; }
+    room.answers.set(key, { idx: shownIdx, correct, points, ts: Date.now() });
     player.score += points;
     if (correct) {
       player.correctCount += 1;
       if (room.mode === 'gold') { player.gold += points; player.chestsAvailable += 1; }
     }
     const sock = io.sockets.sockets.get(player.socketId);
-    if (sock) sock.emit('answer:ack', { index: room.currentQuestion, correct, points, myScore: player.score });
+    if (sock) sock.emit('answer:ack', { index: room.currentQuestion, correct, points, myScore: player.score, lives: player.lives, alive: player.alive !== false });
     io.to(room.code).emit('room:answered-count', {
       index: room.currentQuestion,
       count: answeredCount(room),

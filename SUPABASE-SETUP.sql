@@ -51,3 +51,13 @@ grant usage on schema public to service_role;
 grant all privileges on table public.index_accounts to service_role;
 grant select, insert, update, delete on all tables in schema public to service_role;
 alter default privileges in schema public grant select, insert, update, delete on tables to service_role;
+
+
+-- Public question-set library (optional but recommended so published sets survive redeploys).
+create table if not exists public.index_library (
+  id text primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+alter table public.index_library enable row level security;
+grant select, insert, update, delete on table public.index_library to service_role;
