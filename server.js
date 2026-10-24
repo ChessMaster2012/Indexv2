@@ -511,7 +511,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // The server enforces the quick-vs-deep deadline. The browser waits up to
   // the deep ceiling for Tutor intent so contextual follow-ups cannot be aborted
   // early by a shorter client-side timer.
-  const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 21500 : 29500));
+  const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 15500 : 29500));
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -1005,10 +1005,10 @@ app.post('/api/ai/chat',async(req,res)=>{
     try{
       if(requestIntent==='study-set'){
         // Prefer standard JSON responses, but fall back to the provider's streaming
-        // transport if its JSON gateway returns transient failures. Keep the exact
-        // prompt and Auto model; reserve time for the fallback inside the client budget.
+        // transport if its JSON request stalls or returns transient failures. Keep the exact
+        // prompt and Auto model; split the client budget between both attempts.
         try{
-          const generatedText=await callVireonixWithRetry(messages,false,6000,1800);
+          const generatedText=await callVireonixWithRetry(messages,false,12500,1800);
           return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
         }catch(jsonError){
           console.warn('[AI] Study-set JSON mode failed; retrying the same Vireonix Auto prompt with streaming:',jsonError?.message||jsonError);
