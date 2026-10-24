@@ -248,14 +248,15 @@ function lvHostPlay(){
     body = tilesHtml(s,{counts:c.showAnswerCounts});
   }
   var expl = rev && s.explanation ? '<div class="lv-expl">💡 '+esc(s.explanation)+'</div>' : '';
-  var ctrl = rev ? (s.index<s.total-1 ? '<button class="btn btn-primary btn-lg" data-lv="next">Next question →</button>' : '<button class="btn btn-pink btn-lg" data-lv="end">🏁 Final results</button>')+(c.autoAdvance?'<span class="lv-fine">Auto-advancing in '+c.autoAdvanceDelay+'s…</span>':'') :
+  var ctrl = rev ? (s.finale ? '<button class="btn btn-pink btn-lg" data-lv="end">🏆 Crown the winner</button>' : s.index<s.total-1 ? '<button class="btn btn-primary btn-lg" data-lv="next">Next question →</button>' : '<button class="btn btn-pink btn-lg" data-lv="end">🏁 Final results</button>')+(c.autoAdvance?'<span class="lv-fine">Auto-advancing in '+c.autoAdvanceDelay+'s…</span>':'') :
     '<button class="btn btn-ghost btn-lg" data-lv="reveal">Reveal now</button><button class="btn btn-ghost btn-sm" data-lv="end-confirm">End game</button>';
   return '<div class="lv-play"><div class="lv-play-main">'+bar+progressHtml(s)+(rev?'':timerHtml(s))+'<div class="lv-question">'+esc(s.q)+'</div>'+body+expl+
-    (state.live.mode!=='trivia'||true?'<div class="lv-visual">'+liveVisualHtml()+'</div>':'')+'<div class="lv-controls">'+ctrl+'</div></div>'+lvBoardHtml()+'</div>';
+    '<div class="lv-scene-slot lv-host-scene" data-scene="host"></div><div id="lv-feed" class="lv-feed" aria-live="polite"></div>'+'<div class="lv-controls">'+ctrl+'</div></div>'+lvBoardHtml()+'</div>';
 }
+window.lvShown = function(){ return (LV.phase==='question' && LV.snap) ? LV.snap : state.live.players; };
 function lvBoardHtml(){
   if(cfg().showLeaderboard===false) return '';
-  var ranked = state.live.players.slice().sort(function(a,b){return b.score-a.score;}).slice(0,10);
+  var ranked = lvShown().slice(0,10);
   return '<aside class="lv-board"><h4>🏆 Leaderboard</h4>'+(ranked.length?ranked.map(function(p,i){var you=p.id===state.live.playerId;return '<div class="lv-board-row'+(you?' you':'')+(p.alive===false?' out':'')+'"><span class="lv-rank">'+(i+1)+'</span><span class="lv-bname">'+esc(p.name)+(you?' (you)':'')+(p.alive===false?' 💀':'')+'</span><b>'+p.score+'</b></div>';}).join(''):'<p class="panel-empty">No players yet.</p>')+'</aside>';
 }
 
@@ -312,22 +313,28 @@ function lvPlayerPlay(){
     var title = out && !my ? 'You’re out — spectating' : (my ? (got?'Correct!':'Not quite') : 'Time’s up');
     var ico = my ? (got?'🎉':'😅') : '⌛';
     var ans = s.type==='type' ? (s.acceptedAnswers||[s.answer]).join(' / ') : s.answer;
-    var chest = state.live.mode==='gold' && got && !state.live.myChest ? '<button class="chest-btn" data-lv="chest">🎁 Open mystery chest</button>' : '';
-    return head+progressHtml(s)+'<div class="lv-result '+(got?'good':'bad')+'"><div class="lv-result-ico">'+ico+'</div><h3>'+title+'</h3>'+
-      (my?'<p class="lv-pts">'+(got?'+'+my.points+' points':'No points this time')+'</p>':'')+
+    var chest = state.live.mode==='gold' ? (window.LVM?LVM.chestHtml(me):'') : '';
+    return head+progressHtml(s)+'<div class="lv-scene-slot lv-me-scene" data-scene="me"></div><div class="lv-result '+(got?'good':'bad')+'"><div class="lv-result-ico">'+ico+'</div><h3>'+title+'</h3>'+
+      '<p class="lv-pts">'+esc(modeMsg(me,s,my,got))+'</p>'+
       '<div class="lv-answer-box"><span>Correct answer</span><b>'+esc(ans||'')+'</b></div>'+
       (s.type==='type'&&my&&my.text?'<p class="lv-fine">You typed: <b>'+esc(my.text)+'</b></p>':'')+
       (s.explanation?'<div class="lv-expl">💡 '+esc(s.explanation)+'</div>':'')+
       (rk?'<p class="lv-rank-line">You’re <b>#'+rk.rank+'</b> of '+rk.of+'</p>':'')+chest+
-      (state.live.myChest?'<p class="lv-chest-res">🎁 Chest: +'+state.live.myChest+' gold!</p>':'')+
+      
       '<div class="loading-line" style="justify-content:center"><span class="spinner"></span> Waiting for the next question…</div></div>'+lvBoardHtml();
   }
   var body;
-  if(out) body = '<div class="lv-locked">💀 You’re out of this round. Watch the leaderboard!</div>';
+  if(out) body = '<div class="lv-locked">👻 You’re eliminated — spectate the rest of the game!</div>';
   else if(my) body = (s.type==='type' ? '<div class="lv-locked">✅ Answer sent'+(my.text?': <b>'+esc(my.text)+'</b>':'')+'</div>' : tilesHtml(s,{locked:true,pickIdx:LV.pick}))+'<div class="loading-line" style="justify-content:center"><span class="spinner"></span> Locked in — waiting for everyone…</div>';
   else if(s.type==='type') body = '<form class="lv-typein" data-lv-form="typein"><input id="lv-typed" type="text" maxlength="100" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Type your answer…" value="'+esc(LV.typed)+'" aria-label="Your answer"><button class="btn btn-primary btn-lg" type="submit">Submit</button></form>';
   else body = tilesHtml(s,{live:true});
-  return head+progressHtml(s)+timerHtml(s)+'<div class="lv-question">'+esc(s.q)+'</div>'+body+lvBoardHtml();
+  return head+progressHtml(s)+'<div class="lv-scene-slot lv-me-scene" data-scene="me"></div>'+(s.meta&&s.meta.storm?'<div class="lv-storm-banner">⛈️ STORM ROUND — wrong answers cost 2 floors!</div>':'')+timerHtml(s)+'<div class="lv-question">'+esc(s.q)+'</div>'+body+lvBoardHtml();
+}
+function modeMsg(me,s,my,got){
+  var l = me && me.last && me.last.q===s.index ? me.last : null;
+  if(l && l.msg) return l.msg;
+  if(my) return got ? '+'+my.points+' points' : 'No points this time';
+  return state.live.mode==='elimination' && me && me.alive===false ? 'You are spectating' : 'No answer recorded';
 }
 function heartStr(n){ n = Math.max(0, n==null?1:n); var s=''; for(var i=0;i<n;i++) s+='❤️'; return s||'💔'; }
 window.liveAnswerPick = function(idx){
@@ -364,41 +371,47 @@ function lvEnded(){
 }
 
 /* ---------- socket listeners ---------- */
+function lvEvents(d){ if(window.LVM&&d&&d.events) d.events.forEach(function(ev){ LVM.pushFeed(ev.text,ev.type); }); }
 function commonListeners(){
+  socket.removeAllListeners('room:intro'); socket.removeAllListeners('room:event');
+  socket.on('room:intro', function(d){ if(window.LVM) LVM.showIntro(d); });
+  socket.on('room:event', function(d){ if(window.LVM) LVM.pushFeed(d.text,d.type); });
   socket.removeAllListeners('room:roster'); socket.removeAllListeners('room:question'); socket.removeAllListeners('room:reveal'); socket.removeAllListeners('room:ended'); socket.removeAllListeners('room:answered-count'); socket.removeAllListeners('room:kicked');
 }
 window.wireHostListeners = function(){
   commonListeners();
-  socket.on('room:roster', function(d){ state.live.players=d.players; if(d.config) state.live.config=Object.assign({},state.live.config,d.config); if(state.live.screen==='host-lobby') lvKeep(); });
+  socket.on('room:roster', function(d){ state.live.players=d.players; if(d.config) state.live.config=Object.assign({},state.live.config,d.config); if(state.live.screen==='host-lobby') lvKeep(); else if(state.live.screen==='host-play' && LV.phase==='reveal') renderLive(); });
   socket.on('room:question', function(q){
+    if(window.LVM) LVM.feed=[]; LV.snap = JSON.parse(JSON.stringify(state.live.players)); LV.phase='question'; if(q.meta&&q.meta.trackLength&&window.LVM) LVM.track=q.meta.trackLength;
     state.live.session = Object.assign({}, q, {status:'question'}); state.live.answeredCount=0; state.live.screen='host-play';
     startLiveTimer(q.startedAt, q.questionDurationMs); renderLive();
   });
   socket.on('room:answered-count', function(d){ state.live.answeredCount=d.count; if(d.players) state.live.players=d.players; if(state.live.screen==='host-play') renderLive(); });
-  socket.on('room:reveal', function(d){ stopLiveTimer(); state.live.session = Object.assign({}, state.live.session, {status:'reveal', correct:d.correct, answer:d.answer, acceptedAnswers:d.acceptedAnswers, explanation:d.explanation, counts:d.counts, type:d.type||state.live.session.type}); state.live.players=d.players; renderLive(); });
-  socket.on('room:ended', function(d){ stopLiveTimer(); state.live.players=d.players; state.live.screen='ended'; celebrate(); renderLive(); });
+  socket.on('room:reveal', function(d){ stopLiveTimer(); LV.phase='reveal'; state.live.session = Object.assign({}, state.live.session, {status:'reveal', correct:d.correct, answer:d.answer, acceptedAnswers:d.acceptedAnswers, explanation:d.explanation, counts:d.counts, type:d.type||state.live.session.type, finale:d.finale, events:d.events, meta:d.meta||state.live.session.meta}); state.live.players=d.players; renderLive(); lvEvents(d); });
+  socket.on('room:ended', function(d){ stopLiveTimer(); LV.phase='ended'; state.live.players=d.players; state.live.screen='ended'; celebrate(); renderLive(); });
 };
 window.wirePlayerListeners = function(){
   commonListeners();
   ['answer:ack','chest:result','live:reward'].forEach(function(e){ socket.removeAllListeners(e); });
-  socket.on('room:roster', function(d){ state.live.players=d.players; if(d.config) state.live.config=Object.assign({},state.live.config,d.config); if(state.live.screen==='player-wait') renderLive(); });
+  socket.on('room:roster', function(d){ state.live.players=d.players; if(d.config) state.live.config=Object.assign({},state.live.config,d.config); if(state.live.screen==='player-wait' || (state.live.screen==='player-play' && LV.phase==='reveal')) renderLive(); });
   socket.on('room:question', function(q){
+    if(window.LVM) LVM.feed=[]; LV.snap = JSON.parse(JSON.stringify(state.live.players)); LV.phase='question'; if(q.meta&&q.meta.trackLength&&window.LVM) LVM.track=q.meta.trackLength; if(window.LVM) LVM.chest=null;
     state.live.session = Object.assign({}, q, {status:'question'}); state.live.myLastAnswer=null; state.live.myChest=null; LV.pick=null; LV.typed='';
     state.live.inProgress=false; state.live.screen='player-play'; startLiveTimer(q.startedAt, q.questionDurationMs); renderLive();
   });
   socket.on('answer:ack', function(d){
     var prev = state.live.myLastAnswer || {};
-    state.live.myLastAnswer = { index:d.index, correct:d.correct, points:d.points, text:prev.text };
+    state.live.myLastAnswer = { index:d.index, correct:d.correct, points:d.points, text:prev.text, msg:d.msg };
     var me = state.live.players.find(function(p){return p.id===state.live.playerId;});
     if(me){ me.score=d.myScore; if(d.lives!=null) me.lives=d.lives; if(d.alive===false) me.alive=false; }
     renderLive();
   });
   socket.on('room:answered-count', function(d){ if(d.players) state.live.players=d.players; });
-  socket.on('room:reveal', function(d){ stopLiveTimer(); state.live.session = Object.assign({}, state.live.session, {status:'reveal', correct:d.correct, answer:d.answer, acceptedAnswers:d.acceptedAnswers, explanation:d.explanation, counts:d.counts, type:d.type||(state.live.session&&state.live.session.type)}); state.live.players=d.players; renderLive(); });
-  socket.on('room:ended', function(d){ stopLiveTimer(); state.live.players=d.players; state.live.screen='ended'; celebrate(); renderLive(); });
+  socket.on('room:reveal', function(d){ stopLiveTimer(); LV.phase='reveal'; state.live.session = Object.assign({}, state.live.session, {status:'reveal', correct:d.correct, answer:d.answer, acceptedAnswers:d.acceptedAnswers, explanation:d.explanation, counts:d.counts, type:d.type||(state.live.session&&state.live.session.type), finale:d.finale, events:d.events, meta:d.meta||(state.live.session&&state.live.session.meta)}); state.live.players=d.players; renderLive(); lvEvents(d); });
+  socket.on('room:ended', function(d){ stopLiveTimer(); LV.phase='ended'; state.live.players=d.players; state.live.screen='ended'; celebrate(); renderLive(); });
   socket.on('room:kicked', function(){ liveTeardown(); renderLive(); alert('The host removed you from this game.'); });
   socket.on('live:reward', function(d){ if(!d || d.playerId!==state.live.playerId) return; addXP(d.xp||0); addCoins(d.coins||0,'Live Game'); state.progress.liveGames=(state.progress.liveGames||0)+1; persistProgress(); showRewardToast('🏁 Live Game complete · +'+(d.xp||0)+' XP · +'+(d.coins||0)+' coins'); });
-  socket.on('chest:result', function(d){ state.live.myChest=d.bonus; renderLive(); });
+  socket.on('chest:result', function(d){ state.live.myChest=d.bonus; if(window.LVM) LVM.onChest(d); else renderLive(); });
 };
 function lvKeep(){ var a=document.activeElement; var id=a&&a.id; renderLive(); if(id){ var e=$(id); if(e) e.focus(); } }
 

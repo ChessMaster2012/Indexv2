@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const express = require('express');
 const LIBRARY = require('./library');
+const MODES = require('./livemodes');
 const LIBRARY_QUESTIONS = LIBRARY.normalizeQuestions;
 const http = require('http');
 const { Server } = require('socket.io');
@@ -2927,8 +2928,9 @@ function sanitizeQuestions(questions, config = {}) {
 }
 function publicPlayers(room) {
   return Array.from(room.players.values())
-    .map(p => ({ id: p.id, name: p.name, score: p.score, correctCount: p.correctCount, gold: p.gold, online: p.online, alive: p.alive !== false, streak: p.streak || 0, lives: p.lives }))
-    .sort((a, b) => b.score - a.score);
+    .sort(MODES.compare(room))
+    .map(p => ({ id: p.id, name: p.name, score: p.score, correctCount: p.correctCount, gold: p.gold, online: p.online, alive: p.alive !== false, streak: p.streak || 0, lives: p.lives,
+      dist: p.dist || 0, floors: p.floors || 0, shield: p.shield || 0, best: p.best || 0, chests: p.chestsAvailable || 0, finish: p.finishOrder || 0, elimQ: p.elimQ, last: p.last || null }));
 }
 function questionForClients(room) {
   const q = room.questions[room.currentQuestion];
@@ -2940,7 +2942,8 @@ function questionForClients(room) {
     options: q.options || [],
     mode: room.mode,
     questionDurationMs: room.curDurationMs || room.questionDurationMs,
-    startedAt: room.questionStartedAt
+    startedAt: room.questionStartedAt,
+    meta: MODES.meta(room)
   };
 }
 function answeredCount(room) {
@@ -2957,6 +2960,7 @@ function startQuestion(room, index) {
   room.currentQuestion = index;
   room.status = 'question';
   room.questionStartedAt = Date.now();
+  room.qFirstCorrect = null;
   room.curDurationMs = (room.questions[index].time ? room.questions[index].time * 1000 : room.questionDurationMs);
   io.to(room.code).emit('room:question', questionForClients(room));
   io.to(room.code).emit('room:answered-count', { index, count: 0, total: room.players.size });
@@ -2974,12 +2978,7 @@ function revealQuestion(room) {
     if (type === 'type') counts[ans.correct ? 0 : 1]++;
     else if (ans.idx >= 0 && ans.idx < counts.length) counts[ans.idx]++;
   }
-  // wrong/unanswered streaks reset for players who never answered
-  for (const p of room.players.values()) {
-    if (room.answers.has(room.currentQuestion + ':' + p.id)) continue;
-    p.streak = 0;
-    if (room.mode === 'elimination' && p.alive !== false && p.online) { p.lives = (p.lives || 1) - 1; if (p.lives <= 0) p.alive = false; }
-  }
+  const { events, finale } = MODES.onReveal(room);
   io.to(room.code).emit('room:reveal', {
     index: room.currentQuestion,
     type,
@@ -2988,9 +2987,14 @@ function revealQuestion(room) {
     acceptedAnswers: type === 'type' ? q.answers : undefined,
     explanation: q.explanation,
     counts,
+    events,
+    finale,
+    meta: MODES.meta(room),
     players: publicPlayers(room)
   });
-  if (room.config.autoAdvance) {
+  if (finale) {
+    room.nextTimer = setTimeout(() => { room.nextTimer = null; endRoom(room); }, 6000);
+  } else if (room.config.autoAdvance) {
     room.nextTimer = setTimeout(() => {
       room.nextTimer = null;
       const next = room.currentQuestion + 1;
@@ -3095,7 +3099,8 @@ io.on('connection', socket => {
     if (existing) {
       existing.online = true; existing.socketId = socket.id; existing.name = safeName;
     } else {
-      room.players.set(id, { id, name: safeName, score: 0, correctCount: 0, gold: 0, chestsAvailable: 0, alive: true, lives: room.config.lives || 1, streak: 0, online: true, socketId: socket.id });
+      const np = { id, name: safeName, score: 0, correctCount: 0, gold: 0, chestsAvailable: 0, alive: true, lives: room.config.lives || 1, streak: 0, online: true, socketId: socket.id };
+      MODES.initPlayer(room, np); room.players.set(id, np);
     }
     socket.join(code.toUpperCase());
     joined = { code: room.code, playerId: id, role: 'player' };
@@ -3120,7 +3125,9 @@ io.on('connection', socket => {
   socket.on('host:start', ({ code, hostToken } = {}) => {
     const room = rooms.get((code || '').toUpperCase());
     if (!requireHost(room, hostToken) || room.status !== 'lobby') return;
-    startQuestion(room, 0);
+    room.status = 'intro';
+    io.to(room.code).emit('room:intro', { mode: room.mode, ...MODES.INTRO[room.mode], total: room.questions.length, meta: { trackLength: room.mode === 'rocket' ? MODES.trackLength(room) : undefined }, ms: 4000 });
+    room.nextTimer = setTimeout(() => { room.nextTimer = null; if (room.status === 'intro') startQuestion(room, 0); }, 4000);
   });
 
   socket.on('host:reveal', ({ code, hostToken } = {}) => {
@@ -3183,42 +3190,33 @@ io.on('connection', socket => {
     const pm = room.config.pointsMode || 'speed';
     let points = correct ? (pm === 'flat' ? 600 : Math.max(100, Math.round(1000 * (1 - Math.min(elapsed, dur) / dur)))) : 0;
     if (correct && pm === 'double' && room.currentQuestion === room.questions.length - 1) points *= 2;
-    if (room.mode === 'streak') {
-      points = correct ? Math.round(points * (1 + Math.min(player.streak || 0, 8) * 0.15)) : 0;
-      player.streak = correct ? (player.streak || 0) + 1 : 0;
-    } else if (correct) {
-      player.streak = (player.streak || 0) + 1;
-    } else {
-      player.streak = 0;
-    }
-    if (room.mode === 'elimination' && !correct) { player.lives = (player.lives || 1) - 1; if (player.lives <= 0) player.alive = false; }
+    const speed = 1 - Math.min(elapsed, dur) / dur;
+    if (correct) player.correctCount += 1;
+    const res = MODES.applyAnswer(room, player, correct, speed, points);
+    points = res.points;
     room.answers.set(key, { idx: shownIdx, correct, points, ts: Date.now() });
-    player.score += points;
-    if (correct) {
-      player.correctCount += 1;
-      if (room.mode === 'gold') { player.gold += points; player.chestsAvailable += 1; }
-    }
     const sock = io.sockets.sockets.get(player.socketId);
-    if (sock) sock.emit('answer:ack', { index: room.currentQuestion, correct, points, myScore: player.score, lives: player.lives, alive: player.alive !== false });
+    if (sock) sock.emit('answer:ack', { index: room.currentQuestion, correct, points, myScore: player.score, lives: player.lives, alive: player.alive !== false, msg: res.msg, mode: room.mode, shield: player.shield || 0, chests: player.chestsAvailable || 0 });
     io.to(room.code).emit('room:answered-count', {
       index: room.currentQuestion,
       count: answeredCount(room),
       total: room.players.size,
       players: publicPlayers(room)
     });
-    if (answeredCount(room) >= room.players.size && room.players.size > 0) revealQuestion(room);
+    const needed = room.mode === 'elimination' ? [...room.players.values()].filter(p => p.alive !== false).length : room.players.size;
+    if (needed > 0 && answeredCount(room) >= needed) revealQuestion(room);
   });
 
-  socket.on('player:openChest', ({ code, playerId } = {}) => {
+  socket.on('player:openChest', ({ code, playerId, pick } = {}) => {
     const room = rooms.get((code || '').toUpperCase());
-    if (!room || room.mode !== 'gold') return;
+    if (!room || room.mode !== 'gold' || room.status !== 'reveal') return;
     const player = room.players.get(playerId);
-    if (!player || player.chestsAvailable <= 0) return;
+    if (!player || !(player.chestsAvailable > 0)) return;
     player.chestsAvailable -= 1;
-    const bonus = 20 + Math.floor(Math.random() * 131); // 20-150 gold
-    player.gold += bonus;
+    const res = MODES.openChest(room, player);
     const sock = io.sockets.sockets.get(player.socketId);
-    if (sock) sock.emit('chest:result', { bonus, gold: player.gold });
+    if (sock) sock.emit('chest:result', { ...res, bonus: res.delta, pick: Number.isInteger(pick) ? pick : 0, gold: player.gold, chests: player.chestsAvailable });
+    if (res.type === 'steal' || res.type === 'jackpot') io.to(room.code).emit('room:event', { type: res.type, text: player.name + ': ' + res.text });
     io.to(room.code).emit('room:roster', { players: publicPlayers(room) });
   });
 
