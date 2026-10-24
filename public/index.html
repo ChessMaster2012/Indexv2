@@ -7923,6 +7923,21 @@ function renderBattle(g){
   });
 }
 function renderGateV6(g){
+  // Saved Tower Defense runs can restore a built-in question and a stale AI
+  // error from local storage. Retry once for that wave after a reload, without
+  // retrying on every repaint or creating an endless request loop.
+  if(g&&g.questionGateOpen&&g.question&&g.questionSource!=='ai'&&g.aiPrefetchError&&!g.aiQuestionRequest){
+    var recoveryWave=Number(g.wave||1);
+    if(g.aiRecoveryAttemptWave!==recoveryWave&&Date.now()-Number(g.aiLastAttemptAt||0)>60000){
+      g.aiRecoveryAttemptWave=recoveryWave;
+      setTimeout(function(){
+        if(state.games===g&&g.questionGateOpen&&!g.aiQuestionRequest){
+          g.aiPrefetchError='';
+          commanderRequestAiQuestionV9(g,false);
+        }
+      },80);
+    }
+  }
   var fb=g.questionFeedback,s=subjectById(g.subjectId);
   if(!g.question){
     return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">A question for this exact AP course and unit is being prepared.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>0/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>Question</b><span>Preparing</span></div></div><div class="commander-auth-question"><div class="commander-auth-loading"><div class="commander-auth-spinner"></div><h2>Preparing your question…</h2><p>Using '+esc(s?s.name:'your AP course')+' · '+esc(g.unit||'course review')+(g.topic?' · '+esc(g.topic):'')+'. If live AI questions are unavailable, built-in AP questions will be used.</p></div></div><div class="commander-auth-note">Questions follow your selected AP course and unit. The game checks against questions already used in this run to reduce repeats.</div></div></div>';
@@ -8229,6 +8244,7 @@ async function commanderRequestAiQuestionV9(g,background){
   var subject=subjectById(g.subjectId)||{};
   var course=subject.name||g.subjectId||'Biology',unit=g.unit||'Course review',topic=g.topic||'';
   var exclusions=commanderQuestionExclusionsV9(g);
+  g.aiLastAttemptAt=Date.now();
   var request=(async function(){
     try{
       var controller=(typeof AbortController==='function')?new AbortController():null;
@@ -8267,7 +8283,7 @@ async function commanderRequestAiQuestionV9(g,background){
       }
       if(q)commanderQueueQuestionV9(g,q);
       if(!Array.isArray(g.aiQuestionQueue))g.aiQuestionQueue=[];
-      if(!g.question&&g.questionGateOpen&&g.aiQuestionQueue.length){
+      if(g.questionGateOpen&&g.aiQuestionQueue.length&&(!g.question||g.questionSource!=='ai')){
         g.question=g.aiQuestionQueue.shift();
         g.questionSource='ai';
         g.questionLoading=false;
