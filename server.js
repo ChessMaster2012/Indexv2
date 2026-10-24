@@ -479,6 +479,29 @@ async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOver
   return text;
 }
 
+async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxTokensOverride=null){
+  // Structured study-set generation should use JSON responses, not the Tutor's
+  // streaming path. Retry only transient provider/network failures, within the
+  // browser's existing request deadline, and always keep Vireonix Auto.
+  const deadline=Date.now()+timeoutMs;
+  let lastError=null;
+  for(let attempt=0;attempt<3;attempt++){
+    const remaining=deadline-Date.now();
+    if(remaining<1000) break;
+    try{
+      return await callVireonix(messages,complex,Math.min(12000,Math.max(1000,remaining-250)),maxTokensOverride);
+    }catch(e){
+      lastError=e;
+      if(!providerRetryable(e)||attempt===2) throw e;
+      const pause=attempt===0?350:750;
+      const waitMs=Math.min(pause,Math.max(0,deadline-Date.now()-1000));
+      if(waitMs<=0) throw e;
+      await sleep(waitMs);
+    }
+  }
+  throw lastError||new Error('Vireonix Auto study-set generation timed out.');
+}
+
 async function streamVireonixToResponse(messages,complex,res,options={}){
   // Tutor requests have a firm sub-10-second upstream deadline; background AI
   // generation keeps the longer compatibility deadline used by other Index features.
@@ -945,7 +968,12 @@ function deterministicTutor(question){
 
 app.post('/api/ai/chat',async(req,res)=>{
   try{
-    const messages=buildAiMessages(req.body?.messages);
+    const requestIntent=String(req.body?.intent||'').trim().slice(0,40);
+    // Structured study-set prompts already contain their own JSON schema and system
+    // instructions. Do not overwrite them with Tutor answer-style instructions.
+    const messages=requestIntent==='study-set'
+      ? normalizeAiMessages(req.body?.messages)
+      : buildAiMessages(req.body?.messages);
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
@@ -967,17 +995,21 @@ app.post('/api/ai/chat',async(req,res)=>{
     // A contextual follow-up inherits the difficulty of the problem it refers to.
     const complex=aiQuestionIsComplex(question) ||
       (routeFollowUp && priorUsers.some(m=>aiQuestionIsComplex(m.content)));
-    const requestIntent=String(req.body?.intent||'');
 
     // Keep Vireonix Auto as the only provider/model. If the streaming endpoint
     // returns an immediate gateway error for a non-Tutor generation request,
     // retry that same request once through the provider's JSON response mode.
     // This avoids making study-set and Live Game generation depend on SSE health.
     try{
-      const responseMode=requestIntent==='tutor'?'tutor':requestIntent==='study-set'?'study-set':'background';
+      if(requestIntent==='study-set'){
+        // JSON-mode generation is a better fit for flashcards and quizzes than SSE.
+        const generatedText=await callVireonixWithRetry(messages,false,26000,1800);
+        return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
+      }
+      const responseMode=requestIntent==='tutor'?'tutor':'background';
       await streamVireonixToResponse(messages,complex,res,{mode:responseMode});
     }catch(e){
-      console.warn('[AI] Vireonix Auto streaming failed:',e?.message||e);
+      console.warn('[AI] Vireonix Auto request failed:',e?.message||e);
       const message=String(e?.message||'');
       const match=message.match(/^HTTP\s+(\d+)\s*:/i);
       const upstreamStatus=Number(e?.status||match?.[1]||0);
@@ -985,7 +1017,7 @@ app.post('/api/ai/chat',async(req,res)=>{
       // A 502/503 can affect streaming separately from ordinary JSON responses.
       // For generation flows (including Live Game and study sets), try the same
       // Vireonix Auto model without streaming before returning the original error.
-      if((upstreamStatus===502 || upstreamStatus===503) && requestIntent!=='tutor' && !res.headersSent){
+      if((upstreamStatus===502 || upstreamStatus===503) && requestIntent!=='tutor' && requestIntent!=='study-set' && !res.headersSent){
         try{
           console.warn('[AI] Streaming endpoint returned HTTP '+upstreamStatus+'; trying non-streaming Vireonix Auto fallback for '+(requestIntent||'background')+'.');
           const fallbackText=await callVireonix(messages,complex,10000,requestIntent==='study-set'?1800:1400);
