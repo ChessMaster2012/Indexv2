@@ -1244,7 +1244,18 @@ app.post('/api/ai/commander-question',async(req,res)=>{
     return res.json({question:cleanQuestion,provider:'Vireonix Auto',model:'auto'});
   }catch(e){
     console.warn('[AI] Commander single-question generation failed:',e?.message||e);
-    return res.status(Number(e?.status)||504).json({error:'Vireonix Auto could not prepare the Commander question right now.',provider:'Vireonix Auto',model:'auto',detail:providerFailureLabel(e)});
+    const policyBlocked=e?.code==='VIREONIX_AUTOMATION_BLOCK';
+    return res.status(policyBlocked?403:(Number(e?.status)||504)).json({
+      error:policyBlocked
+        ? 'Vireonix Auto blocked automated requests pending provider review.'
+        : 'Vireonix Auto could not prepare the Commander question right now.',
+      code:policyBlocked?'VIREONIX_AUTOMATION_BLOCK':undefined,
+      provider:'Vireonix Auto',
+      model:'auto',
+      detail:policyBlocked
+        ? String(e?.message||'Vireonix Auto blocked automated requests.')
+        : providerFailureLabel(e)
+    });
   }
 });
 app.post('/api/ai/commander-bank',async(req,res)=>{
@@ -1289,7 +1300,18 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
         return res.json({questions:[clean],provider:'Vireonix Auto',model:'auto'});
       }catch(e){
         console.warn('[AI] Legacy Commander bank single-question fallback failed:',e?.message||e);
-        return res.status(Number(e?.status)||504).json({error:'Vireonix Auto could not prepare a fresh Commander question right now.',provider:'Vireonix Auto',model:'auto',detail:providerFailureLabel(e)});
+        const policyBlocked=e?.code==='VIREONIX_AUTOMATION_BLOCK';
+        return res.status(policyBlocked?403:(Number(e?.status)||504)).json({
+          error:policyBlocked
+            ? 'Vireonix Auto blocked automated requests pending provider review.'
+            : 'Vireonix Auto could not prepare a fresh Commander question right now.',
+          code:policyBlocked?'VIREONIX_AUTOMATION_BLOCK':undefined,
+          provider:'Vireonix Auto',
+          model:'auto',
+          detail:policyBlocked
+            ? String(e?.message||'Vireonix Auto blocked automated requests.')
+            : providerFailureLabel(e)
+        });
       }
     }
     const course=String(req.body?.course||'').trim();

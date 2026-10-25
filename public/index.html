@@ -7947,7 +7947,7 @@ function renderGateV6(g){
     return '<button class="'+cls+'" '+(fb?'disabled':'')+' onclick="return window.__commanderAnswerV6('+i+',event)"><span class="letter">'+String.fromCharCode(65+i)+'</span><span>'+esc(o)+'</span></button>';
   }).join('');
   var feedback=fb?'<div class="commander-auth-feedback '+(fb.correct?'correct':'wrong')+'"><b>'+(fb.correct?'Correct! Wave unlocked.':'Not quite — review the answer, then continue.')+'</b><p>'+esc(fb.explanation||q.explanation||'The highlighted green answer is correct.')+'</p><button type="button" id="commander-gate-continue-btn">'+(fb.correct?'Enter Battlefield →':'Next Question →')+'</button></div>':'';
-  return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer before each wave. Correct answers award +20 deployment coins; wrong answers still award +5. Answer one correctly to unlock the next wave.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>1/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>'+(g.questionSource==='ai'?'AI ready':'Built-in')+'</b><span>'+(g.questionSource==='ai'?'Fresh review':'AP practice')+'</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><div class="commander-auth-ai-badge">'+(g.questionSource==='ai'?'✦ AI-GENERATED · FRESH FOR THIS RUN':(g.aiNextQuestion?'✦ AI READY · NEXT QUESTION PRELOADED':(g.aiPrefetchError?'◈ BUILT-IN QUESTION · LIVE AI UNAVAILABLE':(g.aiQuestionRequest?'✦ AI GENERATING · FRESH QUESTIONS':'◈ BUILT-IN AP QUESTION'))))+'</div>'+(g.aiPrefetchError?'<div style="font-size:12px;line-height:1.4;color:#6b7280;margin:6px 0;">Live AI questions are not available right now. Built-in AP questions will keep your run going.</div>':'')+'<h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">Correct answers turn green. Wrong choices turn red. Questions follow your selected AP course and unit, and the game avoids repeating questions already used in this run. If live AI questions are unavailable, built-in questions keep your run going.</div></div></div>';
+  return '<div class="commander-authoritative-root commander-auth-gate"><div class="commander-auth-card"><div class="commander-auth-top"><div><div class="commander-auth-kicker">TROOP COMMANDER · STUDY GATE</div><h1>Answer to Deploy</h1><div class="commander-auth-sub">Answer before each wave. Correct answers award +20 deployment coins; wrong answers still award +5. Answer one correctly to unlock the next wave.</div></div><button class="commander-auth-exit" onclick="return window.__commanderExitV6(event)">Exit</button></div><div class="commander-auth-stats"><div class="commander-auth-stat"><b>+'+(g.waveCoins||0)+'</b><span>Deployment coins</span></div><div class="commander-auth-stat"><b>1/1</b><span>Correct needed</span></div><div class="commander-auth-stat"><b>'+(g.questionSource==='ai'?'AI ready':'Built-in')+'</b><span>'+(g.questionSource==='ai'?'Fresh review':'AP practice')+'</span></div></div><div class="commander-auth-question"><div class="commander-auth-meta">'+esc(s?s.name:'AP course')+' · '+esc(g.unit||'Course review')+(g.topic?' · '+esc(g.topic):'')+'</div><div class="commander-auth-ai-badge">'+(g.questionSource==='ai'?'✦ AI-GENERATED · FRESH FOR THIS RUN':(g.aiNextQuestion?'✦ AI READY · NEXT QUESTION PRELOADED':(g.aiPrefetchError?'◈ BUILT-IN QUESTION · LIVE AI UNAVAILABLE':(g.aiQuestionRequest?'✦ AI GENERATING · FRESH QUESTIONS':'◈ BUILT-IN AP QUESTION'))))+'</div>'+(g.aiPrefetchError?'<div style="font-size:12px;line-height:1.4;color:#6b7280;margin:6px 0;">'+esc(g.aiPrefetchError)+'</div>':'')+'<h2>'+esc(q.q)+'</h2><div class="commander-auth-options">'+opts+'</div>'+feedback+'</div><div class="commander-auth-note">Correct answers turn green. Wrong choices turn red. Questions follow your selected AP course and unit, and the game avoids repeating questions already used in this run. If live AI questions are unavailable, built-in questions keep your run going.</div></div></div>';
 }
 function pickV6(g,exclude){
   var list=[];
@@ -8196,6 +8196,23 @@ function commanderFallbackUniqueV9(g){
 }
 async function commanderRequestAiQuestionV9(g,background){
   if(!g||state.games!==g)return null;
+  // Once Vireonix explicitly refuses automated traffic, stop sending one request
+  // after another on subsequent waves in this run. A provider policy block must
+  // be reviewed upstream; do not attempt to route around it.
+  if(g.aiPolicyBlocked){
+    g.aiPrefetchError='Vireonix has blocked automated requests pending provider review. Built-in AP questions will keep your run going.';
+    if(!g.question&&g.questionGateOpen){
+      var blockedFallback=commanderFallbackUniqueV9(g);
+      if(blockedFallback){
+        g.question=blockedFallback;
+        g.questionSource='fallback';
+        g.questionLoading=false;
+        commanderRememberQuestion(g,blockedFallback);
+        renderBattle(g);
+      }
+    }
+    return Promise.resolve(g.question||null);
+  }
   if(g.aiQuestionRequest)return g.aiQuestionRequest;
   if(background&&Array.isArray(g.aiQuestionQueue)&&g.aiQuestionQueue.length>=3)return g.aiQuestionQueue[0]||null;
   var subject=subjectById(g.subjectId)||{};
@@ -8218,8 +8235,8 @@ async function commanderRequestAiQuestionV9(g,background){
       var q=data.question&&typeof data.question==='object'?data.question:null;
       if(!response.ok){
         var detail=String(data.detail||data.error||'');
-        if(/automated-use policy block|automated bulk tasks|future requests will be blocked|tos violation/i.test(detail)){
-          throw new Error('Vireonix has blocked automated requests pending provider review. Built-in questions will be used until access is restored.');
+        if(data.code==='VIREONIX_AUTOMATION_BLOCK'||/automated-use policy block|automated bulk tasks|future requests will be blocked|tos violation|blocked automated requests pending provider review/i.test(detail+' '+String(data.error||''))){
+          throw new Error('Vireonix has blocked automated requests pending provider review. Built-in AP questions will keep your run going.');
         }
         throw new Error(response.status===503
           ? 'Live AI questions are temporarily unavailable. Built-in questions will be used.'
@@ -8244,7 +8261,14 @@ async function commanderRequestAiQuestionV9(g,background){
     }catch(err){
       if(state.games===g){
         var hadVisibleQuestion=!!g.question;
-        g.aiPrefetchError=String(err&&err.message||err);
+        var aiErrorText=String(err&&err.message||err);
+        var policyBlocked=/Vireonix has blocked automated requests pending provider review|Vireonix Auto reports an automated-use policy block|automated bulk tasks detected|future requests will be blocked|tos violation/i.test(aiErrorText);
+        if(policyBlocked){
+          g.aiPolicyBlocked=true;
+          g.aiPrefetchError='Vireonix has blocked automated requests pending provider review. Built-in AP questions will keep your run going.';
+        }else{
+          g.aiPrefetchError=aiErrorText;
+        }
         if(!g.question&&g.questionGateOpen){
           var fb=commanderFallbackUniqueV9(g);
           if(fb){
