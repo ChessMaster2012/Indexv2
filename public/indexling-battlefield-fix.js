@@ -722,6 +722,7 @@ function chooseEligibleQuestion(g,excludeKey){
   return {q:String(q.q),options:(q.options||[]).map(String).slice(0,4),correct:Math.max(0,Math.min(3,Number(q.correct)||0)),explanation:String(q.explanation||'')};
 }
 function enforceQuestionCooldown(g){
+  if(g&&g.commanderQuestionBankActive)return; /* A selected bank uses shuffled deck order; cooldown replacement would skip questions or mismatch feedback. */
   if(!g||!g.questionGateOpen||!g.question)return;
   ensureQuestionCooldownState(g);
   var key=cooldownKey(g.question),remaining=Number(g.commanderQuestionCooldowns[key]||0);
