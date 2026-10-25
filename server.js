@@ -665,7 +665,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   }
 }
 
-async function callVireonixCommanderBank(messages){
+async function callVireonixCommanderBank(messages,maxTokens=2400){
   const deadline=Date.now()+29200;
   let lastError=null;
   for(let attempt=0;attempt<2;attempt++){
@@ -673,7 +673,7 @@ async function callVireonixCommanderBank(messages){
     if(remaining<900) break;
     const timeout=Math.min(14500,remaining-500);
     try{
-      return await callVireonix(messages,true,timeout,2400);
+      return await callVireonix(messages,true,timeout,maxTokens);
     }catch(e){
       lastError=e;
       if(!providerRetryable(e)||attempt===1) throw e;
@@ -1269,6 +1269,12 @@ app.post('/api/ai/commander-question',async(req,res)=>{
 });
 app.post('/api/ai/commander-bank',async(req,res)=>{
   try{
+    const requestedCountRaw=Number(req.body?.count);
+    const requestedCount=Number.isFinite(requestedCountRaw)&&requestedCountRaw>1?Math.max(2,Math.min(20,Math.floor(requestedCountRaw))):1;
+    // Do not send another multi-question workload while the provider has disabled bulk approval.
+    if(requestedCount>1&&(!VIREONIX_COMMANDER_BULK_ENABLED||VIREONIX_COMMANDER_POLICY_BLOCKED)){
+      return res.status(403).json({error:'AI question-bank generation is paused until Vireonix approves automated bank requests. No bulk AI request was sent. You can use My Sets, Public Sets, or built-in AP questions meanwhile.',code:'VIREONIX_AUTOMATION_BLOCK',provider:'Vireonix Auto',model:'auto'});
+    }
     if(!VIREONIX_COMMANDER_BULK_ENABLED){
       // Backward compatibility for already-open Tower Defense tabs that still
       // call the old bank route. Keep bulk generation disabled: generate ONE
@@ -1340,14 +1346,14 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       : '';
 
     const userPrompt=[
-      'Create 5 AP-level multiple-choice questions for a student.',
+      'Create exactly '+requestedCount+' AP-level multiple-choice questions for a student.',
       'HARD CURRICULUM BOUNDARY: ONLY AP '+course+' UNIT "'+unit+'".',
       topic ? 'Optional topic focus: "'+topic+'". This narrows the selected unit and never replaces it.' : '',
       'Do not use material from other units.',
       'Cover different major concepts from this unit.',
       avoidText,
       variationCue,
-      'Within this batch, no two questions may test the same narrow concept or use the same stem pattern.',
+      'Return exactly '+requestedCount+' questions. Within this batch, no two questions may test the same narrow concept or use the same stem pattern.',
       'Return ONLY valid JSON in exactly this shape:',
       '{"questions":[{"q":"question","options":["choice A","choice B","choice C","choice D"],"correct":0,"explanation":"brief"}]}',
       'The correct field must be an integer from 0 to 3. No markdown. No commentary outside JSON.'
@@ -1358,7 +1364,8 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
     ];
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
 
-    const raw=await callVireonixCommanderBank(messages);
+    const bankMaxTokens=Math.min(10000,700+requestedCount*400);
+    const raw=await callVireonixCommanderBank(messages,bankMaxTokens);
     const data=parseCommanderQuestionJson(raw);
     if(!data){
       const detail=commanderJsonFailureDetail(raw);
@@ -1385,10 +1392,10 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       if(!key||seen.has(key)) continue;
       seen.add(key);
       questions.push(clean);
-      if(questions.length>=5) break;
+      if(questions.length>=requestedCount) break;
     }
-    if(!questions.length) return res.status(502).json({
-      error:'Vireonix Auto returned no new Commander questions after repeat filtering.',
+    if(questions.length<requestedCount) return res.status(502).json({
+      error:'Vireonix Auto returned only '+questions.length+' of '+requestedCount+' requested Commander questions after repeat filtering.',
       provider:'Vireonix Auto',
       model:'auto'
     });
