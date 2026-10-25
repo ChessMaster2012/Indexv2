@@ -181,3 +181,75 @@
 .lv-hostfull .lv-gclock strong{font-size:34px}
 @media(max-width:760px){.lv-hostfull{grid-template-columns:1fr}.lv-gclock{grid-template-columns:auto 1fr}.lv-gclock .live-timer-bar{grid-column:1/-1}}
 .lv-flash{white-space:nowrap;max-width:94vw}
+
+/* ---- arena modes (live-arena.js) ---- */
+.ar-root{position:relative;margin:10px 0;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.ar-view{position:relative;overflow:hidden;border-radius:20px;margin:0 auto;border:2px solid var(--m-acc,#888);background:#10131f;max-width:100%}
+.ar-world{position:absolute;left:0;top:0;width:1200px;height:700px;transform-origin:0 0;transition:transform .12s linear;will-change:transform}
+.ar-floor{position:absolute;inset:0;background-size:60px 60px}
+.ar-zombie .ar-floor{background:radial-gradient(circle at 50% 50%,#2a3a24,#141c12 75%),repeating-linear-gradient(0deg,transparent 0 59px,rgba(255,255,255,.04) 59px 60px);background-blend-mode:normal}
+.ar-gems .ar-floor{background:radial-gradient(circle at 50% 50%,#5a4220,#2a1c0c 78%)}
+.ar-elimination .ar-floor{background:radial-gradient(circle at 50% 50%,#2a1830,#0c0710 80%)}
+.ar-zombie .ar-floor::after,.ar-elimination .ar-floor::after,.ar-gems .ar-floor::after{content:"";position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:60px 60px}
+.ar-vault{display:none;position:absolute;left:510px;top:260px;width:180px;height:180px;border-radius:50%;border:4px dashed #ffd24a;background:radial-gradient(circle,rgba(255,210,74,.35),rgba(255,210,74,.06));align-items:center;justify-content:center;font-weight:900;letter-spacing:.2em;color:#ffe9a0;font-size:20px;animation:arvault 2s ease-in-out infinite}
+.ar-gems .ar-vault{display:flex}
+@keyframes arvault{50%{box-shadow:0 0 40px rgba(255,210,74,.55)}}
+.ar-layer{position:absolute;inset:0}
+.ar-p{position:absolute;left:0;top:0;width:56px;height:56px;transition:transform .11s linear}
+.ar-ling{position:absolute;inset:0;transition:transform .1s}.ar-ling.flip>*{transform:scaleX(-1)}
+.ar-ling .indexling-svg,.ar-ling .indexling-svg-mini{width:56px!important;height:56px!important}
+.ar-ring{position:absolute;left:6px;top:36px;width:44px;height:20px;border-radius:50%;background:rgba(0,0,0,.35)}
+.ar-p.me .ar-ring{background:rgba(255,255,255,.35);box-shadow:0 0 0 3px #fff6}
+.ar-tag{position:absolute;left:50%;top:-14px;transform:translateX(-50%);font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000,0 0 6px #000;white-space:nowrap;pointer-events:none}
+.ar-carry{position:absolute;left:50%;top:-30px;transform:translateX(-50%);font-size:12px;font-weight:900;color:#ffe9a0;text-shadow:0 1px 3px #000;white-space:nowrap}
+.ar-bar{position:absolute;left:6px;top:58px;width:44px;height:6px;border-radius:99px;background:rgba(0,0,0,.55);overflow:hidden}
+.ar-bar i{display:block;height:100%;background:#3ddc84;transition:width .15s}.ar-bar i.low{background:#ff5a6e}
+.ar-aim{position:absolute;left:28px;top:28px;width:0;height:0;transition:transform .08s linear}
+.ar-aim i{position:absolute;left:18px;top:-11px;font-style:normal;font-size:20px;filter:drop-shadow(0 1px 2px #000)}
+.ar-elimination .ar-aim,.ar-gems .ar-aim{display:none}
+.ar-p.down{opacity:.35;filter:grayscale(1)}.ar-p.dead{opacity:.28;filter:grayscale(1)}
+.ar-p.inv .ar-ling{animation:arblink .25s steps(2) infinite}
+@keyframes arblink{50%{opacity:.35}}
+.ar-p.dash .ar-ling{filter:drop-shadow(-10px 0 8px rgba(120,220,255,.8))}
+.ar-p.spawn .ar-ling{animation:arspawn .5s ease-out}
+@keyframes arspawn{0%{transform:scale(0)}70%{transform:scale(1.25)}100%{transform:scale(1)}}
+.ar-z{position:absolute;left:0;top:0;width:40px;height:40px;transition:transform .11s linear;display:flex;align-items:center;justify-content:center;font-size:34px;filter:drop-shadow(0 2px 3px #000)}
+.ar-z.t1{filter:hue-rotate(60deg) saturate(1.5) drop-shadow(0 2px 3px #000);font-size:30px}
+.ar-z.t2{width:50px;height:50px;left:-5px;top:-5px;font-size:52px;filter:hue-rotate(-50deg) saturate(2) drop-shadow(0 2px 4px #000)}
+.ar-z .zb{display:none;position:absolute;left:4px;right:4px;bottom:-4px;height:5px;background:#0008;border-radius:9px;overflow:hidden}.ar-z.t2 .zb{display:block}.ar-z .zb b{display:block;height:100%;background:#ff5a6e}
+.ar-z.die{animation:ardie .3s ease-out forwards}
+@keyframes ardie{to{transform:scale(1.6);opacity:0;filter:brightness(3)}}
+.ar-z.die{transition:none}
+.ar-b{position:absolute;left:0;top:0;width:8px;height:8px;border-radius:50%;background:#ffe27a;box-shadow:0 0 8px #ffd24a;transition:transform .1s linear}
+.ar-g{position:absolute;left:0;top:0;width:24px;height:24px;display:flex;align-items:center;justify-content:center}
+.ar-g i{display:block;width:14px;height:14px;transform:rotate(45deg);background:linear-gradient(135deg,#9fe8ff,#3a9bff);border-radius:3px;box-shadow:0 0 10px #6cc8ff}
+.ar-g.v3 i{width:18px;height:18px;background:linear-gradient(135deg,#a8ffbe,#1fb85a);box-shadow:0 0 12px #5dff98}
+.ar-g.v8 i{width:24px;height:24px;border-radius:50%;transform:none;background:radial-gradient(circle at 35% 30%,#fff3b0,#ffc01f 55%,#c98a00);box-shadow:0 0 18px #ffd24a;animation:arvault 1s infinite}
+.ar-g.pop{animation:arpop .35s ease-out}@keyframes arpop{from{transform:scale(0)}to{transform:scale(1)}}
+.ar-g.got{transition:opacity .25s,transform .25s;opacity:0;transform:scale(2)}
+.ar-h{position:absolute}.ar-h i{display:block;width:100%;height:100%}
+.ar-h.meteor i{border-radius:50%;background:radial-gradient(circle,rgba(255,90,60,.55),rgba(255,60,40,.18) 70%);border:3px solid #ff5a3c}
+.ar-h.meteor.boom i{background:radial-gradient(circle,#fff6c8,#ff9a2e 55%,rgba(255,70,30,.4));border-color:#fff3b0}
+.ar-h.sweep i{background:repeating-linear-gradient(45deg,rgba(255,60,60,.5) 0 12px,rgba(255,60,60,.2) 12px 24px);border:3px solid #ff5a5a;box-sizing:border-box}
+.ar-h.sweep.boom i{background:linear-gradient(#fff,#ff6a5a);border-color:#fff}
+.ar-flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}.ar-flash.go{animation:arflash .6s ease-out}@keyframes arflash{0%{opacity:.85}100%{opacity:0}}
+.ar-hud{position:absolute;left:10px;top:10px;display:flex;gap:8px;align-items:center;z-index:3;flex-wrap:wrap}
+.ar-hud b{background:rgba(8,10,20,.78);color:#fff;border-radius:999px;padding:5px 12px;font-size:15px;font-weight:900;border:1.5px solid rgba(255,255,255,.18)}
+.ar-hud .ar-hp{display:block;width:96px;height:14px;background:rgba(8,10,20,.78);border-radius:99px;border:1.5px solid rgba(255,255,255,.25);overflow:hidden}.ar-hp i{display:block;height:100%;background:#3ddc84}.ar-hp i.low{background:#ff5a6e}
+.ar-host .ar-hud b{font-size:20px;padding:7px 16px}
+.ar-banner{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:3;background:rgba(8,10,20,.85);color:#fff;font-weight:800;font-size:14px;padding:8px 16px;border-radius:999px;text-align:center;max-width:92%}
+.ar-ctl{position:absolute;inset:0;pointer-events:none;z-index:4}
+.ar-joy{position:absolute;left:14px;bottom:14px;width:112px;height:112px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.35);pointer-events:auto;touch-action:none;display:none;z-index:4}
+.ar-knob{position:absolute;left:36px;top:36px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:0 2px 8px #0006}
+.ar-act{position:absolute;right:14px;bottom:18px;width:92px;height:92px;border-radius:50%;border:3px solid #fff8;background:rgba(224,64,90,.85);color:#fff;font-weight:900;font-size:18px;pointer-events:auto;touch-action:none;display:none;z-index:4}
+.ar-gems .ar-act{background:rgba(58,155,255,.88)}.ar-act.empty{opacity:.45}
+@media(pointer:coarse),(max-width:760px){.ar-joy{display:block}.ar-act{display:block}}
+.ar-me .ar-view{margin-bottom:0}
+.lv-play .ar-host .ar-view{margin:0}
+
+.ar-hint{margin:6px 0 0;text-align:center;font-size:12.5px;color:var(--lv-soft);font-weight:700}@media(pointer:coarse){.ar-hint{display:none}}
+.ar-host .ar-ling{transform:scale(1.55);transform-origin:50% 60%}
+.ar-host .ar-tag{font-size:15px;top:-24px}.ar-host .ar-carry{top:-42px;font-size:15px}
+.ar-host .ar-z span{display:block;transform:scale(1.5)}.ar-host .ar-b{width:11px;height:11px}
+.ar-host .ar-bar{top:70px;left:-2px;width:60px}
+.ar-host .ar-g i{transform:rotate(45deg) scale(1.5)}.ar-host .ar-g.v8 i{transform:scale(1.5)}

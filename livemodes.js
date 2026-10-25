@@ -5,6 +5,7 @@
  * player out for a short pause. Each mode keeps its own state on the player object; `score` is the
  * value used for ranking and rewards. `last` carries the latest result for client animations.
  */
+const ARENA = require('./arena');
 const rand = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const STORM_PERIOD = 60000, STORM_LEN = 15000, DANGER_PERIOD = 45000;
@@ -13,9 +14,9 @@ const INTRO = {
   trivia: { title: 'Trivia Dash', tagline: 'Answer as many as you can before time runs out.', rules: ['Every correct answer scores — quick answers earn a bonus', 'A wrong answer freezes you for a moment', 'Climb the live podium'] },
   rocket: { title: 'Rocket Race', tagline: 'Fuel up. Reach the finish line first.', rules: ['Each correct answer fires your engines — answer fast for more thrust', 'Chain answers for TURBO boosts', 'A wrong answer stalls your engine and sets you back'] },
   tower: { title: 'Tower Climb', tagline: 'Build the tallest tower in the skyline.', rules: ['Each correct answer adds a floor — fast answers add a bonus floor', 'A 3-streak earns a shield that blocks one collapse', 'Storms hit at the end of every minute: wrong answers lose 2 floors!'] },
-  gold: { title: 'Gold Rush', tagline: 'Dig. Gamble. Steal.', rules: ['Correct answers earn gold and a treasure chest', 'Open chests any time — jackpots, boosts, steals… or pirate raids', 'Most gold when the clock hits zero wins'] },
-  streak: { title: 'Streak Surge', tagline: 'Don’t let the fire go out.', rules: ['Chain correct answers to raise your multiplier up to ×5', 'Hit 5 in a row for a Fireproof shield that saves one miss', 'A miss without a shield resets everything'] },
-  elimination: { title: 'Last Stand', tagline: 'Be the last one standing.', rules: ['Every miss costs a life — at zero you’re out', 'Every 45 seconds the player in last place loses a life', 'Last player standing — or the most survivors when time ends — wins'] }
+  zombie: { title: 'Zombie Siege', tagline: 'Hold the line. Answer for ammo. Rack up kills.', rules: ['Move with WASD / the joystick, and hold FIRE to shoot — your Indexling auto-aims at the nearest zombie', 'Correct answers load ammo; every 5th in a row calls an airstrike', 'If you get bitten down you respawn in 4 seconds — most kills wins'] },
+  gems: { title: 'Gem Heist', tagline: 'Grab gems. Bank them. Don’t get tackled.', rules: ['Run around to pick up gems, then bring them to the vault in the center to bank them', 'Correct answers earn dash charges — dash into a rival to steal half of what they carry', 'Most gems banked when the clock hits zero wins'] },
+  elimination: { title: 'Last Stand', tagline: 'Dodge everything. Be the last one standing.', rules: ['Meteors and laser sweeps hit the arena — watch the red warnings and move!', 'Correct answers earn shields, and every 3rd in a row restores a heart', 'Run out of hearts and you’re out — last survivor wins'] }
 };
 
 function trackLength(room) { return clamp(room.questions.length * 16, 60, 400); }
@@ -25,13 +26,14 @@ function streakMult(s) { return s >= 10 ? 5 : s >= 8 ? 4 : s >= 6 ? 3 : s >= 4 ?
 
 function initPlayer(room, p) {
   Object.assign(p, { dist: 0, floors: 0, shield: 0, best: 0, answered: 0, elimAt: 0, finished: false, finishOrder: 0, lockUntil: 0, last: null });
+  if (ARENA.isArena(room.mode)) ARENA.initPlayer(room, p);
 }
 /** Applies one answer. `boost` is 1 (normal) or 2 (final-minute double). Returns { points, msg }. */
 function applyAnswer(room, p, correct, speed, base, boost) {
   const mode = room.mode, wasStreak = p.streak || 0;
   let points = 0, msg = correct ? 'Correct!' : 'Missed';
   if (correct) { p.streak = wasStreak + 1; p.best = Math.max(p.best || 0, p.streak); }
-  else if (mode !== 'streak' || !p.shield) p.streak = 0;
+  else p.streak = 0;
 
   if (mode === 'rocket') {
     if (correct) {
@@ -50,43 +52,14 @@ function applyAnswer(room, p, correct, speed, base, boost) {
     } else if (p.shield) { p.shield = 0; msg = '🛡️ Shield absorbed the collapse'; }
     else { const loss = Math.min(p.floors, storm ? 2 : 1); p.floors -= loss; msg = loss ? '💥 Collapse −' + loss + ' floor' + (loss > 1 ? 's' : '') : '💥 Foundation shaken'; }
     const prev = p.score; p.score = p.floors * 100 + p.correctCount * 5; points = p.score - prev;
-  } else if (mode === 'gold') {
-    if (correct) { const earn = Math.round((40 + 80 * speed) * boost); p.gold += earn; p.chestsAvailable = (p.chestsAvailable || 0) + 1; msg = '💰 +' + earn + ' gold · 🎁 chest!'; }
-    else msg = 'No gold';
-    const prev = p.score; p.score = p.gold; points = p.score - prev;
-  } else if (mode === 'streak') {
-    const mult = streakMult(wasStreak);
-    if (correct) {
-      points = Math.round(base * mult * boost); msg = '🔥 ×' + mult + ' · +' + points;
-      if (p.streak === 5 || p.streak === 10 || (p.streak > 10 && p.streak % 10 === 0)) { p.shield = 1; msg += ' · 🧯 Fireproof!'; }
-      p.score += points;
-    } else if (p.shield) { p.shield = 0; msg = '🧯 Fireproof saved your streak!'; }
-    else msg = wasStreak >= 2 ? '💔 Streak lost (' + wasStreak + ')' : 'Missed';
-  } else if (mode === 'elimination') {
-    if (correct) { points = Math.round(base * boost); p.score += points; msg = '🛡️ Survived · +' + points; }
-    else {
-      p.lives = (p.lives || 1) - 1;
-      if (p.lives <= 0) { p.alive = false; p.elimAt = Date.now(); msg = '💀 Eliminated'; } else msg = '💔 −1 life (' + p.lives + ' left)';
-    }
+  } else if (ARENA.isArena(mode)) {
+    msg = ARENA.onAnswer(room, p, correct, speed, boost);
+    if (mode === 'elimination') { const sec = Math.floor((Date.now() - room.startedAt) / 1000); p.score = (p.alive === false ? Math.floor(((p.elimAt || Date.now()) - room.startedAt) / 1000) : sec) + p.correctCount * 3; }
   } else { // trivia
     if (correct) { points = Math.round(base * boost); msg = (speed > 0.7 ? '⚡ Quick! +' : '+') + points; p.score += points; }
   }
   p.last = { c: correct, d: points, msg, t: Date.now() };
   return { points, msg };
-}
-/** Opens a treasure chest (gold mode). Returns { type, delta, text, target? }. */
-function openChest(room, player) {
-  const rich = [...room.players.values()].filter(p => p.id !== player.id && p.gold > 20).sort((a, b) => b.gold - a.gold).slice(0, 3);
-  const r = Math.random(); let res;
-  if (r < 0.42) { const d = rand(40, 120); player.gold += d; res = { type: 'gold', delta: d, text: '+' + d + ' gold' }; }
-  else if (r < 0.50) { const d = rand(180, 300); player.gold += d; res = { type: 'jackpot', delta: d, text: '💎 JACKPOT +' + d }; }
-  else if (r < 0.60) { const d = clamp(Math.round(player.gold * 0.3), 30, 200); player.gold += d; res = { type: 'boost', delta: d, text: '📈 Gold boost +' + d }; }
-  else if (r < 0.80 && rich.length) {
-    const t = rich[rand(0, rich.length - 1)]; const take = Math.min(t.gold, clamp(Math.round(t.gold * 0.2) + 20, 30, 150));
-    t.gold -= take; t.score = t.gold; player.gold += take; res = { type: 'steal', delta: take, target: t.name, targetId: t.id, text: '🏴‍☠️ Stole ' + take + ' from ' + t.name };
-  } else if (r < 0.92 && player.gold > 0) { const d = Math.min(player.gold, rand(20, 80)); player.gold -= d; res = { type: 'raid', delta: -d, text: '☠️ Pirates raided −' + d }; }
-  else { player.gold += 15; res = { type: 'dust', delta: 15, text: '✨ Gold dust +15' }; }
-  player.score = player.gold; return res;
 }
 /** Called once a second. Returns events [{type,text}] and a list of players whose state changed. */
 function onTick(room) {
@@ -94,26 +67,12 @@ function onTick(room) {
   const el = elapsed(room);
   const storm = stormNow(room);
   if (room.mode === 'tower' && storm !== !!room.stormFlag) { room.stormFlag = storm; events.push({ type: 'storm', text: storm ? '⛈️ Storm incoming — wrong answers cost 2 floors!' : '🌤️ The storm has passed.' }); }
-  if (room.mode === 'elimination') {
-    const bucket = Math.floor(el / DANGER_PERIOD);
-    if (bucket > (room.dangerBucket || 0)) {
-      room.dangerBucket = bucket;
-      const alive = [...room.players.values()].filter(p => p.alive !== false);
-      if (alive.length > 1) {
-        alive.sort((a, b) => a.score - b.score);
-        if (alive[0].score < alive[1].score) {
-          const v = alive[0]; v.lives = (v.lives || 1) - 1;
-          if (v.lives <= 0) { v.alive = false; v.elimAt = Date.now(); events.push({ type: 'ko', text: '💀 ' + v.name + ' was eliminated from last place!' }); }
-          else events.push({ type: 'danger', text: '⚠️ ' + v.name + ' lost a life in the danger zone (' + v.lives + ' left)' });
-          changed.push(v);
-        } else events.push({ type: 'mercy', text: '🕊️ Danger zone: tied for last — nobody loses a life.' });
-      }
-    }
-  }
   return { events, changed, storm };
 }
 function compare(room) {
   if (room.mode === 'elimination') return (a, b) => ((b.alive !== false) - (a.alive !== false)) || (b.elimAt - a.elimAt) || (b.score - a.score);
+  if (room.mode === 'zombie') return (a, b) => (b.score - a.score) || ((b.correctCount || 0) - (a.correctCount || 0));
+  if (room.mode === 'gems') return (a, b) => (b.score - a.score) || ((b.carry || 0) - (a.carry || 0)) || ((b.correctCount || 0) - (a.correctCount || 0));
   return (a, b) => b.score - a.score;
 }
-module.exports = { INTRO, initPlayer, applyAnswer, openChest, onTick, compare, trackLength, stormNow, STORM_PERIOD, STORM_LEN, DANGER_PERIOD };
+module.exports = { INTRO, initPlayer, applyAnswer, onTick, compare, trackLength, stormNow, STORM_PERIOD, STORM_LEN, DANGER_PERIOD };

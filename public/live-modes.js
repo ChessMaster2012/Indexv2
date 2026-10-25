@@ -71,64 +71,7 @@ var Tower = {
   }
 };
 
-/* ---------- GOLD RUSH ---------- */
-var Gold = {
-  host: function(){ var e=el('div','gd-scene'); e.innerHTML='<div class="gd-cave"></div><div class="gd-piles"></div>'; return e; },
-  update: function(e, players, c){
-    var wrap=e.querySelector('.gd-piles'); var order=players.slice().sort(function(a,b){return a.id<b.id?-1:1;}).slice(0,14); var max=Math.max(1,Math.max.apply(null,players.map(function(p){return p.gold||0;}))); var lead=players.length?players[0].id:null;
-    order.forEach(function(p){
-      var d=wrap.querySelector('[data-id="'+p.id+'"]'); if(!d){ d=el('div','gd-pile'); d.setAttribute('data-id',p.id); d.innerHTML='<span class="gd-crown">👑</span><div class="gd-coins"></div><b class="gd-amt"></b><span class="gd-name"></span><span class="gd-chest"></span>'; wrap.appendChild(d); }
-      var n=Math.min(16,Math.round((p.gold||0)/Math.max(40,max/16))); var coins=d.querySelector('.gd-coins'); var cur=coins.children.length;
-      while(cur<n){ var cn=el('i','gd-coin drop'); cn.style.setProperty('--r',(Math.random()*16-8)+'deg'); cn.style.setProperty('--x',(Math.random()*14-7)+'px'); coins.appendChild(cn); cur++; } while(cur>n){ coins.removeChild(coins.lastElementChild); cur--; }
-      var amt=d.querySelector('.gd-amt'); var from=+amt.getAttribute('data-v')||0, to=p.gold||0; if(from!==to){ amt.setAttribute('data-v',to); countUp(amt,from,to); d.classList.remove('pulse'); void d.offsetWidth; d.classList.add(to>from?'pulse':'hurt'); }
-      d.querySelector('.gd-name').innerHTML=esc(p.name)+(p.id===c.meId?' <i>you</i>':''); d.classList.toggle('lead',p.id===lead&&(p.gold||0)>0);
-      d.querySelector('.gd-chest').textContent=p.chests>0?'🎁×'+p.chests:'';
-    });
-  },
-  me: function(){ var e=el('div','hud hud-gd'); e.innerHTML='<div class="hud-row"><span class="gd-big-coin">🪙</span><b class="hud-big" data-k="g">0</b><span class="hud-chip" data-k="rank"></span></div><button class="btn btn-primary gd-openbtn" data-lvm="chest" style="display:none"></button><p class="hud-note" data-k="note"></p>'; return e; },
-  meUpdate: function(e,p,c,players){ var g=e.querySelector('[data-k=g]'); var from=+g.getAttribute('data-v')||0; if(from!==(p.gold||0)){ g.setAttribute('data-v',p.gold||0); countUp(g,from,p.gold||0); } e.querySelector('[data-k=rank]').textContent='#'+rk(c,players,p); var b=e.querySelector('.gd-openbtn'); b.style.display=p.chests>0?'':'none'; b.textContent='🎁 Open chest ×'+p.chests; e.querySelector('[data-k=note]').textContent=p.chests>0?'Open chests any time — keep answering!':'Every correct answer earns a treasure chest.'; }
-};
 function countUp(node,from,to){ var t0=performance.now(), dur=700; (function f(t){ var k=Math.min(1,(t-t0)/dur); node.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3))); if(k<1) requestAnimationFrame(f); })(t0); }
-
-/* ---------- STREAK SURGE ---------- */
-function mult(s){ return s>=10?5:s>=8?4:s>=6?3:s>=4?2:s>=2?1.5:1; }
-var Streak = {
-  host: function(){ var e=el('div','st-scene'); e.innerHTML='<div class="st-glow"></div><div class="st-rows"></div>'; return e; },
-  update: function(e, players, c){
-    var wrap=e.querySelector('.st-rows'); var order=players.slice().sort(function(a,b){return a.id<b.id?-1:1;}).slice(0,14); var hot=0;
-    order.forEach(function(p,i){
-      var r=wrap.querySelector('[data-id="'+p.id+'"]'); if(!r){ r=el('div','st-row'); r.setAttribute('data-id',p.id); r.innerHTML='<span class="st-name"></span><div class="st-meter"><div class="st-fill"></div><span class="st-flame">🔥</span></div><b class="st-mult"></b><span class="st-sh">🧯</span><span class="st-best"></span>'; wrap.appendChild(r); }
-      var s=p.streak||0; hot=Math.max(hot,s); var pct=Math.min(100,s/10*100); var f=r.querySelector('.st-fill'); f.style.width=Math.max(s?6:0,pct)+'%';
-      r.style.setProperty('--heat',Math.min(1,s/8)); r.querySelector('.st-flame').style.fontSize=(18+Math.min(s,10)*3)+'px'; r.querySelector('.st-flame').style.left='calc('+Math.max(2,pct)+'% - 12px)';
-      r.querySelector('.st-name').innerHTML=esc(p.name)+(p.id===c.meId?' <i>you</i>':''); var m=mult(s); r.querySelector('.st-mult').textContent='×'+m; r.classList.toggle('on',s>=2); r.classList.toggle('inferno',s>=8);
-      r.querySelector('.st-sh').style.visibility=p.shield?'visible':'hidden'; r.querySelector('.st-best').textContent='best '+(p.best||0);
-      var last=p.last; r.classList.toggle('lost', !!(last&&last.c===false&&s===0&&recent(p,2200)));
-    });
-    e.style.setProperty('--hot',Math.min(1,hot/8));
-  },
-  me: function(){ var e=el('div','hud hud-st'); e.innerHTML='<div class="st-big"><span class="st-bigflame">🔥</span><b data-k="m">×1</b></div><div class="st-count"><b data-k="s">0</b> streak <span class="hud-chip" data-k="sh">🧯 Fireproof</span></div><div class="st-meter big"><div class="st-fill"></div></div><p class="hud-note" data-k="note"></p>'; return e; },
-  meUpdate: function(e,p){ var s=p.streak||0; e.querySelector('[data-k=m]').textContent='×'+mult(s); e.querySelector('[data-k=s]').textContent=s; e.querySelector('.st-fill').style.width=Math.max(s?6:0,Math.min(100,s/10*100))+'%'; e.querySelector('[data-k=sh]').style.display=p.shield?'':'none'; var bf=e.querySelector('.st-bigflame'); bf.style.fontSize=(44+Math.min(s,10)*7)+'px'; e.style.setProperty('--heat',Math.min(1,s/8)); var next=[2,4,6,8,10].filter(function(x){return x>s;})[0]; e.querySelector('[data-k=note]').textContent=s>=10?'MAX MULTIPLIER — don’t miss!':'Next multiplier at '+next+' in a row'+(s<5?' · Fireproof shield at 5':''); }
-};
-
-/* ---------- LAST STAND ---------- */
-function hearts(n,max){ var s=''; for(var i=0;i<Math.max(max||0,n);i++) s+='<span class="'+(i<n?'hp on':'hp')+'">❤</span>'; return s; }
-var Elim = {
-  host: function(){ var e=el('div','el-scene'); e.innerHTML='<div class="el-ring"></div><div class="el-count"><b>0</b><span>remain</span></div><div class="el-grid"></div>'; return e; },
-  update: function(e, players, c){
-    var grid=e.querySelector('.el-grid'); var order=players.slice().sort(function(a,b){return a.id<b.id?-1:1;}); var alive=players.filter(function(p){return p.alive!==false;}).length;
-    var maxL=(state.live.config&&state.live.config.lives)||1;
-    order.forEach(function(p,i){
-      var t=grid.querySelector('[data-id="'+p.id+'"]'); if(!t){ t=el('div','el-tile'); t.setAttribute('data-id',p.id); t.style.setProperty('--tc',col(p,i)); t.innerHTML='<div class="el-av"></div><div class="el-ko">KO</div><span class="el-name"></span><span class="el-hp"></span>'; grid.appendChild(t); }
-      t.querySelector('.el-av').textContent=(p.name||'?').trim().charAt(0).toUpperCase(); t.querySelector('.el-name').innerHTML=esc(p.name)+(p.id===c.meId?' <i>you</i>':''); t.querySelector('.el-hp').innerHTML=p.alive===false?'':hearts(p.lives==null?1:p.lives,maxL);
-      var was=M.lastAlive[p.id]; if(was!==false && p.alive===false){ t.classList.add('dead','ko-now'); setTimeout(function(){ t.classList.remove('ko-now'); },1400); } else t.classList.toggle('dead',p.alive===false);
-      if(fresh(p) && p.alive!==false && p.last.c===false){ t.classList.remove('hit'); void t.offsetWidth; t.classList.add('hit'); }
-      M.lastAlive[p.id]=p.alive;
-    });
-    e.querySelector('.el-count b').textContent=alive; e.style.setProperty('--ring', (players.length?Math.max(.28,alive/players.length):1)); e.classList.toggle('final',alive===1&&players.length>1);
-  },
-  me: function(){ var e=el('div','hud hud-el'); e.innerHTML='<div class="el-hearts" data-k="hp"></div><div class="hud-row"><span class="hud-chip" data-k="alive"></span><span class="hud-chip" data-k="rank"></span></div><p class="hud-note" data-k="note"></p>'; return e; },
-  meUpdate: function(e,p,c,players){ var maxL=(state.live.config&&state.live.config.lives)||1; var alive=c.alive!=null?c.alive:players.filter(function(x){return x.alive!==false;}).length; players=Array(c.count||players.length).fill(0); e.querySelector('[data-k=hp]').innerHTML=p.alive===false?'<span class="el-out">👻 ELIMINATED</span>':hearts(p.lives==null?1:p.lives,maxL); e.querySelector('[data-k=alive]').textContent=alive+' of '+players.length+' standing'; e.querySelector('[data-k=rank]').textContent=p.alive===false?'Finished #'+(c.rank||'–'):''; e.querySelector('[data-k=note]').textContent=p.alive===false?'You’re spectating — watch the finale!':(alive===2?'Final two! One more mistake could decide it.':'Stay alive — every miss costs a life.'); e.classList.toggle('dead',p.alive===false); }
-};
 
 /* ---------- TRIVIA DASH ---------- */
 var Trivia = {
@@ -147,7 +90,7 @@ var Trivia = {
   me: function(){ var e=el('div','hud hud-tv'); e.innerHTML='<div class="hud-row"><b class="hud-big" data-k="rank">#1</b><span class="hud-chip" data-k="score"></span><span class="hud-chip" data-k="gap"></span></div><p class="hud-note">Answer quickly and correctly — every right answer earns points, speed earns more.</p>'; return e; },
   meUpdate: function(e,p,c,players){ var r=rk(c,players,p); e.querySelector('[data-k=rank]').textContent='#'+r; e.querySelector('[data-k=score]').textContent=p.score+' pts'; var sorted=players.filter(function(x){return x.id!==p.id&&x.score>=p.score;}).sort(function(a,b){return a.score-b.score;}); var up=sorted[0]; e.querySelector('[data-k=gap]').textContent=r===1?'👑 You lead!':(up?(up.score-p.score+1)+' pts to pass '+up.name:'Climb the board!'); }
 };
-var SCENES = { rocket:Rocket, tower:Tower, gold:Gold, streak:Streak, elimination:Elim, trivia:Trivia };
+var SCENES = M.SCENES = { rocket:Rocket, tower:Tower, trivia:Trivia };
 
 /* ---------- mounting ---------- */
 function mount(){
@@ -169,7 +112,7 @@ M.refresh=function(){ mount(); };
 M.reset=function(){ M.els={}; M.feed=[]; M.lastAlive={}; M.lastRank={}; M.lastT={}; M.intro=null; M.track=null; M.storm=false; hideIntro(); };
 
 /* ---------- intro overlay ---------- */
-var ICON = { trivia:'⚡', rocket:'🚀', tower:'🏗️', gold:'💰', streak:'🔥', elimination:'🛡️' };
+var ICON = { trivia:'⚡', rocket:'🚀', tower:'🏗️', zombie:'🧟', gems:'💎', elimination:'☄️' };
 function hideIntro(){ clearTimeout(M.introTimer); var o=$('lv-intro'); if(o&&o.parentNode) o.parentNode.removeChild(o); }
 M.showIntro=function(d){
   if(d.meta&&d.meta.trackLength) M.track=d.meta.trackLength; hideIntro();
@@ -178,16 +121,8 @@ M.showIntro=function(d){
   document.body.appendChild(o); M.introTimer=setTimeout(hideIntro,(d.ms||4000)+150);
 };
 
-/* ---------- gold chests: open any time, result pops up ---------- */
-M.pop=function(html,cls){ var d=el('div','lv-chest-pop '+(cls||''),html); document.body.appendChild(d); setTimeout(function(){ d.classList.add('out'); },1900); setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); },2400); };
-document.addEventListener('click',function(e){
-  var t=e.target.closest&&e.target.closest('[data-lvm]'); if(!t) return;
-  if(t.getAttribute('data-lvm')==='chest') socket.emit('player:openChest',{code:state.live.code,playerId:state.live.playerId});
-});
-M.onChest=function(d){ M.pop('<span>'+({gold:'🪙',jackpot:'💎',boost:'📈',steal:'🏴‍☠️',raid:'☠️',dust:'✨'}[d.type]||'🎁')+'</span><b>'+esc(d.text||'Chest opened')+'</b>',d.type); };
-
 /* ---------- mode descriptions shown in the host setup ---------- */
-try{ Object.assign(GAME_MODES.trivia,{desc:'Race the clock at your own pace — fast, correct answers climb the live podium.'}); Object.assign(GAME_MODES.rocket,{desc:'Every correct answer fires your engines. Streaks trigger TURBO — first across the finish line wins.'}); Object.assign(GAME_MODES.tower,{desc:'Build a skyline floor by floor. Earn shields, survive storms, out-build everyone.'}); Object.assign(GAME_MODES.gold,{desc:'Mine gold, open treasure chests any time, steal from the leaders — or get raided.'}); Object.assign(GAME_MODES.streak,{desc:'Chain answers to climb a ×5 multiplier. Fireproof shields protect a hot streak.'}); Object.assign(GAME_MODES.elimination,{desc:'Battle royale. Misses cost lives, last place gets zapped — last one standing wins.'}); }catch(e){}
+try{ Object.assign(GAME_MODES.trivia,{desc:'Race the clock at your own pace — fast, correct answers climb the live podium.'}); Object.assign(GAME_MODES.rocket,{desc:'Every correct answer fires your engines. Streaks trigger TURBO — first across the finish line wins.'}); Object.assign(GAME_MODES.tower,{desc:'Build a skyline floor by floor. Earn shields, survive storms, out-build everyone.'}); }catch(e){}
 /* ---------- hooks ---------- */
 var prevAfter=window.lvAfterRender;
 window.lvAfterRender=function(scr){
