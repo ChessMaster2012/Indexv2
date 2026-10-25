@@ -151,7 +151,7 @@ function applySource(source,bank,title){
  g.commanderQuestionDeck=[];
  g.commanderQuestionBankTitle=String(title||'');
  g.commanderQuestionBankCount=qs.length;
- g.aiPolicyBlocked=true;
+ g.aiPolicyBlocked=source==='builtin';
  g.aiQuestionQueue=[];
  g.aiNextQuestion=null;
  g.aiQuestionRequest=null;
@@ -238,6 +238,14 @@ document.addEventListener('click',function(e){
    run selects a local question source, the source must own the full question
    sequence and must not trigger provider calls between waves. */
 try{window.__commanderWarmAiQuestion=function(){return Promise.resolve(null);};}catch(e){}
+var previousQuestionRequest=window.commanderRequestAiQuestionV9;
+if(typeof previousQuestionRequest==='function'&&!previousQuestionRequest.__cqbGuarded){
+ var guardedQuestionRequest=function(g,background){
+  if(g&&g.commanderQuestionSource&&g.commanderQuestionSource!=='builtin')return Promise.resolve(g.question||null);
+  return previousQuestionRequest.apply(this,arguments);
+ };
+ guardedQuestionRequest.__cqbGuarded=true;window.commanderRequestAiQuestionV9=guardedQuestionRequest;
+}
 var previousAdvance=window.commanderAdvanceToNextQuestion;
 function nextFromSelectedBank(g,exclude){
  var bank=getSelectedBank(g);if(!g||!g.commanderQuestionBankActive||!bank.length)return null;
