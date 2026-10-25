@@ -100,7 +100,7 @@ function qCard(d,i){
     '<span class="lv-qtools"><button class="lv-ic" data-lvc="qup" data-i="'+i+'" '+(i===0?'disabled':'')+' aria-label="Move up">↑</button><button class="lv-ic" data-lvc="qdown" data-i="'+i+'" '+(i===n-1?'disabled':'')+' aria-label="Move down">↓</button><button class="lv-ic" data-lvc="qdup" data-i="'+i+'" aria-label="Duplicate">⧉</button><button class="lv-ic danger" data-lvc="qdel" data-i="'+i+'" aria-label="Delete question">🗑</button></span></header>'+
     '<div class="field"><label for="q'+i+'">'+(d.type==='tf'?'Statement':'Question')+'</label><textarea id="q'+i+'" rows="2" maxlength="400" data-qi="'+i+'" data-qf="q" placeholder="'+(d.type==='tf'?'Write a statement that is true or false…':'Write your question…')+'">'+esc(d.q)+'</textarea></div>'+body+
     '<div class="lv-qextra"><div class="field"><label for="qe'+i+'">Explanation <em>optional, shown after the answer</em></label><input id="qe'+i+'" type="text" maxlength="400" data-qi="'+i+'" data-qf="explanation" value="'+esc(d.explanation)+'"></div>'+
-    '<div class="field lv-qtime"><label for="qt'+i+'">Time</label><select id="qt'+i+'" data-qi="'+i+'" data-qf="time">'+[[0,'Game default'],[10,'10 s'],[20,'20 s'],[30,'30 s'],[45,'45 s'],[60,'60 s'],[90,'90 s']].map(function(t){return '<option value="'+t[0]+'" '+(+d.time===t[0]?'selected':'')+'>'+t[1]+'</option>';}).join('')+'</select></div></div></section>';
+    '</div></section>';
 }
 
 /* ---------- library screens ---------- */
