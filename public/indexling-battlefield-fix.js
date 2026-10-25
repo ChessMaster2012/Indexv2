@@ -678,6 +678,9 @@ var QUESTION_SAFETY_BANK={
   ]
 };
 function questionPoolForRun(g){
+  if(g&&g.commanderQuestionBankActive&&Array.isArray(g.commanderQuestionBank)&&g.commanderQuestionBank.length){
+    return g.commanderQuestionBank.map(function(q){return q&&q.q&&Array.isArray(q.options)&&q.options.length>=2?{q:String(q.q),options:q.options.map(String).slice(0,4),correct:Math.max(0,Math.min(q.options.length-1,Number(q.correct)||0)),explanation:String(q.explanation||'')}:null;}).filter(Boolean);
+  }
   var list=[],seen={};
   function add(arr){(arr||[]).forEach(function(q){var k=cooldownKey(q);if(k&&!seen[k]){seen[k]=1;list.push(q);}});}
   try{
@@ -704,6 +707,13 @@ function decayQuestionCooldowns(g){
 }
 function chooseEligibleQuestion(g,excludeKey){
   ensureQuestionCooldownState(g);
+  if(g&&g.commanderQuestionBankActive&&Array.isArray(g.commanderQuestionBank)&&g.commanderQuestionBank.length){
+    var bank=g.commanderQuestionBank,deck=Array.isArray(g.commanderQuestionDeck)?g.commanderQuestionDeck.slice():[];
+    var deckValid=deck.length&&deck.every(function(i){return Number.isInteger(i)&&i>=0&&i<bank.length;});
+    if(!deckValid){deck=[];for(var bi=0;bi<bank.length;bi++)deck.push(bi);for(var bj=deck.length-1;bj>0;bj--){var bk=Math.floor(Math.random()*(bj+1)),bt=deck[bj];deck[bj]=deck[bk];deck[bk]=bt;}if(bank.length>1&&String(bank[deck[0]]&&bank[deck[0]].q||'')===String(excludeKey||'')){for(var bs=1;bs<deck.length;bs++){if(String(bank[deck[bs]]&&bank[deck[bs]].q||'')!==String(excludeKey||'')){var bx=deck[0];deck[0]=deck[bs];deck[bs]=bx;break;}}}}
+    var chosenIndex=deck.shift();g.commanderQuestionDeck=deck;var chosen=bank[chosenIndex];
+    if(chosen&&chosen.q&&Array.isArray(chosen.options)&&chosen.options.length>=2)return {q:String(chosen.q),options:chosen.options.map(String).slice(0,4),correct:Math.max(0,Math.min(chosen.options.length-1,Number(chosen.correct)||0)),explanation:String(chosen.explanation||'')};
+  }
   var pool=questionPoolForRun(g).filter(function(q){return q&&q.q&&cooldownKey(q)!==String(excludeKey||'');});
   var eligible=pool.filter(function(q){return !(g.commanderQuestionCooldowns[cooldownKey(q)]>0);});
   if(!eligible.length)eligible=pool;
