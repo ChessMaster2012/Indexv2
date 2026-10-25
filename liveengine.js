@@ -4,9 +4,11 @@
  * on one clock. Correct answers advance immediately; wrong answers lock the player out for a short pause.
  */
 const MODES = require('./livemodes');
+const ARENA = require('./arena');
 const LIBRARY = require('./library');
 const ROOM_MAX_AGE_MS = 4 * 60 * 60 * 1000;
-const MODE_LIST = ['trivia', 'rocket', 'tower', 'gold', 'streak', 'elimination'];
+const MODE_LIST = ['trivia', 'rocket', 'tower', 'zombie', 'gems', 'elimination'];
+const cleanId = v => /^[a-z0-9-]{1,40}$/i.test(String(v || '')) ? String(v) : '';
 
 function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTitle, cappedDailyCoins }) {
   const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -27,11 +29,12 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
   function pub(room, p) {
     return { id: p.id, name: p.name, score: p.score, correctCount: p.correctCount || 0, answered: p.answered || 0, gold: p.gold || 0, online: p.online, alive: p.alive !== false,
       streak: p.streak || 0, lives: p.lives, dist: p.dist || 0, floors: p.floors || 0, shield: p.shield || 0, best: p.best || 0, chests: p.chestsAvailable || 0,
-      finish: p.finishOrder || 0, finished: !!p.finished, last: p.last || null };
+      finish: p.finishOrder || 0, finished: !!p.finished, last: p.last || null,
+      n: p.n, ling: p.ling || '', skin: p.skin || '', kills: p.kills || 0, banked: p.banked || 0, carry: p.carry || 0, hp: p.hp, ammo: p.ammo || 0, dc: p.dc || 0, down: !!p.down };
   }
   const publicPlayers = room => Array.from(room.players.values()).sort(MODES.compare(room)).map(p => pub(room, p));
   const remainingMs = room => room.status === 'running' ? Math.max(0, room.endsAt - Date.now()) : (room.status === 'ended' ? 0 : room.durationMs);
-  function meta(room) { return { trackLength: room.mode === 'rocket' ? MODES.trackLength(room) : undefined, durationMs: room.durationMs, pauseMs: room.config.wrongPauseMs, storm: MODES.stormNow(room) || undefined }; }
+  function meta(room) { return { arena: ARENA.isArena(room.mode) ? { w: ARENA.W, h: ARENA.H, vault: ARENA.VAULT } : undefined, trackLength: room.mode === 'rocket' ? MODES.trackLength(room) : undefined, durationMs: room.durationMs, pauseMs: room.config.wrongPauseMs, storm: MODES.stormNow(room) || undefined }; }
 
   /* ----- per-player question stream ----- */
   function buildOrder(room) { const idx = room.questions.map((_, i) => i); return room.config.shuffleQuestions ? shuffle(idx) : idx; }
@@ -55,12 +58,26 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
     if (sock) sock.emit('player:state', Object.assign({ me: pub(room, p), storm: MODES.stormNow(room) }, extra || {}));
   }
 
+  function sendArenaRoster(room, sock) {
+    if (!ARENA.isArena(room.mode)) return;
+    const list = [...room.players.values()].map(p => [p.n, p.name, p.ling || '', p.skin || '']);
+    (sock || io.to(room.code)).emit('arena:roster', list);
+  }
+  function arenaStep(room) {
+    if (room.status !== 'running') return;
+    const events = ARENA.step(room, 0.05) || [];
+    if (room._pending) { events.push(...room._pending); room._pending = null; }
+    events.forEach(e => io.to(room.code).emit('room:event', e));
+    room.arenaN = (room.arenaN || 0) + 1;
+    if (room.arenaN % 2 === 0) { const snap = ARENA.snapshot(room); if (snap) io.to(room.code).emit('arena:snap', snap); }
+  }
   /* ----- lifecycle ----- */
   function startRunning(room) {
     room.status = 'running'; room.startedAt = Date.now(); room.endsAt = room.startedAt + room.durationMs; room.dangerBucket = 0; room.stormFlag = false;
     io.to(room.code).emit('room:started', { remainingMs: room.durationMs, meta: meta(room) });
     for (const p of room.players.values()) { p.cur = null; p.order = null; sendQuestion(room, p); }
     room.dirty = true;
+    if (ARENA.isArena(room.mode)) { ARENA.setup(room); sendArenaRoster(room); room.arenaTimer = setInterval(() => arenaStep(room), 50); }
     room.tickTimer = setInterval(() => tick(room), 1000);
   }
   function tick(room) {
@@ -91,7 +108,7 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
   }
   function endRoom(room) {
     if (!room || room.status === 'ended') return;
-    clearInterval(room.tickTimer); clearTimeout(room.finaleTimer); clearTimeout(room.introTimer);
+    clearInterval(room.tickTimer); clearInterval(room.arenaTimer); clearTimeout(room.finaleTimer); clearTimeout(room.introTimer);
     room.status = 'ended';
     const ranked = publicPlayers(room);
     for (const player of room.players.values()) {
@@ -120,7 +137,7 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
           shuffleQuestions: raw?.shuffleQuestions !== false,
           shuffleAnswers: raw?.shuffleAnswers === true,
           showLeaderboard: raw?.showLeaderboard !== false,
-          maxPlayers: Math.max(2, Math.min(100, Number(raw?.maxPlayers) || 50)),
+          maxPlayers: Math.max(2, Math.min(ARENA.isArena(mode) ? 40 : 100, Number(raw?.maxPlayers) || (ARENA.isArena(mode) ? 30 : 50))),
           pointsMode: ['speed', 'flat', 'finale'].includes(raw?.pointsMode) ? raw.pointsMode : 'speed',
           allowLateJoin: raw?.allowLateJoin === true,
           lives: Math.max(1, Math.min(3, Number(raw?.lives) || 1)),
@@ -154,17 +171,19 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
       if (!existingId && room.players.size >= room.config.maxPlayers) return cb && cb({ ok: false, error: 'This game is full.' });
       const id = existingId || genId();
       let p = room.players.get(id);
-      if (p) { p.online = true; p.socketId = socket.id; p.name = safeName; }
+      if (p) { p.online = true; p.socketId = socket.id; p.name = safeName; if (payload.ling) { p.ling = cleanId(payload.ling); p.skin = cleanId(payload.skin); } }
       else {
         p = { id, name: safeName, score: 0, correctCount: 0, gold: 0, chestsAvailable: 0, alive: true, lives: room.config.lives || 1, streak: 0, online: true, socketId: socket.id };
+        p.n = room.nextN = (room.nextN || 0) + 1; p.ling = cleanId(payload.ling); p.skin = cleanId(payload.skin);
         MODES.initPlayer(room, p); room.players.set(id, p);
       }
       socket.join(room.code);
       joined = { code: room.code, playerId: id, role: 'player' };
-      room.dirty = true;
+      room.dirty = true; if (room.status === 'running') sendArenaRoster(room);
       io.to(room.code).emit('room:roster', { players: publicPlayers(room), title: room.title, mode: room.mode, hostName: room.hostName, config: room.config });
       cb && cb({ ok: true, code: room.code, playerId: id, title: room.title, mode: room.mode, hostName: room.hostName, config: room.config, status: room.status, remainingMs: remainingMs(room), meta: meta(room), me: pub(room, p) });
       if (room.status === 'running') {
+        setTimeout(() => sendArenaRoster(room, socket), 250);
         if (!p.cur && !p.order) sendQuestion(room, p);
         else setTimeout(() => { if (p.lockUntil > Date.now()) setTimeout(() => sendQuestion(room, p), p.lockUntil - Date.now()); else if (p.curPayload && !p.cur.answered) { const s = io.sockets.sockets.get(p.socketId); if (s) s.emit('player:question', p.curPayload); } else sendQuestion(room, p); }, 150);
       }
@@ -241,18 +260,12 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
       }
     });
 
-    socket.on('player:openChest', ({ code, playerId } = {}) => {
+    socket.on('player:input', ({ code, playerId, mx, my, act } = {}) => {
       const room = rooms.get((code || '').toUpperCase());
-      if (!room || room.mode !== 'gold' || room.status !== 'running') return;
-      const p = room.players.get(playerId);
-      if (!p || !(p.chestsAvailable > 0)) return;
-      p.chestsAvailable -= 1;
-      const res = MODES.openChest(room, p);
-      room.dirty = true;
-      const sock = io.sockets.sockets.get(p.socketId);
-      if (sock) sock.emit('chest:result', { ...res, bonus: res.delta, gold: p.gold, chests: p.chestsAvailable, me: pub(room, p) });
-      if (res.type === 'steal') { const t = room.players.get(res.targetId); if (t) sendMe(room, t); io.to(room.code).emit('room:event', { type: 'steal', text: p.name + ': ' + res.text }); }
-      if (res.type === 'jackpot') io.to(room.code).emit('room:event', { type: 'jackpot', text: p.name + ' hit a ' + res.text });
+      if (!room || room.status !== 'running' || !room.arena) return;
+      const p = room.players.get(playerId); if (!p || !p.in) return;
+      const f = v => Math.max(-1, Math.min(1, Number(v) || 0));
+      p.in = { mx: f(mx), my: f(my), act: !!act, at: Date.now() };
     });
 
     socket.on('disconnect', () => {

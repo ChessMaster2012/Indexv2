@@ -86,8 +86,7 @@ function lvSetup(){
       slider('wrongPauseSec','Wrong-answer pause',1,5,1,c.wrongPauseSec,'s')+
       slider('questionCount','Questions in the pool',1,maxQ(),1,c.questionCount,'')+
       slider('maxPlayers','Player limit',2,100,1,c.maxPlayers,'')+
-      (state.live.mode==='elimination' ? slider('lives','Lives (Last Stand)',1,3,1,c.lives,'') : '')+
-      segment('pointsMode','Scoring',[['speed','Speed bonus','Faster answers earn more'],['flat','Flat','Every correct answer is worth the same'],['finale','Final minute ×2','Speed bonus, last minute doubled']],c.pointsMode)+
+      (['zombie','gems','elimination'].indexOf(state.live.mode)>=0 ? '' : segment('pointsMode','Scoring',[['speed','Speed bonus','Faster answers earn more'],['flat','Flat','Every correct answer is worth the same'],['finale','Final minute ×2','Speed bonus, last minute doubled']],c.pointsMode))+
       '<div class="lv-set-card lv-wide"><label class="lv-set-lab" for="lv-title">Game title <em>optional</em></label><input id="lv-title" data-cfg="title" type="text" maxlength="70" value="'+esc(c.title)+'" placeholder="e.g. AP Gov Unit 1 Challenge"></div>'+
       '<div class="lv-set-card lv-wide"><p class="lv-fine lv-pace-note">⏱️ Everyone plays at their own pace on one shared game clock. Each player gets their own question stream — a wrong answer freezes just that player for the pause, and questions repeat if someone runs through the whole pool.</p><div class="lv-toggles">'+
         toggle('shuffleQuestions','Shuffled question order','Each player gets their own random order. Off = everyone goes in order',c.shuffleQuestions)+
@@ -141,7 +140,6 @@ function lvSetupRefresh(){
     '<li><span>Wrong answer</span><b>'+c.wrongPauseSec+'s pause</b></li>'+
     '<li><span>Scoring</span><b>'+({speed:'Speed bonus',flat:'Flat',finale:'Final min ×2'}[c.pointsMode])+'</b></li>'+
     '<li><span>Players</span><b>up to '+c.maxPlayers+'</b></li>'+
-    (state.live.mode==='elimination'?'<li><span>Lives</span><b>'+c.lives+'</b></li>':'')+
     '<li><span>Late join</span><b>'+(c.allowLateJoin?'On':'Off')+'</b></li></ul>';
   var btn = $('lv-create-btn'); if(btn) btn.disabled = !(ch || LV.src==='ai');
 }
@@ -202,7 +200,6 @@ function summaryChips(c){
   var a = ['⏱️ '+c.durationMin+' min','📝 '+c.questionCount+' questions','⏸️ '+c.wrongPauseSec+'s wrong pause','👥 '+c.maxPlayers+' max'];
   a.push({speed:'⚡ Speed bonus',flat:'⚖️ Flat scoring',finale:'✖️ Final minute ×2'}[c.pointsMode]||'');
   a.push(c.shuffleQuestions?'🔀 Shuffled order':'🔢 In order'); if(c.allowLateJoin) a.push('🚪 Late join');
-  if(state.live.mode==='elimination') a.push('❤️ '+c.lives+' li'+(c.lives>1?'ves':'fe'));
   return a.filter(Boolean).map(function(t){return '<span class="lv-chip">'+t+'</span>';}).join('');
 }
 function lvLobby(){
@@ -236,15 +233,18 @@ function flash(text, cls){
 }
 
 /* ---------- scoreboard bits ---------- */
+var ARENA_MODES = ['zombie','gems','elimination'];
+function isArena(){ return ARENA_MODES.indexOf(state.live.mode)>=0; }
 function statOf(p){
   var m = state.live.mode;
   if(m==='rocket') return p.finish ? '🏁 #'+p.finish : Math.round(p.dist||0)+' km';
   if(m==='tower') return (p.floors||0)+(p.floors===1?' floor':' floors');
-  if(m==='streak') return '🔥 '+(p.streak||0);
+  if(m==='zombie') return p.down ? '💀 down' : '🔫 '+(p.ammo||0);
+  if(m==='gems') return '💎 '+(p.carry||0)+' carried';
   if(m==='elimination') return p.alive===false ? '💀 out' : '❤ '+(p.lives==null?1:p.lives);
-  if(m==='gold') return (p.chests>0?'🎁×'+p.chests:'');
   return (p.correctCount||0)+' ✓';
 }
+var BOARD_TITLE = { zombie:'☠ Most kills', gems:'🏦 Gems banked', elimination:'☄️ Survivors' };
 function rowHtml(p, rank, you){
   return '<div class="lv-board-row'+(you?' you':'')+(p.alive===false?' out':'')+(p.online===false?' off':'')+'"><span class="lv-rank">'+rank+'</span><span class="lv-bname">'+esc(p.name)+(you?' (you)':'')+'</span><span class="lv-bstat">'+esc(statOf(p))+'</span><b>'+p.score+'</b></div>';
 }
@@ -255,7 +255,7 @@ function lvBoardHtml(){
   var meId = L.playerId;
   rows = shown.map(function(p,i){ return rowHtml(p,i+1,p.id===meId); }).join('');
   if(!host && L.me && !shown.some(function(p){return p.id===L.me.id;}) && L.ranks && L.ranks[L.me.id]) rows += '<div class="lv-board-gap">⋯</div>'+rowHtml(L.me, L.ranks[L.me.id], true);
-  return '<aside class="lv-board" id="lv-board"><h4>🏆 Leaderboard'+(L.count?' <i>'+L.count+' playing</i>':(host?' <i>'+list.length+' playing</i>':''))+'</h4>'+(rows||'<p class="panel-empty">Waiting for answers…</p>')+'</aside>';
+  return '<aside class="lv-board" id="lv-board"><h4>'+(BOARD_TITLE[state.live.mode]||'🏆 Leaderboard')+(L.count?' <i>'+L.count+' playing</i>':(host?' <i>'+list.length+' playing</i>':''))+'</h4>'+(rows||'<p class="panel-empty">Waiting for answers…</p>')+'</aside>';
 }
 window.lvShown = function(){
   var L = state.live; if(L.role==='host') return L.players;
@@ -303,7 +303,7 @@ window.liveJoinSubmit = function(){
   status.innerHTML='<div class="loading-line"><span class="spinner"></span> Joining…</div>';
   ensureSocket(); bindReconnect();
   var playerId = getPlayerId();
-  socket.emit('player:join', { code:code, name:name, playerId:playerId }, function(res){
+  socket.emit('player:join', { code:code, name:name, playerId:playerId, ling:myLing(), skin:mySkin() }, function(res){
     if(!res || !res.ok){ status.innerHTML='<div class="error-note">'+esc((res&&res.error)||"Couldn't join that room.")+'</div>'; return; }
     if(res.status==='ended'){ status.innerHTML='<div class="error-note">That game has already ended.</div>'; return; }
     state.profile.name = name; persistProfile(); renderProfileSlot();
@@ -319,6 +319,8 @@ window.liveJoinSubmit = function(){
     renderLive(); window.scrollTo(0,0);
   });
 };
+function myLing(){ try{ return (state.progress.equipped&&state.progress.equipped.indexling)||'ling-sugarbug'; }catch(e){ return ''; } }
+function mySkin(){ try{ return (typeof getEquippedSkinId==='function'&&getEquippedSkinId(myLing()))||''; }catch(e){ return ''; } }
 function lvWait(){
   var c = cfg(), m = GAME_MODES[state.live.mode]||GAME_MODES.trivia, players = state.live.players;
   return '<div class="lv-wait"><div class="lv-wait-card"><p class="lv-eyebrow">'+m.icon+' '+esc(m.label).toUpperCase()+'</p><h3>'+esc(state.live.title||'Live Game')+'</h3>'+
@@ -391,7 +393,7 @@ function pendingGuard(){ clearTimeout(pendTimer); pendTimer=setTimeout(function(
 document.addEventListener('keydown', function(e){
   if(state.view!=='live' || state.live.screen!=='player-play' || e.ctrlKey||e.metaKey||e.altKey) return;
   var tag = (e.target&&e.target.tagName)||''; if(tag==='INPUT'||tag==='TEXTAREA') return;
-  var i = '1234'.indexOf(e.key); if(i<0) i = {a:0,b:1,c:2,d:3}[(e.key||'').toLowerCase()]; if(i==null||i<0) return;
+  var i = '1234'.indexOf(e.key); if(i<0 && !isArena()) i = {a:0,b:1,c:2,d:3}[(e.key||'').toLowerCase()]; if(i==null||i<0) return;
   if(LV.q && i<LV.q.options.length){ e.preventDefault(); window.liveAnswerPick(i); }
 });
 
@@ -424,6 +426,7 @@ function bindReconnect(){
 /* ---------- socket listeners ---------- */
 function commonListeners(){
   ['room:intro','room:event','room:roster','room:started','room:tick','room:ended','room:kicked','room:board','room:state'].forEach(function(e){ socket.removeAllListeners(e); });
+  if(window.LVA) LVA.wire(socket);
   socket.on('room:intro', function(d){ if(window.LVM) LVM.showIntro(d); });
   socket.on('room:event', function(d){ if(window.LVM) LVM.pushFeed(d.text,d.type); });
   socket.on('room:tick', function(d){
@@ -459,7 +462,7 @@ window.wirePlayerListeners = function(){
   });
   socket.on('answer:result', function(d){
     var L=state.live; clearTimeout(pendTimer); LV.pending=false; L.me=d.me; mergeMe();
-    if(d.correct){ flash('+'+d.points+(d.msg?'  ·  '+d.msg:''), 'good'); LV.pick=null; }
+    if(d.correct){ flash((d.points?'+'+d.points+'  ·  ':'')+(d.msg||'Correct!'), 'good'); LV.pick=null; }
     else { LV.lock = { until:Date.now()+d.lockMs, ms:d.lockMs, ans:d.correctAnswer, expl:d.explanation, msg:d.msg }; }
     if(d.out) LV.done='out'; else if(d.finished) LV.done='finished';
     renderQ(); updateMeBar(); if(window.LVM) LVM.refresh();
@@ -467,7 +470,6 @@ window.wirePlayerListeners = function(){
   socket.on('room:board', function(d){ var L=state.live; L.board=d.top; L.count=d.count; L.alive=d.alive; L.ranks=d.ranks; if(L.me){ var mine=d.top.find(function(p){return p.id===L.me.id;}); if(mine && (mine.answered||0)>=(L.me.answered||0)) L.me=mine; } refreshLive(); });
   socket.on('room:kicked', function(){ liveTeardown(); renderLive(); alert('The host removed you from this game.'); });
   socket.on('live:reward', function(d){ if(!d || d.playerId!==state.live.playerId) return; addXP(d.xp||0); addCoins(d.coins||0,'Live Game'); state.progress.liveGames=(state.progress.liveGames||0)+1; persistProgress(); showRewardToast('🏁 Live Game complete · +'+(d.xp||0)+' XP · +'+(d.coins||0)+' coins'); });
-  socket.on('chest:result', function(d){ var L=state.live; if(d.me){ L.me=d.me; mergeMe(); } if(window.LVM) LVM.onChest(d); refreshLive(); });
 };
 function lvKeep(){ var a=document.activeElement; var id=a&&a.id; renderLive(); if(id){ var e=$(id); if(e) e.focus(); } }
 
