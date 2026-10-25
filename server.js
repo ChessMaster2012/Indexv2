@@ -31,6 +31,9 @@ const STRIPE_PLATINUM_PRICE_ID = String(process.env.STRIPE_PLATINUM_PRICE_ID || 
 const STRIPE_DIAMOND_PRICE_ID = String(process.env.STRIPE_DIAMOND_PRICE_ID || '');
 // Commander batch generation stays disabled until Vireonix expressly approves this bulk workflow.
 const VIREONIX_COMMANDER_BULK_ENABLED = String(process.env.VIREONIX_COMMANDER_BULK_ENABLED || '').toLowerCase() === 'true';
+// Remember an explicit Vireonix automation-policy refusal for this process so
+// every wave/tab/reload does not keep retrying a provider-rejected workload.
+let VIREONIX_COMMANDER_POLICY_BLOCKED = false;
 
 const app = express();
 app.set('trust proxy', 1);
@@ -474,10 +477,11 @@ async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOver
   const text=extractText(data);
   if(!text) throw new Error('Vireonix returned no text.');
   if(/automated bulk tasks detected|future requests will be blocked|tos violation|automated-use policy block/i.test(text)){
+    VIREONIX_COMMANDER_POLICY_BLOCKED = true;
     const blocked=new Error('Vireonix Auto reports an automated-use policy block. Further automated calls are paused pending provider review.');
     blocked.status=403;
     blocked.code='VIREONIX_AUTOMATION_BLOCK';
-    console.warn('[AI] Vireonix Auto returned an automated-use policy block; Commander will not retry or switch routes.');
+    console.warn('[AI] Vireonix Auto returned an automated-use policy block; Commander circuit breaker enabled for this process.');
     throw blocked;
   }
   return text;
@@ -487,6 +491,12 @@ async function callVireonix(messages,complex=false,timeoutMs=12000,maxTokensOver
 // detected and future requests would be blocked. Do not amplify this with
 // retries or extra endpoints while provider access is under review.
 async function callVireonixCommanderRoute(messages,timeoutMs=12000,maxTokensOverride=700,temperature=0.85){
+  if(VIREONIX_COMMANDER_POLICY_BLOCKED){
+    const blocked=new Error('Vireonix Auto blocked automated requests pending provider review.');
+    blocked.status=403;
+    blocked.code='VIREONIX_AUTOMATION_BLOCK';
+    throw blocked;
+  }
   return callVireonix(messages,false,timeoutMs,maxTokensOverride,temperature);
 }
 
