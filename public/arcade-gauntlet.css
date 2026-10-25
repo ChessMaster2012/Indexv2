@@ -34,3 +34,4 @@
 .gx-wrap:-webkit-full-screen{max-width:none;width:100vw;height:100vh;border-radius:0;border:0;background:#000}
 .gx-wrap:fullscreen canvas{width:100%;height:100%;aspect-ratio:auto}
 .gx-wrap:-webkit-full-screen canvas{width:100%;height:100%;aspect-ratio:auto}
+.gx-btns.left{left:12px;right:auto}
