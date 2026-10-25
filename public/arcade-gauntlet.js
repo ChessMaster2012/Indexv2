@@ -223,7 +223,7 @@ function wire(g){
     var pk=e.target.closest&&e.target.closest('[data-gx-perk]'); if(pk){ pickPU(g,pk.getAttribute('data-gx-perk')); return; }
     if(e.target.closest&&e.target.closest('[data-gx-start]')){ begin(g); return; }
     if(e.target.closest&&e.target.closest('[data-gx-resume]')){ togglePause(g); return; }
-    if(e.target.closest&&e.target.closest('#gx-fs')){ toggleFS(g); return; }
+    if(e.target.closest&&e.target.closest("#gx-fs,[data-gx-fs]")){ toggleFS(g); return; }
     if(e.target.closest&&e.target.closest('#gx-mute')){ try{ localStorage.setItem('gx-mute',muted()?'0':'1'); }catch(er){} $('gx-mute').textContent=muted()?'🔇':'🔊'; }
   });
   if(window.ResizeObserver){ var ro=new ResizeObserver(function(){ fit(g); }); ro.observe(wrap); }
@@ -263,7 +263,7 @@ function pips(lv,max){ var s=''; for(var i=0;i<max;i++) s+='<i class="'+(i<lv?'o
 function overlay(g){
   var ov=g.ov; if(!ov) return; var h='';
   if(g.phase==='ready'){
-    h='<div class="gx-card"><h2>🏰 Character Gauntlet</h2><p>Explore the ruined gardens and survive <b>10 waves</b> and two bosses. Collect and level up <b>12 power-ups</b> as you go.</p><ul class="gx-keys"><li><kbd>WASD</kbd> move</li><li><kbd>Click</kbd> / <kbd>Space</kbd> pulse-strike — aim with the mouse</li><li><kbd>Shift</kbd> / right-click dash (invincible)</li><li><kbd>E</kbd> special — charges as you hit</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">Power '+g.s.power+' · Speed '+g.s.speed.toFixed(1)+' · Vitality '+g.s.vitality+' · Luck '+g.s.luck+' · Focus '+g.s.focus+'</p><button class="btn btn-primary btn-lg" data-gx-start>Choose power-up</button></div>';
+    h='<div class="gx-card"><h2>🏰 Character Gauntlet</h2><p>Explore the ruined gardens and survive <b>10 waves</b> and two bosses. Collect and level up <b>12 power-ups</b> as you go.</p><ul class="gx-keys"><li><kbd>WASD</kbd> move</li><li><kbd>Click</kbd> / <kbd>Space</kbd> pulse-strike — aim with the mouse</li><li><kbd>Shift</kbd> / right-click dash (invincible)</li><li><kbd>E</kbd> special — charges as you hit</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">Power '+g.s.power+' · Speed '+g.s.speed.toFixed(1)+' · Vitality '+g.s.vitality+' · Luck '+g.s.luck+' · Focus '+g.s.focus+'</p><button class="btn btn-primary btn-lg" data-gx-start>Choose power-up</button> <button class="btn btn-ghost" data-gx-fs type="button">⛶ Fullscreen</button></div>';
   } else if(g.phase==='pause'){
     h='<div class="gx-card"><h2>⏸ Paused</h2><button class="btn btn-primary btn-lg" data-gx-resume>Resume</button></div>';
   } else if(g.phase==='upgrade'){
