@@ -157,7 +157,16 @@ function applySource(source,bank,title){
  g.aiQuestionRequest=null;
  g.aiPrefetchError='';
  g.aiLastAttemptAt=0;
- try{g.question=null;g.questionFeedback=null;g.questionLoading=false;}catch(e){}
+ try{
+  g.questionFeedback=null;g.questionLoading=false;g.questionGateOpen=true;
+  if(qs.length){
+   var first=nextFromSelectedBank(g,'');
+   if(first){g.question=first;g.questionSource='selected-bank';if(typeof window.commanderRememberQuestion==='function')window.commanderRememberQuestion(g,first);}
+  }else if(source==='builtin'){
+   if(!g.question&&typeof window.commanderFallbackUniqueV9==='function')g.question=window.commanderFallbackUniqueV9(g);
+   if(g.question){g.questionSource='fallback';if(typeof window.commanderRememberQuestion==='function')window.commanderRememberQuestion(g,g.question);}
+  }
+ }catch(e){}
  save(g);
  var el=document.getElementById(modalId);if(el)el.remove();
  try{if(typeof window.renderGames==='function')window.renderGames();else if(typeof window.renderBattle==='function')window.renderBattle(g);}catch(e){}
@@ -209,7 +218,7 @@ function tick(){
  var g=game();
  if(!g||g.active!=='commander'||g.phase!=='battle'||g.finished)return;
  if(g.commanderQuestionSource)return;
- if(g.questionGateOpen||g.running)return;
+ if(g.running)return;
  openModal();
 }
 document.addEventListener('click',function(e){
@@ -241,7 +250,9 @@ try{window.__commanderWarmAiQuestion=function(){return Promise.resolve(null);};}
 var previousQuestionRequest=window.commanderRequestAiQuestionV9;
 if(typeof previousQuestionRequest==='function'&&!previousQuestionRequest.__cqbGuarded){
  var guardedQuestionRequest=function(g,background){
-  if(g&&g.commanderQuestionSource&&g.commanderQuestionSource!=='builtin')return Promise.resolve(g.question||null);
+  if(!g)return Promise.resolve(null);
+  if(!g.commanderQuestionSource){if(!g.running)openModal();return Promise.resolve(g.question||null);}
+  if(g.commanderQuestionSource!=='builtin')return Promise.resolve(g.question||null);
   return previousQuestionRequest.apply(this,arguments);
  };
  guardedQuestionRequest.__cqbGuarded=true;window.commanderRequestAiQuestionV9=guardedQuestionRequest;
