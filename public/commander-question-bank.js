@@ -193,7 +193,14 @@ function builtInQuestions(g){
    if(info&&Array.isArray(info.all))out=out.concat(info.all);
   }
  }catch(e){}
- return normalizeQuestions(out);
+ var bank=normalizeQuestions(out);
+ if(!bank.length){
+  try{
+   var fallback=typeof window.commanderFallbackUniqueV9==='function'?window.commanderFallbackUniqueV9(g):null;
+   if(fallback)bank=normalizeQuestions([fallback]);
+  }catch(e){}
+ }
+ return bank;
 }
 function useBuiltin(){
  var g=game();if(!g)return;
