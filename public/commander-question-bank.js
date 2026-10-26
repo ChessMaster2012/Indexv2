@@ -1,7 +1,7 @@
 (function(){
 'use strict';
-if(window.__indexCommanderQuestionBankV1)return;
-window.__indexCommanderQuestionBankV1=true;
+if(window.__indexCommanderQuestionBankV2)return;
+window.__indexCommanderQuestionBankV2=true;
 
 var modalId='commander-question-bank-modal';
 var ui={tab:'ai',publicSets:[],publicLoaded:false,publicError:'',loading:false};
@@ -146,6 +146,7 @@ function applySource(source,bank,title){
  var g=game();if(!g)return;
  var qs=Array.isArray(bank)?normalizeQuestions(bank):[];
  g.commanderQuestionSource=source;
+ g.commanderQuestionSetupVersion=2;
  g.commanderQuestionBank=qs;
  g.commanderQuestionBankActive=qs.length>0;
  g.commanderQuestionDeck=[];
@@ -171,8 +172,38 @@ function applySource(source,bank,title){
  var el=document.getElementById(modalId);if(el)el.remove();
  try{if(typeof window.renderGames==='function')window.renderGames();else if(typeof window.renderBattle==='function')window.renderBattle(g);}catch(e){}
 }
+function builtInQuestions(g){
+ var out=[];
+ try{
+  if(typeof window.bank==='function'){
+   var b=window.bank(g);
+   if(Array.isArray(b))out=out.concat(b);
+  }
+ }catch(e){}
+ try{
+  if(typeof window.commanderQuestionPoolFinal==='function'){
+   var p=window.commanderQuestionPoolFinal(g);
+   if(Array.isArray(p))out=out.concat(p);
+  }
+ }catch(e){}
+ try{
+  if(typeof window.commanderQuestionPoolForLesson==='function'){
+   var info=window.commanderQuestionPoolForLesson(g);
+   if(info&&Array.isArray(info.pool))out=out.concat(info.pool);
+   if(info&&Array.isArray(info.all))out=out.concat(info.all);
+  }
+ }catch(e){}
+ return normalizeQuestions(out);
+}
 function useBuiltin(){
- applySource('builtin',[],'Built-in AP questions');
+ var g=game();if(!g)return;
+ var qs=builtInQuestions(g);
+ if(!qs.length){
+  showStatus('No built-in AP questions are available for this course and unit yet. Choose My Sets or Public Sets instead.',true);
+  return;
+ }
+ applySource('builtin',qs,'Built-in AP questions');
+ try{if(window.showRewardToast)window.showRewardToast('Built-in AP bank ready · '+qs.length+' questions will reshuffle every cycle.');}catch(e){}
 }
 function startSelectedSet(set,source){
  try{
@@ -214,12 +245,39 @@ function openModal(){
  var wrap=document.createElement('div');wrap.id=modalId;wrap.innerHTML=modalHtml();document.body.appendChild(wrap);
  renderBody();
 }
+function hasValidSelection(g){
+ if(!g||Number(g.commanderQuestionSetupVersion)!==2)return false;
+ var source=String(g.commanderQuestionSource||'');
+ if(['ai-bank','my-set','public-set','builtin'].indexOf(source)<0)return false;
+ return g.commanderQuestionBankActive===true&&getSelectedBank(g).length>0;
+}
+function resetToSourceSetup(g){
+ if(!g)return;
+ if(g.running&&!g.questionGateOpen)return false;
+ if(g.running){
+  g.running=false;
+  try{if(g.frame!=null)cancelAnimationFrame(g.frame);}catch(e){}
+  g.frame=null;g.__v14WaveOwner=false;g.__commanderStandaloneWave=false;g.__commanderWaveStartLock=false;
+ }
+ g.commanderQuestionSource='';
+ g.commanderQuestionSetupVersion=0;
+ g.commanderQuestionBank=[];g.commanderQuestionBankActive=false;g.commanderQuestionDeck=[];
+ g.commanderQuestionBankTitle='';g.commanderQuestionBankCount=0;
+ g.aiPolicyBlocked=false;g.aiPrefetchError='';g.aiQuestionQueue=[];g.aiNextQuestion=null;
+ g.aiQuestionRequest=null;g.aiLastAttemptAt=0;g.questionFeedback=null;g.questionLoading=false;
+ g.questionGateOpen=true;g.question=null;g.questionSource='';
+ return true;
+}
 function tick(){
  var g=game();
  if(!g||g.active!=='commander'||g.phase!=='battle'||g.finished)return;
- if(g.commanderQuestionSource)return;
- if(g.running)return;
- openModal();
+ if(hasValidSelection(g))return;
+ if(g.running&&!g.questionGateOpen)return;
+ if(!document.getElementById(modalId)){
+  if(!resetToSourceSetup(g))return;
+  save(g);
+  openModal();
+ }
 }
 document.addEventListener('click',function(e){
  var target=e.target&&e.target.closest?e.target.closest('[data-cqb-tab],[data-cqb-generate],[data-cqb-use-builtin],[data-cqb-mine],[data-cqb-public],[data-cqb-reload]'):null;
@@ -251,9 +309,13 @@ var previousQuestionRequest=window.commanderRequestAiQuestionV9;
 if(typeof previousQuestionRequest==='function'&&!previousQuestionRequest.__cqbGuarded){
  var guardedQuestionRequest=function(g,background){
   if(!g)return Promise.resolve(null);
-  if(!g.commanderQuestionSource){if(!g.running)openModal();return Promise.resolve(g.question||null);}
-  if(g.commanderQuestionSource!=='builtin')return Promise.resolve(g.question||null);
-  return previousQuestionRequest.apply(this,arguments);
+  if(!hasValidSelection(g)){
+   if(!g.running||g.questionGateOpen)tick();
+   return Promise.resolve(null);
+  }
+  // A selected bank is the sole source for the whole run. Never make a fresh
+  // single-question provider call between waves, including for built-in mode.
+  return Promise.resolve(g.question||null);
  };
  guardedQuestionRequest.__cqbGuarded=true;window.commanderRequestAiQuestionV9=guardedQuestionRequest;
 }
@@ -275,7 +337,13 @@ function nextFromSelectedBank(g,exclude){
 }
 if(typeof previousAdvance==='function'&&!previousAdvance.__cqbWrapped){
  var advance=function(g){
-  if(g&&g.commanderQuestionSource&&g.commanderQuestionSource!=='builtin'&&g.commanderQuestionBankActive){
+  if(g&&g.active==='commander'&&g.phase==='battle'&&!g.finished&&!hasValidSelection(g)){
+   if((!g.running||g.questionGateOpen)&&!document.getElementById(modalId)){
+    if(resetToSourceSetup(g)){save(g);openModal();}
+   }
+   return null;
+  }
+  if(g&&hasValidSelection(g)&&g.commanderQuestionBankActive){
    g.questionFeedback=null;g.aiPrefetchError='';g.questionLoading=false;
    g.aiQuestionQueue=[];g.aiNextQuestion=null;g.aiQuestionRequest=null;
    var q=nextFromSelectedBank(g,g.question&&g.question.q);
