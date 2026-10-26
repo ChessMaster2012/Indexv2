@@ -197,9 +197,9 @@ function mount(){
     loopId=requestAnimationFrame(frame);
   })(g.last);
 }
-function isFS(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
+function isFS(){ var st=document.getElementById('games-stage'); return !!st&&(document.fullscreenElement===st||document.webkitFullscreenElement===st); }
 function fit(g){
-  var wrap=g.wrap; if(!wrap) return; var fs=isFS()&&(document.fullscreenElement===wrap||document.webkitFullscreenElement===wrap);
+  var wrap=g.wrap; if(!wrap) return; var fs=isFS();
   var cssW=fs?window.innerWidth:wrap.clientWidth, cssH=fs?window.innerHeight:Math.round(cssW*9/16);
   if(!cssW) return; var dpr=Math.min(window.devicePixelRatio||1,1.5); g.dpr=dpr;
   g.vw=cssW<520?620:cssW<800?820:1000; g.vh=g.vw*cssH/cssW;
@@ -208,7 +208,7 @@ function fit(g){
   var b=$('gx-fs'); if(b) b.textContent=fs?'🗗':'⛶';
 }
 function toggleFS(g){
-  var w=g.wrap; if(!w) return;
+  var w=document.getElementById('games-stage'); if(!w) return;
   try{ if(isFS()){ (document.exitFullscreen||document.webkitExitFullscreen).call(document); } else { (w.requestFullscreen||w.webkitRequestFullscreen).call(w); } }catch(e){}
 }
 function wire(g){
