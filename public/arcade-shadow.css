@@ -9,7 +9,6 @@
 .sh-pres{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:10px 0}
 .sh-pre{display:flex;flex-direction:column;padding:6px 12px;border-radius:12px;background:#221b45;border:2px solid var(--c,#6a5cb0);font-size:12px}
 .sh-pre i{font-style:normal;color:#9a90d6}
-.sh-wrap:fullscreen{flex-direction:column}
-.sh-wrap:fullscreen .sh-bar{position:absolute;left:0;right:0;bottom:0;background:rgba(18,10,38,.85);border:0;z-index:4}
-.sh-wrap:-webkit-full-screen .sh-bar{position:absolute;left:0;right:0;bottom:0;background:rgba(18,10,38,.85);border:0;z-index:4}
+#games-stage:fullscreen .sh-bar{position:absolute;left:0;right:0;bottom:0;background:rgba(18,10,38,.85);border:0;z-index:4}
+#games-stage:-webkit-full-screen .sh-bar{position:absolute;left:0;right:0;bottom:0;background:rgba(18,10,38,.85);border:0;z-index:4}
 @media(max-width:640px){.sh-ab{min-width:56px;padding:5px 4px}.sh-an{display:none}}

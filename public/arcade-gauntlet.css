@@ -30,8 +30,10 @@
 .gx-pips{display:flex;gap:4px}.gx-pips i{width:16px;height:6px;border-radius:3px;background:#3a3260}.gx-pips i.on{background:var(--pc,#ffd24a)}
 .gx-perk .gx-pd{font-size:12.5px;color:#cfc6ff;min-height:32px}
 .gx-build{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;font-size:26px;margin:6px 0}.gx-build small{font-size:12px;font-weight:900;color:#ffd24a;margin-left:2px}
-.gx-wrap:fullscreen{max-width:none;width:100vw;height:100vh;border-radius:0;border:0;background:#000;display:flex;align-items:center;justify-content:center}
-.gx-wrap:-webkit-full-screen{max-width:none;width:100vw;height:100vh;border-radius:0;border:0;background:#000}
-.gx-wrap:fullscreen canvas{width:100%;height:100%;aspect-ratio:auto}
-.gx-wrap:-webkit-full-screen canvas{width:100%;height:100%;aspect-ratio:auto}
-.gx-btns.left{left:12px;right:auto}
+/* Fullscreen is taken on the persistent #games-stage so Play again / next floor re-renders keep it until Esc */
+#games-stage:fullscreen,#games-stage:-webkit-full-screen{background:#0b0818;overflow:auto;padding:0;width:100vw;height:100vh}
+#games-stage:fullscreen .arcade-head,#games-stage:fullscreen .arcade-char,#games-stage:-webkit-full-screen .arcade-head,#games-stage:-webkit-full-screen .arcade-char{display:none}
+#games-stage:fullscreen .arcade-shell,#games-stage:-webkit-full-screen .arcade-shell{padding:0;margin:0;border:0;background:transparent;max-width:none;box-shadow:none}
+#games-stage:fullscreen .gx-wrap,#games-stage:-webkit-full-screen .gx-wrap{position:fixed;inset:0;max-width:none;width:100vw;height:100vh;border-radius:0;border:0;background:#000;display:flex;align-items:center;justify-content:center;z-index:5}
+#games-stage:fullscreen .gx-wrap canvas,#games-stage:-webkit-full-screen .gx-wrap canvas{width:100%;height:100%;aspect-ratio:auto}
+#games-stage:fullscreen .st-wrap,#games-stage:-webkit-full-screen .st-wrap{position:fixed;inset:0;overflow:auto;background:var(--bg,#FAF7FF);padding:24px max(16px,calc((100vw - 980px)/2));z-index:5}

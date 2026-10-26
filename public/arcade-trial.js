@@ -172,16 +172,16 @@ function mount(){
     loopId=requestAnimationFrame(frame);
   })(g.last);
 }
-function isFS(){ return !!(document.fullscreenElement||document.webkitFullscreenElement); }
+function isFS(){ var st=document.getElementById('games-stage'); return !!st&&(document.fullscreenElement===st||document.webkitFullscreenElement===st); }
 function fit(g){
-  var wrap=g.wrap; if(!wrap) return; var fs=isFS()&&(document.fullscreenElement===wrap||document.webkitFullscreenElement===wrap);
+  var wrap=g.wrap; if(!wrap) return; var fs=isFS();
   var cssW=fs?window.innerWidth:wrap.clientWidth, cssH=fs?window.innerHeight:Math.round(cssW*9/16); if(!cssW) return;
   var dpr=Math.min(window.devicePixelRatio||1,1.5); g.dpr=dpr;
   g.vh=cssH<300?420:cssH<450?500:620; g.vw=g.vh*cssW/cssH;
   g.cv.width=Math.round(cssW*dpr); g.cv.height=Math.round(cssH*dpr); g.cv.style.width=cssW+'px'; g.cv.style.height=cssH+'px'; g.fs=fs;
   var b=$('tr-fs'); if(b) b.textContent=fs?'🗗':'⛶';
 }
-function toggleFS(g){ var w=g.wrap; if(!w) return; try{ if(isFS()) (document.exitFullscreen||document.webkitExitFullscreen).call(document); else (w.requestFullscreen||w.webkitRequestFullscreen).call(w); }catch(e){} }
+function toggleFS(g){ var w=document.getElementById('games-stage'); if(!w) return; try{ if(isFS()) (document.exitFullscreen||document.webkitExitFullscreen).call(document); else (w.requestFullscreen||w.webkitRequestFullscreen).call(w); }catch(e){} }
 function wire(g){
   var wrap=g.wrap; if(!wrap||wrap.__tr===g) return; wrap.__tr=g;
   wrap.addEventListener('click',function(e){
