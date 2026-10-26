@@ -1,0 +1,35 @@
+.ex-wrap .gx-ov.clear{display:none}
+.ex-card{max-height:96%;overflow:auto;text-align:center}
+.ex-icon{font-size:52px;line-height:1;margin-bottom:4px}
+.ex-card p{margin:6px 0 10px;line-height:1.45}
+.ex-choices{display:grid;gap:8px;margin-top:10px}
+.ex-choice{position:relative;display:flex;align-items:center;gap:10px;flex-wrap:wrap;text-align:left;padding:11px 14px 11px 40px;border-radius:14px;border:2px solid #4a3f78;background:#221b45;color:#fff;font:inherit;font-weight:800;cursor:pointer;transition:transform .1s,border-color .1s}
+.ex-choice:hover:not(:disabled){transform:translateX(4px);border-color:#ffd878}.ex-choice:disabled{opacity:.4;cursor:not-allowed}
+.ex-choice kbd{position:absolute;left:10px;top:50%;transform:translateY(-50%);background:#2c2552;border:1px solid #6a5cb0;border-radius:6px;padding:1px 7px;font-size:12px;font-family:inherit}
+.ex-choice span:first-of-type{flex:1;min-width:120px}
+.ex-chip{font-size:11.5px;border-radius:999px;padding:3px 10px;background:#2c2552;color:#cfc6ff;font-weight:800}
+.ex-chip.s-power{background:#5a2330;color:#ffb0b8}.ex-chip.s-speed{background:#23405a;color:#9fd8ff}.ex-chip.s-luck{background:#23502f;color:#9dffb4}.ex-chip.s-wits{background:#4a2a66;color:#e0b8ff}
+.ex-dice{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0 4px}
+.ex-d20{width:64px;height:64px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;border-radius:14px;background:#2c2552;border:3px solid #8a7ad0;transform:rotate(8deg)}
+.ex-d20.roll{animation:exroll .25s linear infinite}.ex-d20.ok{border-color:#6bff9a;background:#1d4a34}.ex-d20.bad{border-color:#ff6a7a;background:#4a1d28}
+@keyframes exroll{to{transform:rotate(368deg)}}
+.ex-dtxt{font-size:13.5px;text-align:left;max-width:300px}
+.ex-outcome{margin-top:8px;padding:12px;border-radius:14px}.ex-outcome.good{background:rgba(47,212,139,.14)}.ex-outcome.bad{background:rgba(239,80,100,.16)}
+.ex-sum{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:6px 0 10px}.ex-sum span{background:#2c2552;border-radius:999px;padding:4px 12px;font-weight:800;font-size:13px}
+.ex-shop{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.ex-item{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px;border-radius:14px;border:2px solid #4a3f78;background:#221b45;color:#fff;font:inherit;cursor:pointer}.ex-item:hover:not(:disabled){border-color:#7ae8c0}.ex-item:disabled{opacity:.4;cursor:not-allowed}
+.ex-ii{font-size:28px}.ex-item small{font-size:11px;color:#b8aee8}.ex-item em{font-style:normal;color:#ffe08a;font-weight:900}
+.ex-fields{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-bottom:8px}
+.ex-fighter{display:flex;flex-direction:column;align-items:center;gap:4px}.ex-vs{font-weight:900;color:#ff7a8a;font-size:20px}
+.ex-port{width:84px;height:84px;background-size:contain;background-repeat:no-repeat;background-position:center}
+.ex-em{font-size:62px;line-height:1.1}
+.ex-hp{width:150px;height:10px;border-radius:5px;background:#10091f;overflow:hidden}.ex-hp i{display:block;height:100%;background:#6bff9a;transition:width .3s}.ex-hp.en i{background:#ff5a7a}
+.ex-intent{margin-top:2px;font-size:12px;font-weight:900;border-radius:999px;padding:3px 10px;background:#4a2a2a;color:#ffb0b0}.ex-intent.heavy{background:#5a2318;color:#ffc89a;animation:stpulse .6s infinite alternate}.ex-intent.defend{background:#1f3a5a;color:#9fd8ff}
+.ex-player.hit,.ex-enemy.hit{animation:exhit .3s}
+@keyframes exhit{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.ex-flog{min-height:56px;font-size:13px;color:#d8ccf5;margin-bottom:8px}.ex-flog div{margin:2px 0}
+.ex-acts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ex-act{position:relative;display:flex;flex-direction:column;gap:2px;padding:10px 6px;border-radius:14px;border:2px solid #4a3f78;background:#221b45;color:#fff;font:inherit;cursor:pointer}.ex-act:hover{border-color:#ffd878;transform:translateY(-3px)}.ex-act small{font-size:11px;color:#b8aee8}.ex-act kbd{position:absolute;left:6px;top:4px;font-size:10px;font-family:inherit;color:#9a90d6}
+.ex-relics{font-size:30px;display:flex;gap:6px;justify-content:center;margin:8px 0}
+.ex-relicbar{display:flex;gap:6px;align-items:center;font-size:24px;margin-left:10px}
+@media(max-width:640px){.ex-shop{grid-template-columns:repeat(2,1fr)}.ex-acts{grid-template-columns:1fr}.ex-fields{grid-template-columns:1fr}.ex-vs{display:none}}
