@@ -1,0 +1,3 @@
+.game-character.gc-art{display:flex;align-items:center;justify-content:center}
+.game-character.gc-art svg,.game-character.gc-art .indexling-svg{width:100%;height:100%}
+.arcade-char .game-character.gc-art{overflow:visible}
