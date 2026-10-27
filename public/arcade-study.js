@@ -15,6 +15,7 @@ var AC=null;
 function muted(){ try{ return localStorage.getItem('gx-mute')==='1'; }catch(e){ return false; } }
 function sfx(kind){ if(muted()) return; try{ AC=AC||new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended') AC.resume(); var P={good:[520,1040,.18,'triangle',.09],bad:[220,110,.25,'sawtooth',.08],streak:[660,1320,.3,'triangle',.1],life:[400,900,.2,'sine',.08],tick:[900,900,.04,'square',.04],done:[440,880,.5,'triangle',.12]}[kind]; if(!P) return; var o=AC.createOscillator(), g=AC.createGain(), t=AC.currentTime; o.type=P[3]; o.frequency.setValueAtTime(P[0],t); o.frequency.exponentialRampToValueAtTime(P[1],t+P[2]); g.gain.setValueAtTime(P[4],t); g.gain.exponentialRampToValueAtTime(.0001,t+P[2]); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+P[2]+.02); }catch(e){} }
 
+function ling(){ try{ var id=(state.progress.equipped&&state.progress.equipped.indexling)||'ling-sugarbug', sid=(typeof getEquippedSkinId==='function'&&getEquippedSkinId(id))||'', l=cosmeticById(id)||cosmeticById('ling-sugarbug'), sk=sid&&typeof skinById==='function'?skinById(sid):null; if(typeof indexlingArtHtml==='function') return indexlingArtHtml(l,true,sk||{}); }catch(e){} return arcadeCharacterHtml(); }
 /* ------------------------------ setup screen ------------------------------ */
 window.arcadeStudySetup=function(){
   var sets=state.studySets.filter(function(s){ return (s.type==='quiz'&&s.questions&&s.questions.length)||(s.type==='flashcards'&&s.cards&&s.cards.length); });
@@ -114,7 +115,7 @@ function finish(g){
 }
 
 /* ------------------------------ painting ------------------------------ */
-function companion(g){ var cls=g.mood==='happy'?'happy':g.mood==='sad'?'sad':''; return '<div class="st-comp '+cls+'" id="st-comp"><div class="st-char">'+arcadeCharacterHtml()+'</div><div class="st-say">'+esc2(g.say)+'</div></div>'; }
+function companion(g){ var cls=g.mood==='happy'?'happy':g.mood==='sad'?'sad':''; return '<div class="st-comp '+cls+'" id="st-comp"><div class="st-char">'+ling()+'</div><div class="st-say">'+esc2(g.say)+'</div></div>'; }
 function topbar(g){
   var m=mult(g); return '<div class="st-top"><div class="st-clock"><span class="st-time" id="st-time">'+fmt(g.left)+'</span><div class="st-bar"><i id="st-tbar" style="width:'+(Math.max(0,g.left/g.total)*100)+'%" class="'+(g.left<30?'low':'')+'"></i></div></div>'+
     '<div class="st-stats"><span class="st-chip">✅ <b>'+g.correct+'</b></span><span class="st-chip '+(g.streak>=3?'hot':'')+'">🔥 <b>'+g.streak+'</b>'+(m>1?' <em>×'+m.toFixed(1)+'</em>':'')+'</span><span class="st-chip">⭐ <b>'+g.points+'</b></span></div>'+

@@ -18,6 +18,7 @@ function sfx(k){ if(muted()) return; try{ AC=AC||new (window.AudioContext||windo
   var P={hit:[300,90,.14,'sawtooth',.09],block:[500,700,.1,'square',.05],heal:[500,900,.25,'sine',.09],hurt:[200,70,.22,'sawtooth',.1],card:[600,820,.07,'triangle',.06],buff:[400,1000,.25,'triangle',.08],win:[440,1180,.5,'triangle',.12],lose:[330,70,.7,'sawtooth',.11],gold:[900,1400,.12,'square',.05],end:[330,260,.1,'triangle',.05]}[k]; if(!P) return;
   var o=AC.createOscillator(),g=AC.createGain(),t=AC.currentTime; o.type=P[3]; o.frequency.setValueAtTime(P[0],t); o.frequency.exponentialRampToValueAtTime(P[1],t+P[2]); g.gain.setValueAtTime(P[4],t); g.gain.exponentialRampToValueAtTime(.0001,t+P[2]); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+P[2]+.02); }catch(e){} }
 
+function ling(){ try{ var id=(state.progress.equipped&&state.progress.equipped.indexling)||'ling-sugarbug', sid=(typeof getEquippedSkinId==='function'&&getEquippedSkinId(id))||'', l=cosmeticById(id)||cosmeticById('ling-sugarbug'), sk=sid&&typeof skinById==='function'?skinById(sid):null; if(typeof indexlingArtHtml==='function') return indexlingArtHtml(l,true,sk||{}); }catch(e){} return arcadeCharacterHtml(); }
 /* ------------------------------- data ------------------------------- */
 // t: a=attack s=skill p=power · c=cost · d=damage hits=n b=block h=heal draw en=energy vuln weak psn str thorns · ex=exhaust · r=rarity weight
 var C={
@@ -308,7 +309,7 @@ function topbar(g){
 }
 function hero(g,withBars){
   var b=g.b;
-  return '<div class="rg-side p'+(g.hurt?' hurt':'')+'" id="rg-p"><div class="rg-fxanchor" id="rg-fx-p"></div><div class="rg-art">'+arcadeCharacterHtml()+'</div><div class="rg-nm">'+E(stats().name||'Your Indexling')+'</div>'+bar(g.hp,g.maxHp,'hp')+(b?'<div class="rg-chips">'+chips(b.p,true)+'</div>':'')+'</div>';
+  return '<div class="rg-side p'+(g.hurt?' hurt':'')+'" id="rg-p"><div class="rg-fxanchor" id="rg-fx-p"></div><div class="rg-art">'+ling()+'</div><div class="rg-nm">'+E(stats().name||'Your Indexling')+'</div>'+bar(g.hp,g.maxHp,'hp')+(b?'<div class="rg-chips">'+chips(b.p,true)+'</div>':'')+'</div>';
 }
 function foeSide(g){
   var b=g.b, e=b.e, it=intent(g), cls=(g.lunge?' lunge':'')+(g.fxWin?' dead':'');
@@ -325,7 +326,7 @@ function nodeInfo(k,f){ return {fight:['⚔️','Monster','A normal battle. Earn
 function mapHtml(g){
   var nodes=g.nodes.map(function(k,i){ var n=nodeInfo(k); return '<button class="rg-node k-'+k+'" data-rg="node" data-i="'+i+'"><span class="rg-ni">'+n[0]+'</span><b>'+n[1]+'</b><small>'+n[2]+'</small></button>'; }).join('');
   var next=g.floor%5===0?'A boss guards this floor.':'Floor '+g.floor+' — choose your path.';
-  return topbar(g)+'<div class="rg-screen"><div class="rg-hero">'+arcadeCharacterHtml()+'</div><h3>'+next+'</h3><div class="rg-hp">'+bar(g.hp,g.maxHp,'hp')+'</div><div class="rg-nodes">'+nodes+'</div></div>';
+  return topbar(g)+'<div class="rg-screen"><div class="rg-hero">'+ling()+'</div><h3>'+next+'</h3><div class="rg-hp">'+bar(g.hp,g.maxHp,'hp')+'</div><div class="rg-nodes">'+nodes+'</div></div>';
 }
 function rewardHtml(g){
   var cards=g.rewards.map(function(id,i){ return cardHtml(id,{attr:'data-rg="reward" data-i="'+i+'"',cls:'big'}); }).join('');
@@ -357,7 +358,7 @@ function titleHtml(g){
   if(s) c+='<button class="btn btn-primary btn-lg" data-rg="resume">▶ Continue run · Floor '+s.floor+' · '+s.hp+'/'+(s.maxHp||maxHpBase())+' HP</button>';
   else if(l) c+='<button class="btn btn-primary btn-lg" data-rg="legacy">▶ Continue climb · Floor '+l.floor+' · '+l.deck.length+'-card deck</button>';
   c+='<button class="btn '+(s||l?'btn-ghost':'btn-primary btn-lg')+'" data-rg="new">'+(s||l?'Start a new run':'⚔ Begin the climb')+'</button>';
-  return '<div class="rg-title"><div class="rg-hero big">'+arcadeCharacterHtml()+'</div><h2>Rogue\'s Sanctuary</h2><p>Climb the sanctuary floor by floor. Fight with a deck of skills, read enemy intents, pick your path, find relics, and defeat a boss every 5th floor.</p><div class="rg-facts"><span>❤️ '+maxHpBase()+' HP</span><span>⚡ 3 energy</span><span>🃏 5 cards / turn</span><span>🍀 Luck '+(st.luck||0)+': bonus gold</span>'+best+'</div><div class="rg-how"><span>1–5 play cards</span><span>E end turn</span><span>D deck</span><span>F fullscreen</span></div><div class="rg-tbtns">'+c+'<button class="btn btn-ghost" data-rg="fs">⛶ Fullscreen</button></div></div>';
+  return '<div class="rg-title"><div class="rg-hero big">'+ling()+'</div><h2>Rogue\'s Sanctuary</h2><p>Climb the sanctuary floor by floor. Fight with a deck of skills, read enemy intents, pick your path, find relics, and defeat a boss every 5th floor.</p><div class="rg-facts"><span>❤️ '+maxHpBase()+' HP</span><span>⚡ 3 energy</span><span>🃏 5 cards / turn</span><span>🍀 Luck '+(st.luck||0)+': bonus gold</span>'+best+'</div><div class="rg-how"><span>1–5 play cards</span><span>E end turn</span><span>D deck</span><span>F fullscreen</span></div><div class="rg-tbtns">'+c+'<button class="btn btn-ghost" data-rg="fs">⛶ Fullscreen</button></div></div>';
 }
 function deadHtml(g){
   return '<div class="rg-title dead"><div class="rg-evi">💀</div><h2>Your climb ends on floor '+g.reached+'</h2><p>You defeated '+g.wins+' foes across all runs. Best floor: '+g.best+'.'+(g.coinsEarned?' <b>+'+g.coinsEarned+' 🪙</b>':'')+'</p><div class="rg-tbtns"><button class="btn btn-primary btn-lg" data-rg="new">Start a new run</button><button class="btn btn-ghost" data-rg="hub">Back to games</button></div></div>';
