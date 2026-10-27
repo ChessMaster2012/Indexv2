@@ -1,0 +1,8 @@
+/* Rhythm Reflector v2 */
+.rr-wrap canvas{cursor:pointer}
+.rr-tracks{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}
+.rr-track{display:flex;flex-direction:column;align-items:center;gap:3px;padding:12px 8px;border-radius:14px;background:#221b45;border:2px solid #4a3f78;color:#fff;cursor:pointer;font:inherit;transition:transform .15s,border-color .15s}
+.rr-track:hover{transform:translateY(-3px)}.rr-track.on{border-color:var(--tc);box-shadow:0 0 16px var(--tc)}.rr-ti{font-size:30px}.rr-track b{font-size:14px}.rr-track small{color:#cfc6ff;font-size:11px}.rr-track em{font-style:normal;font-size:11px;font-weight:800;color:var(--tc)}
+.rr-off{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;font-size:13px;color:#cfc6ff;margin:8px 0}.rr-off button{width:28px;height:28px;border-radius:8px;border:1.5px solid #6a5cb0;background:#2c2552;color:#fff;font-weight:900;cursor:pointer}.rr-off small{flex:1 1 100%;color:#9a90d6;font-size:11px}
+.rr-rank{font-size:84px;font-weight:900;line-height:1;margin:2px 0}
+@media(max-width:640px){.rr-tracks{grid-template-columns:1fr}.rr-track{flex-direction:row;justify-content:space-between}}
