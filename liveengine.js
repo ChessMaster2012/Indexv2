@@ -260,12 +260,12 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
       }
     });
 
-    socket.on('player:input', ({ code, playerId, mx, my, act } = {}) => {
+    socket.on('player:input', ({ code, playerId, mx, my, act, ab } = {}) => {
       const room = rooms.get((code || '').toUpperCase());
       if (!room || room.status !== 'running' || !room.arena) return;
       const p = room.players.get(playerId); if (!p || !p.in) return;
       const f = v => Math.max(-1, Math.min(1, Number(v) || 0));
-      p.in = { mx: f(mx), my: f(my), act: !!act, at: Date.now() };
+      p.in = { mx: f(mx), my: f(my), act: !!act, ab: !!ab, at: Date.now() };
     });
 
     socket.on('disconnect', () => {
