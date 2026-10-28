@@ -10,7 +10,7 @@ function summary(){ var t=auto.tally; return auto.rolled?('Rolled '+auto.rolled+
 function bar(){
   var m=modal(); if(!m) return; var b=m.querySelector('.sca-bar');
   if(!b){ b=document.createElement('div'); b.className='sca-bar'; var anchor=m.querySelector('.reward-muted'); if(anchor&&anchor.parentNode) anchor.parentNode.insertBefore(b,anchor.nextSibling); else return; }
-  b.innerHTML='<button type="button" class="btn '+(auto.on?'btn-danger':'btn-primary')+' btn-sm" data-sca="toggle">'+(auto.on?'⏹ Stop auto roll':'🔁 Auto roll')+'</button><label class="sca-chk"><input type="checkbox" data-sca="epic" '+(auto.stopEpic?'checked':'')+'> Stop on Epic</label><span class="sca-left">🧰 '+crates()+' left</span><span class="sca-sum">'+summary()+'</span>';
+  b.innerHTML='<button type="button" class="btn '+(auto.on?'btn-danger':'btn-primary')+'" data-sca="toggle">'+(auto.on?'⏹ Stop auto roll':'🔁 Auto roll')+'</button><label class="sca-chk"><input type="checkbox" data-sca="epic" '+(auto.stopEpic?'checked':'')+'> Stop on Epic</label><span class="sca-left">🧰 '+crates()+' left</span><span class="sca-sum">'+summary()+'</span>';
 }
 function stop(msg){ auto.on=false; clearTimeout(auto.timer); bar(); if(msg&&typeof showRewardToast==='function') showRewardToast(msg); }
 function start(){ auto.on=true; auto.rolled=0; auto.fresh=0; auto.tally={Common:0,Rare:0,Epic:0}; bar(); if(!state.skinCrateOpening&&crates()>0) window.openSkinCrate(); else if(crates()<=0) stop('You do not have a Skin Crate yet.'); }
@@ -32,7 +32,7 @@ var obs=new MutationObserver(function(muts){
   if(res&&res.querySelector('.skin-crate-actions')) onReveal();
   else if(res&&res.__sca) res.__sca=0;
   // add an Auto roll button next to every Open Skin Crate button
-  document.querySelectorAll('[data-action="open-skin-crate"]').forEach(function(b){ if(b.__sca||(b.nextElementSibling&&b.nextElementSibling.hasAttribute&&b.nextElementSibling.hasAttribute('data-sca-open'))) return; b.__sca=1; if(b.parentNode.querySelector('[data-sca-open]')) return; var a=document.createElement('button'); a.type='button'; a.className=b.className.replace(/btn-primary/,'btn-ghost'); a.setAttribute('data-sca-open','1'); a.textContent='🔁 Auto roll'; a.style.marginLeft='6px'; b.parentNode.insertBefore(a,b.nextSibling); });
+  document.querySelectorAll('[data-action="open-skin-crate"]').forEach(function(b){ if(b.__sca||(b.nextElementSibling&&b.nextElementSibling.hasAttribute&&b.nextElementSibling.hasAttribute('data-sca-open'))) return; b.__sca=1; if(b.parentNode.querySelector('[data-sca-open]')) return; var a=document.createElement('button'); a.type='button'; a.className=b.className; if(b.disabled) a.disabled=true; a.setAttribute('data-sca-open','1'); a.textContent='🔁 Auto roll'; a.style.marginLeft='8px'; b.parentNode.insertBefore(a,b.nextSibling); });
   }finally{ obs.takeRecords(); obs.__run=0; }
 });
 obs.observe(document.body,{childList:true,subtree:true});
