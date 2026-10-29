@@ -2797,6 +2797,7 @@ app.post('/api/auth/profile', async (req, res) => {
 app.post('/api/auth/delete', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
   const user = req.user;
+  try { CANVAS.forgetUser(user.id); } catch (e) { /* ignore */ }
   users.delete('email:' + normalizeEmail(user.identifier || user.email));
   if(user.username) usersByUsername.delete(normalizeUsername(user.username));
   usersById.delete(user.id);
@@ -2992,6 +2993,7 @@ LIBRARY.init({
   app, express, dataDir: DATA_DIR, containsConductViolation,
   supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest }
 });
+const CANVAS = require('./canvas').init({ app, dataDir: DATA_DIR, publicBaseUrl: PUBLIC_BASE_URL });
 require('./liveengine').attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTitle, cappedDailyCoins });
 
 server.listen(PORT, () => {
