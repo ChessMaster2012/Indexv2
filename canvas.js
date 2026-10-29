@@ -311,20 +311,44 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
     if (!r.ok) throw new Error('status ' + r.status);
     if (Number(r.headers.get('content-length') || 0) > FILE_MAX) throw new Error('too big');
     const buf = Buffer.from(await r.arrayBuffer()); if (buf.length > FILE_MAX) throw new Error('too big');
-    return buf;
+    return { buf, type: String(r.headers.get('content-type') || '').toLowerCase(), url: u.toString() };
+  }
+  async function bufText(buf, type, name) {
+    const ext = (String(name || '').split('.').pop() || '').toLowerCase();
+    let text = '';
+    if (ext === 'pdf' || type.includes('pdf')) text = ((await require('pdf-parse/lib/pdf-parse.js')(buf)).text || '');
+    else if (ext === 'docx' || type.includes('wordprocessingml')) text = ((await require('mammoth').extractRawText({ buffer: buf })).value || '');
+    else if (type.includes('html') || ['html', 'htm'].includes(ext)) text = strip(buf.toString('utf8'));
+    else if (type.startsWith('text/') || ['txt', 'md', 'csv', 'rtf'].includes(ext)) text = buf.toString('utf8');
+    else return null;
+    return text.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+  }
+  /** Open a link from the assignment (Google Docs/Slides/Sheets/Drive or any public page). Private pages are reported, not guessed. */
+  async function linkText(link) {
+    const u = new URL(link); let target = link;
+    if (u.hostname === 'docs.google.com') {
+      let m;
+      if ((m = u.pathname.match(/\/document\/(?:u\/\d+\/)?d\/([\w-]+)/))) target = `https://docs.google.com/document/d/${m[1]}/export?format=txt`;
+      else if ((m = u.pathname.match(/\/presentation\/(?:u\/\d+\/)?d\/([\w-]+)/))) target = `https://docs.google.com/presentation/d/${m[1]}/export?format=txt`;
+      else if ((m = u.pathname.match(/\/spreadsheets\/(?:u\/\d+\/)?d\/([\w-]+)/))) target = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv`;
+    } else if (u.hostname === 'drive.google.com') {
+      const m = u.pathname.match(/\/file\/d\/([\w-]+)/) || [null, u.searchParams.get('id')];
+      if (m[1]) target = `https://drive.google.com/uc?export=download&id=${m[1]}`;
+    }
+    const d = await downloadPublic(target);
+    if (/accounts\.google\.com|\/login|\/signin|\/sso/i.test(d.url)) return { text: '', why: 'private (needs sign-in)' };
+    const text = await bufText(d.buf, d.type, new URL(d.url).pathname);
+    if (text == null) return { text: '', why: 'unsupported type' };
+    if (/^\s*(sign in|log in)\b/i.test(text) && text.length < 400) return { text: '', why: 'private (needs sign-in)' };
+    return { text: text.slice(0, 5000), why: text ? '' : 'empty' };
   }
   async function fileText(uid, host, fileId) {
     const meta = await getJson(uid, `/api/v1/files/${fileId}`, 1);
     const name = String(meta.display_name || meta.filename || 'file').slice(0, 120), ext = (name.split('.').pop() || '').toLowerCase(), size = Number(meta.size || 0);
     if (!meta.url || size > FILE_MAX) return { name, text: '', why: 'too large' };
-    const buf = await downloadPublic(meta.url);
-    let text = '';
-    if (ext === 'pdf') text = ((await require('pdf-parse/lib/pdf-parse.js')(buf)).text || '');
-    else if (ext === 'docx') text = ((await require('mammoth').extractRawText({ buffer: buf })).value || '');
-    else if (['txt', 'md', 'csv', 'rtf'].includes(ext)) text = buf.toString('utf8');
-    else if (['html', 'htm'].includes(ext)) text = strip(buf.toString('utf8'));
-    else return { name, text: '', why: 'unsupported type (.' + ext + ')' };
-    text = text.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+    const d = await downloadPublic(meta.url);
+    const text = await bufText(d.buf, '', name);
+    if (text == null) return { name, text: '', why: 'unsupported type (.' + ext + ')' };
     return { name, text: text.slice(0, 5000), why: text ? '' : 'no readable text (scanned image?)' };
   }
   app.get('/api/canvas/assignment', needUser, async (req, res) => {
@@ -348,8 +372,12 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
         try { const [pc, slug] = pg.split('/'); const p = await getJson(uid, `/api/v1/courses/${pc}/pages/${slug}`, 1); const t = strip(p && p.body).slice(0, 3500); if (t) sources.push({ kind: 'page', name: String(p.title || 'Page').slice(0, 120), text: t }); }
         catch (e) { if (e.canvasAuth) throw e; unread.push('a linked page'); }
       }
-      const external = [...html.matchAll(/href="(https?:\/\/[^"]+)"/gi)].map(m => m[1]).filter(u => { try { return new URL(u).hostname !== rec.host; } catch (e) { return false; } }).length;
-      if (external) unread.push(external + ' outside link' + (external === 1 ? '' : 's') + ' (Google Docs, websites…)');
+      const extLinks = [...new Set([...html.matchAll(/href="(https?:\/\/[^"]+)"/gi)].map(m => m[1].replace(/&amp;/g, '&')).filter(u => { try { return new URL(u).hostname !== rec.host; } catch (e) { return false; } }))].slice(0, 4);
+      for (const link of extLinks) {
+        let host = ''; try { host = new URL(link).hostname.replace(/^www\./, ''); } catch (e) { continue; }
+        try { const t = await linkText(link); if (t.text) sources.push({ kind: 'link', name: host, text: t.text }); else unread.push(host + ' (' + (t.why || 'nothing readable') + ')'); }
+        catch (e) { unread.push(host + ' (could not open)'); }
+      }
       let text = strip(html).slice(0, 4000);
       res.json({ ok: true, name: String(a.name || '').slice(0, 160), text, sources: sources.map(x => ({ kind: x.kind, name: x.name, text: x.text })), unread: unread.slice(0, 6), rubric, points: a.points_possible, types: (a.submission_types || []).slice(0, 4) });
     } catch (e) { if (e.canvasAuth) await delRec(req.user.id); console.error('Canvas assignment error:', e.message); fail(res, e); }
