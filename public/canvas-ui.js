@@ -187,15 +187,31 @@ function aiPickSubject(a,text){
 function studyThis(id,cid){
   var a=CV.data.assignments.filter(function(x){ return String(x.id)===String(id)&&String(x.cid)===String(cid); })[0]; if(!a) return;
   if(!safe(function(){ return state.aiEnabled; },true)){ toast('AI is unavailable right now.',true); return; }
-  toast('Reading “'+a.name+'” and building practice…');
+  toast('Reading “'+a.name+'” from Canvas…');
   fetch('/api/canvas/assignment?cid='+encodeURIComponent(cid)+'&id='+encodeURIComponent(id),{credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return null;}).then(function(full){
-    var text=(full&&full.ok&&full.text)||a.desc||'';
-    var rub=(full&&full.ok&&full.rubric||[]).map(function(r){ return '- '+r.name+(r.detail?': '+r.detail:''); }).join('\n');
-    var src='Class: '+a.course+'\nAssignment: '+a.name+(a.points!=null?' ('+a.points+' points)':'')+'\n'+(text?'Assignment instructions:\n'+text+'\n':'')+(rub?'Grading rubric:\n'+rub+'\n':'')+
-      '\nFirst work out the exact topics, skills and vocabulary this assignment covers. Then write practice questions that test that material so the student is ready to complete it. Do not just restate the instructions.';
-    return aiPickSubject(a,text).then(function(sid){
+    full=(full&&full.ok)?full:{text:a.desc||'',sources:[],unread:[],rubric:[]};
+    var parts=[]; if(full.text) parts.push('ASSIGNMENT INSTRUCTIONS:\n'+full.text);
+    (full.sources||[]).forEach(function(s){ parts.push('ATTACHED '+(s.kind==='page'?'PAGE':'FILE')+' "'+s.name+'":\n'+s.text); });
+    var rub=(full.rubric||[]).map(function(r){ return '- '+r.name+(r.detail?': '+r.detail:''); }).join('\n'); if(rub) parts.push('GRADING RUBRIC:\n'+rub);
+    var material=parts.join('\n\n'), thin=material.replace(/\s+/g,' ').length<160;
+    return aiPickSubject(a,material).then(function(sid){
       if(!sid){ toast('Add a course in Index first.',true); return; }
-      return buildStudySet({subjectId:sid,topic:a.name,type:'quiz',count:8,sourceText:src}).then(function(){ toast('Practice quiz ready in Study Sets ✅'); switchView('studysets'); });
+      var subj=subjectById(sid), n=8;
+      var prompt='You are building a practice quiz for a student who must complete this exact school assignment.\nClass: '+a.course+'\nAssignment title: '+a.name+(a.points!=null?' ('+a.points+' points)':'')+'\n\n'+(material||'(No instructions were readable.)')+'\n\n'+
+        'RULES: Write exactly '+n+' multiple-choice questions that test the specific content, skills, terms, texts, problems or topics named in the material above (use its real names, numbers and examples). '+
+        (thin?'There is little readable text, so infer the most likely topic from the assignment title and class, and stay narrowly on that topic. ':'')+
+        'Do NOT write generic questions about the whole course. Do NOT ask about due dates, formatting or submission. Each question needs exactly 4 options, one correct, plus a short explanation.\n\n'+
+        'Reply with ONLY JSON: {"title":"short quiz title","questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"..."}]} where "correct" is the zero-based index.';
+      toast('Writing questions…');
+      return askJSON(prompt).then(function(parsed){
+        var qs=normalizeGeneratedQuestions(parsed); if(!qs.length) throw new Error('empty');
+        var set={id:uid(),subjectId:sid,type:'quiz',unit:'',topic:a.name,title:(subj&&subj.name?subj.name:a.course)+' — '+a.name,createdAt:Date.now(),reminderAt:0,reminderCompleted:false,questions:qs,attempts:[]};
+        state.studySets.push(set); persistSets();
+        var read=(full.sources||[]).map(function(s){return s.name;});
+        toast(thin&&!read.length?'Quiz ready — but Canvas gave me very little text for this assignment, so it’s based on the title/class.':'Quiz ready'+(read.length?' (read: '+read.join(', ')+')':'')+' ✅');
+        if(full.unread&&full.unread.length) setTimeout(function(){ toast('Couldn’t open: '+full.unread.join(', ')); },2600);
+        switchView('studysets');
+      });
     });
   }).catch(function(){ toast('Could not build that quiz. Try again.',true); });
 }
