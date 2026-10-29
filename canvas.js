@@ -18,7 +18,7 @@ const SYNC_TTL_MS = 4 * 60 * 1000;
 const MAX_COURSES = 40;
 const MAX_PAGES = 4;
 
-function init({ app, dataDir, publicBaseUrl }) {
+function init({ app, dataDir, publicBaseUrl, supabase }) {
   const FILE = path.join(dataDir, 'canvas.json');
   const KEYFILE = path.join(dataDir, 'canvas.key');
   let store = {};
@@ -28,7 +28,9 @@ function init({ app, dataDir, publicBaseUrl }) {
 
   /* ---------- encryption ---------- */
   function secretKey() {
-    if (process.env.CANVAS_TOKEN_SECRET) return crypto.createHash('sha256').update(String(process.env.CANVAS_TOKEN_SECRET)).digest();
+    // Prefer a secret that survives restarts: an explicit one, else the (stable, server-only) Supabase key.
+    const stable = process.env.CANVAS_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+    if (stable) return crypto.createHash('sha256').update('index-canvas-v1:' + String(stable)).digest();
     try { return Buffer.from(fs.readFileSync(KEYFILE, 'utf8').trim(), 'hex'); } catch (e) { /* create below */ }
     const k = crypto.randomBytes(32);
     try { fs.mkdirSync(dataDir, { recursive: true }); fs.writeFileSync(KEYFILE, k.toString('hex'), { mode: 0o600 }); } catch (er) { /* in-memory only */ }
@@ -55,6 +57,38 @@ function init({ app, dataDir, publicBaseUrl }) {
     }, 200);
   }
 
+  /* ---------- durable storage ----------
+     Records live in memory + a local file, and (when Supabase is configured) in the existing accounts table as a
+     row with id "canvas:<userId>", so a Render restart / 15-minute idle spin-down never disconnects a student.
+     The token inside is AES-GCM encrypted. The connection lasts until Canvas itself rejects the token. */
+  const remoteOn = () => !!(supabase && supabase.enabled);
+  const rid = uid => encodeURIComponent('canvas:' + uid);
+  async function getRec(uid) {
+    if (store[uid]) return store[uid];
+    if (!remoteOn()) return null;
+    try {
+      const rows = await supabase.request('index_accounts?select=account_data_blob&id=eq.' + rid(uid) + '&limit=1');
+      const blob = Array.isArray(rows) && rows[0] && rows[0].account_data_blob;
+      if (!blob) return null;
+      const rec = JSON.parse(Buffer.from(String(blob), 'base64').toString('utf8'));
+      if (rec && rec.host && rec.enc) { store[uid] = rec; return rec; }
+    } catch (e) { console.error('Canvas record load failed:', e.message); }
+    return null;
+  }
+  async function putRec(uid, rec) {
+    store[uid] = rec; save();
+    if (!remoteOn()) return;
+    try {
+      await supabase.request('index_accounts', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+        body: JSON.stringify({ id: 'canvas:' + uid, method: 'canvas', first_name: '', last_name: '', account_data_blob: Buffer.from(JSON.stringify(rec), 'utf8').toString('base64'), updated_at: new Date().toISOString() }) });
+    } catch (e) { console.error('Canvas record save failed:', e.message); }
+  }
+  async function delRec(uid) {
+    delete store[uid]; syncCache.delete(uid); save();
+    if (!remoteOn()) return;
+    try { await supabase.request('index_accounts?id=eq.' + rid(uid), { method: 'DELETE' }); } catch (e) { console.error('Canvas record delete failed:', e.message); }
+  }
+
   /* ---------- host safety (no SSRF) ---------- */
   function cleanHost(input) {
     let h = String(input || '').trim().toLowerCase();
@@ -78,6 +112,7 @@ function init({ app, dataDir, publicBaseUrl }) {
     if (!addrs.length || addrs.some(a => privateIp(a.address))) throw httpErr(400, 'That address is not a public Canvas site.');
   }
   function httpErr(status, message) { const e = new Error(message); e.status = status; return e; }
+  function authErr(message) { const e = httpErr(401, message); e.canvasAuth = true; return e; }
 
   /* ---------- Canvas HTTP ---------- */
   async function cfetch(host, pathQuery, opts = {}) {
@@ -100,26 +135,26 @@ function init({ app, dataDir, publicBaseUrl }) {
   const redirectUri = req => `${publicBaseUrl || `${req.protocol}://${req.get('host')}`}/api/canvas/oauth/callback`;
 
   async function accessToken(userId, force) {
-    const rec = store[userId]; if (!rec) throw httpErr(404, 'Canvas is not connected.');
+    const rec = await getRec(userId); if (!rec) throw httpErr(404, 'Canvas is not connected.');
     if (rec.kind === 'oauth' && rec.refresh && (force || (rec.expiresAt && Date.now() > rec.expiresAt - 60000))) {
       const k = oauthKey(rec.host);
       if (k) {
         const r = await cfetch(rec.host, '/login/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ grant_type: 'refresh_token', client_id: k.id, client_secret: k.secret, refresh_token: dec(rec.refresh) }).toString() });
         const j = await r.json().catch(() => ({}));
-        if (r.ok && j.access_token) { rec.enc = enc(j.access_token); rec.expiresAt = Date.now() + (Number(j.expires_in) || 3600) * 1000; save(); }
-        else throw httpErr(401, 'Canvas needs you to sign in again.');
+        if (r.ok && j.access_token) { rec.enc = enc(j.access_token); rec.expiresAt = Date.now() + (Number(j.expires_in) || 3600) * 1000; await putRec(userId, rec); }
+        else throw authErr('Canvas needs you to sign in again.');
       }
     }
     return dec(rec.enc);
   }
   /** GET with auto-refresh on 401 and Link-header pagination. */
   async function getJson(userId, pathQuery, pages) {
-    const rec = store[userId]; let token = await accessToken(userId, false); const out = []; let next = pathQuery, n = 0;
+    const rec = await getRec(userId); let token = await accessToken(userId, false); const out = []; let next = pathQuery, n = 0;
     while (next && n < (pages || 1)) {
       let r = await cfetch(rec.host, next, { token });
       if (r.status === 401 && rec.kind === 'oauth') { token = await accessToken(userId, true); r = await cfetch(rec.host, next, { token }); }
-      if (r.status === 401) throw httpErr(401, 'Canvas rejected the saved sign-in. Please reconnect.');
+      if (r.status === 401) throw authErr('Canvas rejected the saved sign-in. Please reconnect.');
       if (r.status === 429 || r.status === 403 && /rate/i.test(r.headers.get('x-rate-limit-remaining') || '')) throw httpErr(429, 'Canvas is rate limiting requests. Try again in a minute.');
       if (!r.ok) throw httpErr(502, 'Canvas returned an error (' + r.status + ').');
       const j = await r.json(); if (Array.isArray(j)) out.push(...j); else return j;
@@ -150,9 +185,9 @@ function init({ app, dataDir, publicBaseUrl }) {
   const fail = (res, e) => res.status(e.status || 500).json({ ok: false, error: e.status ? e.message : 'Canvas request failed.' });
   const publicRec = r => r ? { host: r.host, kind: r.kind, name: r.name || '', connectedAt: r.connectedAt, lastSync: r.lastSync || 0 } : null;
 
-  app.get('/api/canvas/status', needUser, (req, res) => {
+  app.get('/api/canvas/status', needUser, async (req, res) => {
     const host = cleanHost(req.query.host);
-    res.json({ ok: true, oauthConfigured: oauthAnywhere(), oauthForHost: host ? !!oauthKey(host) : undefined, connection: publicRec(store[req.user.id]) });
+    res.json({ ok: true, oauthConfigured: oauthAnywhere(), oauthForHost: host ? !!oauthKey(host) : undefined, connection: publicRec(await getRec(req.user.id)) });
   });
 
   async function connect(userId, host, kind, tokens) {
@@ -162,8 +197,8 @@ function init({ app, dataDir, publicBaseUrl }) {
       if (!r.ok) throw httpErr(400, 'That does not look like a Canvas site (HTTP ' + r.status + ').');
       return r.json();
     })();
-    store[userId] = { host, kind, enc: enc(tokens.access), refresh: tokens.refresh ? enc(tokens.refresh) : '', expiresAt: tokens.expiresAt || 0, name: String(me.name || me.short_name || '').slice(0, 80), canvasUserId: me.id, connectedAt: Date.now(), lastSync: 0 };
-    syncCache.delete(userId); save();
+    await putRec(userId, { host, kind, enc: enc(tokens.access), refresh: tokens.refresh ? enc(tokens.refresh) : '', expiresAt: tokens.expiresAt || 0, name: String(me.name || me.short_name || '').slice(0, 80), canvasUserId: me.id, connectedAt: Date.now(), lastSync: 0 });
+    syncCache.delete(userId);
   }
 
   app.post('/api/canvas/token', needUser, async (req, res) => {
@@ -172,7 +207,7 @@ function init({ app, dataDir, publicBaseUrl }) {
       if (!host) return res.status(400).json({ ok: false, error: 'Enter your school\'s Canvas address, like myschool.instructure.com.' });
       if (!/^[A-Za-z0-9~_.\-]{16,300}$/.test(token)) return res.status(400).json({ ok: false, error: 'That does not look like a Canvas access token.' });
       await connect(req.user.id, host, 'token', { access: token });
-      res.json({ ok: true, connection: publicRec(store[req.user.id]) });
+      res.json({ ok: true, connection: publicRec(await getRec(req.user.id)) });
     } catch (e) { fail(res, e); }
   });
 
@@ -204,9 +239,9 @@ function init({ app, dataDir, publicBaseUrl }) {
   });
 
   app.post('/api/canvas/disconnect', needUser, async (req, res) => {
-    const rec = store[req.user.id];
+    const rec = await getRec(req.user.id);
     if (rec && rec.kind === 'oauth') { try { await cfetch(rec.host, '/login/oauth2/token', { method: 'DELETE', token: dec(rec.enc), timeout: 6000 }); } catch (e) { /* best effort */ } }
-    delete store[req.user.id]; syncCache.delete(req.user.id); save();
+    await delRec(req.user.id);
     res.json({ ok: true });
   });
 
@@ -217,13 +252,33 @@ function init({ app, dataDir, publicBaseUrl }) {
     return out;
   }
   app.get('/api/canvas/sync', needUser, async (req, res) => {
-    const uid = req.user.id, rec = store[uid];
+    const uid = req.user.id, rec = await getRec(uid);
     if (!rec) return res.status(404).json({ ok: false, error: 'Canvas is not connected.' });
     const cached = syncCache.get(uid);
     if (cached && Date.now() - cached.at < (req.query.force ? 15000 : SYNC_TTL_MS)) return res.json(Object.assign({ ok: true, cached: true }, cached.data));
     try {
       const rawCourses = await getJson(uid, '/api/v1/courses?enrollment_state=active&enrollment_type=student&include[]=term&include[]=total_scores&include[]=teachers&per_page=50', 2);
-      const courses = rawCourses.filter(c => c && c.id && !c.access_restricted_by_date).slice(0, MAX_COURSES).map(normCourse);
+      // Only the classes on the student's own Canvas dashboard (not old/finished ones)
+      let pool = rawCourses.filter(c => c && c.id && !c.access_restricted_by_date);
+      let ids = null;
+      try {
+        const cards = await getJson(uid, '/api/v1/dashboard/dashboard_cards', 1);
+        const set = new Set(cards.map(x => String(x && (x.id || String(x.assetString || '').replace('course_', ''))).trim()).filter(Boolean));
+        if (set.size) ids = set;
+      } catch (e) { if (e.canvasAuth) throw e; }
+      if (!ids) {
+        try {
+          const fav = await getJson(uid, '/api/v1/users/self/favorites/courses', 1);
+          const set = new Set(fav.map(x => String(x && x.id)).filter(Boolean));
+          if (set.size) ids = set;
+        } catch (e) { if (e.canvasAuth) throw e; }
+      }
+      let picked = ids ? pool.filter(c => ids.has(String(c.id))) : [];
+      if (!picked.length) { // no dashboard info: keep only courses whose dates haven't ended
+        const now = Date.now();
+        picked = pool.filter(c => { const ends = [c.end_at, c.term && c.term.end_at].filter(Boolean).map(Date.parse).filter(Number.isFinite); return !ends.length || ends.every(t => t > now - 7 * 864e5); });
+      }
+      const courses = picked.slice(0, MAX_COURSES).map(normCourse);
       const results = await mapLimit(courses, 4, async c => {
         const list = await getJson(uid, `/api/v1/courses/${encodeURIComponent(c.id)}/assignments?include[]=submission&order_by=due_at&per_page=100`, MAX_PAGES);
         return list.filter(a => a && a.published !== false).map(a => normAssignment(a, c, rec.host));
@@ -241,11 +296,23 @@ function init({ app, dataDir, publicBaseUrl }) {
       syncCache.set(uid, { at: Date.now(), data }); rec.lastSync = Date.now(); save();
       res.json(Object.assign({ ok: true }, data));
     } catch (e) {
-      if (e.status === 401) { /* token no longer valid */ }
+      if (e.canvasAuth) { await delRec(uid); } // Canvas says the token is dead (expired/revoked): drop it so the student reconnects
       console.error('Canvas sync error:', e.message); fail(res, e);
     }
   });
 
-  return { forgetUser(id) { if (store[id]) { delete store[id]; syncCache.delete(id); save(); } } };
+  /* ---------- one assignment in full (for "Study this") ---------- */
+  app.get('/api/canvas/assignment', needUser, async (req, res) => {
+    const cid = String(req.query.cid || ''), id = String(req.query.id || '');
+    if (!/^\d{1,20}$/.test(cid) || !/^\d{1,20}$/.test(id)) return res.status(400).json({ ok: false, error: 'Bad assignment.' });
+    try {
+      const a = await getJson(req.user.id, `/api/v1/courses/${cid}/assignments/${id}`, 1);
+      if (!a || Array.isArray(a)) return res.status(404).json({ ok: false, error: 'Assignment not found.' });
+      const rubric = (Array.isArray(a.rubric) ? a.rubric : []).slice(0, 12).map(r => ({ name: String(r.description || '').slice(0, 120), detail: strip(r.long_description).slice(0, 300), points: r.points }));
+      res.json({ ok: true, name: String(a.name || '').slice(0, 160), text: strip(a.description).slice(0, 6000), rubric, points: a.points_possible, types: (a.submission_types || []).slice(0, 4) });
+    } catch (e) { if (e.canvasAuth) await delRec(req.user.id); console.error('Canvas assignment error:', e.message); fail(res, e); }
+  });
+
+  return { forgetUser(id) { delRec(id).catch(() => {}); } };
 }
 module.exports = { init };
