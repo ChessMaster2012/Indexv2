@@ -184,6 +184,15 @@ function aiPickSubject(a,text){
   var prompt='A student has this school assignment. Choose which ONE Index course below it belongs to (closest subject match).\nClass: '+a.course+'\nAssignment: '+a.name+'\nDetails: '+String(text||'').slice(0,800)+'\n\nCourses:\n'+list+'\n\nReply with ONLY JSON: {"id":"<course id from the list>"}';
   return askJSON(prompt).then(function(r){ var id=r&&String(r.id||''); return subs.some(function(s){return s.id===id;})?id:subs[0].id; }).catch(function(){ return subs[0].id; });
 }
+function askPaste(unread){
+  return new Promise(function(resolve){
+    var o=document.createElement('div'); o.className='cv-modal';
+    o.innerHTML='<div class="cv-modal-card"><h3>I couldn’t open this assignment</h3><p>'+(unread&&unread.length?'Canvas only links to: '+esc(unread.join(', '))+'. ':'')+'It’s private or outside Canvas, so I can’t sign in to it for you. Paste the assignment text (or the questions) here and I’ll build the quiz from it — or skip to base it on the title.</p><textarea class="cv-sel wide" rows="7" placeholder="Paste the assignment here…" style="width:100%;resize:vertical"></textarea><div class="cv-modal-act"><button class="btn btn-ghost" data-x="no">Cancel</button><button class="btn btn-ghost" data-x="skip">Skip</button><button class="btn btn-primary" data-x="ok">Use this text</button></div></div>';
+    var done=function(v){ if(o.parentNode) document.body.removeChild(o); resolve(v); };
+    o.addEventListener('click',function(e){ var x=e.target.getAttribute&&e.target.getAttribute('data-x'); if(x==='ok') done(o.querySelector('textarea').value.trim().slice(0,9000)); else if(x==='skip') done(''); else if(x==='no'||e.target===o) done(null); });
+    document.body.appendChild(o);
+  });
+}
 function studyThis(id,cid){
   var a=CV.data.assignments.filter(function(x){ return String(x.id)===String(id)&&String(x.cid)===String(cid); })[0]; if(!a) return;
   if(!safe(function(){ return state.aiEnabled; },true)){ toast('AI is unavailable right now.',true); return; }
@@ -191,9 +200,12 @@ function studyThis(id,cid){
   fetch('/api/canvas/assignment?cid='+encodeURIComponent(cid)+'&id='+encodeURIComponent(id),{credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return null;}).then(function(full){
     full=(full&&full.ok)?full:{text:a.desc||'',sources:[],unread:[],rubric:[]};
     var parts=[]; if(full.text) parts.push('ASSIGNMENT INSTRUCTIONS:\n'+full.text);
-    (full.sources||[]).forEach(function(s){ parts.push('ATTACHED '+(s.kind==='page'?'PAGE':'FILE')+' "'+s.name+'":\n'+s.text); });
+    (full.sources||[]).forEach(function(s){ parts.push('ATTACHED '+(s.kind==='page'?'PAGE':s.kind==='link'?'LINKED DOCUMENT':'FILE')+' "'+s.name+'":\n'+s.text); });
     var rub=(full.rubric||[]).map(function(r){ return '- '+r.name+(r.detail?': '+r.detail:''); }).join('\n'); if(rub) parts.push('GRADING RUBRIC:\n'+rub);
     var material=parts.join('\n\n'), thin=material.replace(/\s+/g,' ').length<160;
+    return (thin?askPaste(full.unread):Promise.resolve('')).then(function(pasted){
+      if(pasted===null) return;
+      if(pasted){ material+=(material?'\n\n':'')+'ASSIGNMENT TEXT PROVIDED BY THE STUDENT:\n'+pasted; thin=false; }
     return aiPickSubject(a,material).then(function(sid){
       if(!sid){ toast('Add a course in Index first.',true); return; }
       var subj=subjectById(sid), n=8;
@@ -212,7 +224,7 @@ function studyThis(id,cid){
         if(full.unread&&full.unread.length) setTimeout(function(){ toast('Couldn’t open: '+full.unread.join(', ')); },2600);
         switchView('studysets');
       });
-    });
+    }); });
   }).catch(function(){ toast('Could not build that quiz. Try again.',true); });
 }
 
