@@ -8,6 +8,8 @@
   },
   "dependencies": {
     "express": "^4.21.2",
+    "mammoth": "^1.13.0",
+    "pdf-parse": "^1.1.1",
     "socket.io": "^4.8.1"
   }
 }

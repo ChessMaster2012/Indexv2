@@ -302,14 +302,56 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
   });
 
   /* ---------- one assignment in full (for "Study this") ---------- */
+  const FILE_MAX = 8 * 1024 * 1024;
+  async function downloadPublic(url, depth) {
+    const u = new URL(url); if (u.protocol !== 'https:') throw new Error('not https');
+    await assertPublic(u.hostname);
+    const r = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(15000), headers: { 'User-Agent': UA } });
+    if (r.status >= 300 && r.status < 400 && r.headers.get('location')) { if ((depth || 0) >= 3) throw new Error('redirects'); return downloadPublic(new URL(r.headers.get('location'), u).toString(), (depth || 0) + 1); }
+    if (!r.ok) throw new Error('status ' + r.status);
+    if (Number(r.headers.get('content-length') || 0) > FILE_MAX) throw new Error('too big');
+    const buf = Buffer.from(await r.arrayBuffer()); if (buf.length > FILE_MAX) throw new Error('too big');
+    return buf;
+  }
+  async function fileText(uid, host, fileId) {
+    const meta = await getJson(uid, `/api/v1/files/${fileId}`, 1);
+    const name = String(meta.display_name || meta.filename || 'file').slice(0, 120), ext = (name.split('.').pop() || '').toLowerCase(), size = Number(meta.size || 0);
+    if (!meta.url || size > FILE_MAX) return { name, text: '', why: 'too large' };
+    const buf = await downloadPublic(meta.url);
+    let text = '';
+    if (ext === 'pdf') text = ((await require('pdf-parse/lib/pdf-parse.js')(buf)).text || '');
+    else if (ext === 'docx') text = ((await require('mammoth').extractRawText({ buffer: buf })).value || '');
+    else if (['txt', 'md', 'csv', 'rtf'].includes(ext)) text = buf.toString('utf8');
+    else if (['html', 'htm'].includes(ext)) text = strip(buf.toString('utf8'));
+    else return { name, text: '', why: 'unsupported type (.' + ext + ')' };
+    text = text.replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+    return { name, text: text.slice(0, 5000), why: text ? '' : 'no readable text (scanned image?)' };
+  }
   app.get('/api/canvas/assignment', needUser, async (req, res) => {
-    const cid = String(req.query.cid || ''), id = String(req.query.id || '');
+    const cid = String(req.query.cid || ''), id = String(req.query.id || ''), uid = req.user.id;
     if (!/^\d{1,20}$/.test(cid) || !/^\d{1,20}$/.test(id)) return res.status(400).json({ ok: false, error: 'Bad assignment.' });
     try {
-      const a = await getJson(req.user.id, `/api/v1/courses/${cid}/assignments/${id}`, 1);
+      const rec = await getRec(uid); if (!rec) return res.status(404).json({ ok: false, error: 'Canvas is not connected.' });
+      const a = await getJson(uid, `/api/v1/courses/${cid}/assignments/${id}`, 1);
       if (!a || Array.isArray(a)) return res.status(404).json({ ok: false, error: 'Assignment not found.' });
+      const html = String(a.description || '');
       const rubric = (Array.isArray(a.rubric) ? a.rubric : []).slice(0, 12).map(r => ({ name: String(r.description || '').slice(0, 120), detail: strip(r.long_description).slice(0, 300), points: r.points }));
-      res.json({ ok: true, name: String(a.name || '').slice(0, 160), text: strip(a.description).slice(0, 6000), rubric, points: a.points_possible, types: (a.submission_types || []).slice(0, 4) });
+      // attached files + linked Canvas pages inside the instructions
+      const fileIds = [...new Set([...html.matchAll(/\/files\/(\d{1,20})/g)].map(m => m[1]))].slice(0, 3);
+      const pageSlugs = [...new Set([...html.matchAll(/\/courses\/(\d{1,20})\/pages\/([A-Za-z0-9_\-%.]{1,120})/g)].map(m => m[1] + '/' + m[2]))].slice(0, 2);
+      const sources = [], unread = [];
+      for (const fid of fileIds) {
+        try { const f = await fileText(uid, rec.host, fid); if (f.text) sources.push({ kind: 'file', name: f.name, text: f.text }); else unread.push(f.name + (f.why ? ' (' + f.why + ')' : '')); }
+        catch (e) { if (e.canvasAuth) throw e; unread.push('a linked file'); }
+      }
+      for (const pg of pageSlugs) {
+        try { const [pc, slug] = pg.split('/'); const p = await getJson(uid, `/api/v1/courses/${pc}/pages/${slug}`, 1); const t = strip(p && p.body).slice(0, 3500); if (t) sources.push({ kind: 'page', name: String(p.title || 'Page').slice(0, 120), text: t }); }
+        catch (e) { if (e.canvasAuth) throw e; unread.push('a linked page'); }
+      }
+      const external = [...html.matchAll(/href="(https?:\/\/[^"]+)"/gi)].map(m => m[1]).filter(u => { try { return new URL(u).hostname !== rec.host; } catch (e) { return false; } }).length;
+      if (external) unread.push(external + ' outside link' + (external === 1 ? '' : 's') + ' (Google Docs, websites…)');
+      let text = strip(html).slice(0, 4000);
+      res.json({ ok: true, name: String(a.name || '').slice(0, 160), text, sources: sources.map(x => ({ kind: x.kind, name: x.name, text: x.text })), unread: unread.slice(0, 6), rubric, points: a.points_possible, types: (a.submission_types || []).slice(0, 4) });
     } catch (e) { if (e.canvasAuth) await delRec(req.user.id); console.error('Canvas assignment error:', e.message); fail(res, e); }
   });
 
