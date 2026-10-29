@@ -177,21 +177,26 @@ function newsHtml(){
 }
 
 /* ---------- study from an assignment ---------- */
-function pickSubject(preselect){
-  return new Promise(function(resolve){
-    var o=document.createElement('div'); o.className='cv-modal'; var subs=safe(function(){ return SUBJECTS; },[]);
-    o.innerHTML='<div class="cv-modal-card"><h3>Which Index course is this for?</h3><p>Pick the closest course so the practice questions match.</p><select class="cv-sel wide">'+subs.map(function(s){ return '<option value="'+esc(s.id)+'"'+(preselect&&preselect.id===s.id?' selected':'')+'>'+esc(s.name)+'</option>'; }).join('')+'</select><div class="cv-modal-act"><button class="btn btn-ghost" data-x="no">Cancel</button><button class="btn btn-primary" data-x="ok">Create quiz</button></div></div>';
-    o.addEventListener('click',function(e){ var x=e.target.getAttribute&&e.target.getAttribute('data-x'); if(x==='ok'){ var v=o.querySelector('select').value; document.body.removeChild(o); resolve(v); } else if(x==='no'||e.target===o){ document.body.removeChild(o); resolve(null); } });
-    document.body.appendChild(o);
-  });
+function aiPickSubject(a,text){
+  var subs=safe(function(){ return SUBJECTS; },[]); if(!subs.length) return Promise.resolve(null);
+  var direct=subjectFor(a.course); if(direct) return Promise.resolve(direct.id);
+  var list=subs.map(function(s){ return s.id+' = '+s.name; }).join('\n');
+  var prompt='A student has this school assignment. Choose which ONE Index course below it belongs to (closest subject match).\nClass: '+a.course+'\nAssignment: '+a.name+'\nDetails: '+String(text||'').slice(0,800)+'\n\nCourses:\n'+list+'\n\nReply with ONLY JSON: {"id":"<course id from the list>"}';
+  return askJSON(prompt).then(function(r){ var id=r&&String(r.id||''); return subs.some(function(s){return s.id===id;})?id:subs[0].id; }).catch(function(){ return subs[0].id; });
 }
 function studyThis(id,cid){
   var a=CV.data.assignments.filter(function(x){ return String(x.id)===String(id)&&String(x.cid)===String(cid); })[0]; if(!a) return;
   if(!safe(function(){ return state.aiEnabled; },true)){ toast('AI is unavailable right now.',true); return; }
-  var pre=subjectFor(a.course); (pre?Promise.resolve(pre.id):pickSubject(null)).then(function(sid){
-    if(!sid) return; toast('Building a practice quiz for “'+a.name+'”…');
-    var src='Class: '+a.course+'\nAssignment: '+a.name+(a.desc?'\nDetails: '+a.desc:'')+'\nCreate questions that help the student prepare for this assignment.';
-    return buildStudySet({subjectId:sid,topic:a.name,type:'quiz',count:6,sourceText:src}).then(function(){ toast('Quiz ready in Study Sets ✅'); switchView('studysets'); });
+  toast('Reading “'+a.name+'” and building practice…');
+  fetch('/api/canvas/assignment?cid='+encodeURIComponent(cid)+'&id='+encodeURIComponent(id),{credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return null;}).then(function(full){
+    var text=(full&&full.ok&&full.text)||a.desc||'';
+    var rub=(full&&full.ok&&full.rubric||[]).map(function(r){ return '- '+r.name+(r.detail?': '+r.detail:''); }).join('\n');
+    var src='Class: '+a.course+'\nAssignment: '+a.name+(a.points!=null?' ('+a.points+' points)':'')+'\n'+(text?'Assignment instructions:\n'+text+'\n':'')+(rub?'Grading rubric:\n'+rub+'\n':'')+
+      '\nFirst work out the exact topics, skills and vocabulary this assignment covers. Then write practice questions that test that material so the student is ready to complete it. Do not just restate the instructions.';
+    return aiPickSubject(a,text).then(function(sid){
+      if(!sid){ toast('Add a course in Index first.',true); return; }
+      return buildStudySet({subjectId:sid,topic:a.name,type:'quiz',count:8,sourceText:src}).then(function(){ toast('Practice quiz ready in Study Sets ✅'); switchView('studysets'); });
+    });
   }).catch(function(){ toast('Could not build that quiz. Try again.',true); });
 }
 

@@ -2993,7 +2993,7 @@ LIBRARY.init({
   app, express, dataDir: DATA_DIR, containsConductViolation,
   supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest }
 });
-const CANVAS = require('./canvas').init({ app, dataDir: DATA_DIR, publicBaseUrl: PUBLIC_BASE_URL });
+const CANVAS = require('./canvas').init({ app, dataDir: DATA_DIR, publicBaseUrl: PUBLIC_BASE_URL, supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest } });
 require('./liveengine').attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTitle, cappedDailyCoins });
 
 server.listen(PORT, () => {
