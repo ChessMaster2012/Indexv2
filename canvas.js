@@ -62,31 +62,32 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
      row with id "canvas:<userId>", so a Render restart / 15-minute idle spin-down never disconnects a student.
      The token inside is AES-GCM encrypted. The connection lasts until Canvas itself rejects the token. */
   const remoteOn = () => !!(supabase && supabase.enabled);
-  const rid = uid => encodeURIComponent('canvas:' + uid);
-  async function getRec(uid) {
-    if (store[uid]) return store[uid];
+  const sk = (uid, ns) => ns ? ns + ':' + uid : uid;
+  const rid = (uid, ns) => encodeURIComponent((ns || 'canvas') + ':' + uid);
+  async function getRec(uid, ns) {
+    if (store[sk(uid, ns)]) return store[sk(uid, ns)];
     if (!remoteOn()) return null;
     try {
-      const rows = await supabase.request('index_accounts?select=account_data_blob&id=eq.' + rid(uid) + '&limit=1');
+      const rows = await supabase.request('index_accounts?select=account_data_blob&id=eq.' + rid(uid, ns) + '&limit=1');
       const blob = Array.isArray(rows) && rows[0] && rows[0].account_data_blob;
       if (!blob) return null;
       const rec = JSON.parse(Buffer.from(String(blob), 'base64').toString('utf8'));
-      if (rec && rec.host && rec.enc) { store[uid] = rec; return rec; }
+      if (rec && rec.host && rec.enc) { store[sk(uid, ns)] = rec; return rec; }
     } catch (e) { console.error('Canvas record load failed:', e.message); }
     return null;
   }
-  async function putRec(uid, rec) {
-    store[uid] = rec; save();
+  async function putRec(uid, rec, ns) {
+    store[sk(uid, ns)] = rec; save();
     if (!remoteOn()) return;
     try {
       await supabase.request('index_accounts', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ id: 'canvas:' + uid, method: 'canvas', first_name: '', last_name: '', account_data_blob: Buffer.from(JSON.stringify(rec), 'utf8').toString('base64'), updated_at: new Date().toISOString() }) });
+        body: JSON.stringify({ id: (ns || 'canvas') + ':' + uid, method: ns || 'canvas', first_name: '', last_name: '', account_data_blob: Buffer.from(JSON.stringify(rec), 'utf8').toString('base64'), updated_at: new Date().toISOString() }) });
     } catch (e) { console.error('Canvas record save failed:', e.message); }
   }
-  async function delRec(uid) {
-    delete store[uid]; syncCache.delete(uid); save();
+  async function delRec(uid, ns) {
+    delete store[sk(uid, ns)]; if (!ns) syncCache.delete(uid); save();
     if (!remoteOn()) return;
-    try { await supabase.request('index_accounts?id=eq.' + rid(uid), { method: 'DELETE' }); } catch (e) { console.error('Canvas record delete failed:', e.message); }
+    try { await supabase.request('index_accounts?id=eq.' + rid(uid, ns), { method: 'DELETE' }); } catch (e) { console.error('Canvas record delete failed:', e.message); }
   }
 
   /* ---------- host safety (no SSRF) ---------- */
@@ -187,7 +188,7 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
 
   app.get('/api/canvas/status', needUser, async (req, res) => {
     const host = cleanHost(req.query.host);
-    res.json({ ok: true, oauthConfigured: oauthAnywhere(), oauthForHost: host ? !!oauthKey(host) : undefined, connection: publicRec(await getRec(req.user.id)) });
+    res.json({ ok: true, oauthConfigured: oauthAnywhere(), oauthForHost: host ? !!oauthKey(host) : undefined, connection: publicRec(await getRec(req.user.id)), drive: { configured: driveConfigured(), connected: !!(await getRec(req.user.id, 'gdrive')), email: ((await getRec(req.user.id, 'gdrive')) || {}).email || '' } });
   });
 
   async function connect(userId, host, kind, tokens) {
@@ -207,7 +208,7 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
       if (!host) return res.status(400).json({ ok: false, error: 'Enter your school\'s Canvas address, like myschool.instructure.com.' });
       if (!/^[A-Za-z0-9~_.\-]{16,300}$/.test(token)) return res.status(400).json({ ok: false, error: 'That does not look like a Canvas access token.' });
       await connect(req.user.id, host, 'token', { access: token });
-      res.json({ ok: true, connection: publicRec(await getRec(req.user.id)) });
+      res.json({ ok: true, connection: publicRec(await getRec(req.user.id)), drive: { configured: driveConfigured(), connected: !!(await getRec(req.user.id, 'gdrive')), email: ((await getRec(req.user.id, 'gdrive')) || {}).email || '' } });
     } catch (e) { fail(res, e); }
   });
 
@@ -301,6 +302,81 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
     }
   });
 
+  /* ---------- Google Drive (read-only) so private Docs/Slides/Drive files in assignments can be read ---------- */
+  const G_ID = () => String(process.env.GOOGLE_CLIENT_ID || ''), G_SECRET = () => String(process.env.GOOGLE_CLIENT_SECRET || '');
+  const driveConfigured = () => !!(G_ID() && G_SECRET());
+  const gRedirect = req => `${publicBaseUrl || `${req.protocol}://${req.get('host')}`}/api/canvas/google/callback`;
+  const gStates = new Map();
+  async function gToken(uid) {
+    const rec = await getRec(uid, 'gdrive'); if (!rec) return null;
+    if (rec.expiresAt && Date.now() < rec.expiresAt - 60000) return dec(rec.enc);
+    const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', signal: AbortSignal.timeout(10000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'refresh_token', client_id: G_ID(), client_secret: G_SECRET(), refresh_token: dec(rec.refresh) }).toString() });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.access_token) { rec.enc = enc(j.access_token); rec.expiresAt = Date.now() + (Number(j.expires_in) || 3600) * 1000; await putRec(uid, rec, 'gdrive'); return j.access_token; }
+    if (j.error === 'invalid_grant') await delRec(uid, 'gdrive'); // revoked / expired: student reconnects
+    return null;
+  }
+  app.get('/api/canvas/google/start', needUser, (req, res) => {
+    if (!driveConfigured()) return res.redirect('/?driveError=' + encodeURIComponent('Google Drive access is not set up on this server yet.'));
+    const state = crypto.randomBytes(24).toString('hex'); gStates.set(state, { userId: req.user.id, at: Date.now() });
+    const u = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    u.searchParams.set('client_id', G_ID()); u.searchParams.set('redirect_uri', gRedirect(req)); u.searchParams.set('response_type', 'code');
+    u.searchParams.set('scope', 'https://www.googleapis.com/auth/drive.readonly'); u.searchParams.set('access_type', 'offline'); u.searchParams.set('prompt', 'consent'); u.searchParams.set('state', state);
+    res.redirect(u.toString());
+  });
+  app.get('/api/canvas/google/callback', async (req, res) => {
+    const st = gStates.get(String(req.query.state || '')); gStates.delete(String(req.query.state || ''));
+    if (!st || Date.now() - st.at > 10 * 60 * 1000) return res.redirect('/?driveError=' + encodeURIComponent('The Google sign-in expired. Please try again.'));
+    if (req.query.error || !req.query.code) return res.redirect('/?driveError=' + encodeURIComponent('Google Drive connection was cancelled.'));
+    try {
+      const r = await fetch('https://oauth2.googleapis.com/token', { method: 'POST', signal: AbortSignal.timeout(10000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: String(req.query.code), client_id: G_ID(), client_secret: G_SECRET(), redirect_uri: gRedirect(req) }).toString() });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.access_token) throw new Error('token');
+      if (!j.refresh_token) throw new Error('norefresh');
+      let email = '';
+      try { const a = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', { headers: { Authorization: 'Bearer ' + j.access_token }, signal: AbortSignal.timeout(8000) }); email = ((await a.json()).user || {}).emailAddress || ''; } catch (e) { /* optional */ }
+      await putRec(st.userId, { host: 'drive.google.com', kind: 'google', email: String(email).slice(0, 120), enc: enc(j.access_token), refresh: enc(j.refresh_token), expiresAt: Date.now() + (Number(j.expires_in) || 3600) * 1000, connectedAt: Date.now() }, 'gdrive');
+      res.redirect('/?drive=connected');
+    } catch (e) { console.error('Google Drive OAuth error:', e.message); res.redirect('/?driveError=' + encodeURIComponent(e.message === 'norefresh' ? 'Google did not grant lasting access. Remove Index in your Google account permissions and try again.' : 'Google Drive connection failed.')); }
+  });
+  app.post('/api/canvas/google/disconnect', needUser, async (req, res) => {
+    const rec = await getRec(req.user.id, 'gdrive');
+    if (rec) { try { await fetch('https://oauth2.googleapis.com/revoke', { method: 'POST', signal: AbortSignal.timeout(6000), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'token=' + encodeURIComponent(dec(rec.refresh)) }); } catch (e) { /* best effort */ } }
+    await delRec(req.user.id, 'gdrive'); res.json({ ok: true });
+  });
+  function googleFileId(link) {
+    const u = new URL(link); let m;
+    if (u.hostname === 'docs.google.com' && (m = u.pathname.match(/\/(?:document|presentation|spreadsheets)\/(?:u\/\d+\/)?d\/([\w-]+)/))) return m[1];
+    if (u.hostname === 'drive.google.com') { if ((m = u.pathname.match(/\/file\/(?:u\/\d+\/)?d\/([\w-]+)/))) return m[1]; if (u.pathname === '/open' || u.pathname === '/uc') return /^[\w-]+$/.test(u.searchParams.get('id') || '') ? u.searchParams.get('id') : null; }
+    return null;
+  }
+  /** Read a Drive/Docs file as the student (read-only). Returns null when Drive isn't connected. */
+  async function driveText(uid, link) {
+    const id = googleFileId(link); if (!id) return null;
+    const tok = await gToken(uid); if (!tok) return null;
+    const H = { headers: { Authorization: 'Bearer ' + tok }, signal: AbortSignal.timeout(20000) };
+    const mr = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType,size&supportsAllDrives=true`, H);
+    if (mr.status === 404 || mr.status === 403) return { text: '', why: 'your Google account can’t open it' };
+    if (!mr.ok) return { text: '', why: 'Google error ' + mr.status };
+    const meta = await mr.json(), mime = String(meta.mimeType || '');
+    let r;
+    if (mime === 'application/vnd.google-apps.folder') return { text: '', why: 'it’s a folder' };
+    if (mime.startsWith('application/vnd.google-apps.')) {
+      const out = mime.endsWith('spreadsheet') ? 'text/csv' : 'text/plain';
+      r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=${encodeURIComponent(out)}`, H);
+    } else {
+      if (Number(meta.size || 0) > FILE_MAX) return { text: '', why: 'file too large' };
+      r = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`, H);
+    }
+    if (!r.ok) return { text: '', why: 'could not export (' + r.status + ')' };
+    const buf = Buffer.from(await r.arrayBuffer()); if (buf.length > FILE_MAX) return { text: '', why: 'file too large' };
+    const text = mime.startsWith('application/vnd.google-apps.') ? buf.toString('utf8').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim() : await bufText(buf, mime, meta.name);
+    if (text == null) return { text: '', why: 'unsupported file type' };
+    return { text: text.slice(0, 6000), why: text ? '' : 'empty', name: String(meta.name || '').slice(0, 120) };
+  }
+
   /* ---------- one assignment in full (for "Study this") ---------- */
   const FILE_MAX = 8 * 1024 * 1024;
   async function downloadPublic(url, depth) {
@@ -375,7 +451,11 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
       const extLinks = [...new Set([...html.matchAll(/href="(https?:\/\/[^"]+)"/gi)].map(m => m[1].replace(/&amp;/g, '&')).filter(u => { try { return new URL(u).hostname !== rec.host; } catch (e) { return false; } }))].slice(0, 4);
       for (const link of extLinks) {
         let host = ''; try { host = new URL(link).hostname.replace(/^www\./, ''); } catch (e) { continue; }
-        try { const t = await linkText(link); if (t.text) sources.push({ kind: 'link', name: host, text: t.text }); else unread.push(host + ' (' + (t.why || 'nothing readable') + ')'); }
+        try {
+          let t = null; try { t = await driveText(uid, link); } catch (e) { t = { text: '', why: 'could not read it from Google' }; }
+          if (!t) t = await linkText(link);
+          if (t.text) sources.push({ kind: 'link', name: t.name || host, text: t.text }); else unread.push(host + ' (' + (t.why || 'nothing readable') + ')');
+        }
         catch (e) { unread.push(host + ' (could not open)'); }
       }
       let text = strip(html).slice(0, 4000);
@@ -383,6 +463,6 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
     } catch (e) { if (e.canvasAuth) await delRec(req.user.id); console.error('Canvas assignment error:', e.message); fail(res, e); }
   });
 
-  return { forgetUser(id) { delRec(id).catch(() => {}); } };
+  return { forgetUser(id) { delRec(id).catch(() => {}); delRec(id, 'gdrive').catch(() => {}); } };
 }
 module.exports = { init };
