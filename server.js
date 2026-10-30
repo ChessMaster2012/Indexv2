@@ -322,9 +322,9 @@ function requestedWritingConstraints(messages){
 }
 
 const TUTOR_MODE_RULES = {
-  explain: 'MODE: Explain it. The student wants an explanation. Give a clear, well-organized explanation (up to about 250 words) with a concrete example, using short headings or steps if it helps, then ask ONE quick question to check understanding. You may explain fully here, but do not do their graded work for them.',
-  quiz: 'MODE: Quiz me. Run a practice quiz on the topic the student names (or on the attached document). Ask exactly ONE question at a time (mix multiple-choice and short answer), wait for their answer, say whether it is right and why in one or two sentences, then ask the next question and gradually raise the difficulty. Keep a running score every few questions. If they have not named a topic yet, ask for one.',
-  check: 'MODE: Check my work. The student will paste their own work or answer. Do NOT redo it for them. Go through it: say which parts are correct, point to the FIRST mistake with a hint (not the fix), and ask them to try correcting it. For writing, give 2-3 specific strengths and 2-3 specific improvements tied to their own sentences.'
+  explain: 'MODE: Explain it. Teach the exact concept or problem the student asks about. Start with a direct, accurate explanation, break down the key idea into manageable steps, include a concrete example, and explain why it works. Do not withhold the explanation just to ask what the student tried. End with one short check-for-understanding question.',
+  quiz: 'MODE: Quiz me. Run an interactive practice quiz on the selected subject, topic, or attached document. Ask exactly ONE question at a time. Wait for the student answer; then clearly mark it correct or incorrect, explain why in 1-3 sentences, update a running score, and ask the next question at an appropriate difficulty. Do not reveal the answer before the student responds. If no topic or document is available, ask what they want to practice.',
+  check: 'MODE: Check my work. The student should send the actual problem AND their attempted answer or working. If they send only the problem with no attempt, ask them to share what they tried before judging it; do not pretend they submitted work. When both problem and attempt are present, independently solve/check the problem, compare the student work step by step, identify what is correct, and point out the FIRST incorrect step with a helpful hint that lets them fix it. Do not falsely mark a correct answer wrong, and do not invent an error. If the entire attempt is correct, clearly say so and explain briefly why. For writing, give 2-3 specific strengths and 2-3 actionable improvements tied to their actual sentences.'
 };
 function buildAiMessages(messages, opts){
   const tutorMode=!!(opts&&opts.tutor)&&process.env.TUTOR_STYLE!=='direct';
@@ -548,7 +548,7 @@ async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxT
     const remaining=deadline-Date.now();
     if(remaining<1000) break;
     try{
-      return await callVireonix(messages,complex,Math.min(12000,Math.max(1000,remaining-250)),maxTokensOverride,temperature);
+      return await callVireonix(messages,complex,Math.min(18000,Math.max(1000,remaining-250)),maxTokensOverride,temperature);
     }catch(e){
       lastError=e;
       if(!providerRetryable(e)||attempt===2) throw e;
@@ -1093,7 +1093,10 @@ app.post('/api/ai/chat',async(req,res)=>{
         // half a sentence (or only the first couple of words) and no recovery.
         // Keep Vireonix Auto as the sole provider, but retry transient 5xx/network
         // failures with backoff inside the browser's 90-second Tutor deadline.
-        let tutorAnswer=await callVireonixWithRetry(messages,complex,42000,1800,0.1);
+        // Give Auto enough time for a normal answer while staying inside the
+        // browser's 90-second deadline. Each attempt gets a real 18-second window;
+        // transient network/provider failures can retry within the 65-second budget.
+        let tutorAnswer=await callVireonixWithRetry(messages,complex,65000,1800,0.1);
 
         // A successful HTTP response can still contain an obviously interrupted
         // fragment. Ask Auto to finish that same answer once before returning it.
@@ -1108,7 +1111,7 @@ app.post('/api/ai/chat',async(req,res)=>{
             {role:'user',content:'Your previous reply was cut off before it was complete. Finish the same tutoring response in a complete, useful way. Do not restart or repeat the part already written. Follow the selected tutoring mode.'}
           ];
           try{
-            const completed=await callVireonixWithRetry(recoveryMessages,complex,18000,1800,0.1);
+            const completed=await callVireonixWithRetry(recoveryMessages,complex,14000,1800,0.1);
             if(completed && completed.trim()) tutorAnswer=completed;
           }catch(recoveryError){
             console.warn('[AI] Tutor completion retry failed:',recoveryError?.message||recoveryError);
