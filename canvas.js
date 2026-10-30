@@ -379,7 +379,8 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
   }
 
   /* ---------- student uploads the assignment file (e.g. downloaded from a private Google Doc) ---------- */
-  app.post('/api/canvas/extract', needUser, require('express').json({ limit: '12mb' }), async (req, res) => {
+  const extractLimit = require('./security').makeLimiter({ windowMs: 60 * 1000, max: 12, keyFn: require('./security').sessionOrIpKey, message: 'Too many uploads. Wait a minute and try again.' });
+  app.post(['/api/canvas/extract', '/api/tutor/extract'], (req, res, next) => (req.path === '/api/canvas/extract' && !req.user) ? res.status(401).json({ ok: false, error: 'Sign in to Index first.' }) : next(), extractLimit, require('express').json({ limit: '12mb' }), async (req, res) => {
     try {
       const name = String((req.body && req.body.name) || 'file').slice(0, 160), b64 = String((req.body && req.body.data) || '');
       if (!b64 || b64.length > 11.5 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'That file is too large (8 MB max).' });

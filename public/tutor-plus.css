@@ -1,0 +1,24 @@
+/* AI Tutor extras: modes, attachment, quick prompts, message actions */
+.tp-modes{display:flex;gap:6px;padding:10px 16px 0;flex-wrap:wrap}
+.tp-mode{border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;line-height:1.2}
+.tp-mode:hover{border-color:var(--purple)}
+.tp-mode.on{background:var(--purple);border-color:var(--purple);color:#fff}
+.tp-mode-hint{width:100%;font-size:12px;color:var(--ink-soft);margin:2px 2px 0}
+.tp-strip{padding:8px 16px 0;display:flex;flex-direction:column;gap:8px;border-top:2px solid var(--line)}
+.tp-doc{display:flex;align-items:center;gap:8px;background:var(--bg);border:2px solid var(--line);border-radius:12px;padding:7px 10px;font-size:13px;max-width:100%}
+.tp-doc b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tp-doc small{color:var(--ink-soft);white-space:nowrap}
+.tp-doc button{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:15px;color:var(--ink-soft)}
+.tp-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+.tp-chip{flex:0 0 auto;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tp-chip:hover{border-color:var(--purple)}
+.tp-chip:disabled{opacity:.5;cursor:default}
+.tp-attach{flex:0 0 auto;align-self:flex-end;border:2px solid var(--line);background:var(--bg);border-radius:14px;width:44px;height:44px;font-size:18px;cursor:pointer}
+.tp-attach:hover{border-color:var(--purple)}
+.tp-status{font-size:12px;color:var(--ink-soft);padding:0 2px 6px}
+.tp-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tp-act{border:1px solid var(--line);background:transparent;color:var(--ink-soft);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;cursor:pointer}
+.tp-act:hover{color:var(--ink);border-color:var(--purple)}
+.tutor-shell.tp-drag{outline:3px dashed var(--purple);outline-offset:-6px}
+.tp-bar-btn{white-space:nowrap}
+@media (max-width:560px){.tp-bar-btn .tp-lbl{display:none}.tp-mode{padding:6px 10px}}
