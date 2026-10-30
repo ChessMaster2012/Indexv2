@@ -541,10 +541,9 @@ async function callVireonixCommanderWithRetry(messages,timeoutMs=26000,maxTokens
   );
 }
 
-async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxTokensOverride=null,temperature=0){
-  // Structured study-set generation should use JSON responses, not the Tutor's
-  // streaming path. Retry only transient provider/network failures, within the
-  // browser's existing request deadline, and always keep Vireonix Auto.
+async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxTokensOverride=null,temperature=0,requestLabel='AI'){
+  // Retry transient provider/network failures within the caller's request budget.
+  // Vireonix Auto remains the only provider and the model remains "auto".
   const deadline=Date.now()+timeoutMs;
   let lastError=null;
   for(let attempt=0;attempt<3;attempt++){
@@ -554,32 +553,31 @@ async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxT
       return await callVireonix(messages,complex,Math.min(18000,Math.max(1000,remaining-250)),maxTokensOverride,temperature);
     }catch(e){
       lastError=e;
+      console.warn('[AI] '+requestLabel+' attempt '+(attempt+1)+'/3 failed: '+providerFailureLabel(e)+(e?.status?' (HTTP '+e.status+')':'')+'.');
       if(!providerRetryable(e)||attempt===2) throw e;
-      // Honor the provider's Retry-After when supplied. The JSON request previously
-      // retried almost immediately, unlike the streaming path, which can make a
-      // short-lived upstream 5xx persist across all attempts.
+      // Respect Retry-After and use enough spacing for a short-lived upstream 5xx.
       const exponentialBackoff=attempt===0?1000:2500;
       const retryAfterMs=Math.max(0,Number(e?.retryAfter||0)*1000);
       const requestedWait=Math.max(exponentialBackoff,retryAfterMs);
       const waitMs=Math.min(requestedWait,Math.max(0,deadline-Date.now()-1000));
       if(waitMs<=0) throw e;
-      console.warn('[AI] Study-set JSON retry '+(attempt+1)+'/'+2+' after '+providerFailureLabel(e)+'; waiting '+waitMs+'ms.');
+      console.warn('[AI] '+requestLabel+' retry '+(attempt+1)+'/2 scheduled in '+waitMs+'ms.');
       await sleep(waitMs);
     }
   }
-  throw lastError||new Error('Vireonix Auto study-set generation timed out.');
+  throw lastError||new Error('Vireonix Auto request timed out.');
 }
 
 async function streamVireonixToResponse(messages,complex,res,options={}){
-  // Tutor requests have a firm sub-10-second upstream deadline; background AI
-  // generation keeps the longer compatibility deadline used by other Index features.
+  // Default deadlines preserve each flow's existing behavior. A Tutor transport
+  // fallback may pass a larger deadline after a fast JSON-mode 502/503.
   const tutorMode=String(options.mode||'')==='tutor';
   const studySetMode=String(options.mode||'')==='study-set';
   const fastTutor=false; // Keep Tutor on streaming for low-latency first output.
   // The server enforces the quick-vs-deep deadline. The browser waits up to
   // the deep ceiling for Tutor intent so contextual follow-ups cannot be aborted
   // early by a shorter client-side timer.
-  const deadline=Date.now()+(tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 35000 : 29500));
+  const deadline=Date.now()+(Number(options.deadlineMs)|| (tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 35000 : 29500)));
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -613,16 +611,17 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   let attempt=await requestAttempt();
   let upstream=attempt.response;
 
-  // Retry transient provider failures with exponential backoff. Study-set generation
-  // gets more spaced retries because Vireonix can briefly return 5xx while Auto's
-  // upstream model pool is recovering; Tutor and other flows keep their old retry policy.
+  // Retry transient provider failures with exponential backoff. Study-set and Tutor
+  // flows use spaced retries to give Vireonix Auto's upstream model pool time to recover.
   const maxUpstreamRetries=studySetMode ? 4 : 2;
   for(let retry=0;retry<maxUpstreamRetries && (upstream.status===429 || upstream.status>=500) && Date.now()<deadline-1800;retry++){
     const retryAfter=Number(upstream.headers.get('retry-after')||0)||0;
     const backoff=studySetMode
       ? ([750,1500,2500,3500][retry]||3500)
-      : (retry===0?350:750);
-    const wait=Math.min(studySetMode?4000:1200,Math.max(backoff,retryAfter*1000));
+      : tutorMode
+        ? ([1000,2500][retry]||2500)
+        : (retry===0?350:750);
+    const wait=Math.min((studySetMode||tutorMode)?4000:1200,Math.max(backoff,retryAfter*1000));
     try{ await upstream.arrayBuffer(); }catch{}
     clearTimeout(attempt.timer);
     const remaining=deadline-Date.now()-500;
@@ -1082,7 +1081,7 @@ app.post('/api/ai/chat',async(req,res)=>{
         // transport if its JSON request stalls or returns transient failures. Keep the exact
         // prompt and Auto model; split the client budget between both attempts.
         try{
-          const generatedText=await callVireonixWithRetry(messages,false,18000,1800);
+          const generatedText=await callVireonixWithRetry(messages,false,18000,1800,0,'Study-set JSON');
           return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
         }catch(jsonError){
           console.warn('[AI] Study-set JSON mode failed; retrying the same Vireonix Auto prompt with streaming:',jsonError?.message||jsonError);
@@ -1099,7 +1098,19 @@ app.post('/api/ai/chat',async(req,res)=>{
         // Give Auto enough time for a normal answer while staying inside the
         // browser's 90-second deadline. Each attempt gets a real 18-second window;
         // transient network/provider failures can retry within the 65-second budget.
-        let tutorAnswer=await callVireonixWithRetry(messages,complex,65000,1800,0.1);
+        let tutorAnswer;
+        try{
+          tutorAnswer=await callVireonixWithRetry(messages,complex,65000,1800,0.1,'Tutor');
+        }catch(tutorJsonError){
+          const upstreamStatus=Number(tutorJsonError?.status||0);
+          if(upstreamStatus!==502 && upstreamStatus!==503) throw tutorJsonError;
+          // Some upstream 5xx failures affect JSON responses but not the streaming
+          // transport. Retry the same prompt, same Auto model, and same mode over SSE.
+          // The browser already supports SSE; this is a transport fallback, not a provider switch.
+          console.warn('[AI] Tutor JSON retries exhausted after HTTP '+upstreamStatus+'; trying Vireonix Auto streaming transport.');
+          await streamVireonixToResponse(messages,complex,res,{mode:'tutor',deadlineMs:30000});
+          return;
+        }
 
         // A successful HTTP response can still contain an obviously interrupted
         // fragment. Ask Auto to finish that same answer once before returning it.
@@ -1114,7 +1125,7 @@ app.post('/api/ai/chat',async(req,res)=>{
             {role:'user',content:'Your previous reply was cut off before it was complete. Finish the same tutoring response in a complete, useful way. Do not restart or repeat the part already written. Follow the selected tutoring mode.'}
           ];
           try{
-            const completed=await callVireonixWithRetry(recoveryMessages,complex,14000,1800,0.1);
+            const completed=await callVireonixWithRetry(recoveryMessages,complex,14000,1800,0.1,'Tutor recovery');
             if(completed && completed.trim()) tutorAnswer=completed;
           }catch(recoveryError){
             console.warn('[AI] Tutor completion retry failed:',recoveryError?.message||recoveryError);
