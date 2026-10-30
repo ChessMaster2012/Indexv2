@@ -8,7 +8,7 @@ var MODES=[
   {id:'',ic:'compass',label:'Coach',hint:'Guides you step by step with hints and questions.'},
   {id:'explain',ic:'book-open',label:'Explain it',hint:'Gets a clear explanation with an example, then checks you understood.'},
   {id:'quiz',ic:'target',label:'Quiz me',hint:'Asks you one practice question at a time and gives feedback.'},
-  {id:'check',ic:'circle-check',label:'Check my work',hint:'Paste your answer or draft; it points to the first mistake without redoing it.'}
+  {id:'check',ic:'circle-check',label:'Check my work',hint:'Send the problem plus your attempt; it checks your steps and points out the first mistake.'}
 ];
 var CHIPS=[
   ['lightbulb','Give me a hint','Can I get a hint?'],
