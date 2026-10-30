@@ -1087,8 +1087,37 @@ app.post('/api/ai/chat',async(req,res)=>{
           return;
         }
       }
-      const responseMode=requestIntent==='tutor'?'tutor':'background';
-      await streamVireonixToResponse(messages,complex,res,{mode:responseMode});
+      if(requestIntent==='tutor'){
+        // Tutor replies use a complete JSON response rather than exposing a live
+        // token stream. A dropped SSE connection used to leave students with
+        // half a sentence (or only the first couple of words) and no recovery.
+        // Keep Vireonix Auto as the sole provider, but retry transient 5xx/network
+        // failures with backoff inside the browser's 90-second Tutor deadline.
+        let tutorAnswer=await callVireonixWithRetry(messages,complex,42000,1800,0.1);
+
+        // A successful HTTP response can still contain an obviously interrupted
+        // fragment. Ask Auto to finish that same answer once before returning it.
+        const wordCount=(String(tutorAnswer).match(/\\b[\\p{L}\\p{N}]+\\b/gu)||[]).length;
+        const looksCutOff=/\\.{3,}$|[,;:—-]$|\\b(?:because|and|but|or|with|to|of|for|that|which|the|a|an|is|are|was|were|in|on|at|by)$/i.test(String(tutorAnswer).trim())
+          || (wordCount<=2 && !/[.!?]$/.test(String(tutorAnswer).trim()));
+        if(looksCutOff){
+          console.warn('[AI] Tutor Auto returned a likely incomplete fragment; requesting completion.');
+          const recoveryMessages=[
+            ...messages,
+            {role:'assistant',content:String(tutorAnswer).slice(0,3000)},
+            {role:'user',content:'Your previous reply was cut off before it was complete. Finish the same tutoring response in a complete, useful way. Do not restart or repeat the part already written. Follow the selected tutoring mode.'}
+          ];
+          try{
+            const completed=await callVireonixWithRetry(recoveryMessages,complex,18000,1800,0.1);
+            if(completed && completed.trim()) tutorAnswer=completed;
+          }catch(recoveryError){
+            console.warn('[AI] Tutor completion retry failed:',recoveryError?.message||recoveryError);
+          }
+        }
+        return res.json({text:tutorAnswer,provider:'Vireonix Auto',model:'auto'});
+      }
+
+      await streamVireonixToResponse(messages,complex,res,{mode:'background'});
     }catch(e){
       console.warn('[AI] Vireonix Auto request failed:',e?.message||e);
       const message=String(e?.message||'');
