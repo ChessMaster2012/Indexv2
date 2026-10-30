@@ -8,7 +8,9 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){retu
 function safe(fn,d){ try{ var v=fn(); return v==null?d:v; }catch(e){ return d; } }
 var CV={ status:null, data:null, loading:false, tab:'assignments', filter:'open', course:'all', plan:null, planning:false, host:'', oauthHost:null, msg:'' };
 var COLORS=['#7c5cff','#2f9bff','#22c08a','#ff8a3d','#ec4899','#e5b800','#14b8c6','#a855f7','#ef4444','#6b8f23'];
-var ICON='<svg class="cv-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3" fill="currentColor"/><g fill="currentColor"><circle cx="12" cy="3.6" r="1.7"/><circle cx="12" cy="20.4" r="1.7"/><circle cx="3.6" cy="12" r="1.7"/><circle cx="20.4" cy="12" r="1.7"/><circle cx="6.1" cy="6.1" r="1.4"/><circle cx="17.9" cy="17.9" r="1.4"/><circle cx="6.1" cy="17.9" r="1.4"/><circle cx="17.9" cy="6.1" r="1.4"/></g></svg>';
+var I=function(n,z){ return window.IX?IX.icon(n,z||16):''; };
+var BRAND=function(z){ return window.IX?IX.brand('canvas',z||20):''; };
+
 
 /* ---------- helpers ---------- */
 function api(path,opt){ opt=opt||{}; return fetch(path,{method:opt.method||'GET',headers:opt.body?{'content-type':'application/json'}:undefined,body:opt.body?JSON.stringify(opt.body):undefined,credentials:'same-origin'}).then(function(r){ return r.json().catch(function(){return {};}).then(function(j){ j.__status=r.status; return j; }); }); }
@@ -41,12 +43,12 @@ function ensureView(){
   var main=document.querySelector('main.main'); if(!main) return;
   var sec=document.createElement('section'); sec.className='view'; sec.id='view-canvas'; sec.innerHTML='<div id="cv-root"></div>'; var views=main.querySelectorAll(':scope > .view'); var lastV=views[views.length-1]; if(lastV&&lastV.parentNode===main) main.insertBefore(sec,lastV.nextSibling); else main.appendChild(sec);
   var live=document.querySelector('.nav-btn[data-view="live"]');
-  if(live&&!document.querySelector('.nav-btn[data-view="canvas"]')){ var b=document.createElement('button'); b.className='nav-btn'; b.setAttribute('data-view','canvas'); b.innerHTML='<span>🎒</span><span>Canvas</span>'; live.parentNode.insertBefore(b,live.nextSibling); }
+  if(live&&!document.querySelector('.nav-btn[data-view="canvas"]')){ var b=document.createElement('button'); b.className='nav-btn'; b.setAttribute('data-view','canvas'); b.innerHTML='<span>'+BRAND(19)+'</span><span>Canvas</span>'; live.parentNode.insertBefore(b,live.nextSibling); }
   try{ ACCOUNT_REQUIRED_VIEWS.add('canvas'); }catch(e){}
 }
 function render(){
   ensureView(); var root=$('cv-root'); if(!root) return;
-  var head='<div class="cv-head"><div><h2>🎒 Canvas</h2><p class="cv-sub">Sync your classes and assignments, then let Index plan your week.</p></div></div>';
+  var head='<div class="cv-head"><div><h2><span class="ix-slot cv-h-ico" data-brand="canvas" data-size="26"></span> Canvas</h2><p class="cv-sub">Sync your classes and assignments, then let Index plan your week.</p></div></div>';
   if(!CV.status){ root.innerHTML=head+'<div class="cv-card cv-load"><span class="spinner"></span> Checking your Canvas connection…</div>'; return; }
   if(!CV.status.connection){ root.innerHTML=head+connectHtml(); wireConnect(); return; }
   if(!CV.data){ root.innerHTML=head+connectedBar()+(CV.loading?'<div class="cv-card cv-load"><span class="spinner"></span> Syncing from Canvas…</div>':'<div class="cv-card">'+esc(CV.msg||'No data yet.')+' <button class="btn btn-primary btn-sm" data-cv="sync">Try again</button></div>'); return; }
@@ -60,7 +62,7 @@ function connectHtml(){
   return '<div class="cv-card cv-connect"><div class="cv-conn-l"><h3>Connect your school Canvas</h3>'+
     '<p>Index reads your <b>classes, assignments, due dates and grades</b> (read-only) so the AI can help you plan. Your Canvas password is never shared with Index.</p>'+
     '<label class="cv-lab" for="cv-host">Your school\'s Canvas address</label><input id="cv-host" class="cv-in" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="myschool.instructure.com" value="'+esc(host)+'">'+
-    '<button class="cv-signin" data-cv="oauth" '+(can?'':'disabled')+'>'+ICON+'<span>Sign in with Canvas</span></button>'+
+    '<button class="cv-signin" data-cv="oauth" '+(can?'':'disabled')+'>'+BRAND(20)+'<span>Sign in with Canvas</span></button>'+
     '<p class="cv-hint" id="cv-oa-hint">'+oauthHint(oa,hostOk)+'</p></div>'+
     '<div class="cv-conn-r"><h4>Or use an access token</h4><ol class="cv-steps"><li>Open Canvas and go to <b>Account → Settings</b>.</li><li>Under <b>Approved Integrations</b> click <b>+ New Access Token</b>.</li><li>Name it “Index”, then copy the token and paste it here.</li></ol>'+
     '<input id="cv-token" class="cv-in" type="password" autocomplete="off" placeholder="Paste access token" spellcheck="false"><button class="btn btn-primary" data-cv="token">Connect with token</button><div id="cv-conn-msg" class="cv-msg" role="status"></div>'+
@@ -83,10 +85,10 @@ function wireConnect(){
 function connectedBar(){
   var c=CV.status.connection, last=CV.data?CV.data.syncedAt:c.lastSync;
   return '<div class="cv-bar"><div class="cv-bar-l"><span class="cv-dot"></span><b>'+esc(c.name||'Connected')+'</b><span class="cv-host">'+esc(c.host)+'</span>'+(last?'<span class="cv-sync">Synced '+ago(last)+'</span>':'')+'</div>'+
-    '<div class="cv-bar-r">'+driveBtn()+'<button class="btn btn-ghost btn-sm" data-cv="sync"'+(CV.loading?' disabled':'')+'>'+(CV.loading?'Syncing…':'🔄 Sync now')+'</button><button class="btn btn-ghost btn-sm" data-cv="disconnect">Disconnect</button></div></div>';
+    '<div class="cv-bar-r">'+driveBtn()+'<button class="btn btn-ghost btn-sm" data-cv="sync"'+(CV.loading?' disabled':'')+'>'+(CV.loading?'Syncing…':I('refresh-cw')+' Sync now')+'</button><button class="btn btn-ghost btn-sm" data-cv="disconnect">Disconnect</button></div></div>';
 }
 function driveBtn(){ var d=CV.status&&CV.status.drive; if(!d||!d.configured) return '';
-  return d.connected?'<button class="btn btn-ghost btn-sm" data-cv="gdisc" title="Disconnect Google Drive">📁 Drive'+(d.email?': '+esc(d.email):' connected')+' ✕</button>':'<a class="btn btn-ghost btn-sm" href="/api/canvas/google/start">📁 Connect Google Drive</a>'; }
+  return d.connected?'<button class="btn btn-ghost btn-sm" data-cv="gdisc" title="Disconnect Google Drive">'+I('folder')+' Drive'+(d.email?': '+esc(d.email):' connected')+' '+I('x',14)+'</button>':'<a class="btn btn-ghost btn-sm" href="/api/canvas/google/start">'+I('folder')+' Connect Google Drive</a>'; }
 function ago(t){ var s=Math.round((Date.now()-t)/1000); if(s<60) return 'just now'; if(s<3600) return Math.round(s/60)+' min ago'; if(s<86400) return Math.round(s/3600)+' h ago'; return Math.round(s/86400)+' d ago'; }
 function openList(){ return CV.data.assignments.filter(isOpen); }
 function summaryHtml(){
@@ -98,11 +100,11 @@ function summaryHtml(){
 
 /* ---------- AI planner ---------- */
 function plannerHtml(){
-  var p=CV.plan, h='<div class="cv-card cv-plan"><div class="cv-plan-top"><div><h3>✨ AI Planner</h3><p>Index analyzes your open assignments, grades and deadlines and builds a plan.</p></div><button class="btn btn-primary" data-cv="plan"'+(CV.planning?' disabled':'')+'>'+(CV.planning?'<span class="spinner"></span> Analyzing…':(p?'↻ Re-analyze':'Analyze my assignments'))+'</button></div>';
+  var p=CV.plan, h='<div class="cv-card cv-plan"><div class="cv-plan-top"><div><h3>'+I('brain',18)+' AI Planner</h3><p>Index analyzes your open assignments, grades and deadlines and builds a plan.</p></div><button class="btn btn-primary" data-cv="plan"'+(CV.planning?' disabled':'')+'>'+(CV.planning?'<span class="spinner"></span> Analyzing…':(p?'↻ Re-analyze':'Analyze my assignments'))+'</button></div>';
   if(!p){ return h+'</div>'; }
   var lvl=p.workload&&p.workload.level||'moderate';
   h+='<div class="cv-plan-body"><div class="cv-headline"><span class="cv-lvl '+esc(lvl)+'">'+esc(lvl)+' workload</span><b>'+esc(p.headline||'')+'</b>'+(p.workload&&p.workload.hours?'<em>≈ '+esc(p.workload.hours)+' h this week</em>':'')+(p.fallback?'<em class="cv-fb">Quick estimate (AI was unavailable)</em>':'')+'</div>';
-  if(p.risks&&p.risks.length) h+='<div class="cv-risks">'+p.risks.map(function(r){ return '<div>⚠️ '+esc(r)+'</div>'; }).join('')+'</div>';
+  if(p.risks&&p.risks.length) h+='<div class="cv-risks">'+p.risks.map(function(r){ return '<div>'+I('triangle-alert')+' '+esc(r)+'</div>'; }).join('')+'</div>';
   if(p.priorities&&p.priorities.length) h+='<h4>Do these first</h4><ol class="cv-prio">'+p.priorities.map(function(x){ var a=x.a; return '<li><div><b>'+esc(a.name)+'</b><span>'+esc(a.course)+' · '+esc(fmtDue(a))+'</span><em>'+esc(x.why||'')+'</em></div><span class="cv-min">~'+esc(x.minutes||30)+' min</span></li>'; }).join('')+'</ol>';
   if(p.plan&&p.plan.length) h+='<h4>Your week</h4><div class="cv-days">'+p.plan.map(function(d){ return '<div class="cv-day"><b>'+esc(d.day)+'</b><span class="cv-focus">'+esc(d.focus||'')+'</span><ul>'+(d.tasks||[]).map(function(t){ return '<li>'+esc(t)+'</li>'; }).join('')+'</ul></div>'; }).join('')+'</div>';
   if(p.tips&&p.tips.length) h+='<h4>Tips</h4><ul class="cv-tips">'+p.tips.map(function(t){ return '<li>'+esc(t)+'</li>'; }).join('')+'</ul>';
@@ -146,7 +148,7 @@ function runPlan(){
 function tabsHtml(){
   var t=function(id,l){ return '<button class="cv-tab '+(CV.tab===id?'on':'')+'" data-cv="tab" data-tab="'+id+'">'+l+'</button>'; };
   var body=CV.tab==='classes'?classesHtml():CV.tab==='news'?newsHtml():assignmentsHtml();
-  return '<div class="cv-tabs">'+t('assignments','📝 Assignments')+t('classes','📚 Classes')+t('news','📣 Announcements'+(CV.data.announcements.length?' ('+CV.data.announcements.length+')':''))+'</div>'+body;
+  return '<div class="cv-tabs">'+t('assignments',I('notebook-pen')+' Assignments')+t('classes',I('book-open')+' Classes')+t('news',I('megaphone')+' Announcements'+(CV.data.announcements.length?' ('+CV.data.announcements.length+')':''))+'</div>'+body;
 }
 function assignmentsHtml(){
   var f=CV.filter, list=CV.data.assignments.filter(function(a){ return CV.course==='all'||String(a.cid)===CV.course; });
@@ -162,7 +164,7 @@ function rowHtml(a){
   if(a.graded&&a.score!=null) st='<span class="cv-badge ok">Graded '+a.score+(a.points?'/'+a.points:'')+'</span>'; else if(a.submitted) st='<span class="cv-badge ok">Submitted</span>'; else if(a.excused) st='<span class="cv-badge">Excused</span>'; else if(a.missing) st='<span class="cv-badge bad">Missing</span>'; else if(u==='overdue') st='<span class="cv-badge bad">Overdue</span>'; else if(u==='today') st='<span class="cv-badge warn">Due soon</span>';
   if(a.late&&isOpen(a)===false) st+='<span class="cv-badge warn">Late</span>';
   return '<div class="cv-row u-'+(isOpen(a)?u:'done')+'" style="--cc:'+courseColor(a.cid)+'"><div class="cv-row-main"><b>'+esc(a.name)+'</b><span>'+esc(a.course)+' · '+esc(fmtDue(a))+(a.points!=null?' · '+a.points+' pts':'')+'</span></div><div class="cv-row-r">'+st+
-    (isOpen(a)?'<button class="btn btn-ghost btn-sm" data-cv="study" data-id="'+a.id+'" data-cid="'+a.cid+'">🧠 Study this</button>':'')+(a.url?'<a class="btn btn-ghost btn-sm" href="'+esc(a.url)+'" target="_blank" rel="noopener noreferrer">Canvas ↗</a>':'')+'</div></div>';
+    (isOpen(a)?'<button class="btn btn-ghost btn-sm" data-cv="study" data-id="'+a.id+'" data-cid="'+a.cid+'">'+I('brain')+' Study this</button>':'')+(a.url?'<a class="btn btn-ghost btn-sm" href="'+esc(a.url)+'" target="_blank" rel="noopener noreferrer">Canvas ↗</a>':'')+'</div></div>';
 }
 function classesHtml(){
   return '<div class="cv-courses">'+CV.data.courses.map(function(c){
@@ -170,7 +172,7 @@ function classesHtml(){
     var gc=sc==null?'':(sc>=90?'a':sc>=80?'b':sc>=70?'c':'d');
     return '<div class="cv-course" style="--cc:'+courseColor(c.id)+'"><div class="cv-course-top"><b>'+esc(c.name)+'</b>'+(sc!=null?'<span class="cv-grade g-'+gc+'">'+(c.grade?esc(c.grade)+' · ':'')+Math.round(sc*10)/10+'%</span>':'<span class="cv-grade">No grade yet</span>')+'</div>'+
       '<span class="cv-cmeta">'+esc(c.teacher||'')+(c.teacher&&c.term?' · ':'')+esc(c.term||'')+'</span><span class="cv-cmeta">'+open+' open assignment'+(open===1?'':'s')+'</span>'+
-      '<div class="cv-course-act">'+(sub?'<button class="btn btn-ghost btn-sm" data-action="open-course" data-id="'+esc(sub.id)+'">📘 Open '+esc(sub.name)+' in Index</button>':'<span class="cv-cmeta">No matching Index course yet</span>')+
+      '<div class="cv-course-act">'+(sub?'<button class="btn btn-ghost btn-sm" data-action="open-course" data-id="'+esc(sub.id)+'">'+I('book-open')+' Open '+esc(sub.name)+' in Index</button>':'<span class="cv-cmeta">No matching Index course yet</span>')+
       '<button class="btn btn-ghost btn-sm" data-cv="classfilter" data-cid="'+c.id+'">View assignments</button></div></div>'; }).join('')+'</div>';
 }
 function newsHtml(){
@@ -189,11 +191,11 @@ function aiPickSubject(a,text){
 function askPaste(unread){
   return new Promise(function(resolve){
     var o=document.createElement('div'); o.className='cv-modal';
-    o.innerHTML='<div class="cv-modal-card"><h3>I couldn’t open this assignment</h3><p>'+(unread&&unread.length?'Canvas only links to: '+esc(unread.join(', '))+'. ':'')+''+(CV.status&&CV.status.drive&&CV.status.drive.configured&&!CV.status.drive.connected?'Connect your Google Drive and I can read private Docs myself. ':CV.status&&CV.status.drive&&CV.status.drive.connected?'Your connected Google account can’t open it, or it isn’t a Google file. ':'It’s private or outside Canvas, so I can’t sign in to it for you. ')+' Upload the assignment file (in Google Docs: File → Download → PDF) or paste its text here and I’ll build the quiz from it — or skip to base it on the title.</p><label class="btn btn-ghost btn-sm" style="display:inline-block;margin-bottom:8px;cursor:pointer">📎 Upload the file (PDF, Word, text)<input type="file" accept=".pdf,.docx,.txt,.md,.csv,.html,.htm" style="display:none"></label> <span class="cv-cmeta" data-up></span><textarea class="cv-sel wide" rows="7" placeholder="Paste the assignment here…" style="width:100%;resize:vertical"></textarea><div class="cv-modal-act"><button class="btn btn-ghost" data-x="no">Cancel</button>'+(CV.status&&CV.status.drive&&CV.status.drive.configured&&!CV.status.drive.connected?'<a class="btn btn-ghost" href="/api/canvas/google/start">📁 Connect Google Drive</a>':'')+'<button class="btn btn-ghost" data-x="skip">Skip</button><button class="btn btn-primary" data-x="ok">Use this text</button></div></div>';
+    o.innerHTML='<div class="cv-modal-card"><h3>I couldn’t open this assignment</h3><p>'+(unread&&unread.length?'Canvas only links to: '+esc(unread.join(', '))+'. ':'')+''+(CV.status&&CV.status.drive&&CV.status.drive.configured&&!CV.status.drive.connected?'Connect your Google Drive and I can read private Docs myself. ':CV.status&&CV.status.drive&&CV.status.drive.connected?'Your connected Google account can’t open it, or it isn’t a Google file. ':'It’s private or outside Canvas, so I can’t sign in to it for you. ')+' Upload the assignment file (in Google Docs: File → Download → PDF) or paste its text here and I’ll build the quiz from it — or skip to base it on the title.</p><label class="btn btn-ghost btn-sm" style="display:inline-block;margin-bottom:8px;cursor:pointer">'+I('paperclip')+' Upload the file (PDF, Word, text)<input type="file" accept=".pdf,.docx,.txt,.md,.csv,.html,.htm" style="display:none"></label> <span class="cv-cmeta" data-up></span><textarea class="cv-sel wide" rows="7" placeholder="Paste the assignment here…" style="width:100%;resize:vertical"></textarea><div class="cv-modal-act"><button class="btn btn-ghost" data-x="no">Cancel</button>'+(CV.status&&CV.status.drive&&CV.status.drive.configured&&!CV.status.drive.connected?'<a class="btn btn-ghost" href="/api/canvas/google/start">'+I('folder')+' Connect Google Drive</a>':'')+'<button class="btn btn-ghost" data-x="skip">Skip</button><button class="btn btn-primary" data-x="ok">Use this text</button></div></div>';
     var fi=o.querySelector('input[type=file]'), upS=o.querySelector('[data-up]');
     fi.addEventListener('change',function(){ var f=fi.files&&fi.files[0]; if(!f) return; if(f.size>8*1024*1024){ upS.textContent='Too large (8 MB max).'; return; }
       upS.textContent='Reading '+f.name+'…'; var fr=new FileReader();
-      fr.onload=function(){ var b64=String(fr.result).split(',')[1]||''; api('/api/canvas/extract',{method:'POST',body:{name:f.name,data:b64}}).then(function(j){ if(j.ok){ var ta=o.querySelector('textarea'); ta.value=(ta.value?ta.value+'\n\n':'')+j.text; upS.textContent='Loaded '+j.name+' ✅ — press “Use this text”.'; } else upS.textContent=j.error||'Could not read that file.'; }); };
+      fr.onload=function(){ var b64=String(fr.result).split(',')[1]||''; api('/api/canvas/extract',{method:'POST',body:{name:f.name,data:b64}}).then(function(j){ if(j.ok){ var ta=o.querySelector('textarea'); ta.value=(ta.value?ta.value+'\n\n':'')+j.text; upS.textContent='Loaded '+j.name+' — press “Use this text”.'; } else upS.textContent=j.error||'Could not read that file.'; }); };
       fr.onerror=function(){ upS.textContent='Could not read that file.'; }; fr.readAsDataURL(f); });
     var done=function(v){ if(o.parentNode) document.body.removeChild(o); resolve(v); };
     o.addEventListener('click',function(e){ var x=e.target.getAttribute&&e.target.getAttribute('data-x'); if(x==='ok') done(o.querySelector('textarea').value.trim().slice(0,9000)); else if(x==='skip') done(''); else if(x==='no'||e.target===o) done(null); });
@@ -227,7 +229,7 @@ function studyThis(id,cid){
         var set={id:uid(),subjectId:sid,type:'quiz',unit:'',topic:a.name,title:(subj&&subj.name?subj.name:a.course)+' — '+a.name,createdAt:Date.now(),reminderAt:0,reminderCompleted:false,questions:qs,attempts:[]};
         state.studySets.push(set); persistSets();
         var read=(full.sources||[]).map(function(s){return s.name;});
-        toast(thin&&!read.length?'Quiz ready — but Canvas gave me very little text for this assignment, so it’s based on the title/class.':'Quiz ready'+(read.length?' (read: '+read.join(', ')+')':'')+' ✅');
+        toast(thin&&!read.length?'Quiz ready — but Canvas gave me very little text for this assignment, so it’s based on the title/class.':'Quiz ready'+(read.length?' (read: '+read.join(', ')+')':'')+' ');
         if(full.unread&&full.unread.length) setTimeout(function(){ toast('Couldn’t open: '+full.unread.join(', ')); },2600);
         switchView('studysets');
       });
@@ -258,7 +260,7 @@ document.addEventListener('click',function(e){
     var h=cleanHost(($('cv-host')||{}).value), t=(($('cv-token')||{}).value||'').trim(), msg=$('cv-conn-msg');
     if(!h){ if(msg) msg.textContent='Enter your school\'s Canvas address first.'; return; } if(!t){ if(msg) msg.textContent='Paste your access token.'; return; }
     b.disabled=true; if(msg) msg.textContent='Connecting…';
-    api('/api/canvas/token',{method:'POST',body:{host:h,token:t}}).then(function(j){ b.disabled=false; if(j.ok){ safe(function(){ localStorage.setItem('index-canvas-host',h); },0); CV.status.connection=j.connection; $('cv-token').value=''; toast('Canvas connected ✅'); load(true); } else if(msg) msg.textContent=j.error||'Could not connect.'; });
+    api('/api/canvas/token',{method:'POST',body:{host:h,token:t}}).then(function(j){ b.disabled=false; if(j.ok){ safe(function(){ localStorage.setItem('index-canvas-host',h); },0); CV.status.connection=j.connection; $('cv-token').value=''; toast('Canvas connected '); load(true); } else if(msg) msg.textContent=j.error||'Could not connect.'; });
   }
   else if(a==='sync') load(true);
   else if(a==='gdisc'){ if(confirm('Disconnect Google Drive? Index will delete its saved access.')) api('/api/canvas/google/disconnect',{method:'POST',body:{}}).then(function(){ CV.status.drive.connected=false; CV.status.drive.email=''; render(); toast('Google Drive disconnected.'); }); }
@@ -274,7 +276,7 @@ document.addEventListener('change',function(e){ var s=e.target.closest&&e.target
 /* ---------- sign-in modal button + view hooks ---------- */
 function injectSignInButton(){
   var g=$('google-signin-btn'); if(!g||document.querySelector('[data-action="canvas-signin"]')) return;
-  var b=document.createElement('button'); b.type='button'; b.className='cv-signin cv-signin-modal'; b.setAttribute('data-action','canvas-signin'); b.innerHTML=ICON+'<span>Sign in with Canvas</span>';
+  var b=document.createElement('button'); b.type='button'; b.className='cv-signin cv-signin-modal'; b.setAttribute('data-action','canvas-signin'); b.innerHTML=BRAND(20)+'<span>Sign in with Canvas</span>';
   var after=$('google-signin-divider')||g; g.parentNode.insertBefore(b,g.nextSibling);
 }
 function signInEntry(){
@@ -293,7 +295,7 @@ injectSignInButton(); ensureView();
 /* ---------- returning from Canvas ---------- */
 (function(){ var p=new URLSearchParams(location.search); var ok=p.get('canvas')||p.get('drive'), err=p.get('canvasError')||p.get('driveError'), isDrive=!!(p.get('drive')||p.get('driveError')); if(!ok&&!err) return;
   history.replaceState(null,'',location.pathname);
-  var go=function(){ if(!safe(function(){ return state.account; },null)){ setTimeout(go,400); return; } if(err) toast(err,true); else toast(isDrive?'Google Drive connected ✅ Try Study this again.':'Canvas connected ✅'); switchView('canvas'); };
+  var go=function(){ if(!safe(function(){ return state.account; },null)){ setTimeout(go,400); return; } if(err) toast(err,true); else toast(isDrive?'Google Drive connected Try Study this again.':'Canvas connected '); switchView('canvas'); };
   setTimeout(go,1200); })();
 
 /* ---------- dashboard: due soon ---------- */
@@ -303,7 +305,7 @@ function dashCard(){
   var host=$('view-dashboard'); if(!host) return; var old=$('cv-dash'); if(old) old.parentNode.removeChild(old);
   if(!state.account||!CV.data) return; var soon=openList().filter(function(a){ var u=urgency(a); return u==='overdue'||u==='today'||u==='soon'; }).sort(function(a,b){ return (dueMs(a)||0)-(dueMs(b)||0); }).slice(0,4);
   var c=document.createElement('div'); c.id='cv-dash'; c.className='cv-card cv-dashcard';
-  c.innerHTML='<div class="cv-plan-top"><div><h3>🎒 From Canvas</h3><p>'+(soon.length?'Your next deadlines':'Nothing urgent — you\'re on track!')+'</p></div><button class="btn btn-ghost btn-sm" data-action="goto" data-view="canvas">Open Canvas</button></div>'+soon.map(function(a){ return '<div class="cv-mini"><b>'+esc(a.name)+'</b><span>'+esc(a.course)+' · '+esc(fmtDue(a))+'</span></div>'; }).join('');
+  c.innerHTML='<div class="cv-plan-top"><div><h3><span class="ix-slot" data-brand="canvas" data-size="20"></span> From Canvas</h3><p>'+(soon.length?'Your next deadlines':'Nothing urgent — you\'re on track!')+'</p></div><button class="btn btn-ghost btn-sm" data-action="goto" data-view="canvas">Open Canvas</button></div>'+soon.map(function(a){ return '<div class="cv-mini"><b>'+esc(a.name)+'</b><span>'+esc(a.course)+' · '+esc(fmtDue(a))+'</span></div>'; }).join('');
   var first=host.firstElementChild; if(first&&first.nextSibling) host.insertBefore(c,first.nextSibling); else host.appendChild(c);
 }
 window.__canvasUi={open:open,state:CV};

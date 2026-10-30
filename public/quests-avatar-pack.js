@@ -305,7 +305,7 @@ function ensureView(){
   const nav=document.getElementById('nav');
   if(nav&&!nav.querySelector('[data-view="quests"]')){
     const b=document.createElement('button');b.className='nav-btn';b.dataset.view='quests';
-    b.innerHTML='<span>🎯</span><span>Quests</span>';
+    b.innerHTML='<span></span><span>Quests</span>';
     const rewards=nav.querySelector('[data-view="rewards"]');
     nav.insertBefore(b,rewards||null);
   }
