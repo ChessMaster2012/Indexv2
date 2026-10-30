@@ -37,12 +37,14 @@ let VIREONIX_COMMANDER_POLICY_BLOCKED = false;
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json({
+const jsonBody = express.json({
   limit: '2mb',
   verify: (req,res,buf) => {
     if (req.path === '/api/billing/webhook') req.rawBody = Buffer.from(buf);
   }
-}));
+});
+// the Canvas file-upload route parses its own (larger) body
+app.use((req, res, next) => req.path === '/api/canvas/extract' ? next() : jsonBody(req, res, next));
 
 // Conservative browser/security headers for a student-facing educational site.
 // These do not require extra services and keep camera, microphone, and location

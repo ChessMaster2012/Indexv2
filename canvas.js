@@ -377,6 +377,19 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
     return { text: text.slice(0, 6000), why: text ? '' : 'empty', name: String(meta.name || '').slice(0, 120) };
   }
 
+  /* ---------- student uploads the assignment file (e.g. downloaded from a private Google Doc) ---------- */
+  app.post('/api/canvas/extract', needUser, require('express').json({ limit: '12mb' }), async (req, res) => {
+    try {
+      const name = String((req.body && req.body.name) || 'file').slice(0, 160), b64 = String((req.body && req.body.data) || '');
+      if (!b64 || b64.length > 11.5 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'That file is too large (8 MB max).' });
+      const buf = Buffer.from(b64, 'base64'); if (!buf.length || buf.length > FILE_MAX) return res.status(400).json({ ok: false, error: 'That file is too large (8 MB max).' });
+      const text = await bufText(buf, '', name);
+      if (text == null) return res.status(415).json({ ok: false, error: 'Use a PDF, Word (.docx), or text file. For Google Slides/Docs: File > Download > PDF.' });
+      if (!text) return res.status(422).json({ ok: false, error: 'I couldn’t find any text in that file (is it a scanned image?).' });
+      res.json({ ok: true, name, text: text.slice(0, 9000) });
+    } catch (e) { console.error('Canvas extract error:', e.message); res.status(400).json({ ok: false, error: 'Could not read that file.' }); }
+  });
+
   /* ---------- one assignment in full (for "Study this") ---------- */
   const FILE_MAX = 8 * 1024 * 1024;
   async function downloadPublic(url, depth) {
