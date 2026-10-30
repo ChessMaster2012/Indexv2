@@ -1097,8 +1097,8 @@ app.post('/api/ai/chat',async(req,res)=>{
 
         // A successful HTTP response can still contain an obviously interrupted
         // fragment. Ask Auto to finish that same answer once before returning it.
-        const wordCount=(String(tutorAnswer).match(/\\b[\\p{L}\\p{N}]+\\b/gu)||[]).length;
-        const looksCutOff=/\\.{3,}$|[,;:—-]$|\\b(?:because|and|but|or|with|to|of|for|that|which|the|a|an|is|are|was|were|in|on|at|by)$/i.test(String(tutorAnswer).trim())
+        const wordCount=(String(tutorAnswer).match(/\b[\p{L}\p{N}]+\b/gu)||[]).length;
+        const looksCutOff=/\.{3,}$|[,;:—-]$|\b(?:because|and|but|or|with|to|of|for|that|which|the|a|an|is|are|was|were|in|on|at|by)$/i.test(String(tutorAnswer).trim())
           || (wordCount<=2 && !/[.!?]$/.test(String(tutorAnswer).trim()));
         if(looksCutOff){
           console.warn('[AI] Tutor Auto returned a likely incomplete fragment; requesting completion.');
