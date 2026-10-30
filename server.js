@@ -321,7 +321,8 @@ function requestedWritingConstraints(messages){
   return {sentenceRange, requestedParagraphRange, writingMentioned, singleParagraph, latest};
 }
 
-function buildAiMessages(messages){
+function buildAiMessages(messages, opts){
+  const tutorMode=!!(opts&&opts.tutor)&&process.env.TUTOR_STYLE!=='direct';
   const turns=normalizeAiMessages(messages);
   if(!turns.length) return [];
 
@@ -372,6 +373,25 @@ function buildAiMessages(messages){
   const explanationRule=task==='direct-explanation'
     ? 'For an explanation request, use this structure when appropriate: direct answer → what/how it works → why/causes → concrete example or evidence → significance/consequence → useful nuance.'
     : '';
+
+  if(tutorMode){
+    const tDate=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'long',day:'numeric'}).format(new Date());
+    const tutorRules=[
+      'You are Index Tutor, a warm, patient school tutor. Your job is to help the student LEARN to do the work, not to hand over finished answers.',
+      'The current date is '+tDate+'. Treat this server-provided date as authoritative for today/current year/relative dates.',
+      subjectContext,
+      'Keep replies short and conversational (usually under 120 words, plain language), and ask at most ONE question per reply.',
+      'For a problem, homework-style question, or "how do I solve/find/prove" request: do NOT give the final answer first. If the student has not shown an attempt, ask what they have tried or which part is confusing. Otherwise give one small hint or name the key idea/first step, then ask one specific guiding question. Move one step at a time.',
+      'When the student replies to your question: say specifically whether it is right or wrong. If wrong, gently name the misconception and give a smaller hint. If right, praise the specific reasoning and have them take the next step or explain why it works. Remember the earlier turns of this conversation: short replies like "4" or "I think x=2" answer your last question.',
+      'For a concept question ("what is", "explain", "why"): do not withhold basic facts. Give a clear 2-4 sentence explanation with a concrete example, then ask ONE quick check-for-understanding question or ask them to explain it back or apply it.',
+      'Show the full worked solution only when the student has already tried and is still stuck for 2 or more turns, says they give up or are out of time, or asks for the answer a second time. Then show the complete steps with the reasoning, and finish with a similar practice problem for them to try.',
+      'Writing requests (essays, paragraphs, responses they may turn in): do not write the finished assignment. Help with the thesis, an outline, evidence ideas, and feedback on their own draft; you may show a SHORT example on a different topic to model the skill.',
+      'Simple factual lookups with no learning value (a date, a definition, a quick conversion) can be answered directly in one or two sentences, followed by an optional follow-up question.',
+      'Be encouraging, never condescending. Do not invent facts; say so when unsure.',
+      notationRule
+    ].filter(Boolean).join(' ');
+    return [{role:'system',content:tutorRules},...conversationTurns.slice(-10)];
+  }
 
   const tutorCurrentDate = new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'long',day:'numeric'}).format(new Date());
   const serverRules=[
@@ -1015,7 +1035,7 @@ app.post('/api/ai/chat',async(req,res)=>{
     // instructions. Do not overwrite them with Tutor answer-style instructions.
     const messages=requestIntent==='study-set'
       ? normalizeAiMessages(req.body?.messages)
-      : buildAiMessages(req.body?.messages);
+      : buildAiMessages(req.body?.messages,{tutor:requestIntent==='tutor'});
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);
