@@ -569,8 +569,8 @@ async function callVireonixWithRetry(messages,complex=false,timeoutMs=26000,maxT
 }
 
 async function streamVireonixToResponse(messages,complex,res,options={}){
-  // Tutor requests have a firm sub-10-second upstream deadline; background AI
-  // generation keeps the longer compatibility deadline used by other Index features.
+  // Default deadlines preserve each flow's existing behavior. A Tutor transport
+  // fallback may pass a larger deadline after a fast JSON-mode 502/503.
   const tutorMode=String(options.mode||'')==='tutor';
   const studySetMode=String(options.mode||'')==='study-set';
   const fastTutor=false; // Keep Tutor on streaming for low-latency first output.
@@ -611,9 +611,8 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   let attempt=await requestAttempt();
   let upstream=attempt.response;
 
-  // Retry transient provider failures with exponential backoff. Study-set generation
-  // gets more spaced retries because Vireonix can briefly return 5xx while Auto's
-  // upstream model pool is recovering; Tutor and other flows keep their old retry policy.
+  // Retry transient provider failures with exponential backoff. Study-set and Tutor
+  // flows use spaced retries to give Vireonix Auto's upstream model pool time to recover.
   const maxUpstreamRetries=studySetMode ? 4 : 2;
   for(let retry=0;retry<maxUpstreamRetries && (upstream.status===429 || upstream.status>=500) && Date.now()<deadline-1800;retry++){
     const retryAfter=Number(upstream.headers.get('retry-after')||0)||0;
@@ -1082,7 +1081,7 @@ app.post('/api/ai/chat',async(req,res)=>{
         // transport if its JSON request stalls or returns transient failures. Keep the exact
         // prompt and Auto model; split the client budget between both attempts.
         try{
-          const generatedText=await callVireonixWithRetry(messages,false,18000,1800);
+          const generatedText=await callVireonixWithRetry(messages,false,18000,1800,0,'Study-set JSON');
           return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
         }catch(jsonError){
           console.warn('[AI] Study-set JSON mode failed; retrying the same Vireonix Auto prompt with streaming:',jsonError?.message||jsonError);
