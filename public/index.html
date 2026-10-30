@@ -1646,22 +1646,22 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
 
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><span class="brand-emoji">🎯</span><span class="brand-mark">Index</span></div>
+    <div class="brand"><span class="brand-emoji"></span><span class="brand-mark">Index</span></div>
     <div class="profile-slot" id="profile-slot">
       <button class="signin-btn" data-action="open-signin" type="button">👤 Sign in / Create account</button>
     </div>
     <nav id="nav">
-      <button class="nav-btn active" data-view="dashboard"><span>🏠</span><span>Dashboard</span></button>
-      <button class="nav-btn" data-view="courses"><span>📚</span><span>Courses</span></button>
-      <button class="nav-btn" data-view="learn"><span>🎓</span><span>Learn</span></button>
-      <button class="nav-btn" data-view="tutor"><span>💬</span><span>AI Tutor</span></button>
-      <button class="nav-btn" data-view="notes"><span>📝</span><span>Notes</span></button>
-      <button class="nav-btn" data-view="studysets"><span>🗂️</span><span>Study Sets</span></button>
-      <button class="nav-btn" data-view="games"><span>🕹️</span><span>Games</span></button>
-      <button class="nav-btn" data-view="live"><span>⚡</span><span>Live Game</span></button>
-      <button class="nav-btn" data-view="membership"><span>⭐</span><span>Membership</span></button>
-      <button class="nav-btn" data-view="rewards"><span>🏆</span><span>Rewards</span></button>
-      <a class="nav-btn" href="/mcps-review.html" style="text-decoration:none;"><span>🛡️</span><span id="local-review-nav">Local Review</span></a>
+      <button class="nav-btn active" data-view="dashboard"><span></span><span>Dashboard</span></button>
+      <button class="nav-btn" data-view="courses"><span></span><span>Courses</span></button>
+      <button class="nav-btn" data-view="learn"><span></span><span>Learn</span></button>
+      <button class="nav-btn" data-view="tutor"><span></span><span>AI Tutor</span></button>
+      <button class="nav-btn" data-view="notes"><span></span><span>Notes</span></button>
+      <button class="nav-btn" data-view="studysets"><span></span><span>Study Sets</span></button>
+      <button class="nav-btn" data-view="games"><span></span><span>Games</span></button>
+      <button class="nav-btn" data-view="live"><span></span><span>Live Game</span></button>
+      <button class="nav-btn" data-view="membership"><span></span><span>Membership</span></button>
+      <button class="nav-btn" data-view="rewards"><span></span><span>Rewards</span></button>
+      <a class="nav-btn" href="/mcps-review.html" style="text-decoration:none;"><span></span><span id="local-review-nav">Local Review</span></a>
     </nav>
     <div class="sidebar-foot" id="sidebar-foot"></div>
   </aside>
@@ -1765,7 +1765,7 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
           <button class="btn btn-ghost btn-sm" data-action="clear-chat" style="margin-left:auto;">New chat</button>
         </div>
         <div id="ai-work-status" class="ai-work-status hidden"><span class="ai-stage" id="ai-stage">Preparing local AI…</span><span><strong id="ai-elapsed">0s</strong> · <span class="ai-eta" id="ai-eta">Estimating…</span></span></div>
-        <div class="chat-log" id="chat-log"><div class="chat-empty"><h3>What are you working on? 👋</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div></div>
+        <div class="chat-log" id="chat-log"><div class="chat-empty"><h3>What are you working on?</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div></div>
         <div class="tutor-input"><div id="tutor-textarea" class="tutor-composer" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Ask anything…"></div><button class="btn btn-primary" id="tutor-send" data-action="send-chat">Send</button></div>
       </div>
       <p class="disclaimer">The tutor can make mistakes — double-check anything you plan to rely on for a graded assignment or exam. AI responses use Vireonix Auto only through the server; difficult deep reasoning can use the extended response window. Study data is stored in this browser, and signed-in accounts also sync a copy so progress can follow the account.</p>
@@ -3905,7 +3905,7 @@ function formatTutorText(raw){
 }
 function renderChatLog(){
   const log = document.getElementById('chat-log');
-  if(state.chat.length===0 && !state.chatLoading){ log.innerHTML = `<div class="chat-empty"><h3>What are you working on? 👋</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div>`; return; }
+  if(state.chat.length===0 && !state.chatLoading){ log.innerHTML = `<div class="chat-empty"><h3>What are you working on?</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div>`; return; }
   let html = state.chat.map(m=>`<div class="msg ${m.role==='user'?'msg-user':'msg-ai'}"><span class="msg-role">${m.role==='user'?'You':'Tutor'}</span><div class="msg-content">${m.role==='assistant' ? (m.streaming && !m.text ? '<div class="typing"><span></span><span></span><span></span></div>' : formatTutorText(m.text)) : esc(m.text).replace(/\n/g,'<br>')}</div></div>`).join('');
   if(state.chatLoading && !(state.chat[state.chat.length-1]?.role==='assistant' && state.chat[state.chat.length-1]?.streaming)) html += `<div class="msg msg-ai"><span class="msg-role">Tutor</span><div class="typing"><span></span><span></span><span></span></div></div>`;
   log.innerHTML = html; log.scrollTop = log.scrollHeight;
@@ -9111,7 +9111,9 @@ setInterval(function(){
 <script src="/arcade-gold.js?v=1"></script>
 <script src="/skin-crate-auto.js?v=2"></script>
 <link rel="stylesheet" href="/canvas-ui.css?v=1">
+<link rel="stylesheet" href="/icons.css?v=1">
 <link rel="stylesheet" href="/tutor-plus.css?v=1">
+<script src="/icons.js?v=1"></script>
 <script src="/tutor-plus.js?v=1"></script>
 <script src="/canvas-ui.js?v=1"></script>
 <link rel="stylesheet" href="/profile-hub.css?v=1">

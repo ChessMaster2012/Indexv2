@@ -2,20 +2,21 @@
 (function(){
 'use strict';
 var $=function(id){return document.getElementById(id);};
+var I=function(n,z){return window.IX?IX.icon(n,z||16):'';};
 var safe=function(f,d){try{return f();}catch(e){return d;}};
 var MODES=[
-  {id:'',label:'🧭 Coach',hint:'Guides you step by step with hints and questions.'},
-  {id:'explain',label:'📖 Explain it',hint:'Gets a clear explanation with an example, then checks you understood.'},
-  {id:'quiz',label:'🎯 Quiz me',hint:'Asks you one practice question at a time and gives feedback.'},
-  {id:'check',label:'✅ Check my work',hint:'Paste your answer or draft; it points to the first mistake without redoing it.'}
+  {id:'',ic:'compass',label:'Coach',hint:'Guides you step by step with hints and questions.'},
+  {id:'explain',ic:'book-open',label:'Explain it',hint:'Gets a clear explanation with an example, then checks you understood.'},
+  {id:'quiz',ic:'target',label:'Quiz me',hint:'Asks you one practice question at a time and gives feedback.'},
+  {id:'check',ic:'circle-check',label:'Check my work',hint:'Paste your answer or draft; it points to the first mistake without redoing it.'}
 ];
 var CHIPS=[
-  ['💡 Give me a hint','Can I get a hint?'],
-  ['🔍 Explain simpler','Can you explain that in simpler words?'],
-  ['❓ Why?','Why?'],
-  ['🔁 Similar problem','Give me a similar practice problem to try.'],
-  ['🎯 Quiz me on this','Quiz me on this, one question at a time.','quiz'],
-  ['📝 Show full solution','I’m stuck — please show the full solution step by step.']
+  ['lightbulb','Give me a hint','Can I get a hint?'],
+  ['search','Explain simpler','Can you explain that in simpler words?'],
+  ['circle-help','Why?','Why?'],
+  ['repeat','Similar problem','Give me a similar practice problem to try.'],
+  ['target','Quiz me on this','Quiz me on this, one question at a time.','quiz'],
+  ['file-text','Show full solution','I’m stuck — please show the full solution step by step.']
 ];
 var S={mode:safe(function(){return localStorage.getItem('index-tutor-mode')||'';},''),doc:null,busy:false};
 if(!MODES.some(function(m){return m.id===S.mode;})) S.mode='';
@@ -31,7 +32,7 @@ function build(){
   // bar buttons
   var clear=bar.querySelector('[data-action="clear-chat"]');
   var mk=document.createElement('span'); mk.style.cssText='margin-left:auto;display:flex;gap:6px';
-  mk.innerHTML='<button class="btn btn-ghost btn-sm tp-bar-btn" data-tp="quizset" title="Turn this conversation into a practice quiz">🧠<span class="tp-lbl"> Quiz from chat</span></button><button class="btn btn-ghost btn-sm tp-bar-btn" data-tp="cardset" title="Turn this conversation into flashcards">🃏<span class="tp-lbl"> Flashcards</span></button>';
+  mk.innerHTML='<button class="btn btn-ghost btn-sm tp-bar-btn" data-tp="quizset" title="Turn this conversation into a practice quiz">'+I('brain')+'<span class="tp-lbl"> Quiz from chat</span></button><button class="btn btn-ghost btn-sm tp-bar-btn" data-tp="cardset" title="Turn this conversation into flashcards">'+I('layers')+'<span class="tp-lbl"> Flashcards</span></button>';
   if(clear){ clear.style.marginLeft='0'; bar.insertBefore(mk,clear); } else bar.appendChild(mk);
   // modes row
   var modes=document.createElement('div'); modes.className='tp-modes'; modes.id='tp-modes'; bar.insertAdjacentElement('afterend',modes);
@@ -39,7 +40,7 @@ function build(){
   var strip=document.createElement('div'); strip.className='tp-strip'; strip.innerHTML='<div id="tp-docbox"></div><div class="tp-status" id="tp-status" hidden></div><div class="tp-chips" id="tp-chips"></div>';
   shell.insertBefore(strip,input);
   // attach button + file input
-  var btn=document.createElement('button'); btn.type='button'; btn.className='tp-attach'; btn.title='Upload a PDF, Word or text file (assignment, notes, worksheet)'; btn.setAttribute('aria-label','Upload a file'); btn.textContent='📎';
+  var btn=document.createElement('button'); btn.type='button'; btn.className='tp-attach'; btn.title='Upload a PDF, Word or text file (assignment, notes, worksheet)'; btn.setAttribute('aria-label','Upload a file'); btn.innerHTML=I('paperclip',20);
   var fi=document.createElement('input'); fi.type='file'; fi.id='tp-file'; fi.hidden=true; fi.accept='.pdf,.docx,.txt,.md,.csv,.html,.htm';
   input.insertBefore(btn,comp); input.appendChild(fi);
   btn.addEventListener('click',function(){fi.click();});
@@ -54,15 +55,15 @@ function build(){
 function renderModes(){
   var box=$('tp-modes'); if(!box) return;
   var cur=MODES.filter(function(m){return m.id===S.mode;})[0]||MODES[0];
-  box.innerHTML=MODES.map(function(m){return '<button type="button" class="tp-mode'+(m.id===S.mode?' on':'')+'" data-tp="mode" data-id="'+m.id+'" aria-pressed="'+(m.id===S.mode)+'">'+m.label+'</button>';}).join('')+'<div class="tp-mode-hint">'+esc(cur.hint)+'</div>';
+  box.innerHTML=MODES.map(function(m){return '<button type="button" class="tp-mode'+(m.id===S.mode?' on':'')+'" data-tp="mode" data-id="'+m.id+'" aria-pressed="'+(m.id===S.mode)+'">'+I(m.ic,15)+m.label+'</button>';}).join('')+'<div class="tp-mode-hint">'+esc(cur.hint)+'</div>';
 }
 function renderChips(){
   var box=$('tp-chips'); if(!box) return;
-  box.innerHTML=CHIPS.map(function(c,i){return '<button type="button" class="tp-chip" data-tp="chip" data-i="'+i+'">'+esc(c[0])+'</button>';}).join('');
+  box.innerHTML=CHIPS.map(function(c,i){return '<button type="button" class="tp-chip" data-tp="chip" data-i="'+i+'">'+I(c[0],14)+esc(c[1])+'</button>';}).join('');
 }
 function renderDoc(){
   var box=$('tp-docbox'); if(!box) return;
-  box.innerHTML=S.doc?'<div class="tp-doc">📄 <b>'+esc(S.doc.name)+'</b><small>'+Math.max(1,Math.round(S.doc.text.length/5))+' words read</small><button type="button" data-tp="rmdoc" title="Remove file" aria-label="Remove file">✕</button></div>':'';
+  box.innerHTML=S.doc?'<div class="tp-doc">'+I('file-text',18)+'<b>'+esc(S.doc.name)+'</b><small>'+Math.max(1,Math.round(S.doc.text.length/5))+' words read</small><button type="button" data-tp="rmdoc" title="Remove file" aria-label="Remove file">'+I('x',16)+'</button></div>':'';
 }
 function status(msg){ var s=$('tp-status'); if(!s) return; s.hidden=!msg; s.textContent=msg||''; }
 
@@ -112,7 +113,7 @@ function makeSet(type){
   var firstQ=(safe(function(){return state.chat;},[]).filter(function(m){return m.role==='user';})[0]||{}).text||'Tutor chat';
   pickSubject(src).then(function(sid){
     return buildStudySet({subjectId:sid,topic:String(firstQ).replace(/\s+/g,' ').slice(0,60),type:type,count:type==='quiz'?6:8,sourceText:src});
-  }).then(function(){ toastMsg(type==='quiz'?'Quiz ready in Study Sets ✅':'Flashcards ready in Study Sets ✅'); switchView('studysets'); })
+  }).then(function(){ toastMsg(type==='quiz'?'Quiz ready in Study Sets':'Flashcards ready in Study Sets'); switchView('studysets'); })
     .catch(function(){ toastMsg('Could not build that. Try again.',true); }).then(function(){S.busy=false;});
 }
 function copyText(t){
@@ -124,17 +125,17 @@ function saveNote(i){
   var q=''; for(var k=i-1;k>=0;k--){ if(chat[k].role==='user'){q=chat[k].text;break;} }
   pickSubject(q+'\n'+m.text).then(function(sid){
     state.notes.push({id:uid(),title:(String(q||'Tutor notes').replace(/\s+/g,' ').slice(0,60))||'Tutor notes',content:m.text,subjectId:sid||'',topic:'',createdAt:Date.now()});
-    persistNotes(); toastMsg('Saved to Notes 📝');
+    persistNotes(); toastMsg('Saved to notes');
   }).catch(function(){ toastMsg('Could not save that note.',true); });
 }
 function onClick(e){
   var b=e.target.closest&&e.target.closest('[data-tp]'); if(!b) return; var a=b.getAttribute('data-tp');
   if(a==='mode') setMode(b.getAttribute('data-id')||'');
-  else if(a==='chip'){ var c=CHIPS[+b.getAttribute('data-i')]; if(c) send(c[1],c[2]); }
+  else if(a==='chip'){ var c=CHIPS[+b.getAttribute('data-i')]; if(c) send(c[2],c[3]); }
   else if(a==='rmdoc'){ S.doc=null; renderDoc(); }
   else if(a==='quizset') makeSet('quiz');
   else if(a==='cardset') makeSet('flashcards');
-  else if(a==='copy'){ var m=safe(function(){return state.chat[+b.getAttribute('data-i')];},null); if(m) copyText(m.text).then(function(){ b.textContent='✓ Copied'; setTimeout(function(){b.textContent='📋 Copy';},1500); }).catch(function(){toastMsg('Could not copy.',true);}); }
+  else if(a==='copy'){ var m=safe(function(){return state.chat[+b.getAttribute('data-i')];},null); if(m) copyText(m.text).then(function(){ b.innerHTML=I('circle-check',14)+' Copied'; setTimeout(function(){b.innerHTML=I('copy',14)+' Copy';},1500); }).catch(function(){toastMsg('Could not copy.',true);}); }
   else if(a==='note') saveNote(+b.getAttribute('data-i'));
 }
 
@@ -146,7 +147,7 @@ function decorate(){
     var el=msgs[i], m=chat[i];
     if(!m||m.role!=='assistant'||m.streaming||!m.text||el.querySelector('.tp-actions')) continue;
     var d=document.createElement('div'); d.className='tp-actions';
-    d.innerHTML='<button type="button" class="tp-act" data-tp="copy" data-i="'+i+'">📋 Copy</button><button type="button" class="tp-act" data-tp="note" data-i="'+i+'">📝 Save to notes</button>';
+    d.innerHTML='<button type="button" class="tp-act" data-tp="copy" data-i="'+i+'">'+I('copy',14)+' Copy</button><button type="button" class="tp-act" data-tp="note" data-i="'+i+'">'+I('notebook-pen',14)+' Save to notes</button>';
     var c=el.querySelector('.msg-content'); (c||el).appendChild(d);
   }
 }
