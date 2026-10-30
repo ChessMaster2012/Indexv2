@@ -304,7 +304,8 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
 
   /* ---------- Google Drive (read-only) so private Docs/Slides/Drive files in assignments can be read ---------- */
   const G_ID = () => String(process.env.GOOGLE_CLIENT_ID || ''), G_SECRET = () => String(process.env.GOOGLE_CLIENT_SECRET || '');
-  const driveConfigured = () => !!(G_ID() && G_SECRET());
+  // Google Drive access is OFF unless CANVAS_GOOGLE_DRIVE=1 (school Google admins currently block it).
+  const driveConfigured = () => process.env.CANVAS_GOOGLE_DRIVE === '1' && !!(G_ID() && G_SECRET());
   const gRedirect = req => `${publicBaseUrl || `${req.protocol}://${req.get('host')}`}/api/canvas/google/callback`;
   const gStates = new Map();
   async function gToken(uid) {

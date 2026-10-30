@@ -46,16 +46,16 @@ const jsonBody = express.json({
 // the Canvas file-upload route parses its own (larger) body
 app.use((req, res, next) => req.path === '/api/canvas/extract' ? next() : jsonBody(req, res, next));
 
-// Conservative browser/security headers for a student-facing educational site.
-// These do not require extra services and keep camera, microphone, and location
-// permissions unavailable unless a future feature explicitly needs them.
-app.use((req,res,next)=>{
-  res.setHeader('X-Content-Type-Options','nosniff');
-  res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
-  res.setHeader('X-Frame-Options','SAMEORIGIN');
-  res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');
-  next();
-});
+// Security hardening (see security.js and SECURITY.md): headers/CSP/HSTS, same-origin writes, rate limits.
+const SEC = require('./security');
+app.disable('x-powered-by');
+app.use(SEC.securityHeaders({ production: process.env.NODE_ENV === 'production' }));
+app.use(SEC.sameOriginWrites({ publicBaseUrl: PUBLIC_BASE_URL }));
+app.use('/api/', SEC.makeLimiter({ windowMs: 60 * 1000, max: 1500, keyFn: SEC.ipKey }));                       // whole school may share one IP
+app.use(['/api/auth/login', '/api/auth/signup', '/api/auth/reset-password', '/api/auth/google/start'], SEC.makeLimiter({ windowMs: 10 * 60 * 1000, max: 120, keyFn: SEC.ipKey, message: 'Too many sign-in attempts. Please wait a few minutes.' }));
+app.use('/api/ai/', SEC.makeLimiter({ windowMs: 60 * 1000, max: 40, keyFn: SEC.sessionOrIpKey, message: 'You are sending AI requests too fast. Wait a moment and try again.' }));
+app.use('/api/canvas/', SEC.makeLimiter({ windowMs: 60 * 1000, max: 90, keyFn: SEC.sessionOrIpKey }));
+const LOGIN_LOCK = SEC.makeLockout({ max: 8 });
 
 // Compress JSON API responses before sending them to browsers. This is
 // especially useful for Tutor responses and account payloads, and reduces
@@ -1410,7 +1410,8 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: '*' },
+  // same-origin only: a page on another site cannot open a live-game socket
+  allowRequest: (req, cb) => { const o = req.headers.origin; if (!o) return cb(null, true); try { const h = new URL(o).host; let b = ''; try { b = PUBLIC_BASE_URL ? new URL(PUBLIC_BASE_URL).host : ''; } catch (e) { /* ignore */ } cb(null, h === req.headers.host || (b && h === b)); } catch (e) { cb(null, false); } },
   // Keep live-game behavior unchanged while compressing larger Socket.IO
   // messages. Small real-time messages stay uncompressed to avoid CPU overhead.
   perMessageDeflate: { threshold: 1024 },
@@ -1648,7 +1649,7 @@ function parseCookies(req) {
   header.split(';').forEach(part => {
     const idx = part.indexOf('=');
     if (idx === -1) return;
-    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+    let v = part.slice(idx + 1).trim(); try { v = decodeURIComponent(v); } catch (e) { /* keep raw */ } out[part.slice(0, idx).trim()] = v;
   });
   return out;
 }
@@ -1657,7 +1658,7 @@ function setSessionCookie(res, token) {
   res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; HttpOnly; Path=/; Max-Age=${Math.floor(SESSION_MAX_AGE_MS / 1000)}; SameSite=Lax${secure}`);
 }
 function clearSessionCookie(res) {
-  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`);
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`);
 }
 function sessionSigningSecret() {
   // Reuse the existing server-only Supabase secret when persistent storage is enabled.
@@ -1787,6 +1788,7 @@ app.post('/api/auth/login', async (req, res) => {
     let { method, identifier, password } = req.body || {};
     if (method !== 'email') return res.status(400).json({ error: 'Only email/username sign-in is supported.' });
     identifier = String(identifier || '').trim();
+    if (LOGIN_LOCK.locked(identifier)) return res.status(429).json({ error: 'Too many incorrect attempts for this account. Please wait 15 minutes or reset your password.' });
     let user = null;
     if (SUPABASE_ENABLED) {
       user = await dbFindUserByEmail(identifier);
@@ -1798,8 +1800,10 @@ app.post('/api/auth/login', async (req, res) => {
       user = users.get('email:' + normalized) || usersByUsername.get(normalizeUsername(identifier)) || null;
     }
     if (!user || !user.passwordHash || !verifyPassword(password || '', user.salt, user.passwordHash)) {
+      LOGIN_LOCK.fail(identifier);
       return res.status(401).json({ error: 'Incorrect email/username or password.' });
     }
+    LOGIN_LOCK.ok(identifier);
     users.set('email:' + normalizeEmail(user.email || user.identifier), user);
     if(user.username) usersByUsername.set(normalizeUsername(user.username), user);
     usersById.set(user.id, user);
@@ -2997,6 +3001,10 @@ LIBRARY.init({
 });
 const CANVAS = require('./canvas').init({ app, dataDir: DATA_DIR, publicBaseUrl: PUBLIC_BASE_URL, supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest } });
 require('./liveengine').attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTitle, cappedDailyCoins });
+
+const SEC_ERR = SEC.errorHandlers();
+app.use(SEC_ERR.notFoundApi);
+app.use(SEC_ERR.error);
 
 server.listen(PORT, () => {
   console.log(`Index study app listening on http://localhost:${PORT}`);
