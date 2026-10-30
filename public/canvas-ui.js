@@ -83,8 +83,10 @@ function wireConnect(){
 function connectedBar(){
   var c=CV.status.connection, last=CV.data?CV.data.syncedAt:c.lastSync;
   return '<div class="cv-bar"><div class="cv-bar-l"><span class="cv-dot"></span><b>'+esc(c.name||'Connected')+'</b><span class="cv-host">'+esc(c.host)+'</span>'+(last?'<span class="cv-sync">Synced '+ago(last)+'</span>':'')+'</div>'+
-    '<div class="cv-bar-r"><button class="btn btn-ghost btn-sm" data-cv="sync"'+(CV.loading?' disabled':'')+'>'+(CV.loading?'Syncing…':'🔄 Sync now')+'</button><button class="btn btn-ghost btn-sm" data-cv="disconnect">Disconnect</button></div></div>';
+    '<div class="cv-bar-r">'+driveBtn()+'<button class="btn btn-ghost btn-sm" data-cv="sync"'+(CV.loading?' disabled':'')+'>'+(CV.loading?'Syncing…':'🔄 Sync now')+'</button><button class="btn btn-ghost btn-sm" data-cv="disconnect">Disconnect</button></div></div>';
 }
+function driveBtn(){ var d=CV.status&&CV.status.drive; if(!d||!d.configured) return '';
+  return d.connected?'<button class="btn btn-ghost btn-sm" data-cv="gdisc" title="Disconnect Google Drive">📁 Drive'+(d.email?': '+esc(d.email):' connected')+' ✕</button>':'<a class="btn btn-ghost btn-sm" href="/api/canvas/google/start">📁 Connect Google Drive</a>'; }
 function ago(t){ var s=Math.round((Date.now()-t)/1000); if(s<60) return 'just now'; if(s<3600) return Math.round(s/60)+' min ago'; if(s<86400) return Math.round(s/3600)+' h ago'; return Math.round(s/86400)+' d ago'; }
 function openList(){ return CV.data.assignments.filter(isOpen); }
 function summaryHtml(){
@@ -187,7 +189,7 @@ function aiPickSubject(a,text){
 function askPaste(unread){
   return new Promise(function(resolve){
     var o=document.createElement('div'); o.className='cv-modal';
-    o.innerHTML='<div class="cv-modal-card"><h3>I couldn’t open this assignment</h3><p>'+(unread&&unread.length?'Canvas only links to: '+esc(unread.join(', '))+'. ':'')+'It’s private or outside Canvas, so I can’t sign in to it for you. Paste the assignment text (or the questions) here and I’ll build the quiz from it — or skip to base it on the title.</p><textarea class="cv-sel wide" rows="7" placeholder="Paste the assignment here…" style="width:100%;resize:vertical"></textarea><div class="cv-modal-act"><button class="btn btn-ghost" data-x="no">Cancel</button><button class="btn btn-ghost" data-x="skip">Skip</button><button class="btn btn-primary" data-x="ok">Use this text</button></div></div>';
+    o.innerHTML='<div class="cv-modal-card"><h3>I couldn’t open this assignment</h3><p>'+(unread&&unread.length?'Canvas only links to: '+esc(unread.join(', '))+'. ':'')+''+(CV.status&&CV.status.drive&&CV.status.drive.configured&&!CV.status.drive.connected?'Connect your Google Drive and I can read private Docs myself. ':CV.status&&CV.status.drive&&CV.status.drive.connected?'Your connected Google account can’t open it, or it isn’t a Google file. ':'It’s private or outside Canvas, so I can’t sign in to it for you. ')+' Paste the assignment text (or the questions) here and I’ll build the quiz from it — or skip to base it on the title.</p><textarea class="cv-sel wide" rows="7" placeholder="Paste the assignment here…" style="width:100%;resize:vertical"></textarea><div class="cv-modal-act"><button class="btn btn-ghost" data-x="no">Cancel</button>'+(CV.status&&CV.status.drive&&CV.status.drive.configured&&!CV.status.drive.connected?'<a class="btn btn-ghost" href="/api/canvas/google/start">📁 Connect Google Drive</a>':'')+'<button class="btn btn-ghost" data-x="skip">Skip</button><button class="btn btn-primary" data-x="ok">Use this text</button></div></div>';
     var done=function(v){ if(o.parentNode) document.body.removeChild(o); resolve(v); };
     o.addEventListener('click',function(e){ var x=e.target.getAttribute&&e.target.getAttribute('data-x'); if(x==='ok') done(o.querySelector('textarea').value.trim().slice(0,9000)); else if(x==='skip') done(''); else if(x==='no'||e.target===o) done(null); });
     document.body.appendChild(o);
@@ -254,6 +256,7 @@ document.addEventListener('click',function(e){
     api('/api/canvas/token',{method:'POST',body:{host:h,token:t}}).then(function(j){ b.disabled=false; if(j.ok){ safe(function(){ localStorage.setItem('index-canvas-host',h); },0); CV.status.connection=j.connection; $('cv-token').value=''; toast('Canvas connected ✅'); load(true); } else if(msg) msg.textContent=j.error||'Could not connect.'; });
   }
   else if(a==='sync') load(true);
+  else if(a==='gdisc'){ if(confirm('Disconnect Google Drive? Index will delete its saved access.')) api('/api/canvas/google/disconnect',{method:'POST',body:{}}).then(function(){ CV.status.drive.connected=false; CV.status.drive.email=''; render(); toast('Google Drive disconnected.'); }); }
   else if(a==='disconnect'){ if(confirm('Disconnect Canvas? Index will delete the saved connection.')) api('/api/canvas/disconnect',{method:'POST',body:{}}).then(function(){ CV.status.connection=null; CV.data=null; CV.plan=null; render(); toast('Canvas disconnected.'); }); }
   else if(a==='plan') runPlan();
   else if(a==='tab'){ CV.tab=b.getAttribute('data-tab'); render(); }
@@ -283,9 +286,9 @@ new MutationObserver(function(){ injectSignInButton(); }).observe(document.body,
 injectSignInButton(); ensureView();
 
 /* ---------- returning from Canvas ---------- */
-(function(){ var p=new URLSearchParams(location.search); var ok=p.get('canvas'), err=p.get('canvasError'); if(!ok&&!err) return;
+(function(){ var p=new URLSearchParams(location.search); var ok=p.get('canvas')||p.get('drive'), err=p.get('canvasError')||p.get('driveError'), isDrive=!!(p.get('drive')||p.get('driveError')); if(!ok&&!err) return;
   history.replaceState(null,'',location.pathname);
-  var go=function(){ if(!safe(function(){ return state.account; },null)){ setTimeout(go,400); return; } if(err) toast(err,true); else toast('Canvas connected ✅'); switchView('canvas'); };
+  var go=function(){ if(!safe(function(){ return state.account; },null)){ setTimeout(go,400); return; } if(err) toast(err,true); else toast(isDrive?'Google Drive connected ✅ Try Study this again.':'Canvas connected ✅'); switchView('canvas'); };
   setTimeout(go,1200); })();
 
 /* ---------- dashboard: due soon ---------- */
