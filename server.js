@@ -1100,7 +1100,7 @@ app.post('/api/ai/chat',async(req,res)=>{
         // transient network/provider failures can retry within the 65-second budget.
         let tutorAnswer;
         try{
-          tutorAnswer=await callVireonixWithRetry(messages,complex,65000,1800,0.1,'Tutor');
+          tutorAnswer=await callVireonixWithRetry(messages,complex,82000,1800,0.1,'Tutor');
         }catch(tutorJsonError){
           const upstreamStatus=Number(tutorJsonError?.status||0);
           if(upstreamStatus!==502 && upstreamStatus!==503) throw tutorJsonError;
