@@ -1090,23 +1090,26 @@ app.post('/api/ai/chat',async(req,res)=>{
         }
       }
       if(requestIntent==='tutor'){
-        // Tutor uses one bounded Vireonix Auto request. Keep the server-side
-        // deadline below 15 seconds so retries/backoff cannot make the browser wait
-        // 35+ seconds. No alternate provider, streaming fallback, or recovery call.
+        // For short follow-ups, send only the latest assistant answer and the
+        // student's follow-up alongside the system instructions. This avoids
+        // resending a long quiz/history payload to Auto on every clarification.
+        const tutorConversation=messages.filter(m=>m.role!=='system');
+        const tutorSystem=messages.filter(m=>m.role==='system');
+        const tutorMessages=routeFollowUp
+          ? [...tutorSystem,...tutorConversation.slice(-2)]
+          : messages;
         const tutorStartedAt=Date.now();
         let tutorAnswer;
         try{
-          // One primary request leaves time for a compact retry on gateway errors.
-          // Avoid the generic three-attempt helper here: its backoff can consume
-          // the whole deadline before a useful follow-up attempt can begin.
-          tutorAnswer=await callVireonix(messages,complex,10500,1200,0.1);
+          // Keep the first call modest so a short clarification has time to retry.
+          tutorAnswer=await callVireonix(tutorMessages,routeFollowUp?false:complex,8500,routeFollowUp?500:900,0.1);
         }catch(tutorJsonError){
           const status=Number(tutorJsonError?.status||0);
           const remaining=14000-(Date.now()-tutorStartedAt);
           if((status===502||status===503||providerRetryable(tutorJsonError))&&remaining>900){
             try{
               console.warn('[AI] Tutor making one compact same-provider retry within deadline.');
-              tutorAnswer=await callVireonix(messages,false,Math.min(remaining-250,3500),650,0.1);
+              tutorAnswer=await callVireonix(tutorMessages,false,Math.min(remaining-250,3500),routeFollowUp?350:550,0.1);
             }catch(retryError){
               console.warn('[AI] Compact Tutor retry failed:',retryError?.message||retryError);
               throw retryError;
