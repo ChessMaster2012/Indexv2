@@ -958,7 +958,7 @@ function fastDeterministicTutor(question,messages=[]){
   }
 
   // Small arithmetic expressions are also safe to answer locally.
-  const arithmetic=q.replace(/^what\s+is\s+/i,'').replace(/\?$/,'').trim();
+  const arithmetic=q.replace(/^what(?:'s|s)?\s+(?:is\s+)?/i,'').replace(/\?$/,'').trim();
   // Accept the common keyboard spelling "x" as multiplication, along with
   // explicit words such as "times", without treating variables as arithmetic.
   const normalizedArithmetic=arithmetic
