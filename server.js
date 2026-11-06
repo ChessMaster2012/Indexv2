@@ -1112,6 +1112,14 @@ app.post('/api/ai/chat',async(req,res)=>{
               tutorAnswer=await callVireonix(tutorMessages,false,Math.min(remaining-250,3500),routeFollowUp?350:550,0.1);
             }catch(retryError){
               console.warn('[AI] Compact Tutor retry failed:',retryError?.message||retryError);
+              // If Auto is returning an immediate gateway error, answer locally
+              // when this is a supported deterministic school question instead of
+              // surfacing a raw 502 to the student.
+              const localTutorAnswer=fastDeterministicTutor(question,tutorMessages)||deterministicTutor(question);
+              if(localTutorAnswer){
+                console.warn('[AI] Returning deterministic Tutor fallback after provider failure.');
+                return res.json({text:localTutorAnswer,provider:'Index Tutor fallback',model:'local'});
+              }
               throw retryError;
             }
           }else{
