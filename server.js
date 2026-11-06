@@ -980,7 +980,9 @@ function deterministicTutor(question){
   const l=q.toLowerCase();
 
   // Reliable local answer for common U.S. history questions when Auto is unavailable.
-  if(/\b(?:when|what\s+date)\b/i.test(q) && /\bdeclaration(?:\s+of\s+independence)?\b/i.test(q) && /\b(?:written|drafted|adopted|signed|date)\b/i.test(q)){
+  // Match natural variants such as "when was the declaration written" and
+  // "when was Declaration of Independence drafted" without requiring exact phrasing.
+  if(/\bdeclaration\b/i.test(q) && /\b(?:when|date|written|writing|drafted|adopted|signed)\b/i.test(q) && /\b(?:written|writing|drafted|adopted|signed|date|when)\b/i.test(q)){
     return 'The Declaration of Independence was drafted in June 1776, adopted by the Continental Congress on July 4, 1776, and signed by most delegates on August 2, 1776. If your question means when it was written, the main drafting happened in June 1776.';
   }
   if(/\b(?:declaration\s+of\s+independence)\b/i.test(q) && /\b(?:what|explain|meaning|purpose|why)\b/i.test(q)){
