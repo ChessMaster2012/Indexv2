@@ -1100,36 +1100,11 @@ app.post('/api/ai/chat',async(req,res)=>{
         // transient network/provider failures can retry within the 65-second budget.
         let tutorAnswer;
         try{
-          tutorAnswer=await callVireonixWithRetry(messages,complex,82000,1800,0.1,'Tutor');
+          tutorAnswer=await callVireonixWithRetry(messages,complex,12500,1200,0.1,'Tutor');
         }catch(tutorJsonError){
-          const upstreamStatus=Number(tutorJsonError?.status||0);
-          if(upstreamStatus!==502 && upstreamStatus!==503) throw tutorJsonError;
-          // Some upstream 5xx failures affect JSON responses but not the streaming
-          // transport. Retry the same prompt, same Auto model, and same mode over SSE.
-          // The browser already supports SSE; this is a transport fallback, not a provider switch.
-          console.warn('[AI] Tutor JSON retries exhausted after HTTP '+upstreamStatus+'; trying Vireonix Auto streaming transport.');
-          await streamVireonixToResponse(messages,complex,res,{mode:'tutor',deadlineMs:30000});
-          return;
-        }
-
-        // A successful HTTP response can still contain an obviously interrupted
-        // fragment. Ask Auto to finish that same answer once before returning it.
-        const wordCount=(String(tutorAnswer).match(/\b[\p{L}\p{N}]+\b/gu)||[]).length;
-        const looksCutOff=/\.{3,}$|[,;:—-]$|\b(?:because|and|but|or|with|to|of|for|that|which|the|a|an|is|are|was|were|in|on|at|by)$/i.test(String(tutorAnswer).trim())
-          || (wordCount<=2 && !/[.!?]$/.test(String(tutorAnswer).trim()));
-        if(looksCutOff){
-          console.warn('[AI] Tutor Auto returned a likely incomplete fragment; requesting completion.');
-          const recoveryMessages=[
-            ...messages,
-            {role:'assistant',content:String(tutorAnswer).slice(0,3000)},
-            {role:'user',content:'Your previous reply was cut off before it was complete. Finish the same tutoring response in a complete, useful way. Do not restart or repeat the part already written. Follow the selected tutoring mode.'}
-          ];
-          try{
-            const completed=await callVireonixWithRetry(recoveryMessages,complex,14000,1800,0.1,'Tutor recovery');
-            if(completed && completed.trim()) tutorAnswer=completed;
-          }catch(recoveryError){
-            console.warn('[AI] Tutor completion retry failed:',recoveryError?.message||recoveryError);
-          }
+          // Enforce the Tutor's 15-second request budget; no secondary transport or recovery call.
+          console.warn('[AI] Tutor request ended within the 15-second budget:',tutorJsonError?.message||tutorJsonError);
+          throw tutorJsonError;
         }
         return res.json({text:tutorAnswer,provider:'Vireonix Auto',model:'auto'});
       }
