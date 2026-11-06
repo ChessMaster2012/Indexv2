@@ -979,6 +979,14 @@ function deterministicTutor(question){
   const q=String(question||'').trim();
   const l=q.toLowerCase();
 
+  // Reliable local answer for common U.S. history questions when Auto is unavailable.
+  if(/\b(?:when|what\s+date)\b/i.test(q) && /\b(?:declaration\s+of\s+independence)\b/i.test(q) && /\b(?:written|drafted|adopted|signed|date)\b/i.test(q)){
+    return 'The Declaration of Independence was drafted in June 1776, adopted by the Continental Congress on July 4, 1776, and signed by most delegates on August 2, 1776. If your question means when it was written, the main drafting happened in June 1776.';
+  }
+  if(/\b(?:declaration\s+of\s+independence)\b/i.test(q) && /\b(?:what|explain|meaning|purpose|why)\b/i.test(q)){
+    return 'The Declaration of Independence was a document announcing that the 13 American colonies considered themselves independent from Great Britain. Congress adopted it on July 4, 1776. It explained the colonies’ reasons for separating and stated ideas about equality and government by consent.';
+  }
+
   // Fast, topic-specific fallbacks for common school concepts.
   if(/\bpythagor(?:ean|eon|ian|en)?\b/i.test(q)){
     return 'The Pythagorean theorem is used for right triangles. It says a² + b² = c², where a and b are the two shorter legs and c is the hypotenuse, the side opposite the right angle. For example, if the legs are 3 and 4, then 3² + 4² = c², so 9 + 16 = 25 and c = 5.';
