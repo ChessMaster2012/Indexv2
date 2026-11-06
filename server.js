@@ -1093,12 +1093,27 @@ app.post('/api/ai/chat',async(req,res)=>{
         // Tutor uses one bounded Vireonix Auto request. Keep the server-side
         // deadline below 15 seconds so retries/backoff cannot make the browser wait
         // 35+ seconds. No alternate provider, streaming fallback, or recovery call.
+        const tutorStartedAt=Date.now();
         let tutorAnswer;
         try{
           tutorAnswer=await callVireonixWithRetry(messages,complex,14000,900,0.1,'Tutor');
         }catch(tutorJsonError){
-          console.warn('[AI] Tutor reached its 14-second upstream budget:',tutorJsonError?.message||tutorJsonError);
-          throw tutorJsonError;
+          // A transient gateway failure gets one compact retry on the same Auto
+          // endpoint, bounded by the original 15-second wall-clock budget.
+          const status=Number(tutorJsonError?.status||0);
+          const remaining=14000-(Date.now()-tutorStartedAt);
+          if((status===502||status===503)&&remaining>1200){
+            try{
+              console.warn('[AI] Tutor retrying transient HTTP '+status+' with compact output.');
+              tutorAnswer=await callVireonix(messages,false,Math.min(remaining-200,6500),500,0.1);
+            }catch(retryError){
+              console.warn('[AI] Compact Tutor retry failed:',retryError?.message||retryError);
+              throw retryError;
+            }
+          }else{
+            console.warn('[AI] Tutor reached its 14-second upstream budget:',tutorJsonError?.message||tutorJsonError);
+            throw tutorJsonError;
+          }
         }
         return res.json({text:tutorAnswer,provider:'Vireonix Auto',model:'auto'});
       }
