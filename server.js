@@ -1090,20 +1090,14 @@ app.post('/api/ai/chat',async(req,res)=>{
         }
       }
       if(requestIntent==='tutor'){
-        // Tutor replies use a complete JSON response rather than exposing a live
-        // token stream. A dropped SSE connection used to leave students with
-        // half a sentence (or only the first couple of words) and no recovery.
-        // Keep Vireonix Auto as the sole provider, but retry transient 5xx/network
-        // failures with backoff inside the browser's 90-second Tutor deadline.
-        // Give Auto enough time for a normal answer while staying inside the
-        // browser's 90-second deadline. Each attempt gets a real 18-second window;
-        // transient network/provider failures can retry within the 65-second budget.
+        // Tutor uses one bounded Vireonix Auto request. Keep the server-side
+        // deadline below 15 seconds so retries/backoff cannot make the browser wait
+        // 35+ seconds. No alternate provider, streaming fallback, or recovery call.
         let tutorAnswer;
         try{
-          tutorAnswer=await callVireonixWithRetry(messages,complex,12500,1200,0.1,'Tutor');
+          tutorAnswer=await callVireonixWithRetry(messages,complex,14000,900,0.1,'Tutor');
         }catch(tutorJsonError){
-          // Enforce the Tutor's 15-second request budget; no secondary transport or recovery call.
-          console.warn('[AI] Tutor request ended within the 15-second budget:',tutorJsonError?.message||tutorJsonError);
+          console.warn('[AI] Tutor reached its 14-second upstream budget:',tutorJsonError?.message||tutorJsonError);
           throw tutorJsonError;
         }
         return res.json({text:tutorAnswer,provider:'Vireonix Auto',model:'auto'});
