@@ -1096,16 +1096,17 @@ app.post('/api/ai/chat',async(req,res)=>{
         const tutorStartedAt=Date.now();
         let tutorAnswer;
         try{
-          tutorAnswer=await callVireonixWithRetry(messages,complex,14000,900,0.1,'Tutor');
+          // One primary request leaves time for a compact retry on gateway errors.
+          // Avoid the generic three-attempt helper here: its backoff can consume
+          // the whole deadline before a useful follow-up attempt can begin.
+          tutorAnswer=await callVireonix(messages,complex,10500,1200,0.1);
         }catch(tutorJsonError){
-          // A transient gateway failure gets one compact retry on the same Auto
-          // endpoint, bounded by the original 15-second wall-clock budget.
           const status=Number(tutorJsonError?.status||0);
           const remaining=14000-(Date.now()-tutorStartedAt);
-          if((status===502||status===503)&&remaining>1200){
+          if((status===502||status===503||providerRetryable(tutorJsonError))&&remaining>900){
             try{
-              console.warn('[AI] Tutor retrying transient HTTP '+status+' with compact output.');
-              tutorAnswer=await callVireonix(messages,false,Math.min(remaining-200,6500),500,0.1);
+              console.warn('[AI] Tutor making one compact same-provider retry within deadline.');
+              tutorAnswer=await callVireonix(messages,false,Math.min(remaining-250,3500),650,0.1);
             }catch(retryError){
               console.warn('[AI] Compact Tutor retry failed:',retryError?.message||retryError);
               throw retryError;
