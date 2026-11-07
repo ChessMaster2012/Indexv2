@@ -577,7 +577,9 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   // The server enforces the quick-vs-deep deadline. The browser waits up to
   // the deep ceiling for Tutor intent so contextual follow-ups cannot be aborted
   // early by a shorter client-side timer.
-  const deadline=Date.now()+(Number(options.deadlineMs)|| (tutorMode ? (complex ? 90000 : 9700) : (studySetMode ? 35000 : 29500)));
+  // Tutor: 9.7 s was the budget for the WHOLE streamed answer, which Auto's slower
+  // pool models routinely exceed. Allow a realistic window; tokens stream as they arrive.
+  const deadline=Date.now()+(Number(options.deadlineMs)|| (tutorMode ? (complex ? 90000 : 45000) : (studySetMode ? 35000 : 29500)));
 
   async function requestAttempt(){
     const remaining=Math.max(100,deadline-Date.now());
@@ -595,8 +597,8 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
           messages,
           stream:true,
           // Study-set JSON needs room for all requested cards/questions; retain the same Auto model.
-          max_tokens:studySetMode ? 1800 : (tutorMode && complex ? 3500 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420))),
-          temperature:0
+          max_tokens:studySetMode ? 1800 : (tutorMode && complex ? 3500 : (tutorMode ? 700 : (complex ? 1200 : (String(messages?.slice?.(-1)?.[0]?.content||'').length<=90 ? 260 : 420)))),
+          temperature:tutorMode ? 0.1 : 0
         }),
         signal:controller.signal
       });
@@ -1108,36 +1110,26 @@ app.post('/api/ai/chat',async(req,res)=>{
         const tutorMessages=routeFollowUp
           ? [...tutorSystem,...tutorConversation.slice(-2)]
           : messages;
-        const tutorStartedAt=Date.now();
-        let tutorAnswer;
+        // Stream the Tutor answer (still Vireonix Auto, model "auto"). The old path made a
+        // single non-streaming call with an 8.5 s limit inside a 14 s budget, so any slow
+        // pool model produced "The Tutor response timed out". Streaming shows words as they
+        // arrive, and the stream function already retries 429/5xx with backoff.
         try{
-          // Keep the first call modest so a short clarification has time to retry.
-          tutorAnswer=await callVireonix(tutorMessages,routeFollowUp?false:complex,8500,routeFollowUp?500:900,0.1);
-        }catch(tutorJsonError){
-          const status=Number(tutorJsonError?.status||0);
-          const remaining=14000-(Date.now()-tutorStartedAt);
-          if((status===502||status===503||providerRetryable(tutorJsonError))&&remaining>900){
-            try{
-              console.warn('[AI] Tutor making one compact same-provider retry within deadline.');
-              tutorAnswer=await callVireonix(tutorMessages,false,Math.min(remaining-250,3500),routeFollowUp?350:550,0.1);
-            }catch(retryError){
-              console.warn('[AI] Compact Tutor retry failed:',retryError?.message||retryError);
-              // If Auto is returning an immediate gateway error, answer locally
-              // when this is a supported deterministic school question instead of
-              // surfacing a raw 502 to the student.
-              const localTutorAnswer=fastDeterministicTutor(question,tutorMessages)||deterministicTutor(question);
-              if(localTutorAnswer){
-                console.warn('[AI] Returning deterministic Tutor fallback after provider failure.');
-                return res.json({text:localTutorAnswer,provider:'Index Tutor fallback',model:'local'});
-              }
-              throw retryError;
+          await streamVireonixToResponse(tutorMessages,routeFollowUp?false:complex,res,{mode:'tutor'});
+          return;
+        }catch(tutorStreamError){
+          console.warn('[AI] Tutor stream failed:',tutorStreamError?.message||tutorStreamError);
+          if(!res.headersSent){
+            // Nothing sent yet: answer locally when this is a supported deterministic
+            // school question instead of surfacing a raw error to the student.
+            const localTutorAnswer=fastDeterministicTutor(question,tutorMessages)||deterministicTutor(question);
+            if(localTutorAnswer){
+              console.warn('[AI] Returning deterministic Tutor fallback after provider failure.');
+              return res.json({text:localTutorAnswer,provider:'Index Tutor fallback',model:'local'});
             }
-          }else{
-            console.warn('[AI] Tutor reached its 14-second upstream budget:',tutorJsonError?.message||tutorJsonError);
-            throw tutorJsonError;
           }
+          throw tutorStreamError;
         }
-        return res.json({text:tutorAnswer,provider:'Vireonix Auto',model:'auto'});
       }
 
       await streamVireonixToResponse(messages,complex,res,{mode:'background'});
