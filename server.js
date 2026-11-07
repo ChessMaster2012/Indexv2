@@ -1046,7 +1046,10 @@ function deterministicTutor(question){
 
   if(/^(hi|hello|hey)\b/i.test(q)) return 'Hi! What are you working on?';
 
-  return 'I could not reach the AI service for this request right now. Please try the same question again.';
+  // No canned answer matches. Return null so the caller reports a real provider error
+  // (HTTP status + message + log line) instead of passing off "could not reach the AI
+  // service" as a successful 200 answer, which hid the actual failure cause.
+  return null;
 }
 
 app.post('/api/ai/chat',async(req,res)=>{
