@@ -3880,25 +3880,65 @@ function normalizeTutorComposerInput(value){
   text=text.replace(/\$\$/g,' ');
   return text.replace(/[ \t]+/g,' ').replace(/\n{3,}/g,'\n\n').trim();
 }
+const LATEX_SYMBOLS={
+  alpha:'α',beta:'β',gamma:'γ',delta:'δ',epsilon:'ε',varepsilon:'ε',zeta:'ζ',eta:'η',theta:'θ',vartheta:'θ',iota:'ι',kappa:'κ',lambda:'λ',mu:'μ',nu:'ν',xi:'ξ',pi:'π',rho:'ρ',sigma:'σ',tau:'τ',upsilon:'υ',phi:'φ',varphi:'φ',chi:'χ',psi:'ψ',omega:'ω',
+  Gamma:'Γ',Delta:'Δ',Theta:'Θ',Lambda:'Λ',Xi:'Ξ',Pi:'Π',Sigma:'Σ',Phi:'Φ',Psi:'Ψ',Omega:'Ω',
+  times:'×',cdot:'·',div:'÷',pm:'±',mp:'∓',leq:'≤',le:'≤',geq:'≥',ge:'≥',neq:'≠',ne:'≠',approx:'≈',equiv:'≡',sim:'∼',propto:'∝',
+  to:'→',rightarrow:'→',leftarrow:'←',Rightarrow:'⇒',Leftrightarrow:'⇔',leftrightarrow:'↔',implies:'⇒',
+  infty:'∞',partial:'∂',nabla:'∇',sum:'Σ',int:'∫',prod:'∏',therefore:'∴',because:'∵',
+  circ:'°',degree:'°',parallel:'∥',perp:'⊥',angle:'∠',hbar:'ℏ',ell:'ℓ',cdots:'⋯',ldots:'…',dots:'…',
+  sin:'sin',cos:'cos',tan:'tan',sec:'sec',csc:'csc',cot:'cot',log:'log',ln:'ln',lim:'lim',min:'min',max:'max',exp:'exp',
+  arcsin:'arcsin',arccos:'arccos',arctan:'arctan',sinh:'sinh',cosh:'cosh',tanh:'tanh',
+  in:'∈',notin:'∉',subset:'⊂',cup:'∪',cap:'∩',forall:'∀',exists:'∃',neg:'¬',quad:' ',qquad:' '
+};
+const LATEX_DROP=['left','right','big','Big','bigg','Bigg','displaystyle','limits','nolimits'];
+/* Turns LaTeX-style math into readable Unicode. Sub/superscripts become private-use markers
+   (U+E000-E003) that formatTutorText() swaps for <sub>/<sup> after HTML-escaping. */
+function latexToReadable(input){
+  let t=String(input||'').replace(/[-]/g,'');
+  t=t.replace(/\\\[|\\\]|\\\(|\\\)/g,'').replace(/\$\$/g,'');
+  // Inline $...$ is only unwrapped when it looks like math, so "$5 and $10" is left alone.
+  t=t.replace(/\$([^$\n]{1,200}?)\$/g,(m,inner)=>/[\\_^{}=×·÷≈≤≥±√+*\/]|^\s*[A-Za-z]\s*$/.test(inner)?inner:m);
+  for(let i=0;i<4;i++){
+    t=t.replace(/\\(?:text|textbf|textit|textrm|mathrm|mathbf|mathit|operatorname|boxed|mathcal)\s*\{([^{}]*)\}/g,'$1');
+    t=t.replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g,(m,a,b)=>{
+      const simple=s=>/^[\w.·×°]+$/.test(s.trim());
+      return (simple(a)?a.trim():'('+a+')')+'/'+(simple(b)?b.trim():'('+b+')');
+    });
+    t=t.replace(/\\sqrt\s*\[\s*3\s*\]\s*\{([^{}]*)\}/g,'∛($1)').replace(/\\sqrt\s*\{([^{}]*)\}/g,'√($1)');
+  }
+  t=t.replace(/\\sqrt\s*\(([^()]*)\)/g,'√($1)');
+  t=t.replace(/\\vec\s*\{([^{}]*)\}/g,'$1⃗').replace(/\\hat\s*\{([^{}]*)\}/g,'$1̂').replace(/\\(?:bar|overline)\s*\{([^{}]*)\}/g,'$1̄');
+  t=t.replace(/\\[,;:]/g,' ').replace(/\\!/g,'').replace(/\\%/g,'%');
+  t=t.replace(/\\([A-Za-z]+)/g,(m,w)=>{
+    if(LATEX_DROP.includes(w)) return '';
+    return Object.prototype.hasOwnProperty.call(LATEX_SYMBOLS,w)?LATEX_SYMBOLS[w]:m;
+  });
+  t=t.replace(/\^[ \t]*\{?[ \t]*°[ \t]*\}?/g,'°');
+  t=t.replace(/(\S)[ \t]{2,}/g,'$1 ');
+  // Subscripts: F_g, F_net, F_{net}, v_{0x}. A single-letter base avoids snake_case words.
+  t=t.replace(/(^|[^A-Za-z0-9_])([A-Za-zΑ-Ωα-ω][̂̄⃗]?)_\{([^{}]{1,12})\}/g,'$1$2$3');
+  t=t.replace(/(^|[^A-Za-z0-9_])([A-Za-zΑ-Ωα-ω][̂̄⃗]?)_([A-Za-z0-9∥⊥]{1,4})(?![A-Za-z0-9_])/g,'$1$2$3');
+  // Powers: x^2, m/s^2, 10^{-3}
+  t=t.replace(/\^\{([^{}]{1,12})\}/g,'$1');
+  t=t.replace(/\^(-?[0-9]{1,2}|[A-Za-z])(?![A-Za-z0-9])/g,'$1');
+  return t;
+}
 function formatTutorText(raw){
   let text = String(raw || '').replace(/\r\n/g,'\n').trim();
-  // Repair common escaped/LaTeX-style math the model may still return.
-  text = text.replace(/\\\[|\\\]|\\\(|\\\)|\$\$/g,'');
-  text = text.replace(/\\sqrt\s*\{([^{}]+)\}/g,'√($1)');
-  text = text.replace(/\\sqrt\s*\(([^)]+)\)/g,'√($1)');
-  text = text.replace(/\\times/g,'×').replace(/\\cdot/g,'·').replace(/\\div/g,'÷').replace(/\\leq/g,'≤').replace(/\\geq/g,'≥').replace(/\\neq/g,'≠').replace(/\\approx/g,'≈').replace(/\\pm/g,'±').replace(/\\pi/g,'π');
-  text = text.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g,'($1)/($2)');
-  text = text.replace(/\\text\s*\{([^{}]+)\}/g,'$1');
-  text = text.replace(/\\left|\\right/g,'');
-  text = text.replace(/\\boxed\s*\{([^{}]+)\}/g,'$1');
+  // Repair LaTeX-style math the model may still return: show real symbols, never raw code.
+  text = latexToReadable(text);
   // Turn simple Markdown into safe HTML after escaping all user/model content.
   let html = esc(text);
+  // Sub/superscript markers from latexToReadable() become real <sub>/<sup> (content is already escaped).
+  html = html.replace(//g,'<sub>').replace(//g,'</sub>').replace(//g,'<sup>').replace(//g,'</sup>');
+  html = html.replace(/(^|\n)[ \t]*(?:\*{3,}|-{3,}|_{3,})[ \t]*(?=\n|$)/g,'$1<hr style="border:none;border-top:1px solid var(--line);margin:10px 0">');
   html = html.replace(/^###\s+(.+)$/gm,'<h4>$1</h4>');
   html = html.replace(/^##\s+(.+)$/gm,'<h3>$1</h3>');
   html = html.replace(/^#\s+(.+)$/gm,'<h3>$1</h3>');
   html = html.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   html = html.replace(/`([^`]+)`/g,'<code>$1</code>');
-  html = html.replace(/(?:^|\n)\s*[-•]\s+(.+)/g,'\n<span class="tutor-bullet">• $1</span>');
+  html = html.replace(/(?:^|\n)\s*[-•*]\s+(.+)/g,'\n<span class="tutor-bullet">• $1</span>');
   html = html.replace(/(?:^|\n)\s*(\d+)[.)]\s+(.+)/g,'\n<span class="tutor-bullet">$1. $2</span>');
   html = html.replace(/\n/g,'<br>');
   return html;
