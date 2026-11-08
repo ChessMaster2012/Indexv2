@@ -41,7 +41,8 @@ window.TutorPlus={
     var r=readyDocs(); if(!r.length) return null;
     return {name:r.length===1?r[0].name:r.length+' documents',text:'',docs:r.map(function(d){return {name:d.name,text:d.text};})};
   },
-  docs:function(){return readyDocs().map(function(d){return {name:d.name};});}
+  docs:function(){return readyDocs().map(function(d){return {name:d.name};});},
+  send:function(t,m){send(t,m);}
 };
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
