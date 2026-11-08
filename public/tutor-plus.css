@@ -1,24 +1,119 @@
-/* AI Tutor extras: modes, attachment, quick prompts, message actions */
-.tp-modes{display:flex;gap:6px;padding:10px 16px 0;flex-wrap:wrap}
-.tp-mode{border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;line-height:1.2}
+/* AI Tutor tab: full-height chat, header with modes, bottom dock with files / quick prompts / composer.
+   Colors come from the site's own variables so it follows the current theme. */
+
+/* ---- full-height page: the tutor uses the whole area beside the sidebar ---- */
+body.tp-full .main{padding:0 !important;min-height:0 !important;max-width:none}
+body.tp-full #view-tutor.active{display:flex;flex-direction:column;height:calc(100vh - var(--tp-top,0px));height:calc(100dvh - var(--tp-top,0px));min-height:380px;animation:none}
+body.tp-full .tutor-shell{flex:1 1 auto;min-height:0;height:auto;display:flex;flex-direction:column;border:0;border-radius:0;background:var(--bg);overflow:hidden;position:relative}
+
+/* ---- header ---- */
+.tutor-bar{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;padding:12px max(16px,3vw);background:var(--card);border-bottom:1px solid var(--line)}
+.tp-title{display:flex;flex-direction:column;min-width:0}
+.tp-title h2{margin:0;font-size:21px;font-weight:600;line-height:1.15}
+.tp-net.gate-note{margin:2px 0 0;font-size:11.5px;line-height:1.3}
+.tp-focus{display:flex;align-items:center;gap:8px;min-width:0}
+.tp-focus label{font-size:12.5px;font-weight:700;color:var(--ink-soft)}
+.tp-focus select{max-width:230px;min-width:0;padding:7px 10px;border:2px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font-size:13px}
+.tp-bar-actions{margin-left:auto;display:flex;gap:6px;align-items:center}
+.tp-bar-btn{white-space:nowrap}
+.tp-modes{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;padding:9px max(16px,3vw);background:var(--card);border-bottom:1px solid var(--line)}
+.tp-mode-row{display:flex;gap:6px;flex-wrap:wrap}
+.tp-mode{display:inline-flex;align-items:center;gap:6px;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:700;cursor:pointer;line-height:1.2}
 .tp-mode:hover{border-color:var(--purple)}
 .tp-mode.on{background:var(--purple);border-color:var(--purple);color:#fff}
-.tp-mode-hint{width:100%;font-size:12px;color:var(--ink-soft);margin:2px 2px 0}
-.tp-strip{padding:8px 16px 0;display:flex;flex-direction:column;gap:8px;border-top:2px solid var(--line)}
-.tp-doc{display:flex;align-items:center;gap:8px;background:var(--bg);border:2px solid var(--line);border-radius:12px;padding:7px 10px;font-size:13px;max-width:100%}
-.tp-doc b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tp-doc small{color:var(--ink-soft);white-space:nowrap}
-.tp-doc button{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:15px;color:var(--ink-soft)}
+.tp-mode-hint{flex:1 1 220px;min-width:0;font-size:12.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- progress strip from the AI (kept from the original) ---- */
+body.tp-full .ai-work-status{margin:0;border-radius:0;border-width:1px 0;padding:7px max(16px,3vw)}
+
+/* ---- conversation: this is where the space goes ---- */
+body.tp-full .chat-log{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;
+  padding:22px max(16px,calc((100% - 940px) / 2)) 28px;display:flex;flex-direction:column;gap:16px}
+body.tp-full .msg{font-size:15.5px;line-height:1.65;white-space:normal;max-width:min(100%,760px)}
+body.tp-full .msg-user{max-width:min(78%,640px);border-radius:20px 20px 6px 20px;padding:11px 17px;box-shadow:0 1px 2px rgba(23,32,51,.08)}
+body.tp-full .msg-ai{align-self:stretch;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:6px 20px 20px 20px;padding:15px 20px 12px;box-shadow:0 1px 3px rgba(23,32,51,.06)}
+body.tp-full .msg-ai .msg-role,body.tp-full .msg-user .msg-role{margin-bottom:6px}
+.msg-content{overflow-wrap:anywhere}
+.msg-content sub,.msg-content sup{font-size:.72em;line-height:0}
+.msg-content .tutor-bullet{display:block;padding-left:2px;margin:2px 0}
+.msg-content h3,.msg-content h4{margin:10px 0 4px}
+.msg-content code{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:.92em}
+
+/* ---- empty chat: friendly start ---- */
+body.tp-full .chat-empty{margin:auto;max-width:560px;width:100%}
+body.tp-full .chat-empty h3{font-size:26px}
+.tp-starters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px;text-align:left}
+.tp-starter{display:flex;align-items:center;gap:10px;border:2px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;padding:13px 15px;font-size:14px;font-weight:700;cursor:pointer;text-align:left}
+.tp-starter:hover{border-color:var(--purple);transform:translateY(-1px)}
+
+/* ---- bottom dock ---- */
+.tp-dock{flex:0 0 auto;background:var(--card);border-top:1px solid var(--line);padding:8px max(16px,calc((100% - 940px) / 2)) max(10px,env(safe-area-inset-bottom,0px))}
+.tp-strip{display:flex;flex-direction:column;gap:6px}
+.tp-docbox{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.tp-docbox:empty{display:none}
+.tp-doc{display:flex;align-items:center;gap:7px;background:var(--bg);border:1.5px solid var(--line);border-radius:12px;padding:5px 8px 5px 10px;font-size:12.5px;max-width:260px;min-width:0}
+.tp-doc svg{flex:0 0 auto}
+.tp-doc b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.tp-doc small{color:var(--ink-soft);white-space:nowrap;flex:0 0 auto}
+.tp-doc button{flex:0 0 auto;display:inline-flex;border:0;background:transparent;cursor:pointer;color:var(--ink-soft);padding:2px;border-radius:6px}
+.tp-doc button:hover{color:var(--ink);background:var(--line)}
+.tp-doc.busy{opacity:.85}
+.tp-spin{flex:0 0 auto;width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--purple);animation:tpspin .8s linear infinite}
+@keyframes tpspin{to{transform:rotate(360deg)}}
+.tp-count{font-size:12px;color:var(--ink-soft);margin-left:2px}
+.tp-clearall{border:0;background:transparent;color:var(--ink-soft);font-size:12px;font-weight:700;text-decoration:underline;cursor:pointer;padding:2px 4px}
+.tp-clearall:hover{color:var(--ink)}
+.tp-status{font-size:12px;color:var(--ink-soft)}
 .tp-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
-.tp-chip{flex:0 0 auto;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tp-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap}
 .tp-chip:hover{border-color:var(--purple)}
 .tp-chip:disabled{opacity:.5;cursor:default}
-.tp-attach{flex:0 0 auto;align-self:flex-end;border:2px solid var(--line);background:var(--bg);border-radius:14px;width:44px;height:44px;font-size:18px;cursor:pointer}
+
+/* ---- composer ---- */
+.tp-dock .tutor-input{display:flex;align-items:flex-end;gap:8px;padding:0;border:0}
+.tp-dock .tutor-input .tutor-composer{flex:1 1 auto;min-width:0;min-height:46px;max-height:min(220px,32vh);overflow-y:auto;border:2px solid var(--line);border-radius:16px;padding:12px 15px;font-size:15px;background:var(--bg);color:var(--ink);line-height:1.45;white-space:pre-wrap;word-break:break-word;cursor:text}
+.tp-dock .tutor-input .tutor-composer:focus{outline:none;border-color:var(--purple)}
+.tp-dock .tutor-input .btn{align-self:flex-end;height:46px;padding:0 22px}
+.tp-attach{position:relative;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:16px;width:46px;height:46px;cursor:pointer}
 .tp-attach:hover{border-color:var(--purple)}
-.tp-status{font-size:12px;color:var(--ink-soft);padding:0 2px 6px}
+.tp-attach.full{opacity:.6}
+.tp-badge{position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 5px;border-radius:999px;background:var(--purple);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1}
+.tp-foot{margin:7px 0 0;padding:0;font-size:11px;line-height:1.4;color:var(--ink-soft);text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* ---- message actions ---- */
 .tp-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .tp-act{border:1px solid var(--line);background:transparent;color:var(--ink-soft);border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;cursor:pointer}
 .tp-act:hover{color:var(--ink);border-color:var(--purple)}
-.tutor-shell.tp-drag{outline:3px dashed var(--purple);outline-offset:-6px}
-.tp-bar-btn{white-space:nowrap}
-@media (max-width:560px){.tp-bar-btn .tp-lbl{display:none}.tp-mode{padding:6px 10px}}
+
+/* ---- drop target ---- */
+.tutor-shell.tp-drag::after{content:"Drop up to 5 files to attach them";position:absolute;inset:10px;z-index:5;display:flex;align-items:center;justify-content:center;border:3px dashed var(--purple);border-radius:18px;background:color-mix(in srgb,var(--card) 88%,transparent);color:var(--ink);font-size:18px;font-weight:700;pointer-events:none}
+
+/* ---- small screens and short windows: keep the answer visible ---- */
+@media (max-width:700px){
+  .tutor-bar{padding:10px 14px;gap:6px 10px}
+  .tp-title h2{font-size:18px}
+  .tp-net.gate-note{display:none}
+  .tp-focus select{max-width:150px}
+  .tp-bar-btn .tp-lbl{display:none}
+  .tp-modes{padding:8px 14px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+  .tp-mode-row{flex-wrap:nowrap}.tp-mode{white-space:nowrap}
+  .tp-mode-hint{display:none}
+  body.tp-full .chat-log{padding:16px 14px 20px}
+  body.tp-full .msg{font-size:15px}
+  body.tp-full .msg-ai{padding:13px 15px 10px}
+  .tp-dock{padding-left:12px;padding-right:12px}
+  .tp-starters{grid-template-columns:1fr}
+  .tp-dock .tutor-input .btn{padding:0 16px}
+  .tp-doc{max-width:100%}
+}
+@media (max-height:640px){
+  .tp-chips,.tp-foot,.tp-mode-hint{display:none}
+  .tutor-bar{padding-top:8px;padding-bottom:8px}
+}
+@media (prefers-reduced-motion:reduce){
+  body.tp-full .chat-log{scroll-behavior:auto}
+  .tp-spin{animation-duration:2.4s}
+  .tp-starter:hover{transform:none}
+}
+body.tp-full .app-footer{display:none}
+@media (max-width:700px){.tp-status,.tp-foot{display:none}.tp-docbox{max-height:84px;overflow-y:auto}}

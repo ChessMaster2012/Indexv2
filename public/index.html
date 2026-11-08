@@ -1757,12 +1757,11 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
     </section>
 
     <section class="view" id="view-tutor">
-      <div class="row" style="margin-bottom:16px;"><div><h2 style="font-size:24px;font-weight:600;">AI Tutor</h2><p class="lede" style="margin-top:4px;">Ask about anything — a formula, a period of history, a line of code, a due-date panic. Responses are usually fast, with up to 75 seconds allowed for difficult deep reasoning.</p><p id="ai-hardware-note" class="gate-note" style="margin:6px 0 0;">Free cloud AI • server AI ready</p></div></div>
       <div class="tutor-shell">
         <div class="tutor-bar">
-          <label for="tutor-subject" style="font-size:12.5px;color:var(--ink-soft);font-weight:700;">Focus:</label>
-          <select id="tutor-subject"><option value="">General / any topic</option></select>
-          <button class="btn btn-ghost btn-sm" data-action="clear-chat" style="margin-left:auto;">New chat</button>
+          <div class="tp-title"><h2>AI Tutor</h2><span id="ai-hardware-note" class="gate-note tp-net">Free cloud AI • server AI ready</span></div>
+          <div class="tp-focus"><label for="tutor-subject">Focus</label><select id="tutor-subject"><option value="">General / any topic</option></select></div>
+          <button class="btn btn-ghost btn-sm" data-action="clear-chat">New chat</button>
         </div>
         <div id="ai-work-status" class="ai-work-status hidden"><span class="ai-stage" id="ai-stage">Preparing local AI…</span><span><strong id="ai-elapsed">0s</strong> · <span class="ai-eta" id="ai-eta">Estimating…</span></span></div>
         <div class="chat-log" id="chat-log"><div class="chat-empty"><h3>What are you working on?</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div></div>
@@ -9152,9 +9151,9 @@ setInterval(function(){
 <script src="/skin-crate-auto.js?v=2"></script>
 <link rel="stylesheet" href="/canvas-ui.css?v=1">
 <link rel="stylesheet" href="/icons.css?v=1">
-<link rel="stylesheet" href="/tutor-plus.css?v=1">
+<link rel="stylesheet" href="/tutor-plus.css?v=4">
 <script src="/icons.js?v=1"></script>
-<script src="/tutor-plus.js?v=1"></script>
+<script src="/tutor-plus.js?v=2"></script>
 <script src="/canvas-ui.js?v=1"></script>
 <link rel="stylesheet" href="/profile-hub.css?v=1">
 <script src="/profile-hub.js?v=1"></script>
