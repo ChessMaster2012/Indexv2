@@ -646,15 +646,15 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 
   // Retry transient provider failures with exponential backoff. Study-set and Tutor
   // flows use spaced retries to give Vireonix Auto's upstream model pool time to recover.
-  const maxUpstreamRetries=studySetMode ? 4 : 2;
+  const maxUpstreamRetries=studySetMode ? 4 : (tutorMode ? 4 : 2);
   for(let retry=0;retry<maxUpstreamRetries && (upstream.status===429 || upstream.status>=500) && Date.now()<deadline-1800;retry++){
     const retryAfter=Number(upstream.headers.get('retry-after')||0)||0;
     const backoff=studySetMode
       ? ([750,1500,2500,3500][retry]||3500)
       : tutorMode
-        ? ([1000,2500][retry]||2500)
+        ? ([1000,2500,4000,6000][retry]||6000)
         : (retry===0?350:750);
-    const wait=Math.min((studySetMode||tutorMode)?4000:1200,Math.max(backoff,retryAfter*1000));
+    const wait=Math.min(tutorMode?6000:(studySetMode?4000:1200),Math.max(backoff,retryAfter*1000));
     try{ await upstream.arrayBuffer(); }catch{}
     clearTimeout(attempt.timer);
     const remaining=deadline-Date.now()-500;
