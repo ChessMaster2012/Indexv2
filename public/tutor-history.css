@@ -45,3 +45,4 @@ body.tp-full #view-tutor.th-open .th-side{display:flex}
   body.tp-full #view-tutor.th-open .th-scrim{display:block;position:absolute;inset:0;z-index:29;background:rgba(0,0,0,.45)}
 }
 @media (max-height:640px){ .th-tools{display:none} }
+#view-tutor .th-search #th-q{border:0 !important;outline:0 !important;box-shadow:none !important;background:transparent !important;border-radius:0 !important;padding:8px 0 !important;height:auto !important;min-height:0 !important;-webkit-appearance:none;appearance:none}
