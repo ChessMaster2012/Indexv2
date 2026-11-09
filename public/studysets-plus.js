@@ -25,6 +25,7 @@ var P={
   merge:'<path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/>',
   search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
   x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  target:'<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   play:'<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
   list2:'<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>'
 };
@@ -37,7 +38,7 @@ var selecting=false, sel={}, built=false, rendering=false;
 function saveUI(){ safe(function(){localStorage.setItem(UI_KEY,JSON.stringify({view:U.view,filter:U.filter,sort:U.sort,course:U.course}));},0); }
 
 /* ---------- data helpers ---------- */
-function sets(){ return Array.isArray(state.studySets)?state.studySets:[]; }
+function sets(){ return Array.isArray(state.studySets)?state.studySets.filter(function(s){return !s.temp;}):[]; }
 function items(s){ return s.type==='flashcards'?(s.cards||[]):(s.questions||[]); }
 function stat(s){
   var now=Date.now(), n=items(s).length, o={n:n,mastered:0,due:0,best:null,tries:0,last:null};
@@ -98,6 +99,7 @@ function build(){
     +'<button type="button" class="ss-btn" data-ss="manual">'+I('pencil')+'<span>Write your own</span></button></div>';
   if(head){ head.classList.add('ss-hide'); head.insertAdjacentElement('afterend',hero); } else v.insertBefore(hero,v.firstChild);
   var stats=document.createElement('div'); stats.id='ss-stats'; stats.className='ss-stats'; hero.insertAdjacentElement('afterend',stats);
+  var weak=document.createElement('div'); weak.id='ss-weak'; weak.className='ss-weak'; weak.hidden=true; stats.insertAdjacentElement('afterend',weak);
 
   if(builder){
     builder.classList.add('ss-builder');
@@ -169,12 +171,12 @@ function drawControls(){
 }
 function cardHtml(s){
   var t=stat(s), r=remKind(s), subj=safe(function(){return subjectById(s.subjectId);},null);
-  var isF=s.type==='flashcards', pct=isF?(t.n?Math.round(t.mastered/t.n*100):0):(t.best===null?0:t.best);
+  var isF=s.type==='flashcards', wk=isF?weakCards(s).length:weakQs(s).length, pct=isF?(t.n?Math.round(t.mastered/t.n*100):0):(t.best===null?0:t.best);
   var unitIdx=s.unit&&subj?(subj.units||[]).indexOf(s.unit)+1:0;
   var meta=[subj?subj.name:'',s.unit?(unitIdx?'Unit '+unitIdx+': ':'')+s.unit:'',s.topic||''].filter(Boolean).map(esc).join(' · ');
   var prog=isF
-    ? '<div class="ss-prog"><div class="ss-bar"><i style="width:'+pct+'%"></i></div><span>'+t.mastered+'/'+t.n+' mastered'+(t.due?' · <b>'+t.due+' due</b>':'')+'</span></div>'
-    : '<div class="ss-prog"><div class="ss-bar"><i style="width:'+pct+'%"></i></div><span>'+(t.best===null?'Not attempted yet':'Best '+t.best+'% · '+t.tries+(t.tries===1?' try':' tries'))+'</span></div>';
+    ? '<div class="ss-prog"><div class="ss-bar"><i style="width:'+pct+'%"></i></div><span>'+t.mastered+'/'+t.n+' mastered'+(t.due?' · <b>'+t.due+' due</b>':'')+(wk?' · <b class="ss-weak-tag">'+wk+' weak</b>':'')+'</span></div>'
+    : '<div class="ss-prog"><div class="ss-bar"><i style="width:'+pct+'%"></i></div><span>'+(t.best===null?'Not attempted yet':'Best '+t.best+'% · '+t.tries+(t.tries===1?' try':' tries'))+(wk?' · <b class="ss-weak-tag">'+wk+' missed</b>':'')+'</span></div>';
   var badge=r.label?'<span class="ss-badge '+r.kind+'">'+esc(r.label)+'</span>':'';
   var on=sel[s.id]?' picked':'';
   return '<article class="ss-card '+(isF?'flash':'quiz')+on+'" data-id="'+esc(s.id)+'" style="--acc:hsl('+hue(s.subjectId)+' 78% 62%)"'+(selecting?' tabindex="0" role="checkbox" aria-checked="'+(!!sel[s.id])+'"':'')+'>'
@@ -209,7 +211,8 @@ function draw(){
   if(!built||rendering) return; rendering=true;
   try{
     var box=$('sets-list'); if(!box) return;
-    drawStats(); drawControls();
+    if(purgeTemp()&&!(state.viewer&&String(state.viewer.setId||'').indexOf('tmp-')===0)) save();
+    drawStats(); drawWeak(); drawControls();
     var v=$('view-studysets'); if(v.classList.contains('ss-selecting')!==selecting) v.classList.toggle('ss-selecting',selecting);
     var total=sets().length, list=visible(), html='';
     if(!total){
@@ -240,7 +243,7 @@ function drawBulk(){
 }
 
 /* ---------- actions ---------- */
-function find(id){ var a=sets(); for(var i=0;i<a.length;i++) if(a[i].id===id) return a[i]; return null; }
+function find(id){ var a=Array.isArray(state.studySets)?state.studySets:[]; for(var i=0;i<a.length;i++) if(a[i].id===id) return a[i]; return null; }
 function save(){ safe(function(){persistSets();},0); }
 function shuffleArr(a){ a=a.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
 function newId(){ return typeof uid==='function'?uid():Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -350,6 +353,92 @@ function openManual(){
   });
 }
 
+/* ---------- weak spots ---------- */
+/* Flashcards: card.weak goes up when you rate a card Again (+2) or Hard (+1) and down on Good (-1) / Easy (-2).
+   Quiz questions: q.last is 'w' after a miss and 'r' after a correct answer. Both live on the set, so they sync with your account. */
+function realSets(){ return sets().filter(function(s){return !s.temp;}); }
+function weakCards(set){ return (set.cards||[]).filter(function(c){return (c.weak||0)>=1;}); }
+function weakQs(set){ var o=[]; (set.questions||[]).forEach(function(q,i){ if(q&&q.last==='w') o.push({q:q,i:i}); }); return o; }
+function weakSummary(){
+  var rows=[],cards=0,qs=0;
+  realSets().forEach(function(s){
+    var n=s.type==='flashcards'?weakCards(s).length:weakQs(s).length; if(!n) return;
+    rows.push({set:s,n:n}); if(s.type==='flashcards') cards+=n; else qs+=n;
+  });
+  rows.sort(function(a,b){return b.n-a.n;});
+  return {rows:rows,cards:cards,qs:qs};
+}
+function purgeTemp(){
+  var had=(state.studySets||[]).some(function(s){return s.temp;}); if(!had) return false;
+  state.studySets=state.studySets.filter(function(s){return !s.temp;}); return true;
+}
+function drawWeak(){
+  var box=$('ss-weak'); if(!box) return;
+  if(!realSets().length){ box.hidden=true; box.innerHTML=''; return; }
+  box.hidden=false;
+  var w=weakSummary();
+  if(!w.rows.length){
+    box.className='ss-weak calm';
+    box.innerHTML='<div class="ss-weak-head"><span class="ss-weak-ic">'+I('target',20)+'</span><div><b>Weak spots</b><small>Cards you rate Again or Hard, and quiz questions you miss, collect here so you can drill just those.</small></div></div>';
+    return;
+  }
+  box.className='ss-weak';
+  box.innerHTML='<div class="ss-weak-head"><span class="ss-weak-ic">'+I('target',20)+'</span><div><b>Weak spots</b><small>'
+    +(w.cards?w.cards+(w.cards===1?' card':' cards'):'')+(w.cards&&w.qs?' and ':'')+(w.qs?w.qs+(w.qs===1?' question':' questions'):'')+' to practice. Get them right to clear them.</small></div>'
+    +'<div class="ss-weak-actions">'
+    +(w.cards?'<button type="button" class="ss-btn ss-primary ss-sm" data-ss="weakcards">'+I('play',13)+'<span>Practice weak cards</span></button>':'')
+    +(w.qs?'<button type="button" class="ss-btn ss-primary ss-sm" data-ss="weakq">'+I('play',13)+'<span>Retry missed questions</span></button>':'')
+    +'</div></div>'
+    +'<div class="ss-weak-sets">'+w.rows.slice(0,6).map(function(r){
+      return '<button type="button" class="ss-weak-chip" data-ss="weakset" data-id="'+esc(r.set.id)+'" style="--acc:hsl('+hue(r.set.subjectId)+' 78% 62%)"><span>'+esc(r.set.title||'Untitled')+'</span><em>'+r.n+(r.set.type==='flashcards'?(r.n===1?' card':' cards'):(r.n===1?' question':' questions'))+'</em></button>';
+    }).join('')+'</div>';
+}
+function weakCardList(only){
+  var out=[]; (only?[only]:realSets()).forEach(function(s){ if(s.type==='flashcards') weakCards(s).forEach(function(c){ out.push(c); }); });
+  out.sort(function(a,b){return (b.weak||0)-(a.weak||0);}); return out;
+}
+function startWeakCards(only){
+  var list=weakCardList(only); if(!list.length){ note('No weak cards right now. Nice work!'); return; }
+  openViewer(only||null,list,(only?only.title+' · ':'')+'Weak spots · '+list.length+(list.length===1?' card':' cards'));
+}
+function startWeakQuestions(only){
+  var pool=[]; (only?[only]:realSets()).forEach(function(s){ if(s.type==='quiz') weakQs(s).forEach(function(x){ var c=JSON.parse(JSON.stringify(x.q)); c._src=[s.id,x.i]; pool.push({c:c,s:s}); }); });
+  if(!pool.length){ note('No missed questions to retry. Nice work!'); return; }
+  var count={}; pool.forEach(function(x){count[x.s.subjectId]=(count[x.s.subjectId]||0)+1;});
+  var subj=Object.keys(count).sort(function(a,b){return count[b]-count[a];})[0];
+  var tmp={id:'tmp-'+newId(),temp:true,type:'quiz',subjectId:subj,unit:'',topic:'',title:(only?only.title+' · ':'')+'Missed questions',createdAt:Date.now(),reminderAt:0,reminderCompleted:false,
+    questions:shuffleArr(pool).map(function(x){return x.c;}),attempts:[]};
+  state.studySets.push(tmp); openStudySetViewer(tmp.id);
+}
+/* learn from what happens in the viewer */
+var _rc=window.rateCard;
+if(typeof _rc==='function') window.rateCard=function(card,rating){
+  try{ var d={again:2,hard:1,good:-1,easy:-2}[rating]||0; card.weak=Math.max(0,Math.min(6,(card.weak||0)+d)); }catch(e){}
+  return _rc.apply(this,arguments);
+};
+document.addEventListener('click',function(e){
+  var b=e.target.closest&&e.target.closest('[data-action="quiz-finish"]'); if(!b) return;
+  safe(function(){
+    var vw=state.viewer; if(!vw||vw.mode!=='quiz'||!vw.quizSubmitted) return;
+    var s=find(vw.setId); if(!s) return;
+    s.questions.forEach(function(q,i){
+      var right=vw.quizAnswers[i]===q.correct, target=q;
+      if(q._src){ var o=find(q._src[0]); target=o&&o.questions&&o.questions[q._src[1]]; }
+      if(!target) return;
+      target.last=right?'r':'w'; if(right) target.hit=(target.hit||0)+1; else target.miss=(target.miss||0)+1;
+    });
+    save();
+  },0);
+});
+var _cv=window.closeViewer;
+if(typeof _cv==='function') window.closeViewer=function(){
+  var out=_cv.apply(this,arguments);
+  if(purgeTemp()) save();
+  if(state.viewer&&state.viewer.setId&&String(state.viewer.setId).indexOf('tmp-')===0) state.viewer.setId=null;
+  if(built&&$('view-studysets').classList.contains('active')) draw();
+  return out;
+};
+
 /* ---------- click routing ---------- */
 function onClick(e){
   var card=e.target.closest&&e.target.closest('.ss-card');
@@ -370,6 +459,9 @@ function onClick(e){
   else if(a==='rename'&&s){ ask({title:'Rename study set',label:'Name',value:s.title||'',ok:'Save'}).then(function(n){ if(n){ s.title=n; save(); draw(); } }); }
   else if(a==='export'&&s) exportSet(s);
   else if(a==='merge') doMerge();
+  else if(a==='weakcards') startWeakCards();
+  else if(a==='weakq') startWeakQuestions();
+  else if(a==='weakset'&&s){ if(s.type==='flashcards') startWeakCards(s); else startWeakQuestions(s); }
   else if(a==='bulkfav'){ var ch=selectedSets(), on=ch.some(function(x){return !x.fav;}); ch.forEach(function(x){x.fav=on;}); save(); draw(); }
   else if(a==='bulkdel'){
     var del=selectedSets(); if(!del.length) return;
