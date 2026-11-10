@@ -357,6 +357,22 @@ function tutorDocsPrompt(docs){
     +docs.map((d,i)=>'<<<DOCUMENT '+(i+1)+': '+d.name+'\n'+clean(d.text).slice(0,budget[i])+'\nDOCUMENT '+(i+1)+'>>>').join('\n');
 }
 
+
+/* County context for the Tutor: names the student's county and passes along only facts that were verified in public/county-data.json. */
+let COUNTY_DATA=null;
+function countyData(){
+  if(COUNTY_DATA) return COUNTY_DATA;
+  try{ COUNTY_DATA=JSON.parse(fs.readFileSync(path.join(__dirname,'public','county-data.json'),'utf8')); }catch(e){ COUNTY_DATA={counties:{}}; }
+  return COUNTY_DATA;
+}
+function tutorCountyPrompt(countyId){
+  const id=String(countyId||'').slice(0,60); if(!id||id==='other') return '';
+  const e=countyData().counties&&countyData().counties[id]; if(!e) return '';
+  const names={'montgomery-md':'Montgomery County Public Schools','prince-georges-md':"Prince George's County Public Schools",'howard-md':'Howard County Public School System','anne-arundel-md':'Anne Arundel County Public Schools','baltimore-county-md':'Baltimore County Public Schools','baltimore-city-md':'Baltimore City Public Schools','frederick-md':'Frederick County Public Schools','carroll-md':'Carroll County Public Schools','harford-md':'Harford County Public Schools','washington-md':'Washington County Public Schools','allegany-md':'Allegany County Public Schools','garrett-md':'Garrett County Public Schools','kent-md':'Kent County Public Schools','queen-annes-md':"Queen Anne's County Public Schools",'talbot-md':'Talbot County Public Schools','caroline-md':'Caroline County Public Schools','dorchester-md':'Dorchester County Public Schools','somerset-md':'Somerset County Public Schools','wicomico-md':'Wicomico County Public Schools','worcester-md':'Worcester County Public Schools','cecil-md':'Cecil County Public Schools','calvert-md':'Calvert County Public Schools','charles-md':'Charles County Public Schools','st-marys-md':"St. Mary's County Public Schools"};
+  const n=names[id]; if(!n) return '';
+  const g=e.graduation&&(e.graduation.credits||e.graduation.summary)?(' Verified graduation fact: '+(e.graduation.credits?e.graduation.credits+' credits. ':'')+String(e.graduation.summary||'').slice(0,200)):'';
+  return 'The student attends '+n+' in Maryland.'+g+' For questions about local rules, courses, grading, calendars or policies, share only what is stated here, say you cannot see the district\'s current pages, and point the student to the Local Review page in Index and their school counselor. Never invent local policies, course lists or requirements.';
+}
 function buildAiMessages(messages, opts){
   const tutorMode=!!(opts&&opts.tutor)&&process.env.TUTOR_STYLE!=='direct';
   const turns=normalizeAiMessages(messages);
@@ -429,6 +445,7 @@ function buildAiMessages(messages, opts){
       'The selected mode-specific rules below take priority over general tutor behavior.',
       TUTOR_MODE_RULES[opts&&opts.mode]||'',
       tutorDocsPrompt(opts&&opts.docs),
+      tutorCountyPrompt(opts&&opts.county),
       notationRule
     ].filter(Boolean).join(' ');
     return [{role:'system',content:tutorRules},...conversationTurns.slice(-10)];
@@ -1092,7 +1109,8 @@ app.post('/api/ai/chat',async(req,res)=>{
       ? normalizeAiMessages(req.body?.messages)
       : buildAiMessages(req.body?.messages,{tutor:requestIntent==='tutor',
           mode:['explain','quiz','check'].includes(req.body?.mode)?req.body.mode:'',
-          docs:normalizeTutorDocs(req.body?.context)});
+          docs:normalizeTutorDocs(req.body?.context),
+          county:req.body?.context&&typeof req.body.context.county==='string'?req.body.context.county:''});
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
     if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
     const question=latestUserQuestion(messages);

@@ -1,0 +1,512 @@
+{
+ "version": 1,
+ "verifiedAt": "2026-11-10",
+ "note": "Links were opened and checked on the verified date. Items left empty were not found or could not be opened. Always confirm current rules with the district.",
+ "counties": {
+  "montgomery-md": {
+   "programOfStudies": {
+    "url": "https://www.montgomeryschoolsmd.org/curriculum/course-catalog",
+    "label": "MCPS Middle & High School Course Catalog"
+   },
+   "curriculum": {
+    "url": "https://www.montgomeryschoolsmd.org/curriculum/",
+    "label": "MCPS Academics (curriculum by subject)"
+   },
+   "conduct": {
+    "url": "https://www.montgomeryschoolsmd.org/students/rights/",
+    "label": "MCPS Rights & Responsibilities / Code of Conduct"
+   },
+   "policies": {
+    "url": "https://ww2.montgomeryschoolsmd.org/departments/policy/",
+    "label": "MCPS Board Policies & Regulations"
+   },
+   "tech": {
+    "url": "https://www.montgomeryschoolsmd.org/online-digital-tools/",
+    "label": "MCPS Online Digital Tools"
+   },
+   "calendar": {
+    "url": "https://www.montgomeryschoolsmd.org/siteassets/district/calendar/2026/0775.26_2026-27_SchoolCalendar.pdf",
+    "label": "MCPS 2026-27 School Calendar (PDF)"
+   },
+   "graduation": {
+    "credits": 22,
+    "summary": "The MCPS High School Course Bulletin lists a minimum of 22 credits and 75 student service-learning hours.",
+    "url": "https://coursebulletin.montgomeryschoolsmd.org/publications/HSCourseBulletin2026.pdf"
+   }
+  },
+  "prince-georges-md": {
+   "programOfStudies": {
+    "url": "https://www.pgcps.org/globalassets/offices/chief-academic-officer/docs---academic-officer/courses-and-programs/high-school-courses-and-programs-of-study.pdf",
+    "label": "PGCPS High School Courses and Programs of Study"
+   },
+   "curriculum": {
+    "url": "https://epi2.pgcps.org/offices/curriculum-and-instruction",
+    "label": "PGCPS Curriculum and Instruction"
+   },
+   "conduct": {
+    "url": "https://www.pgcps.org/offices/pupil-personnel-services/student-rights-and-responsibilities-handbook",
+    "label": "PGCPS Student Rights & Responsibilities Handbook"
+   },
+   "policies": {
+    "url": "https://www.pgcps.org/offices/ograc/board-policies",
+    "label": "PGCPS Board of Education Policies"
+   },
+   "tech": {
+    "url": "https://www.pgcps.org/offices/information-technology/technology-training-and-instructional-technology/artificial-intelligence/ai-guidance",
+    "label": "PGCPS AI Guidance"
+   },
+   "calendar": {
+    "url": "https://www.pgcps.org/about-pgcps/school-calendar/2026-2027-school-year-calendar-as-a-grid",
+    "label": "PGCPS 2026-2027 School Year Calendar"
+   },
+   "graduation": {
+    "credits": 22,
+    "summary": "Class of 2025 and later need 22 credits, plus a state-approved service-learning program.",
+    "url": "https://www.pgcps.org/graduation-requirements"
+   }
+  },
+  "howard-md": {
+   "programOfStudies": {
+    "url": "https://www.hcpss.org/f/academics/hs-catalog-2026-27.pdf",
+    "label": "HCPSS Catalog of Approved High School Courses 2026-27"
+   },
+   "curriculum": {
+    "url": "https://www.hcpss.org/academics/approved-resources/",
+    "label": "HCPSS Approved Curriculum Instructional Resources"
+   },
+   "conduct": {
+    "url": "https://policy.hcpss.org/9000/9020/",
+    "label": "HCPSS Policy 9020 Students' Rights & Responsibilities"
+   },
+   "policies": {
+    "url": "https://policy.hcpss.org/",
+    "label": "HCPSS Board of Education Policies"
+   },
+   "tech": {
+    "url": "https://policy.hcpss.org/8000/8080/",
+    "label": "HCPSS Policy 8080 Responsible Use of Technology"
+   },
+   "calendar": {
+    "url": "https://www.hcpss.org/calendar/2026-27-dates-only/",
+    "label": "HCPSS 2026-27 Calendar (dates only)"
+   },
+   "graduation": {
+    "credits": 22,
+    "summary": "Students entering 9th grade in 2021-22 or later need 22 credits, plus Maryland service-learning hours and HCPSS career preparation tasks.",
+    "url": "https://www.hcpss.org/f/academics/hs-catalog-2026-27.pdf"
+   }
+  },
+  "anne-arundel-md": {
+   "programOfStudies": {
+    "url": "https://www.aacps.org/page/course-catalog-and-registration/",
+    "label": "AACPS Course Catalog and Registration"
+   },
+   "curriculum": {
+    "url": "https://www.aacps.org/page/curriculum-and-instruction/",
+    "label": "AACPS Curriculum, Instruction and Assessment"
+   },
+   "conduct": null,
+   "policies": {
+    "url": "https://www.aacps.org/page/board-policies-and-regulations",
+    "label": "AACPS Board Policies and Regulations"
+   },
+   "tech": {
+    "url": "https://www.aacps.org/o/aacps/page/data-privacy-digital-trust",
+    "label": "AACPS Data Privacy & Digital Trust"
+   },
+   "calendar": null,
+   "graduation": null
+  },
+  "baltimore-county-md": {
+   "programOfStudies": null,
+   "curriculum": {
+    "url": "https://www.bcps.org/curriculum",
+    "label": "BCPS Curriculum and Instruction"
+   },
+   "conduct": {
+    "url": "https://www.bcps.org/students/student_handbook",
+    "label": "BCPS Student Handbook"
+   },
+   "policies": {
+    "url": "https://www.bcps.org/board_of_education/board_policies_and_superintendent_s_rules",
+    "label": "BCPS Board Policies and Superintendent's Rules"
+   },
+   "tech": null,
+   "calendar": {
+    "url": "https://www.bcps.org/calendars",
+    "label": "BCPS Calendars"
+   },
+   "graduation": null
+  },
+  "baltimore-city-md": {
+   "programOfStudies": null,
+   "curriculum": {
+    "url": "https://www.baltimorecityschools.org/instructional-framework",
+    "label": "City Schools Instructional Framework"
+   },
+   "conduct": {
+    "url": "https://www.baltimorecityschools.org/page/student-code-of-conduct",
+    "label": "City Schools Student Code of Conduct"
+   },
+   "policies": {
+    "url": "https://www.baltimorecityschools.org/page/board-policies/",
+    "label": "City Schools Board Policies and Regulations"
+   },
+   "tech": {
+    "url": "https://www.baltimorecityschools.org/page/ai-guidance",
+    "label": "City Schools AI Guidance"
+   },
+   "calendar": {
+    "url": "https://www.baltimorecityschools.org/o/inside/article/2751919",
+    "label": "Important Dates for the 2026-27 School Year"
+   },
+   "graduation": {
+    "credits": 22,
+    "summary": "City Schools announced 22 credits for graduation, with updated core math and science requirements effective July 1, 2025.",
+    "url": "https://www.baltimorecityschools.org/o/inside/article/2344464"
+   }
+  },
+  "frederick-md": {
+   "programOfStudies": {
+    "url": "https://www.fcps.org/academics/high-school-course-guides1",
+    "label": "FCPS High School Course Guides"
+   },
+   "curriculum": {
+    "url": "https://www.fcps.org/departments/academics_org_development/curriculum_instruction_innovation",
+    "label": "FCPS Curriculum & Instruction"
+   },
+   "conduct": {
+    "url": "https://apps.fcps.org/legal/documents/404",
+    "label": "FCPS Policy 404 Student Rights and Responsibilities"
+   },
+   "policies": null,
+   "tech": {
+    "url": "https://apps.fcps.org/legal/documents/434-01",
+    "label": "FCPS Regulation 434-01 Technology Use, Students"
+   },
+   "calendar": {
+    "url": "https://www.fcps.org/about/calendar_information",
+    "label": "FCPS Calendar Information"
+   },
+   "graduation": null
+  },
+  "carroll-md": {
+   "programOfStudies": {
+    "url": "https://chs.carrollk12.org/uploaded/CHS/Scheduling/26-27_School_Year/Century_High_School_Program_of_Studies_2026-2027.pdf",
+    "label": "CCPS Program of Studies 2026-27 (Century HS edition)"
+   },
+   "curriculum": {
+    "url": "https://www.carrollk12.org/academics/curriculum-and-instruction/curriculum/high-school-curriculum/english",
+    "label": "CCPS High School Curriculum (English)"
+   },
+   "conduct": {
+    "url": "https://www.carrollk12.org/student-services/policy-and-procedure",
+    "label": "CCPS Policy and Procedure (Code of Conduct)"
+   },
+   "policies": {
+    "url": "https://www.carrollk12.org/student-services/policy-and-procedure",
+    "label": "CCPS Policy and Procedure"
+   },
+   "tech": {
+    "url": "https://www.carrollk12.org/student-services/policy-and-procedure",
+    "label": "CCPS Policy and Procedure (technology use)"
+   },
+   "calendar": {
+    "url": "https://www.carrollk12.org/about/calendar",
+    "label": "CCPS Academic Calendar"
+   },
+   "graduation": {
+    "credits": 25,
+    "summary": "Carroll students need at least 25 credits plus 75 hours of service learning, with 55 hours done by the end of grade 11.",
+    "url": "https://chs.carrollk12.org/uploaded/CHS/Scheduling/26-27_School_Year/Century_High_School_Program_of_Studies_2026-2027.pdf"
+   }
+  },
+  "harford-md": {
+   "programOfStudies": {
+    "url": "https://www.hcps.org/SEPG/Courses.aspx",
+    "label": "HCPS Student Education Planning Guide: Courses"
+   },
+   "curriculum": null,
+   "conduct": {
+    "url": "https://www.hcps.org/aboutus/handbook.aspx",
+    "label": "HCPS Parent-Student Handbook"
+   },
+   "policies": {
+    "url": "https://www.hcps.org/Boe/PoliciesProcedures/",
+    "label": "HCPS Board Policies and Procedures"
+   },
+   "tech": {
+    "url": "https://hcps.org/departments/curriculum/ai/",
+    "label": "Artificial Intelligence in HCPS"
+   },
+   "calendar": {
+    "url": "https://hcps.org/aboutus/calendars/",
+    "label": "HCPS Calendars"
+   },
+   "graduation": {
+    "credits": 26,
+    "summary": "HCPS students must earn at least 26 credits, including 4 English, 4 math, 3 science and 3 social studies, plus completer program credits.",
+    "url": "https://www.hcps.org/sepg/NeedToKnow.aspx"
+   }
+  },
+  "washington-md": {
+   "programOfStudies": {
+    "url": "https://wcpsmd.com/curriculum/high-school-program-studies",
+    "label": "WCPS High School Program of Studies"
+   },
+   "curriculum": {
+    "url": "https://www.wcpsmd.com/curriculum",
+    "label": "WCPS Curriculum"
+   },
+   "conduct": {
+    "url": "https://www.wcpsmd.com/academics/handbook/jfc-code-of-conduct",
+    "label": "WCPS Code of Conduct (JFC)"
+   },
+   "policies": null,
+   "tech": {
+    "url": "https://www.wcpsmd.com/departments/technology/digital-tools",
+    "label": "WCPS Digital Tools"
+   },
+   "calendar": null,
+   "graduation": {
+    "credits": 24,
+    "summary": "WCPS students must earn at least 24 credits and complete 75 hours of approved Student Service Learning.",
+    "url": "https://www.wcpsmd.com/academics/graduation-requirements"
+   }
+  },
+  "allegany-md": {
+   "programOfStudies": {
+    "url": "https://acpsmd.org/wp-content/uploads/2026/07/2026-2027-High-School-Programs-of-Study-FINAL-06.10.26.pdf",
+    "label": "ACPS High School Programs of Study 2026-27"
+   },
+   "curriculum": {
+    "url": "https://acpsmd.org/academics/",
+    "label": "ACPS Academics"
+   },
+   "conduct": null,
+   "policies": {
+    "url": "https://www.acpsmd.org/domain/36",
+    "label": "ACPS Policies & Regulations"
+   },
+   "tech": {
+    "url": "https://www.acpsmd.org/our_families/online_educational_services",
+    "label": "ACPS Online Educational Services"
+   },
+   "calendar": {
+    "url": "https://acpsmd.org/district-calendar/",
+    "label": "ACPS District Calendar"
+   },
+   "graduation": {
+    "credits": 23,
+    "summary": "ACPS requires at least 23 credits and 75 hours of Student Service Learning.",
+    "url": "https://acpsmd.org/wp-content/uploads/2026/07/2026-2027-High-School-Programs-of-Study-FINAL-06.10.26.pdf"
+   }
+  },
+  "garrett-md": {
+   "programOfStudies": null,
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": {
+    "url": "https://www.gcps.net/o/gcps/page/gcps-calendars",
+    "label": "GCPS Calendars"
+   },
+   "graduation": null
+  },
+  "kent-md": {
+   "programOfStudies": null,
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": null
+  },
+  "queen-annes-md": {
+   "programOfStudies": null,
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": null
+  },
+  "talbot-md": {
+   "programOfStudies": {
+    "url": "https://tcps.k12.md.us/wp-content/uploads/2024/08/Program-of-Study-2024-ZH-NEW.pdf",
+    "label": "TCPS Program of Studies 2024-25"
+   },
+   "curriculum": null,
+   "conduct": null,
+   "policies": {
+    "url": "https://tcps.k12.md.us/policies",
+    "label": "TCPS Board Policy and Regulation Manual"
+   },
+   "tech": {
+    "url": "https://tcps.k12.md.us/download/187/section-10/25211/10-32-acceptable-use-of-technology-internet-safety-for-students.pdf",
+    "label": "TCPS Policy 10.32 Acceptable Use of Technology (Students)"
+   },
+   "calendar": null,
+   "graduation": {
+    "credits": 22,
+    "summary": "TCPS students must earn at least 22 credits and complete 75 hours of service learning.",
+    "url": "https://tcps.k12.md.us/wp-content/uploads/2024/08/Program-of-Study-2024-ZH-NEW.pdf"
+   }
+  },
+  "caroline-md": {
+   "programOfStudies": {
+    "url": "https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/3042/Ccps/7ab3cf28-e4c2-46a7-8011-4eb3442274c3/2025-2026_HS_Course_Catalog.pdf",
+    "label": "CCPS High School Course Catalog 2025-26"
+   },
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": {
+    "credits": null,
+    "summary": "CCPS students must complete 75 hours of service learning, plus the course requirements in the catalog's graduation chart.",
+    "url": "https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/3042/Ccps/7ab3cf28-e4c2-46a7-8011-4eb3442274c3/2025-2026_HS_Course_Catalog.pdf"
+   }
+  },
+  "dorchester-md": {
+   "programOfStudies": null,
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": null
+  },
+  "somerset-md": {
+   "programOfStudies": null,
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": null
+  },
+  "wicomico-md": {
+   "programOfStudies": {
+    "url": "https://core-docs.s3.us-east-1.amazonaws.com/documents/asset/uploaded_file/3724/WCPS/4829913/2024-25_High_School_Course_Catalog.pdf",
+    "label": "WCPS High School Catalog of Courses 2024-25"
+   },
+   "curriculum": {
+    "url": "https://www.wicomicoschools.org/page/instruction-and-courses",
+    "label": "WCPS Instruction and Courses"
+   },
+   "conduct": {
+    "url": "https://handbook.wicomicoschools.org/student/toc",
+    "label": "WCPS Student Handbook (Code of Conduct)"
+   },
+   "policies": {
+    "url": "https://wicomicoschools.org/page/board-of-education-policies",
+    "label": "WCPS Board of Education Policies"
+   },
+   "tech": {
+    "url": "https://handbook.wicomicoschools.org/student/toc",
+    "label": "WCPS Student Handbook (Acceptable Use of Technology)"
+   },
+   "calendar": {
+    "url": "https://www.wicomicoschools.org/article/2775692",
+    "label": "WCPS 2026-27 approved school calendar"
+   },
+   "graduation": {
+    "credits": 22,
+    "summary": "Students who entered 9th grade in 2021-22 or later need 22 credits to graduate.",
+    "url": "https://handbook.wicomicoschools.org/student/64/"
+   }
+  },
+  "worcester-md": {
+   "programOfStudies": {
+    "url": "https://core-docs.s3.us-east-1.amazonaws.com/documents/asset/uploaded_file/3615/WCPS/3038345/25-26_SY_Course_Catalog_FINAL.pdf",
+    "label": "Worcester County HS Course Catalog 2025-26"
+   },
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": {
+    "credits": 23,
+    "summary": "Worcester students need at least 23 credits and 75 hours of service learning.",
+    "url": "https://core-docs.s3.us-east-1.amazonaws.com/documents/asset/uploaded_file/3615/WCPS/3038345/25-26_SY_Course_Catalog_FINAL.pdf"
+   }
+  },
+  "cecil-md": {
+   "programOfStudies": null,
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": {
+    "credits": null,
+    "summary": "Cecil County students must earn at least 75 hours of service learning before graduating.",
+    "url": "https://www.ccps.org/administration/student-services/service-learning"
+   }
+  },
+  "calvert-md": {
+   "programOfStudies": null,
+   "curriculum": null,
+   "conduct": null,
+   "policies": null,
+   "tech": null,
+   "calendar": null,
+   "graduation": null
+  },
+  "charles-md": {
+   "programOfStudies": {
+    "url": "https://www.ccboe.com/academics/high-school-program-of-studies/high-school-program-of-studies-2026-27",
+    "label": "CCPS High School Program of Studies 2026-27"
+   },
+   "curriculum": {
+    "url": "https://www.ccboe.com/academics/instruction-resources",
+    "label": "CCPS Instruction Resources"
+   },
+   "conduct": null,
+   "policies": null,
+   "tech": {
+    "url": "https://www.ccboe.com/academics/technology-guides-for-students-and-parents/artificial-intelligence-ai-for-k-12",
+    "label": "CCPS Artificial Intelligence (AI) for K-12"
+   },
+   "calendar": {
+    "url": "https://www.ccboe.com/page/at-a-glance-calendar-2026-2027",
+    "label": "CCPS At-A-Glance Calendar 2026-2027"
+   },
+   "graduation": {
+    "credits": 23,
+    "summary": "Charles County requires 23 credits plus 75 hours of service learning, passing state assessments, and college and career readiness by the end of 10th grade.",
+    "url": "https://www.ccboe.com/academics/high-school-program-of-studies/high-school-program-of-studies-2026-27/requirements-maryland-high-school-diploma"
+   }
+  },
+  "st-marys-md": {
+   "programOfStudies": {
+    "url": "https://courses.smcps.org/home",
+    "label": "SMCPS High School Program of Studies 2026-27"
+   },
+   "curriculum": null,
+   "conduct": {
+    "url": "https://studenthandbook.smcps.org/section-4-student-rights-and-responsibilities",
+    "label": "SMCPS Handbook: Student Rights and Responsibilities"
+   },
+   "policies": {
+    "url": "https://www.smcps.org/about-us/board-of-education/policies",
+    "label": "SMCPS Board of Education Policies"
+   },
+   "tech": {
+    "url": "https://www.smcps.org/network-usage-standards",
+    "label": "SMCPS Network Usage Standards"
+   },
+   "calendar": null,
+   "graduation": {
+    "credits": null,
+    "summary": "For students entering grade 9 in 2026-27, SMCPS requires the Maryland core plus a University or CTE completer sequence, 75 service-learning hours and a career portfolio.",
+    "url": "https://courses.smcps.org/graduation-requirements"
+   }
+  },
+  "other": {}
+ }
+}

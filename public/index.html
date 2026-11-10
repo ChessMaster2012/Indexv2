@@ -2430,7 +2430,7 @@ async function loadAccountState(){
     if(a.progress) state.progress={...state.progress,...a.progress,equipped:{...state.progress.equipped,...(a.progress.equipped||{})}};
     await loadMembershipStatus();
     state.progress.unlockedCosmetics=(state.progress.unlockedCosmetics||[]).filter(id=>!!cosmeticById(id)); state.progress.unlockedCosmetics=Array.from(new Set(['ling-sugarbug',...state.progress.unlockedCosmetics]));
-    if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; }
+    if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; } window.CountySync&&CountySync.reconcile('account');
     applyBattlePassRewards();
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
   }catch(e){ showAccountSyncNotice('Could not load saved account data. Please check your connection.'); }
@@ -3681,7 +3681,7 @@ function renderDashboard(){
   const name = displayName();
   if(greeting) greeting.textContent = name ? `Ready when you are, ${name.split(' ')[0]} 👋` : 'Your study command center';
   if(subtitle) subtitle.textContent = state.district ? `Personalized for ${state.district}. Build momentum with one focused task.` : 'Choose your county or school district to personalize your experience and see the correct local review information.';
-  if(districtChip) districtChip.textContent = state.district || 'Choose county';
+  if(districtChip) districtChip.textContent = state.district || (getLocalJurisdiction()||{}).name || 'Choose county';
   document.getElementById('progress-banner').innerHTML = `
     <div class="pb-item"><b>Level ${lvl.level}</b>${lvl.into}/100 XP</div>
     <div class="pb-item"><b>🔥 ${streak}</b>day streak</div>
@@ -4024,7 +4024,7 @@ Academic integrity: help the student learn. For a live graded test, quiz, exam, 
     const normalized = text.toLowerCase().replace(/[^a-z0-9?\s]/g,'').trim();
     const greeting = /^(hi|hello|hey|heyy|yo|sup|good morning|good afternoon|good evening)[!?.\s]*$/.test(normalized);
     const complexAi=estimateAiDifficulty(text);
-    const reply = greeting ? 'Hi! What are you working on? I can explain a topic, guide you through practice problems one step at a time, or help you check your own work.' : await runLocalAi(turns,{timeoutMs:9700,intent:'tutor',mode:(window.TutorPlus?TutorPlus.mode():''),context:(window.TutorPlus?TutorPlus.doc():null),complex:complexAi,onChunk:(chunk)=>{
+    const reply = greeting ? 'Hi! What are you working on? I can explain a topic, guide you through practice problems one step at a time, or help you check your own work.' : await runLocalAi(turns,{timeoutMs:9700,intent:'tutor',mode:(window.TutorPlus?TutorPlus.mode():''),context:Object.assign({},(window.TutorPlus?TutorPlus.doc():null)||{},{county:state.county||''}),complex:complexAi,onChunk:(chunk)=>{
       if(chunk==='\u0000RESET_STREAM\u0000'){ streamText=''; state.chat[assistantIndex].text=''; renderChatLog(); return; }
       streamText += chunk; state.chat[assistantIndex].text=streamText; renderChatLog();
     }});
@@ -9154,10 +9154,12 @@ setInterval(function(){
 <link rel="stylesheet" href="/tutor-plus.css?v=4">
 <link rel="stylesheet" href="/tutor-history.css?v=3">
 <link rel="stylesheet" href="/studysets-plus.css?v=3">
+<link rel="stylesheet" href="/county-sync.css?v=2">
 <script src="/icons.js?v=1"></script>
 <script src="/tutor-plus.js?v=3"></script>
 <script src="/tutor-history.js?v=2"></script>
 <script src="/studysets-plus.js?v=5"></script>
+<script src="/county-sync.js?v=3"></script>
 <script src="/canvas-ui.js?v=1"></script>
 <link rel="stylesheet" href="/profile-hub.css?v=1">
 <script src="/profile-hub.js?v=1"></script>

@@ -1,0 +1,24 @@
+/* "Your county" cards (Dashboard and Courses) and the county picker's custom-district field */
+.cty-card{background:var(--card);border:2px solid var(--line);border-radius:18px;padding:16px 18px;margin:0 0 18px}
+.cty-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px 16px;flex-wrap:wrap;margin-bottom:12px}
+.cty-eyebrow{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--purple)}
+.cty-head h3{margin:2px 0 0;font-size:19px}
+.cty-head p{margin:2px 0 0;color:var(--ink-soft);font-size:13px}
+.cty-actions{display:flex;gap:8px;flex-wrap:wrap}
+.cty-fact{margin:0 0 12px;padding:9px 12px;border-radius:12px;background:color-mix(in srgb,var(--purple) 10%,transparent);font-size:13px;line-height:1.45;color:var(--ink)}
+.cty-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px}
+.cty-link{display:flex;align-items:center;gap:10px;border:2px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:9px 11px;text-decoration:none;min-width:0}
+.cty-link:hover{border-color:var(--purple)}
+.cty-ic{flex:0 0 auto;font-size:18px}
+.cty-lt{flex:1;min-width:0;display:flex;flex-direction:column}
+.cty-lt b{font-size:13px}
+.cty-lt small{font-size:11.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cty-go{color:var(--ink-soft);flex:0 0 auto}
+.cty-note{margin:10px 0 0;font-size:11.5px;color:var(--ink-soft)}
+.cty-other{margin:12px 0 4px}
+.cty-other label{display:block;font-size:12.5px;font-weight:700;margin-bottom:5px}
+.cty-other input{width:100%;padding:10px 12px;border:2px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit}
+.cty-other input:focus{outline:none;border-color:var(--purple)}
+.cty-other[hidden]{display:none}
+@media (max-width:640px){.cty-card{padding:14px}.cty-actions{width:100%}.cty-actions .btn{flex:1}}
+.cty-actions a{text-decoration:none}
