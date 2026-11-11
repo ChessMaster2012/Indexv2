@@ -52,55 +52,93 @@ var STYLE='Write for a high school student seeing this for the first time: clear
 function ctx(l,i){
   return 'Course: AP '+subjName(l)+'. Lesson topic: "'+l.topic+'". Modules in this lesson: '+l.outline.map(function(m,k){return (k+1)+') '+m.title;}).join('; ')+'. You are writing module '+(i+1)+' of '+l.outline.length+': "'+l.outline[i].title+'" — goal: '+l.outline[i].goal+'.';
 }
+/* Each AI call is kept small (a few hundred tokens) so it finishes well inside the provider's time limit. */
+var ROLE=['foundations: definitions and the core idea','how it works: the key ideas and reasoning in action','common mistakes, connections to other ideas, and what the AP exam asks'];
+var PARTS=['s0','s1','s2','terms','ex','try','q0','q1'];
+function heads(m){ return ['s0','s1','s2'].map(function(k){return m.p[k]&&m.p[k].heading;}).filter(Boolean).join('; '); }
 var PROMPTS={
-a:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nTeach this module. Do not repeat material that belongs to other modules.\nReturn ONLY JSON: {"intro":"1-2 sentences on why this matters","sections":[{"heading":"short heading","body":"120-170 words; separate paragraphs with \\n\\n"},{"heading":"...","body":"..."},{"heading":"...","body":"..."}],"terms":[{"term":"...","def":"under 25 words"}]}\nExactly 3 sections and 4 to 5 terms.'; },
-b:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nCreate a worked example and a practice task for this module, in the style of an AP exam.\nReturn ONLY JSON: {"example":{"problem":"the problem or scenario","steps":["step 1 with reasoning","step 2","step 3"],"takeaway":"one sentence"},"tryIt":{"prompt":"a similar task for the student to attempt on their own","hint":"a nudge that does not give the answer away","answer":"model answer with brief reasoning, under 90 words"}}\nUse 3 to 5 steps.'; },
-c:function(l,i){ return ctx(l,i)+'\nWrite 4 multiple-choice checkpoint questions that test understanding of this module (not trivia), mixing recall and application, AP-exam style. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Use plain Unicode symbols for math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"why the answer is right, under 40 words"}]}'; }
+s:function(l,i,k){ var m=l.mods[i], prev=heads(m); return ctx(l,i)+'\n'+STYLE+'\nWrite part '+(k+1)+' of 3 of the teaching text for this module. This part covers '+ROLE[k]+'.'+(prev?' Earlier parts already covered: '+prev+'. Do not repeat them.':'')+'\nReturn ONLY JSON: {'+(k===0?'"intro":"1-2 sentences on why this matters",':'')+'"heading":"short heading","body":"90-130 words; separate paragraphs with \\n\\n"}'; },
+terms:function(l,i){ return ctx(l,i)+'\nList the 4 most important key terms for this module.\nReturn ONLY JSON: {"terms":[{"term":"...","def":"under 25 words"}]}'; },
+ex:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nWrite one worked example in the style of an AP exam.\nReturn ONLY JSON: {"example":{"problem":"the problem or scenario","steps":["step 1 with reasoning","step 2","step 3"],"takeaway":"one sentence"}}\nUse 3 or 4 steps.'; },
+try:function(l,i){ var ex=l.mods[i].p.ex; return ctx(l,i)+'\n'+STYLE+(ex?'\nThe worked example was: '+ex.example.problem.slice(0,300):'')+'\nWrite a similar practice task for the student to attempt alone.\nReturn ONLY JSON: {"tryIt":{"prompt":"the task","hint":"a nudge that does not give the answer away","answer":"model answer with brief reasoning, under 80 words"}}'; },
+q0:function(l,i){ return ctx(l,i)+'\nWrite 2 multiple-choice checkpoint questions testing recall of the key ideas of this module, AP-exam style. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 35 words"}]}'; },
+q1:function(l,i){ var q0=(l.mods[i].p.q0||[]).map(function(q){return q.q;}).join(' | '); return ctx(l,i)+'\nWrite 2 multiple-choice checkpoint questions that require APPLYING this module to a new situation, AP-exam style'+(q0?' (different from: '+q0.slice(0,300)+')':'')+'. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 35 words"}]}'; }
 };
-function normA(j){
-  if(!j||!Array.isArray(j.sections)) return null;
-  var secs=j.sections.map(function(s){return {heading:String(s&&s.heading||'').trim().slice(0,120),body:String(s&&s.body||'').trim().slice(0,2400)};}).filter(function(s){return s.heading&&s.body.length>40;}).slice(0,4);
-  if(secs.length<2) return null;
-  var terms=(Array.isArray(j.terms)?j.terms:[]).map(function(t){return {term:String(t&&t.term||'').trim().slice(0,80),def:String(t&&t.def||'').trim().slice(0,300)};}).filter(function(t){return t.term&&t.def;}).slice(0,6);
-  return {intro:String(j.intro||'').trim().slice(0,400),sections:secs,terms:terms};
+function normS(j,k){
+  if(!j) return null; var body=String(j.body||'').trim().slice(0,2000), heading=String(j.heading||'').trim().slice(0,120);
+  if(!heading||body.length<40) return null;
+  return {intro:k===0?String(j.intro||'').trim().slice(0,400):'',heading:heading,body:body};
 }
-function normB(j){
-  if(!j||!j.example||!j.tryIt) return null;
-  var steps=(Array.isArray(j.example.steps)?j.example.steps:[]).map(function(s){return String(s||'').trim().slice(0,700);}).filter(Boolean).slice(0,6);
-  var prob=String(j.example.problem||'').trim(), pr=String(j.tryIt.prompt||'').trim(), ans=String(j.tryIt.answer||'').trim();
-  if(!prob||steps.length<2||!pr||!ans) return null;
-  return {example:{problem:prob.slice(0,900),steps:steps,takeaway:String(j.example.takeaway||'').trim().slice(0,300)},tryIt:{prompt:pr.slice(0,900),hint:String(j.tryIt.hint||'').trim().slice(0,400),answer:ans.slice(0,1000)}};
+function normTerms(j){
+  var t=(j&&Array.isArray(j.terms)?j.terms:[]).map(function(t){return {term:String(t&&t.term||'').trim().slice(0,80),def:String(t&&t.def||'').trim().slice(0,300)};}).filter(function(t){return t.term&&t.def;}).slice(0,6);
+  return t.length>=2?t:null;
 }
-function normC(j){
+function normEx(j){
+  var e=j&&j.example; if(!e) return null;
+  var steps=(Array.isArray(e.steps)?e.steps:[]).map(function(s){return String(s||'').trim().slice(0,700);}).filter(Boolean).slice(0,6), prob=String(e.problem||'').trim();
+  if(!prob||steps.length<2) return null;
+  return {example:{problem:prob.slice(0,900),steps:steps,takeaway:String(e.takeaway||'').trim().slice(0,300)}};
+}
+function normTry(j){
+  var t=j&&j.tryIt; if(!t) return null; var pr=String(t.prompt||'').trim(), ans=String(t.answer||'').trim(); if(!pr||!ans) return null;
+  return {prompt:pr.slice(0,900),hint:String(t.hint||'').trim().slice(0,400),answer:ans.slice(0,1000)};
+}
+function normQ(j){
   var arr=j&&Array.isArray(j.questions)?j.questions:null; if(!arr) return null;
-  var qs=arr.map(function(q){return safe(function(){return normalizeCheckpoint(q);},null);}).filter(Boolean).slice(0,5);
-  return qs.length>=3?{qs:qs}:null;
+  var qs=arr.map(function(q){return safe(function(){return normalizeCheckpoint(q);},null);}).filter(Boolean).slice(0,3);
+  return qs.length>=1?qs:null;
 }
-var NORM={a:normA,b:normB,c:normC};
+function normalizePart(part,j){
+  if(part==='s0'||part==='s1'||part==='s2') return normS(j,+part.slice(1));
+  if(part==='terms') return normTerms(j); if(part==='ex') return normEx(j); if(part==='try') return normTry(j); return normQ(j);
+}
+function promptFor(l,i,part){ return /^s\d$/.test(part)?PROMPTS.s(l,i,+part.slice(1)):PROMPTS[part](l,i); }
+function oneCall(l,i,part){
+  return askJSON(promptFor(l,i,part)).then(function(j){ var v=normalizePart(part,j); if(!v) throw new Error('The AI returned an incomplete section.'); return v; });
+}
 function gen(l,i,part,prio){
-  var m=l.mods[i]; if(m[part]) return Promise.resolve(m[part]);
+  var m=l.mods[i]; if(m.p[part]) return Promise.resolve(m.p[part]);
   return enqueue(l.id+':'+i+':'+part,prio,function(){
-    return askJSON(PROMPTS[part](l,i)).then(function(j){
-      var v=NORM[part](j); if(!v) throw new Error('The AI returned an incomplete section.');
+    /* one automatic retry (timeouts and brief provider errors are common) before showing an error */
+    return oneCall(l,i,part).catch(function(e){ return new Promise(function(r){setTimeout(r,1500);}).then(function(){ return oneCall(l,i,part); }); }).then(function(v){
       if(store.lessons.indexOf(l)<0) return v;
-      m[part]=v; m.err=null; touch(l); return v;
+      m.p[part]=v; m.err=null; touch(l); return v;
+    },function(e){
+      if(part==='terms'){ m.p.terms=[]; touch(l); return []; }   /* key terms are optional */
+      throw e;
     });
   });
 }
+function qsOf(m){ return (m.p.q0||[]).concat(m.p.q1||[]); }
+function modReady(m){ return PARTS.every(function(k){return !!m.p[k];}); }
 function loadModule(l,i,prio){
-  return gen(l,i,'a',prio).then(function(){ return gen(l,i,'b',prio); }).then(function(){ return gen(l,i,'c',prio); });
+  var m=l.mods[i], chain=Promise.resolve();
+  PARTS.forEach(function(part){ chain=chain.then(function(){ var p=gen(l,i,part,prio); p.then(function(){ if(prio===0) afterLoad(l); },function(){}); return p; }); });
+  return chain;
 }
 function ensureCurrent(l){
   var i=l.cur; if(i>=l.mods.length) return;
-  var m=l.mods[i]; if(m.a&&m.b&&m.c){ prefetch(l); return; }
+  var m=l.mods[i]; if(modReady(m)){ prefetch(l); return; }
   m.err=null;
   loadModule(l,i,0).then(function(){ afterLoad(l); prefetch(l); },function(e){ m.err=String(e&&e.message||'Could not load this part.'); afterLoad(l); });
 }
 function prefetch(l){
-  var i=l.cur+1; if(i>=l.mods.length) return; var m=l.mods[i]; if(m.a&&m.b&&m.c) return;
-  loadModule(l,i,1).then(function(){ afterLoad(l); },function(){});
+  var i=l.cur+1; if(i>=l.mods.length) return; var m=l.mods[i]; if(modReady(m)) return;
+  loadModule(l,i,1).then(function(){},function(){});
 }
-function afterLoad(l){ if(cur()===l&&visible()) render(); }
+/* redraw only if the page is currently showing a loading or error box, so typing is never interrupted */
+function afterLoad(l){ if(cur()===l&&visible()&&document.querySelector('#lp-root .lp-loading, #lp-root .error-note')) render(); }
+/* older saved lessons stored whole sections in a/b/c: carry them over */
+function migrate(l){
+  l.mods.forEach(function(m){
+    if(m.p) return; m.p={};
+    if(m.a){ m.a.sections.forEach(function(s,k){ if(k<3) m.p['s'+k]={intro:k===0?m.a.intro:'',heading:s.heading,body:s.body}; }); if(m.a.terms&&m.a.terms.length) m.p.terms=m.a.terms; }
+    if(m.b){ m.p.ex={example:m.b.example}; m.p.try=m.b.tryIt; }
+    if(m.c&&m.c.qs){ m.p.q0=m.c.qs.slice(0,2); m.p.q1=m.c.qs.slice(2); if(!m.p.q1.length) delete m.p.q1; }
+    delete m.a; delete m.b; delete m.c; m.err=null;
+  });
+}
+store.lessons.forEach(migrate);
 
 /* ---------------- lesson creation ---------------- */
 function mins(m){ return Math.max(12,Math.min(40,Number(m&&m.minutes)||20)); }
@@ -118,7 +156,7 @@ function startDeep(){
     var mods=(j&&Array.isArray(j.modules)?j.modules:[]).map(function(m){return {title:String(m&&m.title||'').trim().slice(0,120),goal:String(m&&m.goal||'').trim().slice(0,260),minutes:mins(m)};}).filter(function(m){return m.title;}).slice(0,14);
     if(mods.length<3) throw new Error('outline');
     var l={id:uid(),subjectId:subjectId,topic:topic,depth:depth,title:String(j.title||topic).trim().slice(0,120)||topic,overview:String(j.overview||'').trim().slice(0,500),createdAt:Date.now(),updatedAt:Date.now(),seconds:0,outline:mods,
-      mods:mods.map(function(){return {a:null,b:null,c:null,status:'todo',stepKey:'',attempts:0,best:null,missed:{},tryNotes:'',selfRate:'',cp:null,xp:false,seconds:0};}),cur:0,final:null,doneAt:null};
+      mods:mods.map(function(){return {p:{},status:'todo',stepKey:'',attempts:0,best:null,missed:{},tryNotes:'',selfRate:'',cp:null,xp:false,seconds:0};}),cur:0,final:null,doneAt:null};
     store.lessons.unshift(l); store.lessons=store.lessons.slice(0,MAX_LESSONS+5); store.activeId=l.id; save(); status.innerHTML='';
     show(true);
   }).catch(function(e){ status.innerHTML='<div class="error-note">Couldn’t design that lesson ('+esc(explainAi(e))+'). Please try again.</div>'; });
@@ -136,9 +174,8 @@ function deleteLesson(id){
 /* ---------------- steps ---------------- */
 function steps(l,i){
   var m=l.mods[i], out=[];
-  var secs=m.a?m.a.sections.length:1;
-  for(var k=0;k<secs;k++) out.push('s'+k);
-  if(m.a&&m.a.terms.length) out.push('terms');
+  out.push('s0','s1','s2');
+  if(!(m.p.terms&&m.p.terms.length===0)) out.push('terms');
   out.push('ex','try','cp');
   return out;
 }
@@ -198,7 +235,7 @@ function rail(l){
   var items=l.outline.map(function(o,i){
     var m=l.mods[i], st=m.status==='done'?'done':(i===l.cur?'cur':(i>u?'lock':'open'));
     var icon=st==='done'?'✓':(st==='lock'?'🔒':(i+1));
-    return '<button type="button" class="lp-ri '+st+(i===l.cur?' active':'')+'" data-lp="goto" data-i="'+i+'"'+(st==='lock'?' disabled':'')+'><span class="lp-rn">'+icon+'</span><span class="lp-rt"><b>'+esc(o.title)+'</b><small>'+(m.status==='done'?(m.best!=null?'Checkpoint '+m.best+'/'+(m.c?m.c.qs.length:4):'Done'):'≈ '+mins(o)+' min')+'</small></span></button>';
+    return '<button type="button" class="lp-ri '+st+(i===l.cur?' active':'')+'" data-lp="goto" data-i="'+i+'"'+(st==='lock'?' disabled':'')+'><span class="lp-rn">'+icon+'</span><span class="lp-rt"><b>'+esc(o.title)+'</b><small>'+(m.status==='done'?(m.best!=null?'Checkpoint '+m.best+'/'+(modReady(m)?qsOf(m).length:4):'Done'):'≈ '+mins(o)+' min')+'</small></span></button>';
   }).join('');
   var fst=l.doneAt?'done':(u>=l.mods.length?(l.cur>=l.mods.length?'cur':'open'):'lock');
   items+='<button type="button" class="lp-ri '+fst+(l.cur>=l.mods.length?' active':'')+'" data-lp="goto" data-i="'+l.mods.length+'"'+(fst==='lock'?' disabled':'')+'><span class="lp-rn">'+(fst==='done'?'✓':(fst==='lock'?'🔒':'★'))+'</span><span class="lp-rt"><b>Final mastery check</b><small>'+(l.final&&l.final.done?'Score '+l.final.score+'/'+l.final.qs.length:'≈ 10 min')+'</small></span></button>';
@@ -222,24 +259,26 @@ function moduleView(l){
   var dots='<div class="lp-dots" aria-label="Progress in this module">'+st.map(function(s,x){return '<i class="'+(x<k?'d':(x===k?'c':''))+'"></i>';}).join('')+'</div>';
   var card='';
   if(/^s\d+$/.test(key)){
-    if(!m.a) card=loadingBox(l,i,'Writing this module…');
-    else { var s=m.a.sections[+key.slice(1)]; card='<div class="lp-card">'+(+key.slice(1)===0&&m.a.intro?'<div class="lp-intro">'+rich(m.a.intro)+'</div>':'')+'<h3>'+esc(s.heading)+'</h3><div class="lp-body">'+s.body.split(/\n\s*\n/).map(function(pp){return '<p>'+rich(pp)+'</p>';}).join('')+'</div></div>'; }
+    var sp=m.p[key];
+    if(!sp) card=loadingBox(l,i,'Writing this part…');
+    else { var s=sp; card='<div class="lp-card">'+(key==='s0'&&sp.intro?'<div class="lp-intro">'+rich(sp.intro)+'</div>':'')+'<h3>'+esc(s.heading)+'</h3><div class="lp-body">'+s.body.split(/\n\s*\n/).map(function(pp){return '<p>'+rich(pp)+'</p>';}).join('')+'</div></div>'; }
   }else if(key==='terms'){
-    card='<div class="lp-card"><h3>Key terms</h3><div class="lp-terms">'+m.a.terms.map(function(t){return '<div><b>'+rich(t.term)+'</b><span>'+rich(t.def)+'</span></div>';}).join('')+'</div></div>';
+    if(!m.p.terms) card=loadingBox(l,i,'Collecting the key terms…');
+    else card='<div class="lp-card"><h3>Key terms</h3><div class="lp-terms">'+m.p.terms.map(function(t){return '<div><b>'+rich(t.term)+'</b><span>'+rich(t.def)+'</span></div>';}).join('')+'</div></div>';
   }else if(key==='ex'){
-    if(!m.b) card=loadingBox(l,i,'Preparing a worked example…');
-    else { var rv=UI.reveal[l.id+i]||1, ex=m.b.example; card='<div class="lp-card"><span class="lp-tag">Worked example</span><div class="lp-prob">'+rich(ex.problem)+'</div><ol class="lp-steps">'+ex.steps.slice(0,rv).map(function(s){return '<li>'+rich(s)+'</li>';}).join('')+'</ol>'
+    if(!m.p.ex) card=loadingBox(l,i,'Preparing a worked example…');
+    else { var rv=UI.reveal[l.id+i]||1, ex=m.p.ex.example; card='<div class="lp-card"><span class="lp-tag">Worked example</span><div class="lp-prob">'+rich(ex.problem)+'</div><ol class="lp-steps">'+ex.steps.slice(0,rv).map(function(s){return '<li>'+rich(s)+'</li>';}).join('')+'</ol>'
       +(rv<ex.steps.length?'<button type="button" class="btn btn-ghost btn-sm" data-lp="reveal">Show next step</button>':(ex.takeaway?'<div class="lp-take"><b>Takeaway.</b> '+rich(ex.takeaway)+'</div>':''))+'</div>'; }
   }else if(key==='try'){
-    if(!m.b) card=loadingBox(l,i,'Preparing your practice task…');
-    else { var ti=m.b.tryIt, sa=UI.showAns[l.id+i]; card='<div class="lp-card"><span class="lp-tag try">Your turn</span><div class="lp-prob">'+rich(ti.prompt)+'</div>'
+    if(!m.p.try) card=loadingBox(l,i,'Preparing your practice task…');
+    else { var ti=m.p.try, sa=UI.showAns[l.id+i]; card='<div class="lp-card"><span class="lp-tag try">Your turn</span><div class="lp-prob">'+rich(ti.prompt)+'</div>'
       +(ti.hint?'<details class="lp-hint"><summary>Need a hint?</summary>'+rich(ti.hint)+'</details>':'')
       +'<textarea id="lp-try" rows="4" placeholder="Work it out here before you look at the answer…">'+esc(m.tryNotes||'')+'</textarea>'
       +(sa?'<div class="lp-ans"><b>Model answer</b>'+rich(ti.answer)+'</div><div class="lp-rate"><span>How did you do?</span>'+[['got','Got it'],['part','Partly'],['not','Not yet']].map(function(r){return '<button type="button" class="lp-chip'+(m.selfRate===r[0]?' on':'')+'" data-lp="rate" data-r="'+r[0]+'">'+r[1]+'</button>';}).join('')+'</div>':'<button type="button" class="btn btn-ghost btn-sm" data-lp="showans">Check my answer</button>')+'</div>'; }
   }else if(key==='cp'){
-    if(!m.c) card=loadingBox(l,i,'Writing your checkpoint…');
+    if(!(m.p.q0&&m.p.q1)) card=loadingBox(l,i,'Writing your checkpoint…');
     else {
-      if(!m.cp) m.cp={i:0,picks:[],done:false,qs:m.c.qs.map(shuffleQ)};
+      if(!m.cp) m.cp={i:0,picks:[],done:false,qs:qsOf(m).map(shuffleQ)};
       var done=m.status==='done', labels={pass:'Checkpoint passed. You’re ready for the next module.',fail:function(n){return 'You need '+n+' correct to move on. Read the explanations, then try again.';}};
       var acts='';
       if(m.cp.done){
@@ -251,7 +290,7 @@ function moduleView(l){
   }
   var nav='';
   if(key!=='cp'){
-    var nextDisabled=(/^s\d+$/.test(key)&&!m.a)||((key==='ex'||key==='try')&&!m.b);
+    var nextDisabled=(/^s\d+$/.test(key)||key==='terms'||key==='ex'||key==='try')&&!m.p[key];
     nav='<div class="lp-nav">'+(k>0?'<button type="button" class="btn btn-ghost" data-lp="back">← Back</button>':'<span></span>')+'<button type="button" class="btn btn-primary" data-lp="next"'+(nextDisabled?' disabled':'')+'>'+(key==='try'?'On to the checkpoint →':'Continue →')+'</button></div>';
   }else if(k>0&&!m.cp.done){ nav='<div class="lp-nav"><button type="button" class="btn btn-ghost" data-lp="back">← Back to lesson</button><span></span></div>'; }
   return head+dots+card+nav;
@@ -259,7 +298,7 @@ function moduleView(l){
 function finalView(l){
   var f=l.final;
   if(!f){
-    var all=[]; l.mods.forEach(function(m,mi){ if(m.c) m.c.qs.forEach(function(q){ all.push({q:q,mod:mi,missed:!!m.missed[q.q]}); }); });
+    var all=[]; l.mods.forEach(function(m,mi){ if(modReady(m)) qsOf(m).forEach(function(q){ all.push({q:q,mod:mi,missed:!!m.missed[q.q]}); }); });
     var missed=shuffleArray(all.filter(function(x){return x.missed;})), rest=shuffleArray(all.filter(function(x){return !x.missed;}));
     var pick=missed.slice(0,6).concat(rest).slice(0,10);
     f=l.final={qs:shuffleArray(pick).map(function(x){var q=shuffleQ(x.q); q.mod=x.mod; return q;}),i:0,picks:[],done:false,score:null,attempts:0,passed:false};
@@ -289,7 +328,7 @@ function complete(l){
 function pickAnswer(l,idx){
   var big=l.cur>=l.mods.length, st=big?l.final:l.mods[l.cur].cp; if(!st||st.done||st.picks[st.i]!=null) return;
   var q=st.qs[st.i]; st.picks[st.i]=idx;
-  if(idx!==q.correct){ var mi=big?q.mod:l.cur, src=(l.mods[mi]||{}).missed; if(src){ var orig=(l.mods[mi].c&&l.mods[mi].c.qs||[]).filter(function(o){return o.q===q.q;})[0]; if(orig) src[orig.q]=1; } }
+  if(idx!==q.correct){ var mi=big?q.mod:l.cur, src=(l.mods[mi]||{}).missed; if(src){ var orig=qsOf(l.mods[mi]).filter(function(o){return o.q===q.q;})[0]; if(orig) src[orig.q]=1; } }
   touch(l);
 }
 function nextQuestion(l){
@@ -301,7 +340,7 @@ function nextQuestion(l){
   touch(l);
 }
 function go(l,i){ l.cur=Math.max(0,Math.min(i,l.mods.length)); UI.rail=false; touch(l); render(); window.scrollTo(0,0); if(l.cur<l.mods.length) ensureCurrent(l); }
-function setStep(l,key){ l.mods[l.cur].stepKey=key; touch(l); render(); window.scrollTo(0,0); var m=l.mods[l.cur]; if((key==='terms'||key==='ex')&&m.a) prefetch(l); }
+function setStep(l,key){ l.mods[l.cur].stepKey=key; touch(l); render(); window.scrollTo(0,0); var m=l.mods[l.cur]; if(key==='terms'||key==='ex') prefetch(l); }
 function act(e){
   var t=e.target.closest&&e.target.closest('[data-lp]'); if(!t) return;
   var a=t.getAttribute('data-lp'), l=cur();
@@ -319,7 +358,7 @@ function act(e){
   else if(a==='rate'){ m.selfRate=t.getAttribute('data-r'); touch(l); render(); }
   else if(a==='pick'){ pickAnswer(l,+t.getAttribute('data-i')); render(); }
   else if(a==='qnext'){ nextQuestion(l); render(); window.scrollTo(0,0); }
-  else if(a==='retrycp'){ m.cp={i:0,picks:[],done:false,qs:m.c.qs.map(shuffleQ)}; touch(l); render(); }
+  else if(a==='retrycp'){ m.cp={i:0,picks:[],done:false,qs:qsOf(m).map(shuffleQ)}; touch(l); render(); }
   else if(a==='review'){ setStep(l,'s0'); }
   else if(a==='skip'){ m.status='done'; m.skipped=true; touch(l); go(l,l.cur+1); }
   else if(a==='nextmod'){ go(l,l.cur+1); }
@@ -355,7 +394,7 @@ setInterval(function(){
   l.seconds+=5; l.mods[Math.min(l.cur,l.mods.length-1)].seconds+=5; if(++ticks%6===0) touch(l);
 },5000);
 window.addEventListener('pagehide',function(){ var l=cur(); if(l) touch(l); });
-window.addEventListener('storage',function(e){ if(e.key===KEY){ store=load(); if(visible()) render(); } });
+window.addEventListener('storage',function(e){ if(e.key===KEY){ store=load(); store.lessons.forEach(migrate); if(visible()) render(); } });
 
 window.LearnPlus={store:function(){return store;},open:openLesson};
 renderDepth(); if(cur()&&visible()) show(true); else $('view-learn')&&$('view-learn').classList.toggle('lp-active',false);
