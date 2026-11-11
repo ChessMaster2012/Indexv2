@@ -1153,7 +1153,7 @@ app.post('/api/ai/chat',async(req,res)=>{
           // streaming fallback hits the same endpoint and only adds load and waiting. Fail fast.
           // A plain HTTP 403 ("request could not be completed") is NOT in this list: the original
           // JSON-to-streaming transport fallback still applies, exactly as before my fail-fast change.
-          if(jsonError?.code==='VIREONIX_AUTOMATION_BLOCK'||/HTTP\s*(5\d\d|429)|policy block|temporarily unavailable|too many requests/i.test(jsonMsg)){
+          if(jsonError?.code==='VIREONIX_AUTOMATION_BLOCK'||/HTTP\s*(5\d\d|403|429)|policy block|temporarily unavailable|too many requests/i.test(jsonMsg)){
             console.warn('[AI] Study-set JSON failed because the provider is unavailable; not retrying with streaming:',jsonMsg);
             throw jsonError;
           }
