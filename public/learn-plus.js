@@ -160,7 +160,8 @@ function startDeep(){
   var subj=subjectById(subjectId), n=DEPTHS[depth].n;
   status.innerHTML='<div class="loading-line"><span class="spinner"></span> Designing your '+(depth==='deep'?'deep':'standard')+' lesson plan… (about 10 seconds)</div>';
   var prompt='You are an expert AP teacher designing a self-paced lesson. Course: AP '+subj.name+'. Topic: "'+topic+'". The student is seeing it for the first time and wants to reach exam readiness. Design exactly '+n+' modules in teaching order: foundations, core ideas, worked problem solving, then exam-style application. Return ONLY JSON, kept very short: {"title":"short lesson title","overview":"one sentence","modules":[{"title":"module title","goal":"under 12 words"}]}';
-  askJSON(prompt).then(function(j){
+  /* the provider sometimes answers 502 or times out: retry the plan up to 3 more times before giving up */
+  (function tryPlan(n){ return askJSON(prompt).catch(function(e){ if(n>=3) throw e; return new Promise(function(r){setTimeout(r,1500*(n+1));}).then(function(){ return tryPlan(n+1); }); }); })(0).then(function(j){
     var mods=(j&&Array.isArray(j.modules)?j.modules:[]).map(function(m){return {title:String(m&&m.title||'').trim().slice(0,120),goal:String(m&&m.goal||'').trim().slice(0,260),minutes:mins(m)};}).filter(function(m){return m.title;}).slice(0,14);
     if(mods.length<3) throw new Error('outline');
     var l={id:uid(),subjectId:subjectId,topic:topic,depth:depth,title:String(j.title||topic).trim().slice(0,120)||topic,overview:String(j.overview||'').trim().slice(0,500),createdAt:Date.now(),updatedAt:Date.now(),seconds:0,outline:mods,
