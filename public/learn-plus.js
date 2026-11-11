@@ -33,16 +33,24 @@ function touch(l){ l.updatedAt=Date.now(); save(); }
 function depthPref(){ var d=safe(function(){return localStorage.getItem(DEPTH_KEY);},'')||'standard'; return DEPTHS[d]?d:'standard'; }
 
 /* ---------------- AI generation (queued, deduped, cached) ---------------- */
-var queue=[], running=false, inflight={};
+var queue=[], active=0, lastStart=0, seq=0, pumpT=null, inflight={};
+var MAXC=8, BG_MAXC=5, GAP=1600;   /* urgent jobs run up to 8 at once; background jobs are paced to stay under the server's AI rate limit */
 function pump(){
-  if(running||!queue.length) return;
-  queue.sort(function(a,b){return a.prio-b.prio;});
-  var job=queue.shift(); running=true;
-  job.fn().then(job.resolve,job.reject).then(function(){ running=false; pump(); },function(){ running=false; pump(); });
+  while(active<MAXC&&queue.length){
+    queue.sort(function(a,b){return a.prio-b.prio||a.seq-b.seq;});
+    var job=queue[0];
+    if(job.prio>0){
+      if(active>=BG_MAXC) return;
+      var wait=lastStart+GAP-Date.now();
+      if(wait>0){ if(!pumpT) pumpT=setTimeout(function(){pumpT=null;pump();},wait); return; }
+    }
+    queue.shift(); active++; lastStart=Date.now();
+    job.fn().then(job.resolve,job.reject).then(function(){active--;pump();});
+  }
 }
 function enqueue(key,prio,fn){
-  if(inflight[key]){ inflight[key].job.prio=Math.min(inflight[key].job.prio,prio); return inflight[key].p; }
-  var job={prio:prio,fn:fn}; var p=new Promise(function(res,rej){ job.resolve=res; job.reject=rej; });
+  if(inflight[key]){ inflight[key].job.prio=Math.min(inflight[key].job.prio,prio); pump(); return inflight[key].p; }
+  var job={prio:prio,fn:fn,seq:seq++}; var p=new Promise(function(res,rej){ job.resolve=res; job.reject=rej; });
   inflight[key]={p:p,job:job}; queue.push(job);
   var done=function(){ delete inflight[key]; }; p.then(done,done);
   pump(); return p;
@@ -54,15 +62,13 @@ function ctx(l,i){
 }
 /* Each AI call is kept small (a few hundred tokens) so it finishes well inside the provider's time limit. */
 var ROLE=['foundations: definitions and the core idea','how it works: the key ideas and reasoning in action','common mistakes, connections to other ideas, and what the AP exam asks'];
-var PARTS=['s0','s1','s2','terms','ex','try','q0','q1'];
+var PARTS=['s0','s1','s2','pk','q'];
+function isDone(m,part){ return part==='pk'?!!(m.p.ex&&m.p.try):(part==='q'?!!m.p.q0:!!m.p[part]); }
 function heads(m){ return ['s0','s1','s2'].map(function(k){return m.p[k]&&m.p[k].heading;}).filter(Boolean).join('; '); }
 var PROMPTS={
-s:function(l,i,k){ var m=l.mods[i], prev=heads(m); return ctx(l,i)+'\n'+STYLE+'\nWrite part '+(k+1)+' of 3 of the teaching text for this module. This part covers '+ROLE[k]+'.'+(prev?' Earlier parts already covered: '+prev+'. Do not repeat them.':'')+'\nReturn ONLY JSON: {'+(k===0?'"intro":"1-2 sentences on why this matters",':'')+'"heading":"short heading","body":"90-130 words; separate paragraphs with \\n\\n"}'; },
-terms:function(l,i){ return ctx(l,i)+'\nList the 4 most important key terms for this module.\nReturn ONLY JSON: {"terms":[{"term":"...","def":"under 25 words"}]}'; },
-ex:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nWrite one worked example in the style of an AP exam.\nReturn ONLY JSON: {"example":{"problem":"the problem or scenario","steps":["step 1 with reasoning","step 2","step 3"],"takeaway":"one sentence"}}\nUse 3 or 4 steps.'; },
-try:function(l,i){ var ex=l.mods[i].p.ex; return ctx(l,i)+'\n'+STYLE+(ex?'\nThe worked example was: '+ex.example.problem.slice(0,300):'')+'\nWrite a similar practice task for the student to attempt alone.\nReturn ONLY JSON: {"tryIt":{"prompt":"the task","hint":"a nudge that does not give the answer away","answer":"model answer with brief reasoning, under 80 words"}}'; },
-q0:function(l,i){ return ctx(l,i)+'\nWrite 2 multiple-choice checkpoint questions testing recall of the key ideas of this module, AP-exam style. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 35 words"}]}'; },
-q1:function(l,i){ var q0=(l.mods[i].p.q0||[]).map(function(q){return q.q;}).join(' | '); return ctx(l,i)+'\nWrite 2 multiple-choice checkpoint questions that require APPLYING this module to a new situation, AP-exam style'+(q0?' (different from: '+q0.slice(0,300)+')':'')+'. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 35 words"}]}'; }
+s:function(l,i,k){ var m=l.mods[i], prev=heads(m); return ctx(l,i)+'\n'+STYLE+'\nWrite part '+(k+1)+' of 3 of the teaching text for this module. This part covers '+ROLE[k]+'.'+(prev?' Earlier parts already covered: '+prev+'. Do not repeat them.':'')+'\nReturn ONLY JSON: {'+(k===0?'"intro":"1-2 sentences on why this matters",':'')+'"heading":"short heading","body":"80-110 words; separate paragraphs with \\n\\n"}'; },
+pk:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nWrite the practice material for this module, AP-exam style. Keep every field concise.\nReturn ONLY JSON: {"terms":[{"term":"...","def":"under 20 words"}],"example":{"problem":"a worked-example problem or scenario","steps":["step 1 with reasoning","step 2","step 3"],"takeaway":"one sentence"},"tryIt":{"prompt":"a similar task for the student to attempt alone","hint":"a nudge that does not give the answer away","answer":"model answer, under 70 words"}}\nGive exactly 4 terms and 3 or 4 steps.'; },
+q:function(l,i){ return ctx(l,i)+'\nWrite 4 multiple-choice checkpoint questions for this module, AP-exam style: two testing recall of the key ideas and two requiring applying them to a new situation. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 30 words"}]}'; }
 };
 function normS(j,k){
   if(!j) return null; var body=String(j.body||'').trim().slice(0,2000), heading=String(j.heading||'').trim().slice(0,120);
@@ -85,46 +91,48 @@ function normTry(j){
 }
 function normQ(j){
   var arr=j&&Array.isArray(j.questions)?j.questions:null; if(!arr) return null;
-  var qs=arr.map(function(q){return safe(function(){return normalizeCheckpoint(q);},null);}).filter(Boolean).slice(0,3);
-  return qs.length>=1?qs:null;
+  var qs=arr.map(function(q){return safe(function(){return normalizeCheckpoint(q);},null);}).filter(Boolean).slice(0,5);
+  return qs.length>=3?qs:null;
 }
 function normalizePart(part,j){
   if(part==='s0'||part==='s1'||part==='s2') return normS(j,+part.slice(1));
-  if(part==='terms') return normTerms(j); if(part==='ex') return normEx(j); if(part==='try') return normTry(j); return normQ(j);
+  if(part==='pk'){ var ex=normEx(j), tr=normTry(j); if(!ex||!tr) return null; return {terms:normTerms(j)||[],ex:ex,tr:tr}; }
+  return normQ(j);
 }
 function promptFor(l,i,part){ return /^s\d$/.test(part)?PROMPTS.s(l,i,+part.slice(1)):PROMPTS[part](l,i); }
 function oneCall(l,i,part){
   return askJSON(promptFor(l,i,part)).then(function(j){ var v=normalizePart(part,j); if(!v) throw new Error('The AI returned an incomplete section.'); return v; });
 }
 function gen(l,i,part,prio){
-  var m=l.mods[i]; if(m.p[part]) return Promise.resolve(m.p[part]);
+  var m=l.mods[i]; if(isDone(m,part)) return Promise.resolve(true);
   return enqueue(l.id+':'+i+':'+part,prio,function(){
     /* one automatic retry (timeouts and brief provider errors are common) before showing an error */
-    return oneCall(l,i,part).catch(function(e){ return new Promise(function(r){setTimeout(r,1500);}).then(function(){ return oneCall(l,i,part); }); }).then(function(v){
+    return oneCall(l,i,part).catch(function(e){ return new Promise(function(r){setTimeout(r,/too fast|too many|rate|busy/i.test(String(e&&e.message))?8000:1500);}).then(function(){ return oneCall(l,i,part); }); }).then(function(v){
       if(store.lessons.indexOf(l)<0) return v;
-      m.p[part]=v; m.err=null; touch(l); return v;
-    },function(e){
-      if(part==='terms'){ m.p.terms=[]; touch(l); return []; }   /* key terms are optional */
-      throw e;
+      if(part==='pk'){ m.p.terms=v.terms; m.p.ex=v.ex; m.p.try=v.tr; } else if(part==='q'){ m.p.q0=v; delete m.p.q1; } else m.p[part]=v;
+      m.err=null; touch(l); return v;
     });
   });
 }
 function qsOf(m){ return (m.p.q0||[]).concat(m.p.q1||[]); }
-function modReady(m){ return PARTS.every(function(k){return !!m.p[k];}); }
+function modReady(m){ return !!(m.p.s0&&m.p.s1&&m.p.s2&&m.p.ex&&m.p.try&&m.p.q0); }
 function loadModule(l,i,prio){
-  var m=l.mods[i], chain=Promise.resolve();
-  PARTS.forEach(function(part){ chain=chain.then(function(){ var p=gen(l,i,part,prio); p.then(function(){ if(prio===0) afterLoad(l); },function(){}); return p; }); });
-  return chain;
+  var m=l.mods[i];
+  return Promise.all(PARTS.map(function(part){
+    var p=gen(l,i,part,prio); p.then(function(){ if(cur()===l&&i===l.cur) afterLoad(l); },function(){}); return p.then(function(){return null;},function(e){return e;});
+  })).then(function(errs){ var bad=errs.filter(Boolean)[0]; if(bad) throw bad; });
 }
 function ensureCurrent(l){
   var i=l.cur; if(i>=l.mods.length) return;
-  var m=l.mods[i]; if(modReady(m)){ prefetch(l); return; }
-  m.err=null;
-  loadModule(l,i,0).then(function(){ afterLoad(l); prefetch(l); },function(e){ m.err=String(e&&e.message||'Could not load this part.'); afterLoad(l); });
+  var m=l.mods[i]; m.err=null;
+  if(!modReady(m)) loadModule(l,i,0).then(function(){ afterLoad(l); },function(e){ m.err=String(e&&e.message||'Could not load this part.'); afterLoad(l); });
+  loadAll(l);
 }
-function prefetch(l){
-  var i=l.cur+1; if(i>=l.mods.length) return; var m=l.mods[i]; if(modReady(m)) return;
-  loadModule(l,i,1).then(function(){},function(){});
+/* write the rest of the lesson in the background, paced, so there is nothing to wait for later */
+var bgStarted={};
+function loadAll(l){
+  if(bgStarted[l.id]) return; bgStarted[l.id]=1;
+  l.mods.forEach(function(m,i){ if(i!==l.cur&&!modReady(m)) loadModule(l,i,1).then(function(){},function(){}); });
 }
 /* redraw only if the page is currently showing a loading or error box, so typing is never interrupted */
 function afterLoad(l){ if(cur()===l&&visible()&&document.querySelector('#lp-root .lp-loading, #lp-root .error-note')) render(); }
@@ -133,7 +141,7 @@ function migrate(l){
   l.mods.forEach(function(m){
     if(m.p) return; m.p={};
     if(m.a){ m.a.sections.forEach(function(s,k){ if(k<3) m.p['s'+k]={intro:k===0?m.a.intro:'',heading:s.heading,body:s.body}; }); if(m.a.terms&&m.a.terms.length) m.p.terms=m.a.terms; }
-    if(m.b){ m.p.ex={example:m.b.example}; m.p.try=m.b.tryIt; }
+    if(m.b){ m.p.ex={example:m.b.example}; m.p.try=m.b.tryIt; if(!m.p.terms) m.p.terms=[]; }
     if(m.c&&m.c.qs){ m.p.q0=m.c.qs.slice(0,2); m.p.q1=m.c.qs.slice(2); if(!m.p.q1.length) delete m.p.q1; }
     delete m.a; delete m.b; delete m.c; m.err=null;
   });
@@ -141,7 +149,7 @@ function migrate(l){
 store.lessons.forEach(migrate);
 
 /* ---------------- lesson creation ---------------- */
-function mins(m){ return Math.max(12,Math.min(40,Number(m&&m.minutes)||20)); }
+function mins(m){ return Math.max(12,Math.min(40,Number(m&&m.minutes)||15)); }
 function startDeep(){
   var subjectId=$('learn-subject').value, topic=$('learn-topic').value.trim(), depth=depthPref(), status=$('learn-status');
   if(!topic){ status.innerHTML='<div class="error-note">Enter a topic you want taught.</div>'; return; }
@@ -150,8 +158,8 @@ function startDeep(){
   var ex=store.lessons.filter(function(l){return (l.subjectId+'::'+l.topic+'::'+l.depth).toLowerCase()===key;})[0];
   if(ex){ openLesson(ex.id); safe(function(){toast('Picked up your saved lesson where you left off.');},0); return; }
   var subj=subjectById(subjectId), n=DEPTHS[depth].n;
-  status.innerHTML='<div class="loading-line"><span class="spinner"></span> Designing your '+(depth==='deep'?'deep':'standard')+' lesson plan… (about 20 seconds)</div>';
-  var prompt='You are an expert AP teacher designing a self-paced lesson. Course: AP '+subj.name+'. Topic: "'+topic+'". The student is seeing it for the first time and wants to reach exam readiness. Design exactly '+n+' modules in teaching order: foundations, core ideas, worked problem solving, then exam-style application. Each module should take 15 to 30 minutes. Return ONLY JSON: {"title":"short lesson title","overview":"2 sentences on what the student will be able to do","modules":[{"title":"module title","goal":"one sentence: what the student can do afterward","minutes":20}]}';
+  status.innerHTML='<div class="loading-line"><span class="spinner"></span> Designing your '+(depth==='deep'?'deep':'standard')+' lesson plan… (about 10 seconds)</div>';
+  var prompt='You are an expert AP teacher designing a self-paced lesson. Course: AP '+subj.name+'. Topic: "'+topic+'". The student is seeing it for the first time and wants to reach exam readiness. Design exactly '+n+' modules in teaching order: foundations, core ideas, worked problem solving, then exam-style application. Return ONLY JSON, kept very short: {"title":"short lesson title","overview":"one sentence","modules":[{"title":"module title","goal":"under 12 words"}]}';
   askJSON(prompt).then(function(j){
     var mods=(j&&Array.isArray(j.modules)?j.modules:[]).map(function(m){return {title:String(m&&m.title||'').trim().slice(0,120),goal:String(m&&m.goal||'').trim().slice(0,260),minutes:mins(m)};}).filter(function(m){return m.title;}).slice(0,14);
     if(mods.length<3) throw new Error('outline');
@@ -251,7 +259,8 @@ function player(l){
 function loadingBox(l,i,label){
   var m=l.mods[i];
   if(m.err) return '<div class="lp-card"><div class="error-note">That part didn’t load: '+esc(m.err)+'</div><button type="button" class="btn btn-primary" data-lp="retry">Try again</button></div>';
-  return '<div class="lp-card lp-loading"><span class="spinner"></span> '+esc(label)+'<small>Each module is written for you as you go, usually 20 to 40 seconds.</small></div>';
+  var n=PARTS.filter(function(k){return isDone(m,k);}).length;
+  return '<div class="lp-card lp-loading"><span class="spinner"></span> '+esc(label)+'<small>'+n+' of '+PARTS.length+' parts of this module are ready. The rest of the lesson is written in the background while you study.</small></div>';
 }
 function moduleView(l){
   var i=l.cur, m=l.mods[i], o=l.outline[i], st=steps(l,i), k=stepIndex(l,i), key=st[k];
@@ -276,7 +285,7 @@ function moduleView(l){
       +'<textarea id="lp-try" rows="4" placeholder="Work it out here before you look at the answer…">'+esc(m.tryNotes||'')+'</textarea>'
       +(sa?'<div class="lp-ans"><b>Model answer</b>'+rich(ti.answer)+'</div><div class="lp-rate"><span>How did you do?</span>'+[['got','Got it'],['part','Partly'],['not','Not yet']].map(function(r){return '<button type="button" class="lp-chip'+(m.selfRate===r[0]?' on':'')+'" data-lp="rate" data-r="'+r[0]+'">'+r[1]+'</button>';}).join('')+'</div>':'<button type="button" class="btn btn-ghost btn-sm" data-lp="showans">Check my answer</button>')+'</div>'; }
   }else if(key==='cp'){
-    if(!(m.p.q0&&m.p.q1)) card=loadingBox(l,i,'Writing your checkpoint…');
+    if(!m.p.q0) card=loadingBox(l,i,'Writing your checkpoint…');
     else {
       if(!m.cp) m.cp={i:0,picks:[],done:false,qs:qsOf(m).map(shuffleQ)};
       var done=m.status==='done', labels={pass:'Checkpoint passed. You’re ready for the next module.',fail:function(n){return 'You need '+n+' correct to move on. Read the explanations, then try again.';}};
@@ -340,7 +349,7 @@ function nextQuestion(l){
   touch(l);
 }
 function go(l,i){ l.cur=Math.max(0,Math.min(i,l.mods.length)); UI.rail=false; touch(l); render(); window.scrollTo(0,0); if(l.cur<l.mods.length) ensureCurrent(l); }
-function setStep(l,key){ l.mods[l.cur].stepKey=key; touch(l); render(); window.scrollTo(0,0); var m=l.mods[l.cur]; if(key==='terms'||key==='ex') prefetch(l); }
+function setStep(l,key){ l.mods[l.cur].stepKey=key; touch(l); render(); window.scrollTo(0,0); var m=l.mods[l.cur]; }
 function act(e){
   var t=e.target.closest&&e.target.closest('[data-lp]'); if(!t) return;
   var a=t.getAttribute('data-lp'), l=cur();
