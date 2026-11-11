@@ -141,8 +141,19 @@ function loadAll(l){
 }
 /* redraw only if the page is currently showing a loading or error box, so typing is never interrupted */
 function afterLoad(l){ if(cur()===l&&visible()&&document.querySelector('#lp-root .lp-loading, #lp-root .error-note')) render(); }
+/* repair any saved lesson that is missing pieces so it can always be drawn */
+function normalize(l){
+  if(!Array.isArray(l.outline)) l.outline=[];
+  if(!Array.isArray(l.mods)) l.mods=[];
+  while(l.mods.length<l.outline.length) l.mods.push({status:'todo'});
+  l.mods.length=l.outline.length;
+  l.mods.forEach(function(m){ if(!m.p||typeof m.p!=='object') m.p=(m.p===undefined?undefined:{}); m.status=m.status||'todo'; m.attempts=m.attempts||0; m.missed=m.missed||{}; m.seconds=m.seconds||0; if(m.tryNotes==null) m.tryNotes=''; });
+  l.cur=Math.max(0,Math.min(Number(l.cur)||0,l.mods.length));
+  l.seconds=Number(l.seconds)||0; l.updatedAt=l.updatedAt||Date.now();
+}
 /* older saved lessons stored whole sections in a/b/c: carry them over */
 function migrate(l){
+  normalize(l);
   l.mods.forEach(function(m){
     if(m.p) return; m.p={};
     if(m.a){ m.a.sections.forEach(function(s,k){ if(k<3) m.p['s'+k]={intro:k===0?m.a.intro:'',heading:s.heading,body:s.body}; }); if(m.a.terms&&m.a.terms.length) m.p.terms=m.a.terms; }
@@ -231,8 +242,16 @@ function root(){
 }
 function render(){
   var r=root(); if(!r) return;
-  var l=cur();
-  r.innerHTML=l?player(l):library();
+  var l=cur(), html;
+  try{ html=l?player(l):library(); }
+  catch(e){
+    /* never leave the Learn tab blank: drop back to the lesson list and the builder */
+    try{ console.error('[learn-plus] render failed',e); }catch(_){}
+    store.activeId=null; save(); l=null;
+    var vv=$('view-learn'); if(vv) vv.classList.remove('lp-active');
+    try{ html=library(); }catch(_){ html=''; }
+  }
+  r.innerHTML=html;
   var ta=$('lp-try'); if(ta&&l) ta.addEventListener('input',function(){ l.mods[l.cur].tryNotes=ta.value; clearTimeout(ta._t); ta._t=setTimeout(function(){touch(l);},600); });
 }
 function library(){
