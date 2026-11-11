@@ -34,7 +34,7 @@ function depthPref(){ var d=safe(function(){return localStorage.getItem(DEPTH_KE
 
 /* ---------------- AI generation (queued, deduped, cached) ---------------- */
 var queue=[], active=0, lastStart=0, seq=0, pumpT=null, inflight={};
-var MAXC=8, BG_MAXC=5, GAP=1600;   /* urgent jobs run up to 8 at once; background jobs are paced to stay under the server's AI rate limit */
+var MAXC=6, BG_MAXC=3, GAP=2500;   /* urgent jobs run up to 8 at once; background jobs are paced to stay under the server's AI rate limit */
 function pump(){
   while(active<MAXC&&queue.length){
     queue.sort(function(a,b){return a.prio-b.prio||a.seq-b.seq;});
@@ -62,13 +62,16 @@ function ctx(l,i){
 }
 /* Each AI call is kept small (a few hundred tokens) so it finishes well inside the provider's time limit. */
 var ROLE=['foundations: definitions and the core idea','how it works: the key ideas and reasoning in action','common mistakes, connections to other ideas, and what the AP exam asks'];
-var PARTS=['s0','s1','s2','pk','q'];
-function isDone(m,part){ return part==='pk'?!!(m.p.ex&&m.p.try):(part==='q'?!!m.p.q0:!!m.p[part]); }
+var PARTS=['s0','s1','s2','ex','tr','qa','qb'];
+function qbOk(m){ return !!(m.p.q1||(m.p.q0&&m.p.q0.length>=3)); }
+function isDone(m,part){ return part==='ex'?!!(m.p.ex&&m.p.terms):part==='tr'?!!m.p.try:part==='qa'?!!m.p.q0:part==='qb'?qbOk(m):!!m.p[part]; }
 function heads(m){ return ['s0','s1','s2'].map(function(k){return m.p[k]&&m.p[k].heading;}).filter(Boolean).join('; '); }
 var PROMPTS={
 s:function(l,i,k){ var m=l.mods[i], prev=heads(m); return ctx(l,i)+'\n'+STYLE+'\nWrite part '+(k+1)+' of 3 of the teaching text for this module. This part covers '+ROLE[k]+'.'+(prev?' Earlier parts already covered: '+prev+'. Do not repeat them.':'')+'\nReturn ONLY JSON: {'+(k===0?'"intro":"1-2 sentences on why this matters",':'')+'"heading":"short heading","body":"80-110 words; separate paragraphs with \\n\\n"}'; },
-pk:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nWrite the practice material for this module, AP-exam style. Keep every field concise.\nReturn ONLY JSON: {"terms":[{"term":"...","def":"under 20 words"}],"example":{"problem":"a worked-example problem or scenario","steps":["step 1 with reasoning","step 2","step 3"],"takeaway":"one sentence"},"tryIt":{"prompt":"a similar task for the student to attempt alone","hint":"a nudge that does not give the answer away","answer":"model answer, under 70 words"}}\nGive exactly 4 terms and 3 or 4 steps.'; },
-q:function(l,i){ return ctx(l,i)+'\nWrite 4 multiple-choice checkpoint questions for this module, AP-exam style: two testing recall of the key ideas and two requiring applying them to a new situation. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 30 words"}]}'; }
+ex:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nWrite the key terms and one worked example for this module, AP-exam style. Keep every field concise.\nReturn ONLY JSON: {"terms":[{"term":"...","def":"under 20 words"}],"example":{"problem":"a worked-example problem or scenario","steps":["step 1 with reasoning","step 2","step 3"],"takeaway":"one sentence"}}\nGive 4 terms and 3 or 4 steps.'; },
+tr:function(l,i){ return ctx(l,i)+'\n'+STYLE+'\nWrite one practice task for the student to attempt alone, AP-exam style.\nReturn ONLY JSON: {"tryIt":{"prompt":"the task","hint":"a nudge that does not give the answer away","answer":"model answer with brief reasoning, under 70 words"}}'; },
+qa:function(l,i){ return ctx(l,i)+'\nWrite 2 multiple-choice checkpoint questions testing recall of the key ideas of this module, AP-exam style. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 30 words"}]}'; },
+qb:function(l,i){ return ctx(l,i)+'\nWrite 2 multiple-choice checkpoint questions that require APPLYING this module to a new situation, AP-exam style. Exactly 4 options each, one correct, plausible wrong answers, no "all of the above". Plain Unicode math, never LaTeX.\nReturn ONLY JSON: {"questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"under 30 words"}]}'; }
 };
 function normS(j,k){
   if(!j) return null; var body=String(j.body||'').trim().slice(0,2000), heading=String(j.heading||'').trim().slice(0,120);
@@ -92,11 +95,12 @@ function normTry(j){
 function normQ(j){
   var arr=j&&Array.isArray(j.questions)?j.questions:null; if(!arr) return null;
   var qs=arr.map(function(q){return safe(function(){return normalizeCheckpoint(q);},null);}).filter(Boolean).slice(0,5);
-  return qs.length>=3?qs:null;
+  return qs.length>=1?qs.slice(0,3):null;
 }
 function normalizePart(part,j){
   if(part==='s0'||part==='s1'||part==='s2') return normS(j,+part.slice(1));
-  if(part==='pk'){ var ex=normEx(j), tr=normTry(j); if(!ex||!tr) return null; return {terms:normTerms(j)||[],ex:ex,tr:tr}; }
+  if(part==='ex'){ var ex=normEx(j); if(!ex) return null; return {terms:normTerms(j)||[],ex:ex}; }
+  if(part==='tr') return normTry(j);
   return normQ(j);
 }
 function promptFor(l,i,part){ return /^s\d$/.test(part)?PROMPTS.s(l,i,+part.slice(1)):PROMPTS[part](l,i); }
@@ -109,13 +113,13 @@ function gen(l,i,part,prio){
     /* one automatic retry (timeouts and brief provider errors are common) before showing an error */
     return oneCall(l,i,part).catch(function(e){ return new Promise(function(r){setTimeout(r,/too fast|too many|rate|busy/i.test(String(e&&e.message))?8000:1500);}).then(function(){ return oneCall(l,i,part); }); }).then(function(v){
       if(store.lessons.indexOf(l)<0) return v;
-      if(part==='pk'){ m.p.terms=v.terms; m.p.ex=v.ex; m.p.try=v.tr; } else if(part==='q'){ m.p.q0=v; delete m.p.q1; } else m.p[part]=v;
+      if(part==='ex'){ m.p.terms=v.terms; m.p.ex=v.ex; } else if(part==='tr'){ m.p.try=v; } else if(part==='qa'){ m.p.q0=v; } else if(part==='qb'){ m.p.q1=v; } else m.p[part]=v;
       m.err=null; touch(l); return v;
     });
   });
 }
 function qsOf(m){ return (m.p.q0||[]).concat(m.p.q1||[]); }
-function modReady(m){ return !!(m.p.s0&&m.p.s1&&m.p.s2&&m.p.ex&&m.p.try&&m.p.q0); }
+function modReady(m){ return !!(m.p.s0&&m.p.s1&&m.p.s2&&m.p.ex&&m.p.try&&m.p.q0&&qbOk(m)); }
 function loadModule(l,i,prio){
   var m=l.mods[i];
   return Promise.all(PARTS.map(function(part){
@@ -286,7 +290,7 @@ function moduleView(l){
       +'<textarea id="lp-try" rows="4" placeholder="Work it out here before you look at the answer…">'+esc(m.tryNotes||'')+'</textarea>'
       +(sa?'<div class="lp-ans"><b>Model answer</b>'+rich(ti.answer)+'</div><div class="lp-rate"><span>How did you do?</span>'+[['got','Got it'],['part','Partly'],['not','Not yet']].map(function(r){return '<button type="button" class="lp-chip'+(m.selfRate===r[0]?' on':'')+'" data-lp="rate" data-r="'+r[0]+'">'+r[1]+'</button>';}).join('')+'</div>':'<button type="button" class="btn btn-ghost btn-sm" data-lp="showans">Check my answer</button>')+'</div>'; }
   }else if(key==='cp'){
-    if(!m.p.q0) card=loadingBox(l,i,'Writing your checkpoint…');
+    if(!(m.p.q0&&qbOk(m))) card=loadingBox(l,i,'Writing your checkpoint…');
     else {
       if(!m.cp) m.cp={i:0,picks:[],done:false,qs:qsOf(m).map(shuffleQ)};
       var done=m.status==='done', labels={pass:'Checkpoint passed. You’re ready for the next module.',fail:function(n){return 'You need '+n+' correct to move on. Read the explanations, then try again.';}};
