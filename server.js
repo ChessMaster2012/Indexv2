@@ -1148,7 +1148,14 @@ app.post('/api/ai/chat',async(req,res)=>{
           const generatedText=await callVireonixWithRetry(messages,false,18000,1800,0,'Study-set JSON');
           return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
         }catch(jsonError){
-          console.warn('[AI] Study-set JSON mode failed; retrying the same Vireonix Auto prompt with streaming:',jsonError?.message||jsonError);
+          const jsonMsg=String(jsonError?.message||jsonError||'');
+          // When the provider itself is down, rate limiting, or has blocked automated use, the
+          // streaming fallback hits the same endpoint and only adds load and waiting. Fail fast.
+          if(/HTTP\s*(5\d\d|403|429)|policy block|temporarily unavailable|too many requests/i.test(jsonMsg)){
+            console.warn('[AI] Study-set JSON failed because the provider is unavailable; not retrying with streaming:',jsonMsg);
+            throw jsonError;
+          }
+          console.warn('[AI] Study-set JSON mode failed; retrying the same Vireonix Auto prompt with streaming:',jsonMsg);
           await streamVireonixToResponse(messages,false,res,{mode:'study-set'});
           return;
         }
