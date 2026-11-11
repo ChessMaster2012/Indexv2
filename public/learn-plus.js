@@ -36,7 +36,7 @@ function depthPref(){ var d=safe(function(){return localStorage.getItem(DEPTH_KE
 var queue=[], active=0, lastStart=0, seq=0, pumpT=null, inflight={};
 var MAXC=2, GAP=900, BG_GAP=3000;   /* deliberately gentle: at most 2 requests at once, spaced out, so Vireonix never sees a burst */
 var blockedUntil=0;
-var BLOCK_MSG='Vireonix has paused AI requests for a few minutes. Wait about 10 minutes, then press Try again. Index will not retry on its own.';
+var BLOCK_MSG='Vireonix is refusing AI requests from Index (HTTP 403). Waiting a few minutes may not clear this, and retrying will not help. If the Tutor is also failing, Vireonix has to lift the block on their side.';
 function isBlock(e){ return /policy block|automated|paused|HTTP 403|could not complete|check your request/i.test(String(e&&e.message||'')); }
 function pump(){
   while(active<MAXC&&queue.length){
