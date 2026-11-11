@@ -34,16 +34,17 @@ function depthPref(){ var d=safe(function(){return localStorage.getItem(DEPTH_KE
 
 /* ---------------- AI generation (queued, deduped, cached) ---------------- */
 var queue=[], active=0, lastStart=0, seq=0, pumpT=null, inflight={};
-var MAXC=6, BG_MAXC=3, GAP=2500;   /* urgent jobs run up to 8 at once; background jobs are paced to stay under the server's AI rate limit */
+var MAXC=2, GAP=900, BG_GAP=3000;   /* deliberately gentle: at most 2 requests at once, spaced out, so Vireonix never sees a burst */
+var blockedUntil=0;
+var BLOCK_MSG='Vireonix has paused AI requests for a few minutes. Wait about 10 minutes, then press Try again. Index will not retry on its own.';
+function isBlock(e){ return /policy block|automated|paused|HTTP 403/i.test(String(e&&e.message||'')); }
 function pump(){
   while(active<MAXC&&queue.length){
     queue.sort(function(a,b){return a.prio-b.prio||a.seq-b.seq;});
     var job=queue[0];
-    if(job.prio>0){
-      if(active>=BG_MAXC) return;
-      var wait=lastStart+GAP-Date.now();
-      if(wait>0){ if(!pumpT) pumpT=setTimeout(function(){pumpT=null;pump();},wait); return; }
-    }
+    if(job.prio>0&&active>0) return;
+    var wait=lastStart+(job.prio>0?BG_GAP:GAP)-Date.now();
+    if(wait>0){ if(!pumpT) pumpT=setTimeout(function(){pumpT=null;pump();},wait); return; }
     queue.shift(); active++; lastStart=Date.now();
     job.fn().then(job.resolve,job.reject).then(function(){active--;pump();});
   }
@@ -109,9 +110,10 @@ function oneCall(l,i,part){
 }
 function gen(l,i,part,prio){
   var m=l.mods[i]; if(isDone(m,part)) return Promise.resolve(true);
+  if(Date.now()<blockedUntil) return Promise.reject(new Error(BLOCK_MSG));
   return enqueue(l.id+':'+i+':'+part,prio,function(){
     /* one automatic retry (timeouts and brief provider errors are common) before showing an error */
-    return oneCall(l,i,part).catch(function(e){ return new Promise(function(r){setTimeout(r,/too fast|too many|rate|busy/i.test(String(e&&e.message))?8000:1500);}).then(function(){ return oneCall(l,i,part); }); }).then(function(v){
+    return oneCall(l,i,part).catch(function(e){ if(isBlock(e)){ blockedUntil=Date.now()+10*60000; throw new Error(BLOCK_MSG); } if(Date.now()<blockedUntil) throw new Error(BLOCK_MSG); return new Promise(function(r){setTimeout(r,/too fast|too many|rate|busy/i.test(String(e&&e.message))?8000:1500);}).then(function(){ return oneCall(l,i,part); }); }).then(function(v){
       if(store.lessons.indexOf(l)<0) return v;
       if(part==='ex'){ m.p.terms=v.terms; m.p.ex=v.ex; } else if(part==='tr'){ m.p.try=v; } else if(part==='qa'){ m.p.q0=v; } else if(part==='qb'){ m.p.q1=v; } else m.p[part]=v;
       m.err=null; touch(l); return v;
@@ -130,13 +132,12 @@ function ensureCurrent(l){
   var i=l.cur; if(i>=l.mods.length) return;
   var m=l.mods[i]; m.err=null;
   if(!modReady(m)) loadModule(l,i,0).then(function(){ afterLoad(l); },function(e){ m.err=String(e&&e.message||'Could not load this part.'); afterLoad(l); });
-  loadAll(l);
 }
 /* write the rest of the lesson in the background, paced, so there is nothing to wait for later */
 var bgStarted={};
 function loadAll(l){
-  if(bgStarted[l.id]) return; bgStarted[l.id]=1;
-  l.mods.forEach(function(m,i){ if(i!==l.cur&&!modReady(m)) loadModule(l,i,1).then(function(){},function(){}); });
+  var i=l.cur+1; if(i>=l.mods.length||bgStarted[l.id+':'+i]||modReady(l.mods[i])) return;
+  bgStarted[l.id+':'+i]=1; loadModule(l,i,1).then(function(){},function(){ delete bgStarted[l.id+':'+i]; });
 }
 /* redraw only if the page is currently showing a loading or error box, so typing is never interrupted */
 function afterLoad(l){ if(cur()===l&&visible()&&document.querySelector('#lp-root .lp-loading, #lp-root .error-note')) render(); }
@@ -165,7 +166,7 @@ function startDeep(){
   status.innerHTML='<div class="loading-line"><span class="spinner"></span> Designing your '+(depth==='deep'?'deep':'standard')+' lesson plan… (about 10 seconds)</div>';
   var prompt='You are an expert AP teacher designing a self-paced lesson. Course: AP '+subj.name+'. Topic: "'+topic+'". The student is seeing it for the first time and wants to reach exam readiness. Design exactly '+n+' modules in teaching order: foundations, core ideas, worked problem solving, then exam-style application. Return ONLY JSON, kept very short: {"title":"short lesson title","overview":"one sentence","modules":[{"title":"module title","goal":"under 12 words"}]}';
   /* the provider sometimes answers 502 or times out: retry the plan up to 3 more times before giving up */
-  (function tryPlan(n){ return askJSON(prompt).catch(function(e){ if(n>=3) throw e; return new Promise(function(r){setTimeout(r,1500*(n+1));}).then(function(){ return tryPlan(n+1); }); }); })(0).then(function(j){
+  (function tryPlan(n){ if(Date.now()<blockedUntil) return Promise.reject(new Error(BLOCK_MSG)); return askJSON(prompt).catch(function(e){ if(isBlock(e)){ blockedUntil=Date.now()+10*60000; throw new Error(BLOCK_MSG); } if(n>=3) throw e; return new Promise(function(r){setTimeout(r,1500*(n+1));}).then(function(){ return tryPlan(n+1); }); }); })(0).then(function(j){
     var mods=(j&&Array.isArray(j.modules)?j.modules:[]).map(function(m){return {title:String(m&&m.title||'').trim().slice(0,120),goal:String(m&&m.goal||'').trim().slice(0,260),minutes:mins(m)};}).filter(function(m){return m.title;}).slice(0,14);
     if(mods.length<3) throw new Error('outline');
     var l={id:uid(),subjectId:subjectId,topic:topic,depth:depth,title:String(j.title||topic).trim().slice(0,120)||topic,overview:String(j.overview||'').trim().slice(0,500),createdAt:Date.now(),updatedAt:Date.now(),seconds:0,outline:mods,
@@ -315,6 +316,7 @@ function finalView(l){
     var all=[]; l.mods.forEach(function(m,mi){ if(modReady(m)) qsOf(m).forEach(function(q){ all.push({q:q,mod:mi,missed:!!m.missed[q.q]}); }); });
     var missed=shuffleArray(all.filter(function(x){return x.missed;})), rest=shuffleArray(all.filter(function(x){return !x.missed;}));
     var pick=missed.slice(0,6).concat(rest).slice(0,10);
+    if(!pick.length) return '<div class="lp-kicker">Final mastery check</div><div class="lp-card"><p>The checkpoint questions for this lesson aren’t saved yet, so the final check can’t be built. Open a module and let it finish loading, then come back.</p></div>';
     f=l.final={qs:shuffleArray(pick).map(function(x){var q=shuffleQ(x.q); q.mod=x.mod; return q;}),i:0,picks:[],done:false,score:null,attempts:0,passed:false};
     touch(l);
   }
@@ -354,7 +356,7 @@ function nextQuestion(l){
   touch(l);
 }
 function go(l,i){ l.cur=Math.max(0,Math.min(i,l.mods.length)); UI.rail=false; touch(l); render(); window.scrollTo(0,0); if(l.cur<l.mods.length) ensureCurrent(l); }
-function setStep(l,key){ l.mods[l.cur].stepKey=key; touch(l); render(); window.scrollTo(0,0); var m=l.mods[l.cur]; }
+function setStep(l,key){ l.mods[l.cur].stepKey=key; touch(l); render(); window.scrollTo(0,0); var m=l.mods[l.cur]; if(key==='try') loadAll(l); }
 function act(e){
   var t=e.target.closest&&e.target.closest('[data-lp]'); if(!t) return;
   var a=t.getAttribute('data-lp'), l=cur();
@@ -376,7 +378,7 @@ function act(e){
   else if(a==='review'){ setStep(l,'s0'); }
   else if(a==='skip'){ m.status='done'; m.skipped=true; touch(l); go(l,l.cur+1); }
   else if(a==='nextmod'){ go(l,l.cur+1); }
-  else if(a==='retry'){ ensureCurrent(l); render(); }
+  else if(a==='retry'){ blockedUntil=0; bgStarted={}; ensureCurrent(l); render(); }
   else if(a==='retryfinal'){ l.final=null; touch(l); render(); }
   else if(a==='practice'){
     var prev=state.learn.lesson; state.learn.lesson={subjectId:l.subjectId,topic:l.topic};
