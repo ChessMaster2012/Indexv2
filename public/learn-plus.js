@@ -37,7 +37,7 @@ var queue=[], active=0, lastStart=0, seq=0, pumpT=null, inflight={};
 var MAXC=2, GAP=900, BG_GAP=3000;   /* deliberately gentle: at most 2 requests at once, spaced out, so Vireonix never sees a burst */
 var blockedUntil=0;
 var BLOCK_MSG='Vireonix has paused AI requests for a few minutes. Wait about 10 minutes, then press Try again. Index will not retry on its own.';
-function isBlock(e){ return /policy block|automated|paused|HTTP 403/i.test(String(e&&e.message||'')); }
+function isBlock(e){ return /policy block|automated|paused|HTTP 403|could not complete|check your request/i.test(String(e&&e.message||'')); }
 function pump(){
   while(active<MAXC&&queue.length){
     queue.sort(function(a,b){return a.prio-b.prio||a.seq-b.seq;});
@@ -177,14 +177,14 @@ function startDeep(){
   status.innerHTML='<div class="loading-line"><span class="spinner"></span> Designing your '+(depth==='deep'?'deep':'standard')+' lesson plan… (about 10 seconds)</div>';
   var prompt='You are an expert AP teacher designing a self-paced lesson. Course: AP '+subj.name+'. Topic: "'+topic+'". The student is seeing it for the first time and wants to reach exam readiness. Design exactly '+n+' modules in teaching order: foundations, core ideas, worked problem solving, then exam-style application. Return ONLY JSON, kept very short: {"title":"short lesson title","overview":"one sentence","modules":[{"title":"module title","goal":"under 12 words"}]}';
   /* the provider sometimes answers 502 or times out: retry the plan up to 3 more times before giving up */
-  (function tryPlan(n){ if(Date.now()<blockedUntil) return Promise.reject(new Error(BLOCK_MSG)); return askJSON(prompt).catch(function(e){ if(isBlock(e)){ blockedUntil=Date.now()+10*60000; throw new Error(BLOCK_MSG); } if(n>=3) throw e; return new Promise(function(r){setTimeout(r,1500*(n+1));}).then(function(){ return tryPlan(n+1); }); }); })(0).then(function(j){
+  (function tryPlan(n){ if(Date.now()<blockedUntil) return Promise.reject(new Error(BLOCK_MSG)); return askJSON(prompt).catch(function(e){ if(isBlock(e)){ blockedUntil=Date.now()+10*60000; throw new Error(BLOCK_MSG); } if(n>=1) throw e; return new Promise(function(r){setTimeout(r,1500*(n+1));}).then(function(){ return tryPlan(n+1); }); }); })(0).then(function(j){
     var mods=(j&&Array.isArray(j.modules)?j.modules:[]).map(function(m){return {title:String(m&&m.title||'').trim().slice(0,120),goal:String(m&&m.goal||'').trim().slice(0,260),minutes:mins(m)};}).filter(function(m){return m.title;}).slice(0,14);
     if(mods.length<3) throw new Error('outline');
     var l={id:uid(),subjectId:subjectId,topic:topic,depth:depth,title:String(j.title||topic).trim().slice(0,120)||topic,overview:String(j.overview||'').trim().slice(0,500),createdAt:Date.now(),updatedAt:Date.now(),seconds:0,outline:mods,
       mods:mods.map(function(){return {p:{},status:'todo',stepKey:'',attempts:0,best:null,missed:{},tryNotes:'',selfRate:'',cp:null,xp:false,seconds:0};}),cur:0,final:null,doneAt:null};
     store.lessons.unshift(l); store.lessons=store.lessons.slice(0,MAX_LESSONS+5); store.activeId=l.id; save(); status.innerHTML='';
     show(true);
-  }).catch(function(e){ status.innerHTML='<div class="error-note">Couldn’t design that lesson ('+esc(explainAi(e))+'). Please try again.</div>'; });
+  }).catch(function(e){ status.innerHTML=(e&&e.message===BLOCK_MSG)?'<div class="error-note">'+esc(BLOCK_MSG)+'</div>':'<div class="error-note">Couldn’t design that lesson ('+esc(explainAi(e))+'). Please try again.</div>'; });
 }
 function explainAi(e){ return safe(function(){return explainAiError(e,'The AI').replace(/^The AI /,'').replace(/\.$/,'');},'try again'); }
 
