@@ -755,7 +755,9 @@ const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-flash-latest,gemini
 async function streamGeminiToResponse(messages,res,options={}){
   const mode=String(options.mode||'');
   const tutorMode=mode==='tutor', studySetMode=mode==='study-set';
-  const deadline=Date.now()+(studySetMode?35000:(tutorMode?60000:29500));
+  // A study-path request asks for ~80 cards/questions in one JSON object (thousands of tokens), so it needs
+  // a large output budget and more time than a chat answer.
+  const deadline=Date.now()+(studySetMode?52000:(tutorMode?60000:29500));
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),Math.max(100,deadline-Date.now()));
   let upstream=null, usedModel='', lastErr=null;
@@ -763,14 +765,16 @@ async function streamGeminiToResponse(messages,res,options={}){
     // Busy models answer 503/429 ("high demand"): retry once, then try the next listed model.
     // Skip models that just hit their free quota, unless every model is cooling down.
     const ready=GEMINI_MODELS.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
-    outer: for(const model of (ready.length?ready:GEMINI_MODELS)){
+    // Bulk JSON generation goes to the faster "lite" models first.
+    const order=(ready.length?ready:GEMINI_MODELS).slice().sort((a,b)=>studySetMode?(/lite/.test(b)-/lite/.test(a)):0);
+    outer: for(const model of order){
       for(let attempt=0;attempt<2;attempt++){
         if(Date.now()>deadline-3000) break outer;
         // Each attempt gets its own short wait for the response to START, so one stalled model
         // cannot use up the whole budget before the next model (or Vireonix) is tried.
         const attemptCtl=new AbortController();
         const startedAt=Date.now();
-        const firstByteTimer=setTimeout(()=>attemptCtl.abort(),studySetMode?25000:15000);
+        const firstByteTimer=setTimeout(()=>attemptCtl.abort(),studySetMode?48000:15000);
         const onOuterAbort=()=>attemptCtl.abort();
         controller.signal.addEventListener('abort',onOuterAbort);
         let r;
@@ -778,7 +782,7 @@ async function streamGeminiToResponse(messages,res,options={}){
           r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{
             method:'POST',
             headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
-            body:JSON.stringify({model,messages,stream:!studySetMode,max_tokens:studySetMode?1800:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
+            body:JSON.stringify({model,messages,stream:!studySetMode,max_tokens:studySetMode?12000:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
             signal:attemptCtl.signal
           });
         }catch(fe){
