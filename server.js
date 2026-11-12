@@ -750,7 +750,8 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 // is configured in the environment. Without a key nothing here runs. Google's Gemini API exposes an
 // OpenAI-compatible endpoint, so the browser keeps receiving the same response shapes as from Vireonix.
 const GEMINI_API_KEY=String(process.env.GEMINI_API_KEY||'').trim();
-const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-flash-latest,gemini-flash-lite-latest').split(',').map(x=>x.trim()).filter(Boolean);
+const GEMINI_COOLDOWN=new Map(); // model -> time until which it is skipped after a quota (429) error
+const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash,gemini-2.5-flash-lite').split(',').map(x=>x.trim()).filter(Boolean);
 async function streamGeminiToResponse(messages,res,options={}){
   const mode=String(options.mode||'');
   const tutorMode=mode==='tutor', studySetMode=mode==='study-set';
@@ -760,7 +761,9 @@ async function streamGeminiToResponse(messages,res,options={}){
   let upstream=null, usedModel='', lastErr=null;
   try{
     // Busy models answer 503/429 ("high demand"): retry once, then try the next listed model.
-    outer: for(const model of GEMINI_MODELS){
+    // Skip models that just hit their free quota, unless every model is cooling down.
+    const ready=GEMINI_MODELS.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
+    outer: for(const model of (ready.length?ready:GEMINI_MODELS)){
       for(let attempt=0;attempt<2;attempt++){
         if(Date.now()>deadline-3000) break outer;
         // Each attempt gets its own short wait for the response to START, so one stalled model
@@ -791,7 +794,8 @@ async function streamGeminiToResponse(messages,res,options={}){
         lastErr=new Error('Gemini '+model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,200));
         lastErr.status=r.status;
         console.warn('[AI] '+lastErr.message);
-        if(![429,500,502,503,504].includes(r.status)) break;
+        if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); break; } // quota: retrying the same model won't help
+        if(![500,502,503,504].includes(r.status)) break;
         if(attempt===0) await new Promise(x=>setTimeout(x,800));
       }
     }
