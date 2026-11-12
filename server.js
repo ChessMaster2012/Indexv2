@@ -763,12 +763,29 @@ async function streamGeminiToResponse(messages,res,options={}){
     outer: for(const model of GEMINI_MODELS){
       for(let attempt=0;attempt<2;attempt++){
         if(Date.now()>deadline-3000) break outer;
-        const r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
-          body:JSON.stringify({model,messages,stream:!studySetMode,max_tokens:studySetMode?1800:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
-          signal:controller.signal
-        });
+        // Each attempt gets its own short wait for the response to START, so one stalled model
+        // cannot use up the whole budget before the next model (or Vireonix) is tried.
+        const attemptCtl=new AbortController();
+        const startedAt=Date.now();
+        const firstByteTimer=setTimeout(()=>attemptCtl.abort(),studySetMode?25000:15000);
+        const onOuterAbort=()=>attemptCtl.abort();
+        controller.signal.addEventListener('abort',onOuterAbort);
+        let r;
+        try{
+          r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
+            body:JSON.stringify({model,messages,stream:!studySetMode,max_tokens:studySetMode?1800:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
+            signal:attemptCtl.signal
+          });
+        }catch(fe){
+          lastErr=new Error('Gemini '+model+' no response after '+(Date.now()-startedAt)+' ms ('+(fe?.message||fe)+')');
+          console.warn('[AI] '+lastErr.message);
+          continue;
+        }finally{
+          clearTimeout(firstByteTimer);
+          controller.signal.removeEventListener('abort',onOuterAbort);
+        }
         if(r.ok){ upstream=r; usedModel=model; break outer; }
         const raw=await r.text().catch(()=> '');
         lastErr=new Error('Gemini '+model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,200));
