@@ -750,29 +750,39 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 // is configured in the environment. Without a key nothing here runs. Google's Gemini API exposes an
 // OpenAI-compatible endpoint, so the browser keeps receiving the same response shapes as from Vireonix.
 const GEMINI_API_KEY=String(process.env.GEMINI_API_KEY||'').trim();
-const GEMINI_MODEL=String(process.env.GEMINI_MODEL||'gemini-flash-latest').trim();
+const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-flash-latest,gemini-flash-lite-latest').split(',').map(x=>x.trim()).filter(Boolean);
 async function streamGeminiToResponse(messages,res,options={}){
   const mode=String(options.mode||'');
   const tutorMode=mode==='tutor', studySetMode=mode==='study-set';
   const deadline=Date.now()+(studySetMode?35000:(tutorMode?60000:29500));
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),Math.max(100,deadline-Date.now()));
+  let upstream=null, usedModel='', lastErr=null;
   try{
-    const upstream=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
-      body:JSON.stringify({model:GEMINI_MODEL,messages,stream:!studySetMode,max_tokens:studySetMode?1800:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
-      signal:controller.signal
-    });
-    if(!upstream.ok){
-      const raw=await upstream.text().catch(()=> '');
-      const err=new Error('Gemini HTTP '+upstream.status+': '+raw.replace(/\s+/g,' ').slice(0,200));
-      err.status=upstream.status; throw err;
+    // Busy models answer 503/429 ("high demand"): retry once, then try the next listed model.
+    outer: for(const model of GEMINI_MODELS){
+      for(let attempt=0;attempt<2;attempt++){
+        if(Date.now()>deadline-3000) break outer;
+        const r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
+          body:JSON.stringify({model,messages,stream:!studySetMode,max_tokens:studySetMode?1800:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
+          signal:controller.signal
+        });
+        if(r.ok){ upstream=r; usedModel=model; break outer; }
+        const raw=await r.text().catch(()=> '');
+        lastErr=new Error('Gemini '+model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,200));
+        lastErr.status=r.status;
+        console.warn('[AI] '+lastErr.message);
+        if(![429,500,502,503,504].includes(r.status)) break;
+        if(attempt===0) await new Promise(x=>setTimeout(x,800));
+      }
     }
+    if(!upstream) throw lastErr||new Error('Gemini unavailable.');
     if(studySetMode){
       const text=extractText(await upstream.json());
       if(!text) throw new Error('Gemini returned no text.');
-      return res.json({text,provider:'Gemini',model:GEMINI_MODEL});
+      return res.json({text,provider:'Gemini',model:usedModel});
     }
     if(!upstream.body) throw new Error('Gemini returned an empty stream.');
     res.status(200);
