@@ -11,7 +11,7 @@ var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){r
 var rich=function(t){ return safe(function(){return formatTutorText(String(t||''));},esc(t)); };
 var $=function(id){return document.getElementById(id);};
 var KEY='index-learn-v2', DEPTH_KEY='index-learn-depth', MAX_LESSONS=10;
-var DEPTHS={live8:{label:'Live lesson',sub:'≈ 1½ hours · taught with the Tutor',n:0,live:1},live12:{label:'Deep live lesson',sub:'≈ 3 hours · taught with the Tutor',n:0,live:1},quick:{label:'Quick',sub:'≈ 5 min · one page',n:0},standard:{label:'Standard',sub:'≈ 1½ hours · 6 modules',n:6},deep:{label:'Deep',sub:'≈ 3+ hours · 10 modules',n:10}};
+var DEPTHS={quick:{label:'Quick',sub:'≈ 5 min · one page',n:0},standard:{label:'Standard',sub:'≈ 1½ hours · 6 modules',n:6},deep:{label:'Deep',sub:'≈ 3+ hours · 10 modules',n:10}};
 var PASS=0.75;
 
 /* ---------------- storage ---------------- */
@@ -30,7 +30,7 @@ function save(){
 }
 function cur(){ return store.lessons.filter(function(l){return l.id===store.activeId;})[0]||null; }
 function touch(l){ l.updatedAt=Date.now(); save(); }
-function depthPref(){ var d=safe(function(){return localStorage.getItem(DEPTH_KEY);},'')||'live8'; return DEPTHS[d]?d:'live8'; }
+function depthPref(){ var d=safe(function(){return localStorage.getItem(DEPTH_KEY);},'')||'standard'; return DEPTHS[d]?d:'standard'; }
 
 /* ---------------- AI generation (queued, deduped, cached) ---------------- */
 var queue=[], active=0, lastStart=0, seq=0, pumpT=null, inflight={};
@@ -143,7 +143,6 @@ function loadAll(l){
 function afterLoad(l){ if(cur()===l&&visible()&&document.querySelector('#lp-root .lp-loading, #lp-root .error-note')) render(); }
 /* repair any saved lesson that is missing pieces so it can always be drawn */
 function normalize(l){
-  if(l.type==='live'){ l.seconds=Number(l.seconds)||0; l.updatedAt=l.updatedAt||Date.now(); if(!Array.isArray(l.msgs)) l.msgs=[]; if(!Array.isArray(l.parts)||!l.parts.length) l.parts=[{title:'Part 1',status:'todo',q:0,right:0,best:null}]; if(!l.final) l.final={status:'todo',q:0,right:0}; l.cur=Math.max(0,Math.min(Number(l.cur)||0,l.parts.length)); l.outline=[]; l.mods=[]; return; }
   if(!Array.isArray(l.outline)) l.outline=[];
   if(!Array.isArray(l.mods)) l.mods=[];
   while(l.mods.length<l.outline.length) l.mods.push({status:'todo'});
@@ -207,8 +206,8 @@ function steps(l,i){
 }
 function stepIndex(l,i){ var s=steps(l,i), k=s.indexOf(l.mods[i].stepKey); return k<0?0:k; }
 function unlockedTo(l){ for(var i=0;i<l.mods.length;i++) if(l.mods[i].status!=='done') return i; return l.mods.length; }
-function pct(l){ if(l.type==='live'&&window.LearnLive) return LearnLive.pct(l); var d=l.mods.filter(function(m){return m.status==='done';}).length+(l.doneAt?1:0); return Math.round(d/(l.mods.length+1)*100); }
-function minsLeft(l){ if(l.type==='live'&&window.LearnLive) return LearnLive.minsLeft(l); var t=l.doneAt?0:10; l.mods.forEach(function(m,i){ if(m.status!=='done') t+=mins(l.outline[i]); }); return t; }
+function pct(l){ var d=l.mods.filter(function(m){return m.status==='done';}).length+(l.doneAt?1:0); return Math.round(d/(l.mods.length+1)*100); }
+function minsLeft(l){ var t=l.doneAt?0:10; l.mods.forEach(function(m,i){ if(m.status!=='done') t+=mins(l.outline[i]); }); return t; }
 function hm(min){ min=Math.round(min); var h=Math.floor(min/60), r=min%60; return h?(h+'h'+(r?' '+r+'m':'')):(r+'m'); }
 function hmSec(s){ return hm(Math.max(0,s)/60); }
 
@@ -244,7 +243,7 @@ function root(){
 function render(){
   var r=root(); if(!r) return;
   var l=cur(), html;
-  try{ html=l?((l.type==='live'&&window.LearnLive)?LearnLive.player(l):player(l)):library(); }
+  try{ html=l?player(l):library(); }
   catch(e){
     /* never leave the Learn tab blank: drop back to the lesson list and the builder */
     try{ console.error('[learn-plus] render failed',e); }catch(_){}
@@ -259,7 +258,7 @@ function library(){
   if(!store.lessons.length) return '';
   var items=store.lessons.slice().sort(function(a,b){return b.updatedAt-a.updatedAt;}).map(function(l){
     var p=pct(l), done=!!l.doneAt, nm=subjName(l);
-    return '<div class="lp-lib-card"><div class="lp-lib-main"><span class="lp-lib-sub">AP '+esc(nm)+' · '+(l.type==='live'?'Live lesson':(l.depth==='deep'?'Deep':'Standard'))+'</span><b>'+esc(l.title)+'</b><span class="lp-lib-meta">'+(l.type==='live'&&window.LearnLive?LearnLive.libMeta(l):(done?'Completed ✓':'Module '+Math.min(l.cur+1,l.mods.length)+' of '+l.mods.length+' · ≈ '+hm(minsLeft(l))+' left'))+' · '+hmSec(l.seconds)+' studied</span><span class="lp-bar"><i style="width:'+p+'%"></i></span></div>'
+    return '<div class="lp-lib-card"><div class="lp-lib-main"><span class="lp-lib-sub">AP '+esc(nm)+' · '+(l.depth==='deep'?'Deep':'Standard')+'</span><b>'+esc(l.title)+'</b><span class="lp-lib-meta">'+(done?'Completed ✓':'Module '+Math.min(l.cur+1,l.mods.length)+' of '+l.mods.length+' · ≈ '+hm(minsLeft(l))+' left')+' · '+hmSec(l.seconds)+' studied</span><span class="lp-bar"><i style="width:'+p+'%"></i></span></div>'
       +'<div class="lp-lib-act"><button type="button" class="btn btn-primary btn-sm" data-lp="open" data-id="'+esc(l.id)+'">'+(done?'Review':(p?'Resume':'Start'))+'</button><button type="button" class="btn btn-ghost btn-sm" data-lp="delete" data-id="'+esc(l.id)+'" aria-label="Delete lesson">🗑</button></div></div>';
   }).join('');
   return '<section class="lp-lib"><h3>Your lessons</h3><p class="lp-sub">Saved on this device. Pick up exactly where you stopped.</p>'+items+'</section>';
@@ -418,7 +417,7 @@ function renderDepth(){
 
 /* ---------------- hooks ---------------- */
 var _teach=window.teachMe;
-window.teachMe=function(){ var dp=depthPref(); if(DEPTHS[dp]&&DEPTHS[dp].live&&window.LearnLive) return LearnLive.create(dp); if(dp==='quick'){ var l=cur(); if(l){ store.activeId=null; save(); show(false); } return _teach.apply(this,arguments); } return startDeep(); };
+window.teachMe=function(){ if(depthPref()==='quick'){ var l=cur(); if(l){ store.activeId=null; save(); show(false); } return _teach.apply(this,arguments); } return startDeep(); };
 var _rl=window.renderLearn;
 window.renderLearn=function(){ var out=_rl.apply(this,arguments); renderDepth(); show(!!cur()); return out; };
 
@@ -427,11 +426,11 @@ var lastAct=Date.now(), ticks=0;
 ['click','keydown','scroll','input','touchstart'].forEach(function(ev){ document.addEventListener(ev,function(){lastAct=Date.now();},{passive:true,capture:true}); });
 setInterval(function(){
   var l=cur(); if(!l||!visible()||document.hidden||Date.now()-lastAct>180000) return;
-  l.seconds+=5; if(l.mods.length) l.mods[Math.min(l.cur,l.mods.length-1)].seconds+=5; if(++ticks%6===0) touch(l);
+  l.seconds+=5; l.mods[Math.min(l.cur,l.mods.length-1)].seconds+=5; if(++ticks%6===0) touch(l);
 },5000);
 window.addEventListener('pagehide',function(){ var l=cur(); if(l) touch(l); });
 window.addEventListener('storage',function(e){ if(e.key===KEY){ store=load(); store.lessons.forEach(migrate); if(visible()) render(); } });
 
-window.LearnPlus={store:function(){return store;},open:openLesson,save:save,touch:touch,render:render,show:show,aiOk:function(){return !!state.aiEnabled;},aiMsg:function(){return localAiUnavailableMessage;}};
+window.LearnPlus={store:function(){return store;},open:openLesson};
 renderDepth(); if(cur()&&visible()) show(true); else $('view-learn')&&$('view-learn').classList.toggle('lp-active',false);
 })();
