@@ -746,6 +746,52 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
   }
 }
 
+// Optional backup provider. Used ONLY when Vireonix fails (403/5xx/429/timeouts) and a GEMINI_API_KEY
+// is configured in the environment. Without a key nothing here runs. Google's Gemini API exposes an
+// OpenAI-compatible endpoint, so the browser keeps receiving the same response shapes as from Vireonix.
+const GEMINI_API_KEY=String(process.env.GEMINI_API_KEY||'').trim();
+const GEMINI_MODEL=String(process.env.GEMINI_MODEL||'gemini-flash-latest').trim();
+async function streamGeminiToResponse(messages,res,options={}){
+  const mode=String(options.mode||'');
+  const tutorMode=mode==='tutor', studySetMode=mode==='study-set';
+  const deadline=Date.now()+(studySetMode?35000:(tutorMode?60000:29500));
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),Math.max(100,deadline-Date.now()));
+  try{
+    const upstream=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
+      body:JSON.stringify({model:GEMINI_MODEL,messages,stream:!studySetMode,max_tokens:studySetMode?1800:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
+      signal:controller.signal
+    });
+    if(!upstream.ok){
+      const raw=await upstream.text().catch(()=> '');
+      const err=new Error('Gemini HTTP '+upstream.status+': '+raw.replace(/\s+/g,' ').slice(0,200));
+      err.status=upstream.status; throw err;
+    }
+    if(studySetMode){
+      const text=extractText(await upstream.json());
+      if(!text) throw new Error('Gemini returned no text.');
+      return res.json({text,provider:'Gemini',model:GEMINI_MODEL});
+    }
+    if(!upstream.body) throw new Error('Gemini returned an empty stream.');
+    res.status(200);
+    res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control','no-cache, no-transform');
+    res.setHeader('Connection','keep-alive');
+    res.setHeader('X-Accel-Buffering','no');
+    if(typeof res.flushHeaders==='function') res.flushHeaders();
+    for await (const chunk of upstream.body){
+      if(Date.now()>=deadline) throw new Error('Gemini request timed out.');
+      if(chunk) res.write(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
+    }
+    res.end();
+  }catch(e){
+    if(!res.headersSent) throw e;
+    try{ res.write('data: '+JSON.stringify({type:'error',error:'The backup AI stream failed.'})+'\n\n'); res.end(); }catch{}
+  }finally{ clearTimeout(timer); try{controller.abort();}catch{} }
+}
+
 async function callVireonixCommanderBank(messages,maxTokens=2400){
   const deadline=Date.now()+29200;
   let lastError=null;
@@ -1137,6 +1183,20 @@ app.post('/api/ai/chat',async(req,res)=>{
       (routeFollowUp && priorUsers.some(m=>aiQuestionIsComplex(m.content)))
     );
 
+    // Gemini is the primary provider whenever GEMINI_API_KEY is set; Vireonix Auto is the fallback
+    // below. If Gemini fails before any bytes are sent, the existing Vireonix flow runs unchanged.
+    let geminiTried=false;
+    if(GEMINI_API_KEY){
+      geminiTried=true;
+      try{
+        await streamGeminiToResponse(messages,res,{mode:requestIntent});
+        return;
+      }catch(geminiError){
+        console.warn('[AI] Gemini (primary) failed; falling back to Vireonix Auto:',geminiError?.message||geminiError);
+        if(res.headersSent) return;
+      }
+    }
+
     // Keep Vireonix Auto as the only provider/model. Structured study sets use
     // JSON mode; Tutor and other background requests retain their existing stream.
     try{
@@ -1199,6 +1259,17 @@ app.post('/api/ai/chat',async(req,res)=>{
       const message=String(e?.message||'');
       const match=message.match(/^HTTP\s+(\d+)\s*:/i);
       const upstreamStatus=Number(e?.status||match?.[1]||0);
+
+      // Backup provider: only when Vireonix failed before any bytes were sent to the browser.
+      if(GEMINI_API_KEY && !geminiTried && !res.headersSent){
+        try{
+          console.warn('[AI] Vireonix failed ('+providerFailureLabel(e)+'); trying the Gemini backup for '+(requestIntent||'background')+'.');
+          await streamGeminiToResponse(messages,res,{mode:requestIntent});
+          return;
+        }catch(geminiError){
+          console.warn('[AI] Gemini backup failed:',geminiError?.message||geminiError);
+        }
+      }
 
       // A 502/503 can affect streaming separately from ordinary JSON responses.
       // For other background requests, try the same Vireonix Auto model without
