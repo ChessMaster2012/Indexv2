@@ -781,7 +781,7 @@ async function streamGeminiToResponse(messages,res,options={}){
         }catch(fe){
           lastErr=new Error('Gemini '+model+' no response after '+(Date.now()-startedAt)+' ms ('+(fe?.message||fe)+')');
           console.warn('[AI] '+lastErr.message);
-          continue;
+          break; // a stalled model: move on to the next one instead of waiting again
         }finally{
           clearTimeout(firstByteTimer);
           controller.signal.removeEventListener('abort',onOuterAbort);
