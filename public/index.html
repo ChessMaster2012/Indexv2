@@ -2361,7 +2361,8 @@ function accountStatePayload(){
     progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,gameProgress:state.progress.gameProgress&&typeof state.progress.gameProgress==='object'?state.progress.gameProgress:{},dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||'',bio:state.profile.bio||'',favoriteSubject:state.profile.favoriteSubject||'',studyGoal:state.profile.studyGoal||'',profileAccent:state.profile.profileAccent||'purple',showProgress:state.profile.showProgress!==false,reducedMotion:state.profile.reducedMotion===true},
     quests:(typeof questPayload==='function'?questPayload():undefined),
-    membershipOnboardingCompleted: membershipOnboardingCompleted()
+    membershipOnboardingCompleted: membershipOnboardingCompleted(),
+    ...(window.AccountExtras?AccountExtras.payload():{})
   };
 }
 let accountSyncNoticeAt=0;
@@ -2398,6 +2399,7 @@ window.addEventListener('pagehide',()=>{ if(state.account) syncAccountStateNow()
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden' && state.account) syncAccountStateNow(); });
 function clearAccountScopedLocalCache(){
   ['index-notes','index-studysets','index-customtopics','index-progress','index-profile'].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  if(window.AccountExtras) AccountExtras.clearLocal();
   clearAccountCustomizationMirror();
 }
 function resetSignedOutAccountState(){
@@ -2433,6 +2435,8 @@ async function loadAccountState(){
     if(a.profile){ state.profile={...state.profile,...a.profile}; state.district=state.profile.district||''; state.county=state.profile.county||state.county||''; } window.CountySync&&CountySync.reconcile('account');
     applyBattlePassRewards();
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
+    if(window.AccountExtras) AccountExtras.apply(a);
+    if(window.CreditsPlus) CreditsPlus.refresh();
   }catch(e){ showAccountSyncNotice('Could not load saved account data. Please check your connection.'); }
 }
 async function loadMembershipStatus(showErrors=false){
@@ -9157,7 +9161,10 @@ setInterval(function(){
 <link rel="stylesheet" href="/county-sync.css?v=2">
 <link rel="stylesheet" href="/courses-plus.css?v=1">
 <link rel="stylesheet" href="/learn-plus.css?v=1">
+<link rel="stylesheet" href="/credits-plus.css?v=1">
 <script src="/icons.js?v=1"></script>
+<script src="/account-extras.js?v=1"></script>
+<script src="/credits-plus.js?v=1"></script>
 <script src="/tutor-plus.js?v=3"></script>
 <script src="/tutor-history.js?v=2"></script>
 <script src="/studysets-plus.js?v=5"></script>

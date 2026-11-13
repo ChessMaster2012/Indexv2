@@ -1181,6 +1181,33 @@ function deterministicTutor(question){
   return null;
 }
 
+// Session lookup runs before the AI route so credits can be charged to the signed-in account.
+app.use(async (req, res, next) => {
+  try{
+    const cookies = parseCookies(req);
+    const token = cookies[SESSION_COOKIE];
+    const session = token && sessions.get(token);
+    req.user = session ? usersById.get(session.userId) || null : null;
+    req.sessionToken = token || null;
+
+    const persistent = !req.user && readPersistentSession(token);
+    if(persistent && SUPABASE_ENABLED){
+      const row = await dbFindUserById(persistent.userId);
+      if(row){
+        req.user = dbRowToUser(row);
+        usersById.set(req.user.id,req.user);
+        if(req.user.email) users.set('email:'+normalizeEmail(req.user.email),req.user);
+        if(req.user.username) usersByUsername.set(normalizeUsername(req.user.username),req.user);
+      }
+    }
+    next();
+  }catch(e){
+    console.error('Session lookup error:',e.message);
+    req.user=null;
+    req.sessionToken=null;
+    next();
+  }
+});
 app.post('/api/ai/chat',async(req,res)=>{
   try{
     const requestIntent=String(req.body?.intent||'').trim().slice(0,40);
@@ -1217,6 +1244,19 @@ app.post('/api/ai/chat',async(req,res)=>{
       aiQuestionIsComplex(question) ||
       (routeFollowUp && priorUsers.some(m=>aiQuestionIsComplex(m.content)))
     );
+
+    // Credits: deterministic answers above are free; every request that reaches an AI provider costs credits.
+    const creditCtx=creditContext(req,res);
+    const creditCharge=chargeCredits(creditCtx,CREDIT_COSTS[requestIntent]||CREDIT_COSTS.background);
+    if(!creditCharge.ok){
+      const st=creditStatus(creditCtx);
+      return res.status(429).json({
+        error:'You are out of AI credits for now. They refill in '+creditWaitText(st.resetsAt-Date.now())+'.'+(creditCtx.anon?' Sign in to get '+CREDIT_PLAN_ALLOWANCE.free+' credits every 6 hours plus a daily bonus roll.':(st.canRoll?' You can also use your daily bonus roll for extra credits.':'')),
+        code:'NO_CREDITS',credits:st
+      });
+    }
+    // A request that ends in an error does not use up credits.
+    res.on('finish',()=>{ if(res.statusCode>=400) refundCredits(creditCtx,creditCharge); });
 
     // Gemini is the primary provider whenever GEMINI_API_KEY is set; Vireonix Auto is the fallback
     // below. If Gemini fails before any bytes are sent, the existing Vireonix flow runs unchanged.
@@ -1860,6 +1900,152 @@ function saveUsers() {
     throw e;
   }
 }
+// ---- Account-saved Tutor chats and Learn lessons (so they follow the account, not the device) ----
+const TUTOR_CHATS_MAX_BYTES = 300000, LEARN_STORE_MAX_BYTES = 200000;
+function sanitizeTutorChats(input){
+  if (!Array.isArray(input)) return [];
+  const clean = [];
+  for (const c of input.slice(0, 60)) {
+    if (!c || typeof c !== 'object' || !c.id) continue;
+    const msgs = (Array.isArray(c.msgs) ? c.msgs : []).slice(-80).map(m => m && m.text ? { role: m.role === 'user' ? 'user' : 'assistant', text: String(m.text).slice(0, 6000) } : null).filter(Boolean);
+    if (!msgs.length) continue;
+    clean.push({ id: String(c.id).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40), title: String(c.title || 'Chat').replace(/[<>]/g, '').slice(0, 90), t: Math.max(0, Number(c.t) || 0), pin: c.pin === true, custom: c.custom === true, subject: String(c.subject || '').slice(0, 60), msgs });
+  }
+  clean.sort((a, b) => (b.pin - a.pin) || (b.t - a.t));
+  const out = []; let bytes = 2;
+  for (const c of clean.slice(0, 40)) {
+    const size = Buffer.byteLength(JSON.stringify(c), 'utf8') + 1;
+    if (bytes + size > TUTOR_CHATS_MAX_BYTES) continue;
+    out.push(c); bytes += size;
+  }
+  return out;
+}
+function sanitizeLearnStore(input){
+  if (!input || typeof input !== 'object' || !Array.isArray(input.lessons)) return null;
+  const lessons = input.lessons.filter(l => l && typeof l === 'object' && l.id).slice(0, 30)
+    .sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0));
+  const kept = []; let bytes = 100;
+  for (const l of lessons) {
+    let size; try { size = Buffer.byteLength(JSON.stringify(l), 'utf8') + 1; } catch (e) { continue; }
+    if (bytes + size > LEARN_STORE_MAX_BYTES) continue;
+    kept.push(l); bytes += size;
+  }
+  const activeId = kept.some(l => l.id === input.activeId) ? String(input.activeId) : null;
+  return { v: 1, activeId, lessons: kept };
+}
+
+// ---- AI credits: a per-account allowance that refills every 6 hours, plus a daily bonus roll ----
+const CREDIT_WINDOW_HOURS = 6;
+const CREDIT_PLAN_ALLOWANCE = Object.freeze({ free: 60, gold: 120, platinum: 200, diamond: 400 });
+const CREDIT_ANON_ALLOWANCE = 10;
+const CREDIT_COSTS = Object.freeze({ tutor: 1, 'study-set': 2, background: 1 });
+const CREDIT_BONUS_CAP = 300;
+const CREDIT_ROLLS = Object.freeze([
+  { amount: 10, weight: 22 }, { amount: 15, weight: 18 }, { amount: 20, weight: 16 }, { amount: 30, weight: 14 },
+  { amount: 40, weight: 10 }, { amount: 50, weight: 8 }, { amount: 75, weight: 6 }, { amount: 100, weight: 4 }, { amount: 150, weight: 2 }
+]);
+function sanitizeCredits(input){
+  const c = input && typeof input === 'object' ? input : {};
+  return {
+    windowKey: String(c.windowKey || '').slice(0, 20),
+    used: Math.max(0, Math.min(100000, Math.floor(Number(c.used) || 0))),
+    bonus: Math.max(0, Math.min(CREDIT_BONUS_CAP, Math.floor(Number(c.bonus) || 0))),
+    rollDate: String(c.rollDate || '').slice(0, 10),
+    lastRoll: Math.max(0, Math.min(1000, Math.floor(Number(c.lastRoll) || 0)))
+  };
+}
+const ET_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
+function creditWindow(ms = Date.now()){
+  const o = {}; ET_FORMAT.formatToParts(new Date(ms)).forEach(p => { o[p.type] = p.value; });
+  const hour = Number(o.hour) % 24, date = o.year + '-' + o.month + '-' + o.day;
+  const slot = Math.floor(hour / CREDIT_WINDOW_HOURS);
+  const into = ((hour % CREDIT_WINDOW_HOURS) * 60 + Number(o.minute)) * 60 + Number(o.second);
+  return { key: date + '#' + slot, date, resetsAt: ms + (CREDIT_WINDOW_HOURS * 3600 - into) * 1000 };
+}
+const creditLedger = new Map(); // 'u:<id>' | 'a:<cookie id>' -> credits record
+const creditSaveTimers = new Map();
+const CREDIT_ANON_COOKIE = 'ix_anon';
+function creditContext(req, res){
+  let key, anon = false;
+  if (req.user) key = 'u:' + req.user.id;
+  else {
+    anon = true;
+    let id = String(parseCookies(req)[CREDIT_ANON_COOKIE] || '').replace(/[^a-f0-9]/g, '').slice(0, 32);
+    if (id.length < 16) {
+      id = crypto.randomBytes(16).toString('hex');
+      if (res) res.append('Set-Cookie', CREDIT_ANON_COOKIE + '=' + id + '; Path=/; Max-Age=' + (30 * 86400) + '; HttpOnly; SameSite=Lax' + (process.env.NODE_ENV === 'production' ? '; Secure' : ''));
+    }
+    key = 'a:' + id;
+  }
+  let led = creditLedger.get(key);
+  if (!led) {
+    led = sanitizeCredits(req.user && req.user.accountData ? req.user.accountData.credits : null);
+    led.touched = Date.now();
+    creditLedger.set(key, led);
+  }
+  led.touched = Date.now();
+  const win = creditWindow();
+  if (led.windowKey !== win.key) { led.windowKey = win.key; led.used = 0; }
+  const plan = req.user ? membershipTierForUser(req.user) : 'free';
+  const allowance = anon ? CREDIT_ANON_ALLOWANCE : (CREDIT_PLAN_ALLOWANCE[plan] || CREDIT_PLAN_ALLOWANCE.free);
+  return { key, led, anon, allowance, win, user: req.user || null };
+}
+function creditStatus(ctx){
+  const remainingWindow = Math.max(0, ctx.allowance - ctx.led.used);
+  return {
+    ok: true, signedIn: !ctx.anon, allowance: ctx.allowance, used: Math.min(ctx.led.used, ctx.allowance), remainingWindow,
+    bonus: ctx.led.bonus, remaining: remainingWindow + ctx.led.bonus, resetsAt: ctx.win.resetsAt, windowHours: CREDIT_WINDOW_HOURS,
+    canRoll: !ctx.anon && ctx.led.rollDate !== ctx.win.date, rolledToday: !ctx.anon && ctx.led.rollDate === ctx.win.date, lastRoll: ctx.led.rollDate === ctx.win.date ? ctx.led.lastRoll : 0,
+    bonusCap: CREDIT_BONUS_CAP, costs: CREDIT_COSTS, rolls: CREDIT_ROLLS.map(r => r.amount)
+  };
+}
+function chargeCredits(ctx, cost){
+  const remainingWindow = Math.max(0, ctx.allowance - ctx.led.used);
+  if (remainingWindow + ctx.led.bonus < cost) return { ok: false };
+  const fromWindow = Math.min(cost, remainingWindow), fromBonus = cost - fromWindow;
+  ctx.led.used += fromWindow; ctx.led.bonus -= fromBonus;
+  creditPersistSoon(ctx);
+  return { ok: true, fromWindow, fromBonus, windowKey: ctx.led.windowKey };
+}
+function refundCredits(ctx, charge){
+  if (!charge || !charge.ok) return;
+  if (ctx.led.windowKey === charge.windowKey) ctx.led.used = Math.max(0, ctx.led.used - charge.fromWindow);
+  ctx.led.bonus = Math.min(CREDIT_BONUS_CAP, ctx.led.bonus + charge.fromBonus);
+  creditPersistSoon(ctx);
+}
+function creditsForStorage(user){
+  const led = creditLedger.get('u:' + user.id);
+  return led ? sanitizeCredits(led) : sanitizeCredits(user.accountData && user.accountData.credits);
+}
+async function creditPersistNow(user){
+  // Only write into an account that already has saved state; a brand-new account is initialised by the browser.
+  if (!user || !user.accountData || typeof user.accountData !== 'object') return;
+  user.accountData = sanitizeAccountState({ ...user.accountData, credits: creditsForStorage(user) });
+  if (SUPABASE_ENABLED) await dbSaveUser(user); else saveUsers();
+}
+function creditPersistSoon(ctx){
+  if (ctx.anon || !ctx.user || creditSaveTimers.has(ctx.key)) return;
+  const user = ctx.user;
+  creditSaveTimers.set(ctx.key, setTimeout(async () => {
+    creditSaveTimers.delete(ctx.key);
+    try { await creditPersistNow(usersById.get(user.id) || user); } catch (e) { console.warn('[credits] save failed:', e.message); }
+  }, 20000));
+}
+process.on('SIGTERM', () => { // flush pending credit usage when Render restarts the service
+  for (const [key, timer] of creditSaveTimers) {
+    clearTimeout(timer); creditSaveTimers.delete(key);
+    const user = usersById.get(key.slice(2));
+    if (user) creditPersistNow(user).catch(() => {});
+  }
+});
+setInterval(() => { // forget idle anonymous ledgers
+  const cutoff = Date.now() - 24 * 3600 * 1000;
+  for (const [k, v] of creditLedger) if (k.startsWith('a:') && (v.touched || 0) < cutoff) creditLedger.delete(k);
+}, 3600 * 1000).unref();
+function creditWaitText(ms){
+  const m = Math.max(1, Math.ceil(ms / 60000)), h = Math.floor(m / 60), r = m % 60;
+  return h ? h + 'h' + (r ? ' ' + r + 'm' : '') : r + ' min';
+}
 if (!SUPABASE_ENABLED) loadUsers();
 
 const sessions = new Map(); // token -> { userId, createdAt }
@@ -1934,32 +2120,6 @@ function readPersistentSession(token) {
   try{ userId=Buffer.from(parts[1],'base64url').toString('utf8'); }catch(e){ return null; }
   return {userId,exp};
 }
-app.use(async (req, res, next) => {
-  try{
-    const cookies = parseCookies(req);
-    const token = cookies[SESSION_COOKIE];
-    const session = token && sessions.get(token);
-    req.user = session ? usersById.get(session.userId) || null : null;
-    req.sessionToken = token || null;
-
-    const persistent = !req.user && readPersistentSession(token);
-    if(persistent && SUPABASE_ENABLED){
-      const row = await dbFindUserById(persistent.userId);
-      if(row){
-        req.user = dbRowToUser(row);
-        usersById.set(req.user.id,req.user);
-        if(req.user.email) users.set('email:'+normalizeEmail(req.user.email),req.user);
-        if(req.user.username) usersByUsername.set(normalizeUsername(req.user.username),req.user);
-      }
-    }
-    next();
-  }catch(e){
-    console.error('Session lookup error:',e.message);
-    req.user=null;
-    req.sessionToken=null;
-    next();
-  }
-});
 
 function normalizeEmail(v) { return String(v || '').trim().toLowerCase(); }
 function isValidEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
@@ -2168,10 +2328,15 @@ function sanitizeAccountState(input){
       reducedMotion: profile.reducedMotion === true
     },
     membershipOnboardingCompleted: src.membershipOnboardingCompleted === true,
+    credits: sanitizeCredits(src.credits),
+    tutorChats: sanitizeTutorChats(src.tutorChats),
+    tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
+    learnStore: sanitizeLearnStore(src.learnStore),
+    learnAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.learnAt)||0)),
     savedAt: Date.now()
   };
   const serializedSize = Buffer.byteLength(JSON.stringify(candidate), 'utf8');
-  if (serializedSize > 1400000) throw new Error('Account data is too large to save. Keep very large files outside your account notes.');
+  if (serializedSize > 1800000) throw new Error('Account data is too large to save. Keep very large files outside your account notes.');
   return candidate;
 }
 function customizationProfileFromState(input){
@@ -2274,6 +2439,30 @@ const MEMBERSHIP_PLANS = Object.freeze({
   gold:{tier:'gold',name:'Gold',priceCents:499,interval:'month',studySetLimit:250,noteLimit:250,features:['Everything in Basic','Up to 250 saved study sets','Up to 250 saved notes','Gold membership badge','Higher account limits']},
   platinum:{tier:'platinum',name:'Platinum',priceCents:749,interval:'month',studySetLimit:500,noteLimit:350,features:['Everything in Gold','Up to 500 saved study sets','Up to 350 saved notes','Platinum membership badge','Expanded account limits']},
   diamond:{tier:'diamond',name:'Diamond',priceCents:999,interval:'month',studySetLimit:1000,noteLimit:500,features:['Everything in Platinum','Up to 1,000 saved study sets','Up to 500 saved notes','Diamond membership badge','Highest account limits']}
+});
+
+app.get('/api/account/credits', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(creditStatus(creditContext(req, res)));
+});
+app.post('/api/account/credits/roll', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in to use your daily bonus roll.' });
+  try {
+    if (SUPABASE_ENABLED) { const row = await dbFindUserById(req.user.id); if (row) { const fresh = dbRowToUser(row); req.user = fresh; usersById.set(fresh.id, fresh); } }
+    const ctx = creditContext(req, res);
+    if (!ctx.led.rollDate || ctx.led.rollDate !== ctx.win.date) { /* eligible */ } else return res.status(409).json({ error: 'You already rolled today. Come back tomorrow!', ...creditStatus(ctx) });
+    if (ctx.led.bonus >= CREDIT_BONUS_CAP) return res.status(409).json({ error: 'Your bonus bank is full (' + CREDIT_BONUS_CAP + '). Use some credits first.', ...creditStatus(ctx) });
+    const total = CREDIT_ROLLS.reduce((a, r) => a + r.weight, 0);
+    let roll = crypto.randomInt(0, 1000000) / 1000000 * total, rolled = CREDIT_ROLLS[0].amount;
+    for (const r of CREDIT_ROLLS) { if ((roll -= r.weight) < 0) { rolled = r.amount; break; } }
+    const grant = Math.min(rolled, CREDIT_BONUS_CAP - ctx.led.bonus);
+    ctx.led.bonus += grant; ctx.led.rollDate = ctx.win.date; ctx.led.lastRoll = grant;
+    await creditPersistNow(req.user);
+    res.json({ ...creditStatus(ctx), rolled: grant });
+  } catch (e) {
+    console.error('Credit roll error:', e.message);
+    res.status(503).json({ error: 'Could not save your roll right now. Please try again.' });
+  }
 });
 const MEMBERSHIP_BADGE_RANK = Object.freeze({gold:1,platinum:2,diamond:3});
 function highestMembershipBadgeTier(...tiers){
@@ -2701,6 +2890,15 @@ app.put('/api/account/state', async (req,res)=>{
     };
     // Membership is server-owned and only changes after verified Stripe events.
     if(existingAccountState.membership) mergedAccountState.membership=existingAccountState.membership;
+    // Credits are server-owned: a browser snapshot can never raise or reset them.
+    mergedAccountState.credits=creditsForStorage(req.user);
+    // Tutor chats and Learn lessons: the newer copy wins, so a stale device cannot overwrite a newer one.
+    if((Number(existingAccountState.tutorChatsAt)||0)>(Number(incomingAccountState.tutorChatsAt)||0)){
+      mergedAccountState.tutorChats=existingAccountState.tutorChats; mergedAccountState.tutorChatsAt=existingAccountState.tutorChatsAt;
+    }
+    if((Number(existingAccountState.learnAt)||0)>(Number(incomingAccountState.learnAt)||0)){
+      mergedAccountState.learnStore=existingAccountState.learnStore; mergedAccountState.learnAt=existingAccountState.learnAt;
+    }
     // Achievement claims are server-owned; a browser snapshot can never remove or add them.
     mergedAccountState.achievements=existingAccountState.achievements||{claimed:{}};
     const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);

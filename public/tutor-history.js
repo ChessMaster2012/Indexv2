@@ -189,6 +189,6 @@ function onClick(e){
 
 var _r=window.renderChatLog;
 if(typeof _r==='function') window.renderChatLog=function(){ var out=_r.apply(this,arguments); try{sync();}catch(e){} return out; };
-window.TutorHistory={list:function(){return chats.map(function(c){return {id:c.id,title:c.title,pin:!!c.pin};});},open:openChat,current:function(){return cur;}};
+window.TutorHistory={reload:function(){ chats=load(); cur=null; render(); },list:function(){return chats.map(function(c){return {id:c.id,title:c.title,pin:!!c.pin};});},open:openChat,current:function(){return cur;}};
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',build); else build();
 })();
