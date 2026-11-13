@@ -91,7 +91,8 @@ function build(){
     '<div class="ph-banner" style="background:'+gradient+'"><span class="ph-orb o1"></span><span class="ph-orb o2"></span><span class="ph-orb o3"></span></div>'+
     '<div class="ph-head"><div class="ph-av" style="'+frame+'"><div class="ph-av-art">'+equippedArt()+'</div><span class="ph-lv">Lv '+lvl.level+'</span></div>'+
       '<div class="ph-id"><h2>'+esc(name)+'</h2>'+(tierName?'<span class="ph-tier">💎 '+esc(tierName)+'</span>':'')+
-      '<p class="ph-bio">'+(pr.bio?esc(pr.bio):'<span class="ph-dim">No bio yet — add one in Edit profile.</span>')+'</p>'+(chips.length?'<div class="ph-chips">'+chips.map(function(c){return '<span>'+c+'</span>';}).join('')+'</div>':'')+'</div></div>'+
+      '<p class="ph-bio">'+(pr.bio?esc(pr.bio):'<span class="ph-dim">No bio yet — add one in Edit profile.</span>')+'</p>'+(chips.length?'<div class="ph-chips">'+chips.map(function(c){return '<span>'+c+'</span>';}).join('')+'</div>':'')+'</div>'+
+      '<button class="btn btn-primary ph-edit-top" type="button" data-ph="edit">✏️ Edit profile</button></div>'+
     '<div class="ph-body">'+
       '<section class="ph-xp"><div class="ph-xp-top"><b>Level '+lvl.level+'</b><span>'+lvl.into+' / 100 XP · '+num(P.xp)+' total</span></div><div class="ph-bar"><i style="width:'+pct+'%"></i></div></section>'+
       '<section class="ph-stats">'+
@@ -107,7 +108,7 @@ function build(){
       '</div>'+
       '<section class="ph-box"><h3>Badges <small>'+got+' / '+b.length+'</small></h3><div class="ph-badges">'+b.map(function(x){ return '<div class="ph-badge '+(x[3]?'on':'')+'" title="'+esc(x[2])+'"><span>'+(x[3]?x[0]:'🔒')+'</span><b>'+esc(x[1])+'</b><em>'+esc(x[2])+'</em></div>'; }).join('')+'</div></section>'+
     '</div>'+
-    '<div class="ph-actions"><button class="btn btn-primary" type="button" data-ph="edit">✏️ Edit profile</button>'+
+    '<div class="ph-actions">'+
       '<button class="btn btn-ghost" type="button" data-ph="go" data-view="rewards">🏆 Rewards</button><button class="btn btn-ghost" type="button" data-ph="go" data-view="quests">🎯 Quests</button><button class="btn btn-ghost" type="button" data-ph="go" data-view="membership">⭐ Membership</button>'+
       '<button class="btn btn-ghost ph-out" type="button" data-ph="signout">Sign out</button></div>'+
   '</div>';
@@ -116,13 +117,23 @@ function stat(ico,v,label,sub){ return '<div class="ph-stat"><span>'+ico+'</span
 
 /* ---------- open / close ---------- */
 var lastFocus=null;
+/* Re-frame the avatar art around its real drawing so it sits in the middle of the circle. */
+function centerAvatar(root){
+  try{
+    var svg=root.querySelector('.ph-av-art svg'); if(!svg||!svg.getBBox) return;
+    var bb=svg.getBBox(); if(!bb.width||!bb.height) return;
+    var side=Math.max(bb.width,bb.height)*1.08, cx=bb.x+bb.width/2, cy=bb.y+bb.height/2;
+    svg.setAttribute('viewBox',[cx-side/2,cy-side/2,side,side].join(' '));
+    svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+  }catch(e){}
+}
 function open(){
   close(true); lastFocus=document.activeElement;
   var o=document.createElement('div'); o.id='ph-overlay'; o.className='ph-overlay'; o.innerHTML=build();
-  document.body.appendChild(o); document.body.classList.add('ph-lock');
+  document.body.appendChild(o); document.body.classList.add('ph-lock'); centerAvatar(o);
   var x=o.querySelector('.ph-x'); if(x) x.focus();
   // refresh in the background so numbers are current
-  try{ if(typeof loadAccountState==='function') Promise.resolve(loadAccountState()).then(function(){ var el=$('ph-overlay'); if(el){ var sc=el.scrollTop; el.innerHTML=build(); el.scrollTop=sc; } }).catch(function(){}); }catch(e){}
+  try{ if(typeof loadAccountState==='function') Promise.resolve(loadAccountState()).then(function(){ var el=$('ph-overlay'); if(el){ var sc=el.scrollTop; el.innerHTML=build(); centerAvatar(el); el.scrollTop=sc; } }).catch(function(){}); }catch(e){}
 }
 function close(quiet){
   var o=$('ph-overlay'); if(o&&o.parentNode) o.parentNode.removeChild(o); document.body.classList.remove('ph-lock');
