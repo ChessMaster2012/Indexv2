@@ -231,6 +231,13 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .msg-role{font-size:10px;text-transform:uppercase;letter-spacing:0.05em;opacity:0.6;display:block;margin-bottom:4px;font-weight:800;}
 .ai-work-status{margin:10px 0 0;padding:9px 12px;border:1px solid var(--border);border-radius:12px;background:rgba(255,255,255,.72);font-size:12px;color:var(--ink-soft);display:flex;gap:10px;align-items:center;justify-content:space-between}.ai-work-status strong{color:var(--ink)}.ai-work-status .ai-eta{font-variant-numeric:tabular-nums;font-weight:800}.ai-work-status .ai-stage{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}..typing{display:inline-flex;gap:4px;padding:4px 0;}
 .typing span{width:6px;height:6px;border-radius:50%;background:var(--ink-soft);animation:pulse 1.1s infinite ease-in-out;}
+
+.think{display:inline-grid;padding:4px 0;font-weight:700;font-size:15px}
+.think-w{grid-area:1/1;opacity:0;white-space:nowrap;background:linear-gradient(100deg,var(--ink-soft) 30%,var(--ink,#fff) 50%,var(--ink-soft) 70%);background-size:250% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;animation:thinkWord 16s infinite,thinkShine 1.6s linear infinite}
+.think-w:first-child{opacity:1}
+@keyframes thinkWord{0%{opacity:0;transform:translateY(5px)}2%,11%{opacity:1;transform:none}13%,100%{opacity:0;transform:translateY(-5px)}}
+@keyframes thinkShine{from{background-position:100% 0}to{background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce){.think-w{animation:none}.think-w:not(:first-child){display:none}}
 .typing span:nth-child(2){animation-delay:.15s;} .typing span:nth-child(3){animation-delay:.3s;}
 @keyframes pulse{0%,60%,100%{opacity:0.25;transform:scale(0.85);}30%{opacity:1;transform:scale(1);}}
 .chat-empty{margin:auto;text-align:center;color:var(--ink-soft);max-width:340px;}
@@ -3948,11 +3955,15 @@ function formatTutorText(raw){
   html = html.replace(/\n/g,'<br>');
   return html;
 }
+function thinkHtml(){
+  const w=['Thinking','Calibrating','Pondering','Cross-checking','Connecting dots','Brewing ideas','Reasoning','Polishing'];
+  return '<div class="think" role="status" aria-label="Tutor is thinking">'+w.map((x,i)=>'<span class="think-w" style="animation-delay:'+(i*2)+'s">'+x+'…</span>').join('')+'</div>';
+}
 function renderChatLog(){
   const log = document.getElementById('chat-log');
   if(state.chat.length===0 && !state.chatLoading){ log.innerHTML = `<div class="chat-empty"><h3>What are you working on?</h3><p>Ask a question, paste a problem, or describe what's confusing you.</p></div>`; return; }
-  let html = state.chat.map(m=>`<div class="msg ${m.role==='user'?'msg-user':'msg-ai'}"><span class="msg-role">${m.role==='user'?'You':'Tutor'}</span><div class="msg-content">${m.role==='assistant' ? (m.streaming && !m.text ? '<div class="typing"><span></span><span></span><span></span></div>' : formatTutorText(m.text)) : esc(m.text).replace(/\n/g,'<br>')}</div></div>`).join('');
-  if(state.chatLoading && !(state.chat[state.chat.length-1]?.role==='assistant' && state.chat[state.chat.length-1]?.streaming)) html += `<div class="msg msg-ai"><span class="msg-role">Tutor</span><div class="typing"><span></span><span></span><span></span></div></div>`;
+  let html = state.chat.map(m=>`<div class="msg ${m.role==='user'?'msg-user':'msg-ai'}"><span class="msg-role">${m.role==='user'?'You':'Tutor'}</span><div class="msg-content">${m.role==='assistant' ? (m.streaming && !m.text ? thinkHtml() : formatTutorText(m.text)) : esc(m.text).replace(/\n/g,'<br>')}</div></div>`).join('');
+  if(state.chatLoading && !(state.chat[state.chat.length-1]?.role==='assistant' && state.chat[state.chat.length-1]?.streaming)) html += `<div class="msg msg-ai"><span class="msg-role">Tutor</span>${thinkHtml()}</div>`;
   log.innerHTML = html; log.scrollTop = log.scrollHeight;
 }
 function startAiWorkStatus(complex=false){
