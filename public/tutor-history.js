@@ -36,6 +36,22 @@ function clean(msgs){ return msgs.filter(function(m){return m&&m.text&&!m.stream
 function titleOf(msgs){ var u=msgs.filter(function(m){return m.role==='user';})[0]; var t=String(u?u.text:'New chat').replace(/\s+/g,' ').trim(); return t.length>56?t.slice(0,54)+'…':t||'New chat'; }
 function byId(id){ for(var i=0;i<chats.length;i++) if(chats[i].id===id) return chats[i]; return null; }
 
+/* ask the AI for a short topic title (like ChatGPT); until it answers the first prompt is shown */
+var titling={};
+function aiTitle(c){
+  if(!c||c.custom||c.ai||titling[c.id]) return;
+  var us=c.msgs.filter(function(m){return m.role==='user';}), as=c.msgs.filter(function(m){return m.role==='assistant';});
+  if(!us.length||!as.length) return;
+  var q=''; for(var i=0;i<us.length;i++){ if(!/^(hi|hello|hey|yo|sup|hii+|test)\W*$/i.test(us[i].text.trim())){ q=us[i].text; break; } }
+  if(!q){ if(us.length<2) return; q=us[0].text; } // a lone greeting: wait for a real question
+  titling[c.id]=1; var id=c.id;
+  fetch('/api/ai/title',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({question:q,answer:as[0].text})})
+    .then(function(r){return r.ok?r.json():null;}).then(function(d){
+      var cc=byId(id); var t=d&&String(d.title||'').trim();
+      if(cc&&t&&!cc.custom){ cc.title=t.slice(0,80); cc.ai=true; persist(); render(); }
+    }).catch(function(){}).then(function(){ setTimeout(function(){ delete titling[id]; },30000); });
+}
+
 /* save the live conversation whenever it settles */
 function sync(){
   var chat=safe(function(){return state.chat;},[]);
@@ -44,8 +60,8 @@ function sync(){
   var msgs=clean(chat); if(!msgs.length) return;
   var c=cur&&byId(cur);
   var subj=safe(function(){return $('tutor-subject').value;},'');
-  if(!c){ c={id:newId(),title:titleOf(msgs),t:Date.now(),pin:false,subject:subj,msgs:msgs}; chats.push(c); cur=c.id; persist(); render(); return; }
-  if(JSON.stringify(c.msgs)!==JSON.stringify(msgs)){ c.msgs=msgs; c.t=Date.now(); c.subject=subj; if(!c.custom) c.title=titleOf(msgs); persist(); render(); }
+  if(!c){ c={id:newId(),title:titleOf(msgs),t:Date.now(),pin:false,subject:subj,msgs:msgs}; chats.push(c); cur=c.id; persist(); render(); aiTitle(c); return; }
+  if(JSON.stringify(c.msgs)!==JSON.stringify(msgs)){ c.msgs=msgs; c.t=Date.now(); c.subject=subj; if(!c.custom&&!c.ai) c.title=titleOf(msgs); persist(); render(); aiTitle(c); }
 }
 
 /* open a saved chat */

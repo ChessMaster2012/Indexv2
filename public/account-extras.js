@@ -24,7 +24,7 @@ Storage.prototype.setItem=function(k,v){
 
 function trimChats(list){
   var chats=(Array.isArray(list)?list:[]).filter(function(c){return c&&c.id&&Array.isArray(c.msgs)&&c.msgs.length;}).map(function(c){
-    return {id:c.id,title:c.title,t:c.t||0,pin:!!c.pin,custom:!!c.custom,subject:c.subject||'',msgs:c.msgs.slice(-80).map(function(m){return {role:m.role,text:String(m.text||'').slice(0,6000)};})};
+    return {id:c.id,title:c.title,t:c.t||0,pin:!!c.pin,custom:!!c.custom,ai:!!c.ai,subject:c.subject||'',msgs:c.msgs.slice(-80).map(function(m){return {role:m.role,text:String(m.text||'').slice(0,6000)};})};
   });
   chats.sort(function(a,b){return ((b.pin?1:0)-(a.pin?1:0))||(b.t-a.t);});
   var out=[], bytes=2;

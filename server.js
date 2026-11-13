@@ -766,9 +766,14 @@ async function streamGeminiToResponse(messages,res,options={}){
     // Skip models that just hit their free quota, unless every model is cooling down.
     const ready=GEMINI_MODELS.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
     // Bulk JSON generation goes to the faster "lite" models first.
-    const order=(ready.length?ready:GEMINI_MODELS).slice().sort((a,b)=>studySetMode?(/lite/.test(b)-/lite/.test(a)):0);
+    // Short questions ("capital of France") also go to the lite models first: they answer in ~1 s.
+    const lastUser=String([...(messages||[])].reverse().find(m=>m&&m.role==='user')?.content||'');
+    const hard=/explain|why|how|derive|prove|essay|compare|analy|solve|step|graph|write|summar/i.test(lastUser);
+    const quick=lastUser.length<=140&&!/\n/.test(lastUser)&&!hard;
+    const order=(ready.length?ready:GEMINI_MODELS).slice().sort((a,b)=>(studySetMode||quick)?(/lite/.test(b)-/lite/.test(a)):0);
     outer: for(const model of order){
-      for(let attempt=0;attempt<2;attempt++){
+      let noReason=false;
+      for(let attempt=0;attempt<3;attempt++){
         if(Date.now()>deadline-3000) break outer;
         // Each attempt gets its own short wait for the response to START, so one stalled model
         // cannot use up the whole budget before the next model (or Vireonix) is tried.
@@ -782,7 +787,8 @@ async function streamGeminiToResponse(messages,res,options={}){
           r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{
             method:'POST',
             headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
-            body:JSON.stringify({model,messages,stream:!studySetMode,max_tokens:studySetMode?12000:(tutorMode?2000:1200),temperature:tutorMode?0.1:0}),
+            // Hidden "thinking" is switched off for quick chat questions so they are not delayed.
+            body:JSON.stringify(Object.assign({model,messages,stream:!studySetMode,max_tokens:studySetMode?12000:(tutorMode?2000:1200),temperature:tutorMode?0.1:0},(noReason||studySetMode||hard)?{}:{reasoning_effort:'none'})),
             signal:attemptCtl.signal
           });
         }catch(fe){
@@ -798,6 +804,7 @@ async function streamGeminiToResponse(messages,res,options={}){
         lastErr=new Error('Gemini '+model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,200));
         lastErr.status=r.status;
         console.warn('[AI] '+lastErr.message);
+        if(r.status===400&&!noReason&&/reason|think/i.test(raw)){ noReason=true; continue; } // model rejects reasoning_effort: retry without it
         if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); break; } // quota: retrying the same model won't help
         if(![500,502,503,504].includes(r.status)) break;
         if(attempt===0) await new Promise(x=>setTimeout(x,800));
@@ -1207,6 +1214,37 @@ app.use(async (req, res, next) => {
     req.sessionToken=null;
     next();
   }
+});
+
+// Short AI chat titles (like ChatGPT). Costs no credits, is tiny and rate limited; the browser falls back to the first prompt.
+const titleHits=new Map();
+app.post('/api/ai/title',async(req,res)=>{
+  try{
+    const key=(req.user&&req.user.id)||req.ip||'x', now=Date.now();
+    const hits=(titleHits.get(key)||[]).filter(t=>now-t<60000);
+    if(hits.length>=20) return res.status(429).json({error:'Slow down.'});
+    hits.push(now); titleHits.set(key,hits);
+    if(titleHits.size>5000) titleHits.clear();
+    if(!GEMINI_API_KEY) return res.json({title:''});
+    const q=String(req.body?.question||'').replace(/\s+/g,' ').trim().slice(0,400);
+    const a=String(req.body?.answer||'').replace(/\s+/g,' ').trim().slice(0,400);
+    if(!q) return res.json({title:''});
+    const prompt='Write a chat title of 2 to 5 words that names the topic of this conversation, like ChatGPT does (e.g. "French Capital Facts", "Photosynthesis Basics", "Titanic Sinking Date"). Use title case, no quotes, no trailing punctuation, do not start with a greeting. Reply with ONLY the title.\n\nStudent: '+q+(a?'\nTutor: '+a:'');
+    for(const model of ['gemini-flash-lite-latest','gemini-2.5-flash-lite','gemini-flash-latest']){
+      const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),6000);
+      try{
+        for(const extra of [{reasoning_effort:'none'},{}]){
+          const r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},body:JSON.stringify(Object.assign({model,messages:[{role:'user',content:prompt}],max_tokens:40,temperature:0.2},extra)),signal:ctl.signal});
+          if(r.status===400&&extra.reasoning_effort) continue;
+          if(!r.ok) break;
+          const title=String(extractText(await r.json())||'').split('\n')[0].replace(/^["'*#\s]+|["'*.\s]+$/g,'').trim().slice(0,60);
+          if(title&&title.split(/\s+/).length<=8) return res.json({title});
+          break;
+        }
+      }catch{} finally{ clearTimeout(t); }
+    }
+    res.json({title:''});
+  }catch(e){ res.json({title:''}); }
 });
 app.post('/api/ai/chat',async(req,res)=>{
   try{
@@ -1918,7 +1956,7 @@ function sanitizeTutorChats(input){
     if (!c || typeof c !== 'object' || !c.id) continue;
     const msgs = (Array.isArray(c.msgs) ? c.msgs : []).slice(-80).map(m => m && m.text ? { role: m.role === 'user' ? 'user' : 'assistant', text: String(m.text).slice(0, 6000) } : null).filter(Boolean);
     if (!msgs.length) continue;
-    clean.push({ id: String(c.id).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40), title: String(c.title || 'Chat').replace(/[<>]/g, '').slice(0, 90), t: Math.max(0, Number(c.t) || 0), pin: c.pin === true, custom: c.custom === true, subject: String(c.subject || '').slice(0, 60), msgs });
+    clean.push({ id: String(c.id).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40), title: String(c.title || 'Chat').replace(/[<>]/g, '').slice(0, 90), t: Math.max(0, Number(c.t) || 0), pin: c.pin === true, custom: c.custom === true, ai: c.ai === true, subject: String(c.subject || '').slice(0, 60), msgs });
   }
   clean.sort((a, b) => (b.pin - a.pin) || (b.t - a.t));
   const out = []; let bytes = 2;
