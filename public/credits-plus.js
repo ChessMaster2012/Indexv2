@@ -29,6 +29,7 @@ function place(){ // the sidebar clips overflow, so the panel is positioned besi
 }
 function paintPill(){
   var n=$('cr-pill-n'), t=$('cr-pill-t'), pill=$('cr-pill'); if(!n||!st) return;
+  if(st.unlimited){ n.textContent='∞'; t.textContent='unlimited credits'; pill.classList.remove('low','roll'); return; }
   n.textContent=st.remaining; t.textContent=(st.remaining>0?'credits · ':'out · ')+wait(st.resetsAt-Date.now());
   pill.classList.toggle('low',st.remaining<=Math.max(5,Math.round(st.allowance*0.1)));
   pill.classList.toggle('roll',!!st.canRoll);
@@ -36,6 +37,7 @@ function paintPill(){
 }
 function paintPop(msg){
   var pop=$('cr-pop'); if(!pop||!st) return;
+  if(st.unlimited){ pop.innerHTML='<div class="cr-head"><b>AI credits</b><button type="button" class="cr-x" data-cr="close" aria-label="Close">×</button></div><div class="cr-big"><span>∞</span><small>unlimited</small></div><div class="cr-rolled">Owner account: no limits on AI credits.</div>'; return; }
   var pctUsed=st.allowance?Math.min(100,Math.round(st.used/st.allowance*100)):0;
   var h='<div class="cr-head"><b>AI credits</b><button type="button" class="cr-x" data-cr="close" aria-label="Close">×</button></div>'
    +'<div class="cr-big"><span>'+st.remaining+'</span><small>available now</small></div>'
@@ -60,7 +62,7 @@ function chip(){
   var c=document.getElementById('cr-tchip');
   if(!c){ c=document.createElement('button'); c.type='button'; c.id='cr-tchip'; c.className='cr-tchip'; c.addEventListener('click',function(e){ e.stopPropagation(); toggle(true); });
     send.parentNode.insertBefore(c,send); }
-  var html=st?'⚡ <b>'+st.remaining+'</b><small>'+st.costs.tutor+' per message</small>':'⚡ …';
+  var html=st?(st.unlimited?'⚡ <b>∞</b><small>unlimited</small>':'⚡ <b>'+st.remaining+'</b><small>'+st.costs.tutor+' per message</small>'):'⚡ …';
   if(c.innerHTML!==html) c.innerHTML=html; /* only write when changed, or the observer would loop */
   if(!st) return;
   c.classList.toggle('low',st.remaining<=Math.max(3,Math.round(st.allowance*0.15)));

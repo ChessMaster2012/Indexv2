@@ -1945,6 +1945,13 @@ function sanitizeLearnStore(input){
 
 // ---- AI credits: a per-account allowance that refills every 6 hours, plus a daily bonus roll ----
 const CREDIT_WINDOW_HOURS = 6;
+// Owner accounts: emails listed in the OWNER_EMAILS environment variable (set privately in Render, never in the repo)
+// get the top plan, unlimited AI credits, and unlimited coins/Indexlings in the browser.
+const OWNER_EMAILS = new Set(String(process.env.OWNER_EMAILS || '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean));
+function isOwnerUser(user){
+  if (!user || !OWNER_EMAILS.size) return false;
+  return [user.email, user.identifier].some(e => e && OWNER_EMAILS.has(String(e).trim().toLowerCase()));
+}
 // Everything about credits depends on the account's membership plan. Numbers are kept modest on purpose:
 // the AI providers have free-tier limits shared by every student, so the allowance has to stay fair at scale.
 const CREDIT_PLANS = Object.freeze({
@@ -2006,17 +2013,19 @@ function creditContext(req, res){
   led.touched = Date.now();
   const win = creditWindow();
   if (led.windowKey !== win.key) { led.windowKey = win.key; led.used = 0; }
-  const plan = req.user ? membershipTierForUser(req.user) : 'free';
+  const owner = isOwnerUser(req.user);
+  const plan = owner ? 'diamond' : (req.user ? membershipTierForUser(req.user) : 'free');
   const planCfg = CREDIT_PLANS[plan] || CREDIT_PLANS.free;
   const allowance = anon ? CREDIT_ANON_ALLOWANCE : planCfg.allowance;
   // One-time welcome bonus, sized by plan.
-  if (!anon && !led.starter) { led.starter = true; led.bonus = Math.min(planCfg.bonusCap, led.bonus + planCfg.starter); }
-  const ctx = { key, led, anon, allowance, win, plan: anon ? 'free' : plan, cfg: planCfg, user: req.user || null };
+  if (!anon && !owner && !led.starter) { led.starter = true; led.bonus = Math.min(planCfg.bonusCap, led.bonus + planCfg.starter); }
+  const ctx = { key, led, anon, allowance, win, plan: anon ? 'free' : plan, cfg: planCfg, owner, user: req.user || null };
   if (!anon && led.bonus > planCfg.bonusCap) led.bonus = planCfg.bonusCap;
   if (!anon && !led._saved) { led._saved = true; creditPersistSoon(ctx); }
   return ctx;
 }
 function creditStatus(ctx){
+  if (ctx.owner) return { ok: true, signedIn: true, owner: true, unlimited: true, allowance: 999999, used: 0, remainingWindow: 999999, bonus: 0, remaining: 999999, resetsAt: ctx.win.resetsAt, windowHours: CREDIT_WINDOW_HOURS, canRoll: false, rolledToday: true, lastRoll: 0, bonusCap: 0, plan: 'diamond', costs: CREDIT_COSTS, rolls: [], plans: Object.fromEntries(Object.entries(CREDIT_PLANS).map(([k, v]) => [k, v.allowance])) };
   const remainingWindow = Math.max(0, ctx.allowance - ctx.led.used);
   return {
     ok: true, signedIn: !ctx.anon, allowance: ctx.allowance, used: Math.min(ctx.led.used, ctx.allowance), remainingWindow,
@@ -2027,6 +2036,7 @@ function creditStatus(ctx){
   };
 }
 function chargeCredits(ctx, cost){
+  if (ctx.owner) return { ok: true, fromWindow: 0, fromBonus: 0, windowKey: ctx.led.windowKey, owner: true };
   const remainingWindow = Math.max(0, ctx.allowance - ctx.led.used);
   if (remainingWindow + ctx.led.bonus < cost) return { ok: false };
   const fromWindow = Math.min(cost, remainingWindow), fromBonus = cost - fromWindow;
@@ -2477,6 +2487,7 @@ app.post('/api/account/credits/roll', async (req, res) => {
   try {
     if (SUPABASE_ENABLED) { const row = await dbFindUserById(req.user.id); if (row) { const fresh = dbRowToUser(row); req.user = fresh; usersById.set(fresh.id, fresh); } }
     const ctx = creditContext(req, res);
+    if (ctx.owner) return res.status(409).json({ error: 'Your account has unlimited credits, no roll needed.', ...creditStatus(ctx) });
     if (!ctx.led.rollDate || ctx.led.rollDate !== ctx.win.date) { /* eligible */ } else return res.status(409).json({ error: 'You already rolled today. Come back tomorrow!', ...creditStatus(ctx) });
     if (ctx.led.bonus >= ctx.cfg.bonusCap) return res.status(409).json({ error: 'Your bonus bank is full (' + ctx.cfg.bonusCap + '). Use some credits first.', ...creditStatus(ctx) });
     const total = CREDIT_ROLLS.reduce((a, r) => a + r.weight, 0);
@@ -2502,6 +2513,7 @@ function highestMembershipBadgeTier(...tiers){
   return best;
 }
 function membershipTierForUser(user){
+  if(isOwnerUser(user)) return 'diamond';
   const m=user?.accountData?.membership||{};
   const tier=['free','gold','platinum','diamond'].includes(String(m.tier||''))?String(m.tier):'free';
   const status=String(m.status||'active');
@@ -2826,7 +2838,7 @@ app.get('/api/account/state', async (req,res)=>{
       if (row) req.user = dbRowToUser(row);
       usersById.set(req.user.id, req.user);
     }
-    res.json({ok:true, state:req.user.accountData || null, storage:SUPABASE_ENABLED?'supabase':'server-file'});
+    res.json({ok:true, state:req.user.accountData || null, owner:isOwnerUser(req.user), storage:SUPABASE_ENABLED?'supabase':'server-file'});
   } catch(e) {
     res.status(503).json({error:'Your account database is temporarily unavailable. Try again.'});
   }

@@ -2420,6 +2420,7 @@ async function loadAccountState(){
       // New account: never import guest wallet/cosmetics into the account.
       // Local notes/study sets can be adopted, but account-owned rewards start at zero.
       state.progress={xp:0,activeDates:[],lessonsLearned:[],coins:50,dailyCoinDate:'',dailyCoinEarned:0,freePackTokens:0,dailyWheelDate:'',dailyWheelLastSpinAt:0,dailyWheelReward:0,unlockedCosmetics:['ling-sugarbug'],claimedBPLevels:[1],skinCrates:0,unlockedSkins:[],claimedSkinCrateLevels:[],equipped:{indexling:'ling-sugarbug',indexlingSkin:'',skinByIndexling:{},frame:'default'},openedPacks:0,liveGames:0};
+      if(d.owner&&window.OwnerMode) OwnerMode.apply();
       await syncAccountStateNow();
       return;
     }
@@ -2437,6 +2438,7 @@ async function loadAccountState(){
     persistProgressLocalOnly(); persistProfileLocalOnly(); lsSet('index-notes',state.notes); lsSet('index-studysets',state.studySets); lsSet('index-customtopics',state.customTopics);
     if(window.AccountExtras) AccountExtras.apply(a);
     if(window.CreditsPlus) CreditsPlus.refresh();
+    if(d.owner&&window.OwnerMode) OwnerMode.apply();
   }catch(e){ showAccountSyncNotice('Could not load saved account data. Please check your connection.'); }
 }
 async function loadMembershipStatus(showErrors=false){
@@ -9165,6 +9167,7 @@ setInterval(function(){
 <link rel="stylesheet" href="/progress-plus.css?v=2">
 <script src="/icons.js?v=1"></script>
 <script src="/account-extras.js?v=1"></script>
+<script src="/owner-mode.js?v=1"></script>
 <script src="/credits-plus.js?v=2"></script>
 <script src="/progress-plus.js?v=1"></script>
 <script src="/tutor-plus.js?v=3"></script>
