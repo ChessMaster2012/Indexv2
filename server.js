@@ -788,7 +788,7 @@ async function streamGeminiToResponse(messages,res,options={}){
             method:'POST',
             headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
             // Hidden "thinking" is switched off for quick chat questions so they are not delayed.
-            body:JSON.stringify(Object.assign({model,messages,stream:!studySetMode,max_tokens:studySetMode?12000:(tutorMode?2000:1200),temperature:tutorMode?0.1:0},(noReason||studySetMode||hard)?{}:{reasoning_effort:'none'})),
+            body:JSON.stringify(Object.assign({model,messages,stream:!studySetMode,max_tokens:studySetMode?8192:(tutorMode?2000:1200),temperature:tutorMode?0.1:0},(noReason||studySetMode||hard)?{}:{reasoning_effort:'none'})),
             signal:attemptCtl.signal
           });
         }catch(fe){
@@ -1218,6 +1218,7 @@ app.use(async (req, res, next) => {
 
 // Short AI chat titles (like ChatGPT). Costs no credits, is tiny and rate limited; the browser falls back to the first prompt.
 const titleHits=new Map();
+const CREDIT_GROUPS=new WeakMap();
 app.post('/api/ai/title',async(req,res)=>{
   try{
     const key=(req.user&&req.user.id)||req.ip||'x', now=Date.now();
@@ -1294,7 +1295,16 @@ app.post('/api/ai/chat',async(req,res)=>{
     const aiRelease=()=>{ if(!aiReleased){ aiReleased=true; aiInFlight--; } };
     res.on('finish',aiRelease); res.on('close',aiRelease);
     const creditCtx=creditContext(req,res);
-    const creditCharge=chargeCredits(creditCtx,CREDIT_COSTS[requestIntent]||CREDIT_COSTS.background);
+    // The several requests that build one study path share a "creditGroup": the first pays, the rest are free.
+    const creditGroup=requestIntent==='study-set'?String(req.body?.creditGroup||'').replace(/[^\w-]/g,'').slice(0,40):'';
+    let groupSeen=null;
+    if(creditGroup&&creditCtx.led){
+      groupSeen=CREDIT_GROUPS.get(creditCtx.led); if(!groupSeen){ groupSeen=new Map(); CREDIT_GROUPS.set(creditCtx.led,groupSeen); }
+      for(const [k,t] of groupSeen) if(Date.now()-t>600000) groupSeen.delete(k);
+    }
+    const alreadyPaid=!!(groupSeen&&groupSeen.has(creditGroup));
+    const creditCharge=alreadyPaid?{ok:true,fromWindow:0,fromBonus:0,windowKey:creditCtx.led.windowKey}:chargeCredits(creditCtx,CREDIT_COSTS[requestIntent]||CREDIT_COSTS.background);
+    if(creditCharge.ok&&groupSeen&&!alreadyPaid) groupSeen.set(creditGroup,Date.now());
     if(!creditCharge.ok){
       const st=creditStatus(creditCtx);
       return res.status(429).json({

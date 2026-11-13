@@ -2128,7 +2128,7 @@ async function runLocalAi(messages, options={}){
     const response=await fetch('/api/ai/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},
-      body:JSON.stringify({messages,intent:options.intent||'',mode:options.mode||'',context:options.context||null}),
+      body:JSON.stringify({messages,intent:options.intent||'',mode:options.mode||'',context:options.context||null,creditGroup:options.creditGroup||''}),
       signal:controller.signal
     });
 
@@ -2288,19 +2288,20 @@ function parseLooseJson(text){
   if(end<=start) throw new Error('The AI returned invalid JSON. Try again.');
   try{return JSON.parse(cleaned.slice(start,end+1));}catch(e){throw new Error('The AI returned invalid JSON. Try again.');}
 }
-async function askJSON(prompt){
+async function askJSON(prompt,extra){
+  extra=extra||{};
   const system='You generate accurate study materials for Index. Follow the requested JSON schema exactly. Never add commentary, markdown fences, or repeated filler.';
   const instruction=`${prompt}\n\nIMPORTANT: Return valid JSON only. Start immediately with { and include every requested field. Do not add markdown fences or commentary.`;
   const turns=[{role:'system',content:system},{role:'user',content:instruction}];
   // Keep the existing AI provider/model, while flagging structured study generation
   // so the server can apply its study-set response budget.
-  const first=await runLocalAi(turns,{timeoutMs:56000,intent:'study-set'});
+  const first=await runLocalAi(turns,{timeoutMs:56000,intent:'study-set',creditGroup:extra.creditGroup});
   try{return parseLooseJson(first);}catch(parseError){
     const retryTurns=[
       {role:'system',content:system},
       {role:'user',content:instruction+'\n\nRegenerate the complete answer from scratch as one valid JSON object. Escape all strings correctly. No markdown or text outside the JSON.'}
     ];
-    const retry=await runLocalAi(retryTurns,{timeoutMs:56000,intent:'study-set'});
+    const retry=await runLocalAi(retryTurns,{timeoutMs:56000,intent:'study-set',creditGroup:extra.creditGroup});
     try{return parseLooseJson(retry);}catch(retryError){
       console.error('[Study Sets] JSON parse failed after retry.',{firstError:String(parseError&&parseError.message||parseError),retryError:String(retryError&&retryError.message||retryError)});
       throw new Error('The AI could not format this study set. Please try again.');
@@ -6897,11 +6898,29 @@ async function generateLessonPath(){
   if(!state.aiEnabled){if(status)status.innerHTML='<div class="error-note">'+esc(localAiUnavailableMessage)+'</div>';return;}
   var focus=topic||unit;
   if(status)status.innerHTML='<div class="loading-line"><span class="spinner"></span> Building a complete '+LESSONS+'-lesson path for '+esc(focus)+'…</div>';
-  var prompt='You are building a complete AP study path. The selected course is AP '+subj.name+', unit "'+unit+'", with the exact focus "'+focus+'". The unit/topic is a hard boundary. Create exactly '+LESSONS+' lessons that collectively cover the major concepts, vocabulary, processes, examples, relationships, and exam skills needed for this exact selection. Do not drift into another unit. Do not make all lessons repeat the same basic definitions. Each lesson must have a distinct coverage focus, while all lessons together should cover the selected topic thoroughly. For EACH lesson return 8 concise flashcards and 8 four-option multiple-choice questions. The questions must be answerable from the lesson coverage. Keep flashcard backs under 55 words and question explanations under 70 words. Return ONLY JSON in this shape: {"lessons":[{"title":"Lesson 1 title","focus":"What this lesson covers","cards":[{"front":"...","back":"..."}],"questions":[{"q":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}]}]}.';
+  var group='path'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+  function lessonPrompt(n){
+    return 'You are building lesson '+n+' of '+LESSONS+' of a complete AP study path. The selected course is AP '+subj.name+', unit "'+unit+'", with the exact focus "'+focus+'". The unit/topic is a hard boundary: do not drift into another unit. The '+LESSONS+' lessons together cover the major concepts, vocabulary, processes, examples, relationships, and exam skills of this exact selection, in a logical teaching order. Write ONLY lesson '+n+': it covers part '+n+' of '+LESSONS+' of the selection (lesson 1 = the foundations, lesson '+LESSONS+' = the most advanced ideas and exam skills), so do not repeat basic definitions that earlier lessons would cover. Return 8 concise flashcards and 8 four-option multiple-choice questions answerable from this lesson focus. Keep flashcard backs under 55 words and question explanations under 70 words. Return ONLY JSON in this shape: {"title":"Lesson '+n+' title","focus":"What this lesson covers","cards":[{"front":"...","back":"..."}],"questions":[{"q":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}]}.';
+  }
+  async function oneLesson(n){
+    var lastErr;
+    for(var attempt=0;attempt<3;attempt++){
+      try{
+        var parsed=await askJSON(lessonPrompt(n),{creditGroup:group});
+        var obj=Array.isArray(parsed)?parsed[0]:(parsed&&parsed.lessons?parsed.lessons[0]:parsed);
+        var v=validLesson(obj);
+        if(v)return v;
+        lastErr=new Error('lesson '+n+' was incomplete');
+      }catch(err){ lastErr=err; if(err&&/credits|NO_CREDITS/i.test(String(err.message))) throw err; }
+      await new Promise(function(r){setTimeout(r,700*(attempt+1));});
+    }
+    throw lastErr||new Error('lesson '+n+' failed');
+  }
   try{
-    var parsed=await askJSON(prompt);
-    var raw=Array.isArray(parsed)?parsed:(parsed&&parsed.lessons)||[];
-    var lessons=raw.map(validLesson).filter(Boolean).slice(0,LESSONS);
+    // The lessons are built side by side as small requests (faster and far more reliable than one huge answer).
+    var jobs=[];
+    for(var n=1;n<=LESSONS;n++){ (function(k){ jobs.push(new Promise(function(r){setTimeout(r,(k-1)*350);}).then(function(){return oneLesson(k);})); })(n); }
+    var lessons=await Promise.all(jobs);
     if(lessons.length<LESSONS)throw new Error('incomplete lesson path');
     var pathId=makePathId(subjectId,unit,topic);
     var base=Date.now(), reminderAt=reminderDays>0?base+reminderDays*86400000:0;
