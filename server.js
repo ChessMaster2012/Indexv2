@@ -804,7 +804,7 @@ async function streamGeminiToResponse(messages,res,options={}){
         lastErr=new Error('Gemini '+model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,200));
         lastErr.status=r.status;
         console.warn('[AI] '+lastErr.message);
-        if(r.status===400&&!noReason&&/reason|think/i.test(raw)){ noReason=true; continue; } // model rejects reasoning_effort: retry without it
+        if(r.status===400&&!noReason&&!studySetMode&&!hard){ noReason=true; continue; } // model rejects reasoning_effort: retry without it
         if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); break; } // quota: retrying the same model won't help
         if(![500,502,503,504].includes(r.status)) break;
         if(attempt===0) await new Promise(x=>setTimeout(x,800));
