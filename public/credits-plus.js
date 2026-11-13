@@ -49,13 +49,24 @@ function paintPop(msg){
         :'<div class="cr-rolled">'+(st.lastRoll?'🎲 Today\'s roll: <b>+'+st.lastRoll+'</b> credits.':'🎲 Daily roll used.')+' Come back tomorrow!</div>')
       +'</div>';
   }else{
-    h+='<div class="cr-roll"><div class="cr-rolled">Sign in to get <b>60 credits every 6 hours</b>, a daily bonus roll, and chats saved to your account.</div><button type="button" class="cr-rollbtn" data-cr="signin">Sign in / Create account</button></div>';
+    h+='<div class="cr-roll"><div class="cr-rolled">Sign in to get <b>'+(st.plans&&st.plans.free||20)+' credits every 6 hours</b>, a welcome bonus, a daily roll, and chats saved to your account.</div><button type="button" class="cr-rollbtn" data-cr="signin">Sign in / Create account</button></div>';
   }
-  h+='<div class="cr-costs">Tutor message: <b>'+st.costs.tutor+'</b> · Study set: <b>'+st.costs['study-set']+'</b></div>';
+  h+='<div class="cr-costs">Your plan: <b>'+esc(st.plan||'free')+'</b> · Tutor message: <b>'+st.costs.tutor+'</b> · Study set: <b>'+st.costs['study-set']+'</b></div>';
   if(msg) h+='<div class="cr-msg">'+esc(msg)+'</div>';
   pop.innerHTML=h;
 }
-function paint(){ paintPill(); if(open&&!rolling) paintPop(); }
+function chip(){
+  var send=$('tutor-send'); if(!send||!send.parentNode) return;
+  var c=document.getElementById('cr-tchip');
+  if(!c){ c=document.createElement('button'); c.type='button'; c.id='cr-tchip'; c.className='cr-tchip'; c.addEventListener('click',function(e){ e.stopPropagation(); toggle(true); });
+    send.parentNode.insertBefore(c,send); }
+  var html=st?'⚡ <b>'+st.remaining+'</b><small>'+st.costs.tutor+' per message</small>':'⚡ …';
+  if(c.innerHTML!==html) c.innerHTML=html; /* only write when changed, or the observer would loop */
+  if(!st) return;
+  c.classList.toggle('low',st.remaining<=Math.max(3,Math.round(st.allowance*0.15)));
+  c.title=st.remaining+' AI credits left · refills in '+wait(st.resetsAt-Date.now());
+}
+function paint(){ paintPill(); chip(); if(open&&!rolling) paintPop(); }
 function refresh(){
   return fetch('/api/account/credits',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
     if(!d||!d.ok) return; st=d; paint();
@@ -98,7 +109,7 @@ window.fetch=function(input,init){
   }
   return p;
 };
-function boot(){ mount(); refresh(); clearInterval(tick); tick=setInterval(function(){ paint(); },30000); }
+function boot(){ mount(); refresh(); new MutationObserver(function(){ chip(); }).observe(document.body,{childList:true,subtree:true}); chip(); clearInterval(tick); tick=setInterval(function(){ paint(); },30000); }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
 window.addEventListener('resize',function(){ if(open) place(); });
 window.CreditsPlus={refresh:refresh};

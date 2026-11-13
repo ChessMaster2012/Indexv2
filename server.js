@@ -1246,12 +1246,21 @@ app.post('/api/ai/chat',async(req,res)=>{
     );
 
     // Credits: deterministic answers above are free; every request that reaches an AI provider costs credits.
+    // Global fairness: never run more than AI_MAX_CONCURRENT AI requests at once, so a rush of students
+    // slows down politely instead of exhausting the providers for everyone. Nothing is charged in that case.
+    if(aiInFlight>=AI_MAX_CONCURRENT){
+      res.set('Retry-After','5');
+      return res.status(503).json({error:'Index AI is very busy right now. Your credits were not used. Please try again in a few seconds.',code:'BUSY'});
+    }
+    aiInFlight++; let aiReleased=false;
+    const aiRelease=()=>{ if(!aiReleased){ aiReleased=true; aiInFlight--; } };
+    res.on('finish',aiRelease); res.on('close',aiRelease);
     const creditCtx=creditContext(req,res);
     const creditCharge=chargeCredits(creditCtx,CREDIT_COSTS[requestIntent]||CREDIT_COSTS.background);
     if(!creditCharge.ok){
       const st=creditStatus(creditCtx);
       return res.status(429).json({
-        error:'You are out of AI credits for now. They refill in '+creditWaitText(st.resetsAt-Date.now())+'.'+(creditCtx.anon?' Sign in to get '+CREDIT_PLAN_ALLOWANCE.free+' credits every 6 hours plus a daily bonus roll.':(st.canRoll?' You can also use your daily bonus roll for extra credits.':'')),
+        error:'You are out of AI credits for now. They refill in '+creditWaitText(st.resetsAt-Date.now())+'.'+(creditCtx.anon?' Sign in to get '+CREDIT_PLAN_ALLOWANCE.free+' credits every 6 hours, a welcome bonus and a daily roll.':(st.canRoll?' You can also use your daily bonus roll for extra credits.':'')),
         code:'NO_CREDITS',credits:st
       });
     }
@@ -1936,13 +1945,23 @@ function sanitizeLearnStore(input){
 
 // ---- AI credits: a per-account allowance that refills every 6 hours, plus a daily bonus roll ----
 const CREDIT_WINDOW_HOURS = 6;
-const CREDIT_PLAN_ALLOWANCE = Object.freeze({ free: 60, gold: 120, platinum: 200, diamond: 400 });
-const CREDIT_ANON_ALLOWANCE = 10;
+// Everything about credits depends on the account's membership plan. Numbers are kept modest on purpose:
+// the AI providers have free-tier limits shared by every student, so the allowance has to stay fair at scale.
+const CREDIT_PLANS = Object.freeze({
+  free:     { allowance: 20,  starter: 20,  bonusCap: 100, rollMult: 1 },
+  gold:     { allowance: 40,  starter: 40,  bonusCap: 150, rollMult: 1.5 },
+  platinum: { allowance: 70,  starter: 75,  bonusCap: 250, rollMult: 2 },
+  diamond:  { allowance: 120, starter: 150, bonusCap: 400, rollMult: 3 }
+});
+const CREDIT_PLAN_ALLOWANCE = Object.freeze(Object.fromEntries(Object.entries(CREDIT_PLANS).map(([k, v]) => [k, v.allowance])));
+const CREDIT_ANON_ALLOWANCE = 5;
+const AI_MAX_CONCURRENT = Math.max(4, Number(process.env.AI_MAX_CONCURRENT) || 24); // global cap on simultaneous AI requests
+let aiInFlight = 0;
 const CREDIT_COSTS = Object.freeze({ tutor: 1, 'study-set': 2, background: 1 });
-const CREDIT_BONUS_CAP = 300;
+const CREDIT_BONUS_CAP = 400; // hard upper bound for storage; each plan has its own lower cap
 const CREDIT_ROLLS = Object.freeze([
-  { amount: 10, weight: 22 }, { amount: 15, weight: 18 }, { amount: 20, weight: 16 }, { amount: 30, weight: 14 },
-  { amount: 40, weight: 10 }, { amount: 50, weight: 8 }, { amount: 75, weight: 6 }, { amount: 100, weight: 4 }, { amount: 150, weight: 2 }
+  { amount: 5, weight: 22 }, { amount: 8, weight: 18 }, { amount: 10, weight: 16 }, { amount: 15, weight: 14 },
+  { amount: 20, weight: 10 }, { amount: 25, weight: 8 }, { amount: 35, weight: 6 }, { amount: 50, weight: 4 }, { amount: 75, weight: 2 }
 ]);
 function sanitizeCredits(input){
   const c = input && typeof input === 'object' ? input : {};
@@ -1951,7 +1970,8 @@ function sanitizeCredits(input){
     used: Math.max(0, Math.min(100000, Math.floor(Number(c.used) || 0))),
     bonus: Math.max(0, Math.min(CREDIT_BONUS_CAP, Math.floor(Number(c.bonus) || 0))),
     rollDate: String(c.rollDate || '').slice(0, 10),
-    lastRoll: Math.max(0, Math.min(1000, Math.floor(Number(c.lastRoll) || 0)))
+    lastRoll: Math.max(0, Math.min(1000, Math.floor(Number(c.lastRoll) || 0))),
+    starter: c.starter === true
   };
 }
 const ET_FORMAT = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
@@ -1987,8 +2007,14 @@ function creditContext(req, res){
   const win = creditWindow();
   if (led.windowKey !== win.key) { led.windowKey = win.key; led.used = 0; }
   const plan = req.user ? membershipTierForUser(req.user) : 'free';
-  const allowance = anon ? CREDIT_ANON_ALLOWANCE : (CREDIT_PLAN_ALLOWANCE[plan] || CREDIT_PLAN_ALLOWANCE.free);
-  return { key, led, anon, allowance, win, user: req.user || null };
+  const planCfg = CREDIT_PLANS[plan] || CREDIT_PLANS.free;
+  const allowance = anon ? CREDIT_ANON_ALLOWANCE : planCfg.allowance;
+  // One-time welcome bonus, sized by plan.
+  if (!anon && !led.starter) { led.starter = true; led.bonus = Math.min(planCfg.bonusCap, led.bonus + planCfg.starter); }
+  const ctx = { key, led, anon, allowance, win, plan: anon ? 'free' : plan, cfg: planCfg, user: req.user || null };
+  if (!anon && led.bonus > planCfg.bonusCap) led.bonus = planCfg.bonusCap;
+  if (!anon && !led._saved) { led._saved = true; creditPersistSoon(ctx); }
+  return ctx;
 }
 function creditStatus(ctx){
   const remainingWindow = Math.max(0, ctx.allowance - ctx.led.used);
@@ -1996,7 +2022,8 @@ function creditStatus(ctx){
     ok: true, signedIn: !ctx.anon, allowance: ctx.allowance, used: Math.min(ctx.led.used, ctx.allowance), remainingWindow,
     bonus: ctx.led.bonus, remaining: remainingWindow + ctx.led.bonus, resetsAt: ctx.win.resetsAt, windowHours: CREDIT_WINDOW_HOURS,
     canRoll: !ctx.anon && ctx.led.rollDate !== ctx.win.date, rolledToday: !ctx.anon && ctx.led.rollDate === ctx.win.date, lastRoll: ctx.led.rollDate === ctx.win.date ? ctx.led.lastRoll : 0,
-    bonusCap: CREDIT_BONUS_CAP, costs: CREDIT_COSTS, rolls: CREDIT_ROLLS.map(r => r.amount)
+    bonusCap: ctx.cfg.bonusCap, plan: ctx.plan, costs: CREDIT_COSTS, rolls: CREDIT_ROLLS.map(r => Math.round(r.amount * ctx.cfg.rollMult)),
+    plans: Object.fromEntries(Object.entries(CREDIT_PLANS).map(([k, v]) => [k, v.allowance]))
   };
 }
 function chargeCredits(ctx, cost){
@@ -2010,7 +2037,7 @@ function chargeCredits(ctx, cost){
 function refundCredits(ctx, charge){
   if (!charge || !charge.ok) return;
   if (ctx.led.windowKey === charge.windowKey) ctx.led.used = Math.max(0, ctx.led.used - charge.fromWindow);
-  ctx.led.bonus = Math.min(CREDIT_BONUS_CAP, ctx.led.bonus + charge.fromBonus);
+  ctx.led.bonus = Math.min(ctx.cfg.bonusCap, ctx.led.bonus + charge.fromBonus);
   creditPersistSoon(ctx);
 }
 function creditsForStorage(user){
@@ -2451,11 +2478,12 @@ app.post('/api/account/credits/roll', async (req, res) => {
     if (SUPABASE_ENABLED) { const row = await dbFindUserById(req.user.id); if (row) { const fresh = dbRowToUser(row); req.user = fresh; usersById.set(fresh.id, fresh); } }
     const ctx = creditContext(req, res);
     if (!ctx.led.rollDate || ctx.led.rollDate !== ctx.win.date) { /* eligible */ } else return res.status(409).json({ error: 'You already rolled today. Come back tomorrow!', ...creditStatus(ctx) });
-    if (ctx.led.bonus >= CREDIT_BONUS_CAP) return res.status(409).json({ error: 'Your bonus bank is full (' + CREDIT_BONUS_CAP + '). Use some credits first.', ...creditStatus(ctx) });
+    if (ctx.led.bonus >= ctx.cfg.bonusCap) return res.status(409).json({ error: 'Your bonus bank is full (' + ctx.cfg.bonusCap + '). Use some credits first.', ...creditStatus(ctx) });
     const total = CREDIT_ROLLS.reduce((a, r) => a + r.weight, 0);
     let roll = crypto.randomInt(0, 1000000) / 1000000 * total, rolled = CREDIT_ROLLS[0].amount;
     for (const r of CREDIT_ROLLS) { if ((roll -= r.weight) < 0) { rolled = r.amount; break; } }
-    const grant = Math.min(rolled, CREDIT_BONUS_CAP - ctx.led.bonus);
+    rolled = Math.round(rolled * ctx.cfg.rollMult);
+    const grant = Math.min(rolled, ctx.cfg.bonusCap - ctx.led.bonus);
     ctx.led.bonus += grant; ctx.led.rollDate = ctx.win.date; ctx.led.lastRoll = grant;
     await creditPersistNow(req.user);
     res.json({ ...creditStatus(ctx), rolled: grant });

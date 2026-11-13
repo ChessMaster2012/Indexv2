@@ -1,0 +1,11 @@
+/* Generation progress card */
+#gp-card{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:300;width:min(420px,calc(100vw - 28px));padding:12px 16px;border-radius:16px;border:1px solid var(--line);background:var(--card);color:var(--ink);box-shadow:0 16px 38px rgba(0,0,0,.34);transition:opacity .3s,transform .3s;}
+#gp-card[hidden]{display:none;}
+#gp-card.fade{opacity:0;transform:translateX(-50%) translateY(-8px);}
+.gp-top{display:flex;justify-content:space-between;gap:10px;font-size:14px;margin-bottom:8px;}
+.gp-top b{font-weight:800;}
+.gp-top span{font-weight:800;color:var(--purple);font-variant-numeric:tabular-nums;}
+.gp-bar{height:9px;border-radius:99px;background:var(--line);overflow:hidden;}
+.gp-bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--purple),#2FD48B);transition:width .35s ease;}
+#gp-card.bad .gp-bar i{background:#FF6B6B;width:100% !important;}
+.gp-sub{margin-top:7px;font-size:12px;color:var(--ink-soft);min-height:15px;}

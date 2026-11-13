@@ -28,3 +28,9 @@
 .cr-costs{font-size:12px;color:var(--ink-soft);margin-top:6px;}
 .cr-msg{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(255,107,107,.15);font-size:12.5px;}
 @media (max-width:860px){ #cr-wrap{margin:0 10px 0 0;order:3;} .cr-pill small{display:none;} .cr-pill{width:auto;padding:7px 10px;} .cr-pop{position:fixed;left:12px;right:12px;top:64px;width:auto;} }
+
+.cr-tchip{flex:0 0 auto;align-self:flex-end;height:46px;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 12px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--ink);font-family:inherit;font-size:14px;cursor:pointer;line-height:1.15;}
+.cr-tchip b{font-weight:800;}
+.cr-tchip small{font-size:10.5px;color:var(--ink-soft);font-weight:600;}
+.cr-tchip:hover{border-color:var(--purple);}
+.cr-tchip.low{border-color:#ffa733;}
