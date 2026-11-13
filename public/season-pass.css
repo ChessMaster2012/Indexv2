@@ -1,0 +1,17 @@
+.sp-banner{display:flex;align-items:center;gap:16px;padding:16px 20px;margin-bottom:14px;border-radius:20px;background:linear-gradient(120deg,color-mix(in srgb,var(--t1) 38%,#14103a),color-mix(in srgb,var(--t2) 70%,#14103a));border:1px solid color-mix(in srgb,var(--t1) 55%,transparent);box-shadow:0 8px 30px color-mix(in srgb,var(--t2) 35%,transparent);position:relative;overflow:hidden}
+.sp-banner::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 14px,transparent 14px 28px);pointer-events:none}
+.sp-banner>*{position:relative;z-index:1}
+.sp-banner-ic{font-size:44px;line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.4));animation:spFloat 3.2s ease-in-out infinite}
+@keyframes spFloat{50%{transform:translateY(-5px) rotate(-4deg)}}
+.sp-banner-tx{flex:1;min-width:0}
+.sp-k{font-size:11px;letter-spacing:.16em;font-weight:800;color:rgba(255,255,255,.8)}
+.sp-banner h3{margin:2px 0 3px;font:800 26px var(--font-display,Fredoka,sans-serif);color:#fff}
+.sp-banner p{margin:0;font-size:13px;color:rgba(255,255,255,.88)}
+.sp-left{text-align:center;padding:8px 14px;border-radius:14px;background:rgba(0,0,0,.28);flex:none}
+.sp-left b{display:block;font:800 28px var(--font-display,Fredoka,sans-serif);color:#fff;line-height:1}
+.sp-left span{font-size:11px;font-weight:800;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:.08em}
+.sp-emo{font-size:30px;line-height:1}
+.sp-next{display:flex;align-items:center;gap:14px;margin-top:6px;padding:14px 18px;border-radius:16px;background:rgba(255,255,255,.06);border:1px dashed rgba(255,255,255,.22)}
+.sp-next-ic{font-size:34px}
+.sp-next b{display:block;color:#fff;font-size:15px}.sp-next span:not(.sp-next-ic){font-size:12.5px;color:var(--mut,#a9a6d4)}
+@media (max-width:640px){.sp-banner{flex-wrap:wrap}.sp-banner h3{font-size:21px}.sp-left{margin-left:auto}}

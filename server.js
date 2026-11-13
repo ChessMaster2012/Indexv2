@@ -3,6 +3,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const zlib = require('zlib');
 const express = require('express');
+const SeasonCore = require('./public/season-core.js');
 const LIBRARY = require('./library');
 const LIBRARY_QUESTIONS = LIBRARY.normalizeQuestions;
 const http = require('http');
@@ -2370,6 +2371,7 @@ function sanitizeAccountState(input){
       freePackTokens: Math.max(0, Math.min(100000, Math.floor(Number(p.freePackTokens)||0))),
       unlockedCosmetics: Array.isArray(p.unlockedCosmetics) ? p.unlockedCosmetics.slice(0, 500) : [],
       claimedBPLevels: Array.isArray(p.claimedBPLevels) ? p.claimedBPLevels.slice(0, 100) : [],
+      season: SeasonCore.sanitize(p.season),
       skinCrates: Math.max(0, Math.min(1000000, Math.floor(Number(p.skinCrates)||0))),
       unlockedSkins: Array.isArray(p.unlockedSkins) ? p.unlockedSkins.slice(0, 500) : [],
       claimedSkinCrateLevels: Array.isArray(p.claimedSkinCrateLevels) ? p.claimedSkinCrateLevels.slice(0, 50) : [],
@@ -2973,6 +2975,7 @@ app.put('/api/account/state', async (req,res)=>{
       unlockedCosmetics:unionList(existingProgress.unlockedCosmetics,incomingProgress.unlockedCosmetics,500),
       unlockedSkins:unionList(existingProgress.unlockedSkins,incomingProgress.unlockedSkins,500),
       claimedBPLevels:unionList(existingProgress.claimedBPLevels,incomingProgress.claimedBPLevels,100),
+      season:SeasonCore.merge(SeasonCore.sanitize(existingProgress.season),SeasonCore.sanitize(incomingProgress.season)),
       claimedSkinCrateLevels:unionList(existingProgress.claimedSkinCrateLevels,incomingProgress.claimedSkinCrateLevels,50),
       gameProgress:mergedGameProgress
     };
@@ -3053,30 +3056,12 @@ const BP_FINALE_ORDER = ['ling-supernova','ling-crownling','ling-overclock','lin
 const BP_DUPLICATE_BONUS = 40;
 const BP_FINALE_DUPLICATE_BONUS = 1000;
 function applyQuestBattlePassRewards(progress){
-  const p=progress&&typeof progress==='object'?progress:{};
-  const xp=Math.max(0,Math.floor(Number(p.xp)||0));
-  const level=Math.min(50,Math.max(1,Math.floor(xp/100)+1));
-  const claimedBP=Array.isArray(p.claimedBPLevels)?p.claimedBPLevels.slice():[];
-  const claimedSkin=Array.isArray(p.claimedSkinCrateLevels)?p.claimedSkinCrateLevels.slice():[];
-  const owned=Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics.slice():[];
-  let coins=Math.max(0,Number(p.coins)||0);
-  let skinCrates=Math.max(0,Math.floor(Number(p.skinCrates)||0));
-  let freePackTokens=Math.max(0,Math.floor(Number(p.freePackTokens)||0));
-  for(let bpLevel=1;bpLevel<=level;bpLevel++){
-    if(claimedBP.indexOf(bpLevel)>=0) continue;
-    const row=BP_TABLE[bpLevel-1]||[0,0,0,''];
-    coins+=row[0];
-    if(row[1]&&claimedSkin.indexOf(bpLevel)<0){ skinCrates+=row[1]; claimedSkin.push(bpLevel); }
-    freePackTokens+=row[2];
-    if(bpLevel===50){
-      const id=BP_FINALE_ORDER.find(x=>owned.indexOf(x)<0);
-      if(id) owned.push(id); else coins+=BP_FINALE_DUPLICATE_BONUS;
-    }else if(row[3]){
-      if(owned.indexOf(row[3])>=0) coins+=BP_DUPLICATE_BONUS; else owned.push(row[3]);
-    }
-    claimedBP.push(bpLevel);
-  }
-  return {...p,coins,skinCrates,freePackTokens,unlockedCosmetics:owned,claimedBPLevels:claimedBP,claimedSkinCrateLevels:claimedSkin};
+  // Monthly seasonal Battle Pass (shared logic with the browser): pays out every reached season level.
+  const p={...(progress&&typeof progress==='object'?progress:{})};
+  p.unlockedCosmetics=Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics.slice():[];
+  p.season=p.season&&typeof p.season==='object'?{...p.season,claimed:Array.isArray(p.season.claimed)?p.season.claimed.slice():[]}:p.season;
+  SeasonCore.apply(p);
+  return p;
 }
 
 const QUEST_GOALS = Object.freeze(Object.fromEntries(QUEST_CATALOG.DAILY.map(q=>[q.id,{goal:q.goal,metric:q.metric}])));
