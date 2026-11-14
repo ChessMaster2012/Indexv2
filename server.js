@@ -2418,6 +2418,7 @@ function sanitizeAccountState(input){
     credits: sanitizeCredits(src.credits),
     tutorChats: sanitizeTutorChats(src.tutorChats),
     tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
+    role: src.role === 'teacher' ? 'teacher' : (src.role === 'student' ? 'student' : undefined),
     learnStore: sanitizeLearnStore(src.learnStore),
     learnAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.learnAt)||0)),
     savedAt: Date.now()

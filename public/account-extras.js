@@ -41,6 +41,7 @@ function trimLearn(st){
 
 function payload(){
   var at=atGet(), tutor=jget(KEYS.tutor,null), learn=jget(KEYS.learn,null), o={};
+  try{ var rl=localStorage.getItem('index-role'); if(rl==='student'||rl==='teacher') o.role=rl; }catch(e){}
   if(Array.isArray(tutor)){ o.tutorChats=trimChats(tutor); o.tutorChatsAt=at.tutor||Date.now(); }
   if(learn&&Array.isArray(learn.lessons)){ o.learnStore=trimLearn(learn); o.learnAt=at.learn||Date.now(); }
   return o;
@@ -48,6 +49,7 @@ function payload(){
 
 function apply(a){
   if(!a||typeof a!=='object') return;
+  try{ if((a.role==='student'||a.role==='teacher')&&!localStorage.getItem('index-role-pending')){ localStorage.setItem('index-role',a.role); document.body.setAttribute('data-role',a.role); localStorage.setItem('index-welcome-v1','1'); } }catch(e){}
   var at=atGet(), pushNeeded=false;
   // Tutor chats
   var localChats=jget(KEYS.tutor,null), lat=at.tutor||0, sat=Number(a.tutorChatsAt)||0;
@@ -79,5 +81,5 @@ function apply(a){
 
 function clearLocal(){ [KEYS.tutor,KEYS.learn,AT].forEach(function(k){ try{ localStorage.removeItem(k); }catch(e){} }); try{ window.TutorHistory&&TutorHistory.reload&&TutorHistory.reload(); }catch(e){} try{ window.dispatchEvent(new StorageEvent('storage',{key:KEYS.learn})); }catch(e){} }
 
-window.AccountExtras={payload:payload,apply:apply,clearLocal:clearLocal};
+window.AccountExtras={payload:payload,apply:apply,clearLocal:clearLocal,touchRole:push};
 })();
