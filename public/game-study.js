@@ -214,7 +214,7 @@
 
   /* every game goes through arcadeStart: ask for the topic first (Troop Commander already has its own picker) */
   /* games that already ask study questions every level (the picker only runs for these) */
-  var GATED = { expedition: 1, shadow: 1, rogue: 1 };
+  var GATED = { expedition: 1, shadow: 1, rogue: 1, gauntlet: 1, trial: 1 };
   function install() {
     if (typeof window.arcadeStart !== 'function' || window.arcadeStart.__gs) return false;
     var orig = window.arcadeStart;

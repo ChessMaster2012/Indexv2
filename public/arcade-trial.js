@@ -52,9 +52,12 @@ function sfx(kind){
 }
 
 /* ------------------------------ level ------------------------------ */
-function buildLevel(){
-  var L={solids:[],spikes:[],saws:[],pends:[],jets:[],turrets:[],walkers:[],bats:[],coins:[],gems:[],crystals:[],hearts:[],springs:[],cps:[],zoneX:[],signs:[],relic:null,end:0};
-  var cx=0, gy=760;
+/* Six levels. TH = which visual theme (index into ZONES) each level uses; BONUST = extra seconds for levels with big climbs. */
+var LEVEL_NAMES=['The Overgrown Ruins','The Sunken Halls','The Molten Forge','The Sky Sanctum','The Flooded Gauntlet','The Ancients\' Vault'];
+var TH=[0,1,2,3,1,2], BONUST=[0,12,0,28,18,24], NLV=6, GATEQ=3;
+function buildLevel(idx){
+  var L={solids:[],spikes:[],saws:[],pends:[],jets:[],turrets:[],walkers:[],bats:[],coins:[],gems:[],crystals:[],hearts:[],springs:[],cps:[],zoneX:[],th:[TH[idx]],signs:[],relic:null,end:0,idx:idx};
+  var cx=0, gy=760, i, s;
   function G(len,dy){ gy+=(dy||0); var s={x:cx,y:gy,w:len,h:H-gy,k:'g'}; L.solids.push(s); cx+=len; return s; }
   function gap(w){ cx+=w; }
   function P(x,y,w){ var s={x:x,y:y,w:w,h:22,k:'p'}; L.solids.push(s); return s; }
@@ -76,74 +79,112 @@ function buildLevel(){
   function spring(x,y,w){ L.springs.push({x:x,y:y,w:w||44,sq:0}); }
   function cp(x,y){ L.cps.push({x:x,y:y,on:false}); }
   function sign(x,y,t){ L.signs.push({x:x,y:y,t:t}); }
-  function zone(){ L.zoneX.push(cx); }
+  function finish(len){ var f=G(len,0); L.relic={x:f.x+len*.7,y:gy}; L.end=f.x+f.w; heart(f.x+len*.35,gy-40); return f; }
+  function shaft(){ /* wall-jump shaft: drop in, kick between the two walls to climb out */
+    var top=G(240,0); sign(top.x+120,gy,'WALL JUMP ↓'); var topY=gy;
+    gy+=250; var sh=G(190,0); gy=topY; coinLine(sh.x+50,gy+30,4,30,60); coin(sh.x+95,gy+180); cx=sh.x+sh.w; var ex=G(320,0);
+    cp(ex.x+80,gy); heart(ex.x+250,gy-40); return ex; }
+  L.zoneX.push(0);
 
-  /* ===== ZONE 1 — Overgrown Ruins ===== */
-  zone();
-  var s=G(560); coinLine(s.x+200,gy-30,5,40); sign(s.x+90,gy,'MOVE ▶ / JUMP ⤒');
-  gap(120); s=G(320); spikes(s.x+120,gy,70); coinArc(s.x+70,gy-40,7,200,90);
-  s=G(280,-70); coinLine(s.x+60,gy-34,5,38);
-  s=G(420,0); walker(s.x+210,gy,s.x+40,s.x+380); coinLine(s.x+60,gy-34,6,52);
-  var px=cx; gap(90); P(cx,gy-50,110); coin(cx+55,gy-90); cx+=110+90; P(cx,gy-100,110); coin(cx+55,gy-140); cx+=110+90; P(cx,gy-50,110); coin(cx+55,gy-90); cx+=110+90;
-  s=G(480,0); cp(s.x+70,gy); spring(s.x+200,gy,50); P(s.x+300,gy-220,170); gem(s.x+385,gy-265); coinLine(s.x+316,gy-250,4,40); walker(s.x+420,gy,s.x+360,s.x+470);
-  sign(s.x+150,gy,'SPRING ⤴');
-  gap(70); for(var i=0;i<4;i++){ C(cx,gy+(i%2?-30:0),100); cx+=100+70; } cx-=70;
-  s=G(420,0); bat(s.x+210,gy-150,40,140); spikes(s.x+90,gy,50); spikes(s.x+280,gy,50); coinArc(s.x+40,gy-40,6,170,80); coinArc(s.x+240,gy-40,6,150,80);
-  s=G(300,-60); heart(s.x+150,gy-50);
-
-  /* ===== ZONE 2 — Sunken Halls ===== */
-  zone();
-  gap(150); s=G(300,0); turret(s.x+290,gy,-1,1.9); coinLine(s.x+30,gy-34,5,40); sign(s.x+10,gy,'DARTS! JUMP');
-  gap(140); s=G(220,-60); coin(s.x+100,gy-50);
-  M(cx+20,gy,110,cx+260,gy,90,0); coinLine(cx+60,gy-60,5,50,0); gap(380);
-  s=G(300,0); spikes(s.x+60,gy,60); walker(s.x+190,gy,s.x+130,s.x+280); pend(s.x+160,gy-340,270,1.0,1.7,0); coinLine(s.x+40,gy-34,6,44);
-  /* wall-jump shaft */
-  s=G(240,0); sign(s.x+120,gy,'WALL JUMP ↓'); var topY=gy;
-  gy+=250; var shaft=G(190,0); gy=topY; coinLine(shaft.x+50,gy+30,4,30,60); coin(shaft.x+95,gy+180); cx=shaft.x+shaft.w; gy=topY-0; var exit=G(320,0); /* exit ledge at original height */
-  cp(exit.x+80,gy); heart(exit.x+250,gy-40);
-  s=exit; turret(s.x+310,gy,-1,2.2,.6);
-  gap(240); sign(cx-120,gy-60,'DASH ▶▶'); s=G(260,0); walker(s.x+130,gy,s.x+40,s.x+220); coinArc(s.x+10,gy-50,5,230,60);
-  gap(110); P(cx,gy-60,100); cx+=100; gap(100); P(cx,gy-120,100); gem(cx+50,gy-165); cx+=100; gap(90); s=G(300,-70);
-  bat(s.x+150,gy-140,50,120); bat(s.x+260,gy-200,30,100,1.5); coinLine(s.x+30,gy-34,6,44);
-
-  /* ===== ZONE 3 — Molten Forge ===== */
-  zone();
-  gap(120); s=G(340,0); jet(s.x+120,gy,2.4,.9,0); jet(s.x+230,gy,2.4,.9,1.2); coinLine(s.x+40,gy-40,6,52);
-  gap(120); s=G(300,0); saw(s.x+20,gy-24,24,s.x+270,gy-24,1.8,0); coinArc(s.x+30,gy-80,6,240,60);
-  gap(130); M(cx,gy,110,cx,gy-110,70,0); M(cx+210,gy-110,110,cx+210,gy+20,70,1.5); gap(110+100+110+100);
-  s=G(380,-40); walker(s.x+200,gy,s.x+40,s.x+340); pend(s.x+110,gy-330,280,.9,1.9,0); pend(s.x+280,gy-330,280,.9,1.9,2.2); turret(s.x+360,gy,-1,2.0,.2); coinLine(s.x+30,gy-34,7,46); crystal(s.x+190,gy-60);
-  gap(130); for(i=0;i<5;i++){ C(cx,gy-i*0-(i%2?40:0),90); cx+=90+60; } cx-=60;
-  s=G(240,0); cp(s.x+60,gy); heart(s.x+170,gy-40);
-  gap(250); sign(cx-130,gy-70,'DASH ▶▶'); s=G(280,0); saw(s.x+140,gy-200,24,s.x+140,gy-30,1.5,0); coinArc(s.x+10,gy-60,5,250,70);
-  gap(100); s=G(560,0); jet(s.x+110,gy,2.2,.8,0); jet(s.x+220,gy,2.2,.8,.8); jet(s.x+330,gy,2.2,.8,1.6); jet(s.x+440,gy,2.2,.8,.4); coinLine(s.x+60,gy-120,9,50);
-
-  /* ===== ZONE 4 — Sky Sanctum ===== */
-  zone();
-  gap(110); s=G(220,0); cp(s.x+50,gy); coinLine(s.x+110,gy-34,3,40);
-  M(cx+40,gy,110,cx+300,gy-40,90,0); gap(430);
-  s=G(180,-40); cp(s.x+140,gy); spring(s.x+60,gy,50); P(s.x+170,gy-220,160); coinLine(s.x+190,gy-260,3,44); gem(s.x+250,gy-265);
-  P(s.x+400,gy-220,120); bat(s.x+330,gy-340,40,180);
-  /* sky climb */
-  var cy2=gy-220; var cxx=s.x+520; M(cxx+60,cy2,110,cxx+60,cy2-170,80,0); M(cxx+260,cy2-170,110,cxx+260,cy2-340,80,1.6);
-  C(cxx+470,cy2-340,100); C(cxx+630,cy2-340,100); C(cxx+790,cy2-340,100); bat(cxx+560,cy2-440,40,160,1);
-  var fx=cxx+940; var fy=cy2-340; cx=fx; gy=fy; s=G(260,0); s.h=H-gy; cp(s.x+60,gy);
-  gap(120); M(cx,gy,110,cx+140,gy,70,0); gap(300); s=G(240,0); spikes(s.x+60,gy,50); walker(s.x+170,gy,s.x+110,s.x+220);
-  gap(150); C(cx,gy,100); cx+=170; C(cx,gy-20,100); cx+=170; C(cx,gy,100); cx+=170;
-  s=G(560,0); heart(s.x+100,gy-40); coinLine(s.x+60,gy-34,8,46); L.relic={x:s.x+470,y:gy}; L.end=s.x+s.w;
-  /* the world must be tall enough for the sky climb */
+  if(idx===0){ /* ===== LEVEL 1 — Overgrown Ruins: gentle intro ===== */
+    s=G(560); coinLine(s.x+200,gy-30,5,40); sign(s.x+90,gy,'MOVE ▶ / JUMP ⤒');
+    gap(120); s=G(320); spikes(s.x+120,gy,70); coinArc(s.x+70,gy-40,7,200,90);
+    s=G(280,-70); coinLine(s.x+60,gy-34,5,38);
+    s=G(420,0); walker(s.x+210,gy,s.x+40,s.x+380); coinLine(s.x+60,gy-34,6,52);
+    gap(90); P(cx,gy-50,110); coin(cx+55,gy-90); cx+=110+90; P(cx,gy-100,110); coin(cx+55,gy-140); cx+=110+90; P(cx,gy-50,110); coin(cx+55,gy-90); cx+=110+90;
+    s=G(480,0); cp(s.x+70,gy); spring(s.x+200,gy,50); P(s.x+300,gy-220,170); gem(s.x+385,gy-265); coinLine(s.x+316,gy-250,4,40); walker(s.x+420,gy,s.x+360,s.x+470);
+    sign(s.x+150,gy,'SPRING ⤴');
+    gap(70); for(i=0;i<4;i++){ C(cx,gy+(i%2?-30:0),100); cx+=100+70; } cx-=70;
+    s=G(420,0); bat(s.x+210,gy-150,40,140); spikes(s.x+90,gy,50); spikes(s.x+280,gy,50); coinArc(s.x+40,gy-40,6,170,80); coinArc(s.x+240,gy-40,6,150,80);
+    s=G(300,-60); heart(s.x+150,gy-50);
+    finish(380);
+  } else if(idx===1){ /* ===== LEVEL 2 — Sunken Halls: darts, movers, first wall-jump ===== */
+    s=G(260,0); sign(s.x+90,gy,'DASH ▶▶ (Shift)'); cp(s.x+200,gy);
+    gap(150); s=G(300,0); turret(s.x+290,gy,-1,1.9); coinLine(s.x+30,gy-34,5,40); sign(s.x+10,gy,'DARTS! JUMP');
+    gap(140); s=G(220,-60); coin(s.x+100,gy-50);
+    M(cx+20,gy,110,cx+260,gy,90,0); coinLine(cx+60,gy-60,5,50,0); gap(380);
+    s=G(300,0); spikes(s.x+60,gy,60); walker(s.x+190,gy,s.x+130,s.x+280); pend(s.x+160,gy-340,270,1.0,1.7,0); coinLine(s.x+40,gy-34,6,44);
+    var ex=shaft(); turret(ex.x+310,gy,-1,2.2,.6);
+    gap(240); sign(cx-120,gy-60,'DASH ▶▶'); s=G(260,0); walker(s.x+130,gy,s.x+40,s.x+220); coinArc(s.x+10,gy-50,5,230,60);
+    gap(110); P(cx,gy-60,100); cx+=100; gap(100); P(cx,gy-120,100); gem(cx+50,gy-165); cx+=100; gap(90); s=G(300,-70);
+    bat(s.x+150,gy-140,50,120); bat(s.x+260,gy-200,30,100,1.5); coinLine(s.x+30,gy-34,6,44);
+    finish(380);
+  } else if(idx===2){ /* ===== LEVEL 3 — Molten Forge: fire jets, saws, crushers ===== */
+    s=G(260,0); sign(s.x+90,gy,'FIRE! WATCH THE FLAMES'); coinLine(s.x+130,gy-34,3,40);
+    s=G(340,0); jet(s.x+120,gy,2.4,.9,0); jet(s.x+230,gy,2.4,.9,1.2); coinLine(s.x+40,gy-40,6,52);
+    gap(120); s=G(300,0); saw(s.x+20,gy-24,24,s.x+270,gy-24,1.8,0); coinArc(s.x+30,gy-80,6,240,60);
+    gap(130); M(cx,gy,110,cx,gy-110,70,0); M(cx+210,gy-110,110,cx+210,gy+20,70,1.5); gap(110+100+110+100);
+    s=G(380,-40); walker(s.x+200,gy,s.x+40,s.x+340); pend(s.x+110,gy-330,280,.9,1.9,0); pend(s.x+280,gy-330,280,.9,1.9,2.2); turret(s.x+360,gy,-1,2.0,.2); coinLine(s.x+30,gy-34,7,46); crystal(s.x+190,gy-60);
+    gap(130); for(i=0;i<5;i++){ C(cx,gy-(i%2?40:0),90); cx+=90+60; } cx-=60;
+    s=G(240,0); cp(s.x+60,gy); heart(s.x+170,gy-40);
+    gap(250); sign(cx-130,gy-70,'DASH ▶▶'); s=G(280,0); saw(s.x+140,gy-200,24,s.x+140,gy-30,1.5,0); coinArc(s.x+10,gy-60,5,250,70);
+    gap(100); s=G(560,0); jet(s.x+110,gy,2.2,.8,0); jet(s.x+220,gy,2.2,.8,.8); jet(s.x+330,gy,2.2,.8,1.6); jet(s.x+440,gy,2.2,.8,.4); coinLine(s.x+60,gy-120,9,50);
+    finish(380);
+  } else if(idx===3){ /* ===== LEVEL 4 — Sky Sanctum: movers, springs and a vertical climb ===== */
+    s=G(220,0); cp(s.x+50,gy); coinLine(s.x+110,gy-34,3,40);
+    M(cx+40,gy,110,cx+300,gy-40,90,0); gap(430);
+    s=G(180,-40); cp(s.x+140,gy); spring(s.x+60,gy,50); P(s.x+170,gy-220,160); coinLine(s.x+190,gy-260,3,44); gem(s.x+250,gy-265);
+    P(s.x+400,gy-220,120); bat(s.x+330,gy-340,40,180);
+    var cy2=gy-220, cxx=s.x+520; M(cxx+60,cy2,110,cxx+60,cy2-170,80,0); M(cxx+260,cy2-170,110,cxx+260,cy2-340,80,1.6);
+    C(cxx+470,cy2-340,100); C(cxx+630,cy2-340,100); C(cxx+790,cy2-340,100); bat(cxx+560,cy2-440,40,160,1);
+    var fx=cxx+940, fy=cy2-340; cx=fx; gy=fy; s=G(260,0); s.h=H-gy; cp(s.x+60,gy);
+    gap(120); M(cx,gy,110,cx+140,gy,70,0); gap(300); s=G(240,0); spikes(s.x+60,gy,50); walker(s.x+170,gy,s.x+110,s.x+220);
+    gap(150); C(cx,gy,100); cx+=170; C(cx,gy-20,100); cx+=170; C(cx,gy,100); cx+=170;
+    s=G(560,0); heart(s.x+100,gy-40); coinLine(s.x+60,gy-34,8,46); L.relic={x:s.x+470,y:gy}; L.end=s.x+s.w;
+  } else if(idx===4){ /* ===== LEVEL 5 — Flooded Gauntlet: everything at once ===== */
+    s=G(300,0); sign(s.x+120,gy,'THE GAUNTLET'); coinLine(s.x+150,gy-34,4,40);
+    gap(130); s=G(300,-40); turret(s.x+290,gy,-1,1.7); spikes(s.x+110,gy,60); coinArc(s.x+30,gy-40,6,200,80);
+    gap(140); for(i=0;i<5;i++){ C(cx,gy-(i%2?40:0),90); cx+=150; } cx-=60;
+    s=G(260,0); cp(s.x+60,gy); heart(s.x+190,gy-40);
+    gap(130); s=G(320,0); saw(s.x+20,gy-24,24,s.x+290,gy-24,2.0,0); coinArc(s.x+30,gy-80,6,260,60);
+    gap(100); M(cx+20,gy,110,cx+260,gy,90,0); coinLine(cx+60,gy-60,5,50,0); gap(380);
+    s=G(360,-30); pend(s.x+110,gy-330,280,.9,1.9,0); pend(s.x+270,gy-330,280,.9,1.9,2.2); turret(s.x+350,gy,-1,2.0,.2); crystal(s.x+190,gy-60); coinLine(s.x+30,gy-34,7,46);
+    var ex5=shaft(); turret(ex5.x+310,gy,-1,2.0,.4);
+    gap(240); s=G(280,0); walker(s.x+140,gy,s.x+40,s.x+240); bat(s.x+200,gy-170,40,80,1); coinArc(s.x+10,gy-50,5,250,60);
+    gap(110); P(cx,gy-60,100); cx+=100; gap(100); P(cx,gy-120,100); gem(cx+50,gy-165); cx+=100; gap(90); s=G(300,-70);
+    bat(s.x+150,gy-140,50,120); bat(s.x+260,gy-200,30,100,1.5); cp(s.x+40,gy); coinLine(s.x+30,gy-34,6,44);
+    finish(380);
+  } else { /* ===== LEVEL 6 — The Ancients' Vault: the final gauntlet ===== */
+    s=G(260,0); cp(s.x+50,gy); sign(s.x+110,gy,'FINAL TRIAL'); coinLine(s.x+130,gy-34,3,40);
+    s=G(340,0); jet(s.x+120,gy,2.2,.85,0); jet(s.x+230,gy,2.2,.85,1.1); coinLine(s.x+40,gy-40,6,52);
+    gap(120); s=G(300,0); saw(s.x+20,gy-24,24,s.x+270,gy-24,2.0,0); walker(s.x+150,gy,s.x+90,s.x+240); coinArc(s.x+30,gy-80,6,240,60);
+    gap(130); M(cx,gy,110,cx,gy-110,70,0); M(cx+210,gy-110,110,cx+210,gy+20,70,1.5); gap(110+100+110+100);
+    s=G(380,-40); walker(s.x+200,gy,s.x+40,s.x+340); pend(s.x+110,gy-330,280,.9,2.0,0); pend(s.x+280,gy-330,280,.9,2.0,2.2); turret(s.x+360,gy,-1,1.8,.2); coinLine(s.x+30,gy-34,7,46); crystal(s.x+190,gy-60);
+    gap(130); for(i=0;i<5;i++){ C(cx,gy-(i%2?40:0),90); cx+=90+60; } cx-=60;
+    s=G(240,0); cp(s.x+60,gy); heart(s.x+170,gy-40);
+    gap(250); s=G(280,0); saw(s.x+140,gy-200,24,s.x+140,gy-30,1.6,0); coinArc(s.x+10,gy-60,5,250,70);
+    gap(100); s=G(560,0); jet(s.x+110,gy,2.1,.8,0); jet(s.x+220,gy,2.1,.8,.8); jet(s.x+330,gy,2.1,.8,1.6); jet(s.x+440,gy,2.1,.8,.4); coinLine(s.x+60,gy-120,9,50);
+    s=G(480,0); cp(s.x+70,gy); spring(s.x+200,gy,50); P(s.x+300,gy-220,170); gem(s.x+385,gy-265); coinLine(s.x+316,gy-250,4,40); walker(s.x+420,gy,s.x+360,s.x+470);
+    gap(70); for(i=0;i<4;i++){ C(cx,gy+(i%2?-30:0),100); cx+=100+70; } cx-=70;
+    s=G(420,0); bat(s.x+210,gy-150,40,140); spikes(s.x+90,gy,50); spikes(s.x+280,gy,50); coinArc(s.x+40,gy-40,6,170,80); coinArc(s.x+240,gy-40,6,150,80);
+    s=G(240,-40); cp(s.x+60,gy); heart(s.x+170,gy-40);
+    gap(250); s=G(260,0); bat(s.x+130,gy-170,40,90); coinArc(s.x+10,gy-60,5,230,70);
+    finish(520);
+  }
   L.coinsTotal=L.coins.length+L.gems.length*5;
+  /* base clock scales with length; later levels are a bit tighter */
+  L.base=clamp(Math.round(L.end/290*(2.9-.14*idx))+34+BONUST[idx],72,190);
   return L;
 }
 
 /* ------------------------------ game state ------------------------------ */
+function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
+function resetPlayer(g){
+  var L=g.L, sp=L.solids[0], p=g.p;
+  p.x=90; p.y=sp.y; p.vx=p.vy=0; p.face=1; p.ground=null; p.coy=0; p.jbuf=0; p.jcut=false; p.dashT=0; p.dashCd=0; p.airDash=false; p.inv=0; p.wall=0; p.wlock=0; p.hist=[]; p.hT=0; p.spawn={x:90,y:sp.y};
+  g.cam.x=0; g.cam.y=clamp(sp.y-(g.vh||620)*.62,-420,H-(g.vh||620)+60); g.darts=[]; g.parts=[]; g.texts=[]; g.ghosts=[]; g.freeze=0; g.zone=-1; g.keys={}; g.btn={};
+}
+function loadLevel(g,idx){
+  g.L=buildLevel(idx); g.lvl=idx; g.time=0; g.limit=g.L.base; g.timeouts=0; g.coinBase=g.coins; resetPlayer(g);
+}
 window.arcadeTrialStart=function(){
   clearGameTimers();
-  var s=arcadeCharacterStats(), L=buildLevel(), sp=L.solids[0];
+  var s=arcadeCharacterStats(), L=buildLevel(0), sp=L.solids[0];
   var maxH=3+Math.floor((s.vitality||3)/3);
-  var g={L:L,phase:'ready',t:0,time:0,limit:260,hearts:maxH,maxH:maxH,coins:0,gems:0,score:0,kills:0,deaths:0,
+  var g={L:L,lvl:0,phase:'ready',t:0,time:0,limit:L.base,hearts:maxH,maxH:maxH,coins:0,coinsAll:0,gems:0,score:0,kills:0,deaths:0,runTime:0,leftSum:0,limSum:0,qTotal:0,qCorrect:0,timeouts:0,
     run:290*(.92+.04*(s.speed||2)),
     p:{x:90,y:sp.y,vx:0,vy:0,face:1,ground:null,coy:0,jbuf:0,jcut:false,dashT:0,dashCd:0,airDash:false,inv:0,wall:0,wlock:0,sq:1,sqv:0,anim:0,hist:[],hT:0,wasG:true,spawn:{x:90,y:sp.y}},
-    cam:{x:0,y:600},keys:{},btn:{},darts:[],parts:[],texts:[],ghosts:[],shake:0,flash:0,banner:'',bannerT:0,zone:-1,s:s,freeze:0,dead:false,mouse:0};
+    cam:{x:0,y:600},keys:{},btn:{},darts:[],parts:[],texts:[],ghosts:[],shake:0,flash:0,banner:'',bannerT:0,zone:-1,s:s,freeze:0,dead:false,mouse:0,vw:1000,vh:620};
   state.games={active:'trial',keys:{},tr:g};
 };
 window.arcadeTrialFinish=function(){ var g=state.games&&state.games.tr; if(g&&g.phase!=='over'&&g.phase!=='win') end(g,false,'quit'); };
@@ -152,7 +193,7 @@ window.arcadeTrialLoop=function(){}; window.arcadeTrialJump=function(){}; window
 window.arcadeTrialHtml=function(){
   var g=state.games.tr; if(!g) return ''; setTimeout(mount,0);
   var tp=arcadeGameProgress().trial||{};
-  var stats='<span class="arcade-pill">🏆 Best <b>'+(tp.best||0)+'</b></span><span class="arcade-pill">⏱ Best time <b>'+(tp.bestTime?tp.bestTime+'s':'—')+'</b></span><span class="arcade-pill">⭐ Stars <b>'+(tp.stars||0)+'/3</b></span>';
+  var stats='<span class="arcade-pill">🏆 Best <b>'+(tp.best||0)+'</b></span><span class="arcade-pill">⏱ Best run <b>'+(tp.bestRun?tp.bestRun+'s':'—')+'</b></span><span class="arcade-pill">⭐ Stars <b>'+(tp.stars||0)+'/3</b></span>';
   return arcadeFrame('Trial of the Ancients','A/D or arrows run · W/Space jump (hold = higher) · Shift dash · slide on walls and jump off · F fullscreen',stats,
     '<div class="gx-wrap" id="tr-wrap"><canvas id="tr-canvas" width="1000" height="560"></canvas><div class="gx-ov" id="tr-ov"></div>'+
     '<div class="gx-tools"><button class="gx-mute" id="tr-mute" type="button" aria-label="Toggle sound">'+(muted()?'🔇':'🔊')+'</button><button class="gx-mute" id="tr-fs" type="button" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button></div>'+
@@ -188,13 +229,14 @@ function wire(g){
     var t=e.target.closest?e.target:null; if(!t) return;
     if(t.closest('[data-tr-start]')){ begin(g); return; }
     if(t.closest('[data-tr-resume]')){ togglePause(g); return; }
+    if(t.closest('[data-tr-next]')){ nextLevel(g); return; }
     if(t.closest('#tr-fs,[data-tr-fs]')){ toggleFS(g); return; }
     if(t.closest('#tr-mute')){ try{ localStorage.setItem('gx-mute',muted()?'0':'1'); }catch(er){} $('tr-mute').textContent=muted()?'🔇':'🔊'; }
   });
   if(window.ResizeObserver){ new ResizeObserver(function(){ fit(g); }).observe(wrap); }
   wrap.querySelectorAll('[data-tr]').forEach(function(b){
     var a=b.getAttribute('data-tr');
-    b.addEventListener('pointerdown',function(e){ e.preventDefault(); if(g.phase==='ready') begin(g); if(a==='dash') dash(g); else if(a==='jump'){ g.btn.jump=true; g.p.jbuf=.13; } else g.btn[a]=true; });
+    b.addEventListener('pointerdown',function(e){ e.preventDefault(); if(g.phase==='ready'){ begin(g); return; } if(a==='dash') dash(g); else if(a==='jump'){ g.btn.jump=true; g.p.jbuf=.13; } else g.btn[a]=true; });
     var up=function(){ if(a==='jump'){ g.btn.jump=false; } else if(a!=='dash') g.btn[a]=false; };
     b.addEventListener('pointerup',up); b.addEventListener('pointercancel',up); b.addEventListener('pointerleave',up);
   });
@@ -206,7 +248,8 @@ function keyDown(e){
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].indexOf(k)>=0) e.preventDefault();
   if(k==='f'){ toggleFS(g); return; }
   if(k==='p'||k==='escape'){ togglePause(g); return; }
-  if(g.phase==='ready'&&(k===' '||k==='enter'||k==='arrowright'||k==='d')){ begin(g); }
+  if(g.phase==='ready'&&(k===' '||k==='enter'||k==='arrowright'||k==='d')){ begin(g); return; }
+  if(g.phase==='clear'){ if(k===' '||k==='enter') nextLevel(g); return; }
   if(e.repeat) return; g.keys[k]=true;
   if(k===' '||k==='w'||k==='arrowup'||k==='z') g.p.jbuf=.13;
   if(k==='shift'||k==='x') dash(g);
@@ -214,7 +257,27 @@ function keyDown(e){
 function keyUp(e){ var gm=state.games; if(!gm||!gm.tr) return; gm.tr.keys[e.key.toLowerCase()]=false; }
 document.addEventListener('keydown',keyDown,true); document.addEventListener('keyup',keyUp,true);
 window.addEventListener('blur',function(){ var g=state.games&&state.games.tr; if(g&&g.phase==='play') togglePause(g); });
-function begin(g){ if(g.phase!=='ready') return; g.phase='play'; g.last=performance.now(); overlay(g); banner(g,'ZONE 1 — '+ZONES[0].n); }
+function begin(g){ if(g.phase!=='ready') return; startLevel(g); }
+function startLevel(g){
+  var n=g.lvl+1; g.phase='gate'; g.keys={}; g.btn={}; overlay(g); var lv=g.lvl;
+  gate({title:'Level '+n+' of '+NLV+' - '+LEVEL_NAMES[lv],sub:'Each correct answer gives +1 heart and +10 seconds on this level\'s clock',count:GATEQ,label:'Level '+n}).then(function(r){
+    if(!state.games||state.games.tr!==g||g.phase!=='gate'||g.lvl!==lv) return;
+    r=r||{}; var c=r.correct||0, t=r.total||0;
+    g.qTotal+=t; g.qCorrect+=c; g.limit=g.L.base+10*c; g.hearts=Math.min(g.maxH,g.hearts+c); g.keys={}; g.btn={};
+    g.phase='play'; g.last=performance.now(); overlay(g);
+    banner(g,'LEVEL '+n+' - '+LEVEL_NAMES[lv]); if(t) floatText(g,g.p.x,g.p.y-90,c+'/'+t+' correct: +'+(10*c)+'s'+(c?', +'+c+' ❤':''),c?'#7cf0a0':'#ffb0b0'); if(g.texts.length) g.texts[g.texts.length-1].l=3;
+  });
+}
+function levelClear(g){
+  if(g.phase!=='play') return;
+  var left=Math.max(0,g.limit-g.time), cn=g.L.coinsTotal;
+  var bonus=Math.round(left)*5+g.hearts*60+(g.lvl+1)*100;
+  g.score+=bonus; g.runTime+=g.time; g.leftSum+=left; g.limSum+=g.limit; g.coinsAll+=cn; g.lastBonus=bonus; g.lastLeft=Math.round(left);
+  sfx('win'); try{ celebrate(); }catch(e){}
+  if(g.lvl>=NLV-1){ end(g,true); return; }
+  g.phase='clear'; g.keys={}; g.btn={}; overlay(g);
+}
+function nextLevel(g){ if(g.phase!=='clear') return; loadLevel(g,g.lvl+1); startLevel(g); }
 function togglePause(g){ if(g.phase==='play'){ g.phase='pause'; overlay(g); } else if(g.phase==='pause'){ g.phase='play'; g.last=performance.now(); overlay(g); } }
 function banner(g,t){ g.banner=t; g.bannerT=2.6; }
 
@@ -223,23 +286,27 @@ function overlay(g){
   var o=g.ov; if(!o) return; var h='';
   if(g.phase==='ready'){
     var tp=arcadeGameProgress().trial||{};
-    h='<div class="gx-card"><h2>🏃 Trial of the Ancients</h2><p>Cross four ancient zones, dodge traps, stomp guardians and claim the relic before time runs out.</p><ul class="gx-keys"><li><kbd>A/D</kbd> or <kbd>←/→</kbd> run</li><li><kbd>W</kbd> / <kbd>Space</kbd> jump — hold for height</li><li><kbd>Shift</kbd> dash (also crosses wide gaps)</li><li>Slide on walls, then jump to leap off them</li><li>Stomp enemies · collect 🪙 and 💎 · ⏳ adds time · altars are checkpoints</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">'+g.maxH+' hearts (Vitality) · run speed (Speed '+g.s.speed.toFixed(1)+') · '+g.limit+'s on the clock'+(tp.bestTime?' · best '+tp.bestTime+'s':'')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-start>Start trial</button><button class="btn btn-ghost" data-tr-fs type="button">⛶ Fullscreen</button></div></div>';
+    h='<div class="gx-card"><h2>🏃 Trial of the Ancients</h2><p>Fight through <b>six ancient levels</b>, each harder than the last, and claim the relic at the end of each before its clock runs out. Before every level you answer <b>3 study questions</b> on <i>'+(window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic').replace(/[<>&]/g,''):'your topic')+'</i>: every right answer gives <b>+1 heart</b> and <b>+10 seconds</b>.</p><ul class="gx-keys"><li><kbd>A/D</kbd> or <kbd>←/→</kbd> run</li><li><kbd>W</kbd> / <kbd>Space</kbd> jump — hold for height</li><li><kbd>Shift</kbd> dash (also crosses wide gaps)</li><li>Slide on walls, then jump to leap off them</li><li>Stomp enemies · collect 🪙 and 💎 · ⏳ adds time · altars are checkpoints · running out of time costs a heart</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">'+g.maxH+' hearts (Vitality) · run speed (Speed '+g.s.speed.toFixed(1)+') · each level has its own clock'+(tp.bestRun?' · best full run '+tp.bestRun+'s':'')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-start>Start trial</button><button class="btn btn-ghost" data-tr-fs type="button">⛶ Fullscreen</button></div></div>';
   } else if(g.phase==='pause'){
     h='<div class="gx-card"><h2>⏸ Paused</h2><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-resume>Resume</button><button class="btn btn-ghost" data-tr-fs type="button">⛶ Fullscreen</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+  } else if(g.phase==='clear'){
+    h='<div class="gx-card"><h2>🏺 Level '+(g.lvl+1)+' complete!</h2><p>Relic claimed in <b>'+LEVEL_NAMES[g.lvl]+'</b>. '+g.lastLeft+'s left on the clock.</p><div class="gx-res"><div><b>+'+g.lastBonus+'</b><span>Level bonus</span></div><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.hearts+'/'+g.maxH+'</b><span>Hearts</span></div></div><p class="gx-fine">Next: Level '+(g.lvl+2)+' of '+NLV+' - '+LEVEL_NAMES[g.lvl+1]+'. Study questions first.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-next>Next level <span class="gx-fine">(Space)</span></button></div></div>';
   } else if(g.phase==='win'||g.phase==='over'){
     var tp2=arcadeGameProgress().trial||{}, st=''; for(var i=0;i<3;i++) st+=(i<g.stars?'★':'☆');
-    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Relic claimed!':(g.why==='hearts'?'💀 Out of hearts':'⌛ Time expired'))+'</h2>'+(g.phase==='win'?'<div style="font-size:42px;color:#ffd24a;letter-spacing:6px">'+st+'</div>':'')+'<div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+Math.round(g.time)+'s</b><span>Time</span></div><div><b>'+g.coins+'/'+g.L.coinsTotal+'</b><span>Coins</span></div><div><b>'+g.kills+'</b><span>Stomps</span></div></div>'+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(tp2.best||0)+'</p>')+'<p class="gx-fine">Reached '+ZONES[Math.max(0,g.zone)].n+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-trial-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Trial conquered!':'💀 Out of hearts')+'</h2>'+(g.phase==='win'?'<div style="font-size:42px;color:#ffd24a;letter-spacing:6px">'+st+'</div>':'')+'<div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+(g.phase==='win'?g.lvl+1:g.lvl)+'/'+NLV+'</b><span>Levels</span></div><div><b>'+g.coins+'</b><span>Coins</span></div><div><b>'+g.kills+'</b><span>Stomps</span></div></div>'+(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(tp2.best||0)+'</p>')+'<p class="gx-fine">Reached level '+(g.lvl+1)+': '+LEVEL_NAMES[g.lvl]+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-trial-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   }
   o.innerHTML=h; o.style.display=h?'flex':'none';
 }
 function end(g,win,why){
   if(g.phase==='win'||g.phase==='over') return; g.phase=win?'win':'over'; g.why=why;
-  if(win){ g.score+=Math.round(Math.max(0,g.limit-g.time))*5+g.hearts*100; var left=g.limit-g.time; g.stars=1+(left>=90?1:0)+(g.coins>=g.L.coinsTotal*.75?1:0); sfx('win'); try{ celebrate(); }catch(e){} }
+  if(!win){ g.runTime+=g.time; g.limSum+=g.limit; g.leftSum+=Math.max(0,g.limit-g.time); g.coinsAll+=g.L.coinsTotal; }
+  if(win){ g.stars=1+(g.limSum&&g.leftSum/g.limSum>=.3?1:0)+(g.coins>=g.coinsAll*.75?1:0); g.score+=g.qCorrect*50; }
   var gp=arcadeGameProgress(); gp.trial=gp.trial||{best:0};
   g.newBest=g.score>(Number(gp.trial.best)||0);
   gp.trial.best=Math.max(Number(gp.trial.best)||0,g.score);
-  if(win){ gp.trial.bestTime=gp.trial.bestTime?Math.min(Number(gp.trial.bestTime),Math.round(g.time)):Math.round(g.time); gp.trial.stars=Math.max(Number(gp.trial.stars)||0,g.stars); gp.trial.wins=(Number(gp.trial.wins)||0)+1; }
-  gp.trial.runs=(Number(gp.trial.runs)||0)+1; gp.trial.coins=(Number(gp.trial.coins)||0)+g.coins; gp.trial.bestZone=Math.max(Number(gp.trial.bestZone)||0,g.zone+1);
+  if(win){ var rt=Math.round(g.runTime); gp.trial.bestRun=gp.trial.bestRun?Math.min(Number(gp.trial.bestRun),rt):rt; gp.trial.stars=Math.max(Number(gp.trial.stars)||0,g.stars); gp.trial.wins=(Number(gp.trial.wins)||0)+1; }
+  gp.trial.runs=(Number(gp.trial.runs)||0)+1; gp.trial.coins=(Number(gp.trial.coins)||0)+g.coins; gp.trial.bestZone=Math.max(Number(gp.trial.bestZone)||0,g.lvl+1); gp.trial.bestLevel=Math.max(Number(gp.trial.bestLevel)||0,win?NLV:g.lvl+1);
+  gp.trial.studyAsked=(Number(gp.trial.studyAsked)||0)+g.qTotal; gp.trial.studyCorrect=(Number(gp.trial.studyCorrect)||0)+g.qCorrect;
   try{ persistProgress(); }catch(e){}
   setTimeout(function(){ if(state.games&&state.games.tr===g) overlay(g); },win?900:600);
 }
@@ -265,7 +332,7 @@ function hurt(g,src){
 }
 function step(g,dt){
   var L=g.L, p=g.p; g.t+=dt; g.time+=dt;
-  if(g.time>=g.limit){ g.time=g.limit; end(g,false,'time'); return; }
+  if(g.time>=g.limit){ p.inv=0; p.dashT=0; g.timeouts++; hurt(g,'time'); if(g.phase!=='play') return; g.limit=g.time+25; banner(g,'TIME UP: -1 heart, +25s'); return; }
   if(g.freeze>0){ g.freeze-=dt; return; }
   if(g.bannerT>0) g.bannerT-=dt; if(g.shake>0) g.shake-=dt; if(g.flash>0) g.flash-=dt;
   if(Math.floor(g.limit-g.time)<=10&&Math.floor(g.limit-g.time)!==g._tk){ g._tk=Math.floor(g.limit-g.time); sfx('tick'); }
@@ -350,9 +417,9 @@ function step(g,dt){
   L.cps.forEach(function(c){ if(!c.on&&Math.abs(p.x-c.x)<40&&Math.abs(p.y-c.y)<80){ c.on=true; p.spawn={x:c.x,y:c.y}; p.hist=[{x:c.x,y:c.y}]; g.score+=100; if(g.hearts<g.maxH) g.hearts++; sfx('cp'); spawnParts(g,c.x,c.y-50,18,'#6ae8ff',200); banner(g,'✦ CHECKPOINT ✦'); floatText(g,c.x,c.y-110,'+100','#6ae8ff'); } });
   /* zone */
   var zi=0; for(i=0;i<L.zoneX.length;i++) if(p.x>=L.zoneX[i]) zi=i;
-  if(zi!==g.zone){ if(g.zone>=0) banner(g,'ZONE '+(zi+1)+' — '+ZONES[zi].n); g.zone=zi; }
+  if(zi!==g.zone){ g.zone=zi; }
   /* relic */
-  var r=L.relic; if(r&&Math.abs(p.x-r.x)<40&&Math.abs(p.y-r.y)<90){ end(g,true); }
+  var r=L.relic; if(r&&Math.abs(p.x-r.x)<40&&Math.abs(p.y-r.y)<90){ levelClear(g); return; }
   /* camera */
   var tx=p.x-g.vw*(.4)+p.face*60, ty=p.y-g.vh*.62; var kx=1-Math.pow(.0009,dt), ky=1-Math.pow(.004,dt);
   g.cam.x+=(tx-g.cam.x)*kx; g.cam.y+=(ty-g.cam.y)*ky; g.cam.x=clamp(g.cam.x,0,Math.max(0,L.end+120-g.vw)); g.cam.y=clamp(g.cam.y,-420,H-g.vh+60);
@@ -373,7 +440,7 @@ function zoneBlend(g,x){
   var zx=g.L.zoneX, i=0; for(var k=0;k<zx.length;k++) if(x>=zx[k]) i=k;
   var nxt=zx[i+1], zi=i, zj=i, t=0, B=420;
   if(nxt!=null&&x>nxt-B){ zj=i+1; t=(x-(nxt-B))/B*.5; } else if(i>0&&x<zx[i]+B){ zj=i-1; t=.5-(x-zx[i])/B*.5; }
-  return {a:ZONES[zi],b:ZONES[zj],t:clamp(t,0,.5),i:zi};
+  var th=g.L.th; zi=th[zi]||0; zj=th[zj]||0; return {a:ZONES[zi],b:ZONES[zj],t:clamp(t,0,.5),i:zi};
 }
 function bc(zb,key){ return mix(zb.a[key],zb.b[key],zb.t); }
 function stonePat(g,c,zi){
@@ -499,7 +566,7 @@ function hud(g,c){
   var s=''; for(var i=0;i<g.maxH;i++) s+=i<g.hearts?'❤️':'🖤'; T(s,14,32*sc,22);
   var left=Math.max(0,g.limit-g.time), mm=Math.floor(left/60), ss=Math.floor(left%60);
   T('⏱ '+mm+':'+(ss<10?'0':'')+ss,vw/2,32*sc,26,left<20?(Math.floor(g.t*4)%2?'#ff5a5a':'#fff'):'#fff','center');
-  T('🪙 '+g.coins+'   ⭐ '+g.score,vw-104*sc,32*sc,20,'#ffe08a','right');
+  T('🪙 '+g.coins+'   ⭐ '+g.score,vw-104*sc,32*sc,20,'#ffe08a','right'); T('LEVEL '+(g.lvl+1)+' / '+NLV,vw-104*sc,56*sc,13,'#fff','right');
   /* progress bar */
   var bw=Math.min(420,vw*.45), bx=vw/2-bw/2, by=46*sc; c.fillStyle='rgba(0,0,0,.45)'; c.fillRect(bx,by,bw,7*sc); var pr=clamp(g.p.x/L.end,0,1); c.fillStyle='#ffd24a'; c.fillRect(bx,by,bw*pr,7*sc);
   L.zoneX.forEach(function(zx){ c.fillStyle='rgba(255,255,255,.6)'; c.fillRect(bx+bw*zx/L.end-1,by-2,2,11*sc); }); L.cps.forEach(function(k){ c.fillStyle=k.on?'#6ae8ff':'#888'; c.fillRect(bx+bw*k.x/L.end-2,by-4,4,15*sc); });
@@ -508,4 +575,5 @@ function hud(g,c){
   var p=g.p, dr=clamp(1-p.dashCd/DASHCD,0,1); c.fillStyle='rgba(0,0,0,.45)'; c.fillRect(14,46*sc,70*sc,8*sc); c.fillStyle=dr>=1?'#7ad4ff':'#4a6a8a'; c.fillRect(14,46*sc,70*sc*dr,8*sc); T('DASH',14,70*sc,11,dr>=1?'#7ad4ff':'#889',null);
   if(g.bannerT>0){ var al=clamp(Math.min(g.bannerT,2.6-g.bannerT)*3,0,1); c.globalAlpha=al; T(g.banner,vw/2,vh*.3,38,'#fff','center'); c.globalAlpha=1; }
 }
+try{ (ARCADE_MODES.filter(function(m){return m.id==='trial';})[0]||{}).desc='A six-level platformer: every level has harder traps, its own clock and a relic at the end. Pick a study topic, then answer 3 AI questions before each level: right answers give hearts and extra seconds.'; }catch(e){}
 })();

@@ -2,7 +2,7 @@
    Overrides the arcade Gauntlet hooks from the main script. Saves best run into gameProgress.gauntlet. */
 (function(){
 'use strict';
-var WW=2400, WH=1500, TAU=Math.PI*2, CX=WW/2, CY=WH/2;
+var TOTAL=12, WW=2400, WH=1500, TAU=Math.PI*2, CX=WW/2, CY=WH/2;
 var rnd=function(a,b){ return a+Math.random()*(b-a); }, clamp=function(n,a,b){ return Math.max(a,Math.min(b,n)); };
 var dist=function(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); };
 function $(id){ return document.getElementById(id); }
@@ -39,12 +39,14 @@ var EN={
   king:{e:'👑',hp:230,sp:72,r:36,col:'#ffd24a',pts:300,boss:true,name:'The Hollow King'},
   titan:{e:'👁️',hp:430,sp:56,r:44,col:'#c07cff',pts:600,boss:true,name:'Void Titan'}
 };
+function bossWave(n){ return n%4===0; }
+function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
 function waveDef(n){
   var q=[]; function add(t,c){ for(var i=0;i<c;i++) q.push(t); }
-  add('grunt',4+n*2); if(n>=2) add('runner',1+n); if(n>=3) add('spitter',Math.floor(n/1.6)); if(n>=3) add('bomber',Math.floor(n/2)); if(n>=4) add('brute',Math.floor((n-2)/2));
-  if(n===5) q.push('king'); if(n===10) q.push('titan');
+  add('grunt',Math.round(4+n*1.8)); if(n>=2) add('runner',1+n); if(n>=3) add('spitter',Math.floor(n/1.6)); if(n>=3) add('bomber',Math.floor(n/2)); if(n>=4) add('brute',Math.floor((n-2)/2));
+  if(n===4||n===12) q.push('king'); if(n===8||n===12) q.push('titan');
   for(var i=q.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=q[i]; q[i]=q[j]; q[j]=t; }
-  var bi=q.findIndex(function(x){return EN[x].boss;}); if(bi>0){ var b=q.splice(bi,1)[0]; q.unshift(b); }
+  var bs=q.filter(function(x){return EN[x].boss;}); if(bs.length){ q=bs.concat(q.filter(function(x){return !EN[x].boss;})); }
   return q;
 }
 
@@ -162,7 +164,7 @@ function newGame(stats){
     p:{x:CX,y:CY+120,vx:0,vy:0,r:16,hp:hp,maxhp:hp,face:1,aim:0,atkCd:0,swing:0,swingAng:0,dash:0,dashDx:1,dashDy:0,dashCharges:1,dashTimer:0,inv:0,sp:0,rage:0,hurtFlash:0,trail:[],shieldCh:0,shieldT:0,boost:0,hitByDash:{},fireT:0},
     pu:pu,enemies:[],shots:[],pp:[],zones:[],fx:[],parts:[],drops:[],texts:[],tele:[],rings:[],queue:[],spawnT:0,
     cam:{x:CX-500,y:CY-300},vw:1000,vh:560,timeScale:1,warpT:0,
-    shake:0,hitstop:0,choices:[],noHit:true,banner:null,bannerT:0,keys:{},mouse:{x:CX,y:CY,on:false,use:false},joy:{x:0,y:0},btn:{atk:false},boss:null,flash:0,last:0,starter:true,dpr:1};
+    qc:0,wrong:0,sMul:1,qTotal:0,qCorrect:0,shake:0,hitstop:0,choices:[],noHit:true,banner:null,bannerT:0,keys:{},mouse:{x:CX,y:CY,on:false,use:false},joy:{x:0,y:0},btn:{atk:false},boss:null,flash:0,last:0,starter:true,dpr:1};
 }
 function totalLevels(g){ var n=0; PU_KEYS.forEach(function(k){ n+=g.pu[k].lv; }); return n; }
 window.arcadeGauntletStart=function(){
@@ -263,14 +265,14 @@ function pips(lv,max){ var s=''; for(var i=0;i<max;i++) s+='<i class="'+(i<lv?'o
 function overlay(g){
   var ov=g.ov; if(!ov) return; var h='';
   if(g.phase==='ready'){
-    h='<div class="gx-card"><h2>🏰 Character Gauntlet</h2><p>Explore the ruined gardens and survive <b>10 waves</b> and two bosses. Collect and level up <b>12 power-ups</b> as you go.</p><ul class="gx-keys"><li><kbd>WASD</kbd> move</li><li><kbd>Click</kbd> / <kbd>Space</kbd> pulse-strike — aim with the mouse</li><li><kbd>Shift</kbd> / right-click dash (invincible)</li><li><kbd>E</kbd> special — charges as you hit</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">Power '+g.s.power+' · Speed '+g.s.speed.toFixed(1)+' · Vitality '+g.s.vitality+' · Luck '+g.s.luck+' · Focus '+g.s.focus+'</p><button class="btn btn-primary btn-lg" data-gx-start>Choose power-up</button> <button class="btn btn-ghost" data-gx-fs type="button">⛶ Fullscreen</button></div>';
+    h='<div class="gx-card"><h2>🏰 Character Gauntlet</h2><p>Explore the ruined gardens and survive <b>12 waves</b> and three boss fights. Before every wave you answer <b>3 study questions</b> on <i>'+(window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic').replace(/[<>&]/g,''):'your topic')+'</i>: right answers heal you and power up that wave. Collect and level up <b>12 power-ups</b> as you go.</p><ul class="gx-keys"><li><kbd>WASD</kbd> move</li><li><kbd>Click</kbd> / <kbd>Space</kbd> pulse-strike — aim with the mouse</li><li><kbd>Shift</kbd> / right-click dash (invincible)</li><li><kbd>E</kbd> special — charges as you hit</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">Power '+g.s.power+' · Speed '+g.s.speed.toFixed(1)+' · Vitality '+g.s.vitality+' · Luck '+g.s.luck+' · Focus '+g.s.focus+'</p><button class="btn btn-primary btn-lg" data-gx-start>Choose power-up</button> <button class="btn btn-ghost" data-gx-fs type="button">⛶ Fullscreen</button></div>';
   } else if(g.phase==='pause'){
     h='<div class="gx-card"><h2>⏸ Paused</h2><button class="btn btn-primary btn-lg" data-gx-resume>Resume</button></div>';
   } else if(g.phase==='upgrade'){
     h='<div class="gx-card wide"><h2>'+(g.starter?'Choose your starting power-up':'Wave '+g.wave+' cleared!')+'</h2><p>'+(g.starter?'You can level it up after every wave.':'Pick a power-up or level one up')+' <span class="gx-fine">(press 1 / 2 / 3)</span></p><div class="gx-perks">'+g.choices.map(function(k,i){ var d=PU[k], lv=g.pu[k].lv; return '<button class="gx-perk" data-gx-perk="'+k+'" type="button" style="--pc:'+d.col+'"><kbd>'+(i+1)+'</kbd><span class="gx-pi">'+d.icon+'</span><b>'+d.name+'</b><em>'+(lv?'Level '+lv+' → '+(lv+1):'NEW')+'</em>'+pips(lv+1,4)+'<span class="gx-pd">'+d.lv[lv]+'</span></button>'; }).join('')+'</div></div>';
   } else if(g.phase==='over'||g.phase==='win'){
     var gp=arcadeGameProgress().gauntlet||{};
-    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Gauntlet conquered!':'💀 Run over')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.wave+'/10</b><span>Wave</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>×'+g.maxCombo+'</b><span>Best combo</span></div></div>'+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(gp.best||0)+'</p>')+'<div class="gx-build">'+PU_KEYS.filter(function(k){return g.pu[k].lv;}).map(function(k){ return '<span title="'+PU[k].name+'">'+PU[k].icon+'<small>'+g.pu[k].lv+'</small></span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-gauntlet-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Gauntlet conquered!':'💀 Run over')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.wave+'/'+TOTAL+'</b><span>Wave</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>×'+g.maxCombo+'</b><span>Best combo</span></div></div>'+(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(gp.best||0)+'</p>')+'<div class="gx-build">'+PU_KEYS.filter(function(k){return g.pu[k].lv;}).map(function(k){ return '<span title="'+PU[k].name+'">'+PU[k].icon+'<small>'+g.pu[k].lv+'</small></span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-gauntlet-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   }
   ov.innerHTML=h; ov.style.display=h?'flex':'none';
 }
@@ -297,15 +299,29 @@ function applyPU(g){
   var s=g.pu.shield.lv; if(s>0&&g.p.shieldCh<1&&!g.p.shieldInit){ g.p.shieldCh=1; g.p.shieldInit=1; }
 }
 function nextWave(g){
-  g.wave++; g.queue=waveDef(g.wave); g.spawnT=1.1; g.noHit=true;
-  g.banner=g.wave===5?'⚠ BOSS: The Hollow King':g.wave===10?'⚠ FINAL BOSS: Void Titan':'Wave '+g.wave; g.bannerT=2.4; sfx('wave');
+  g.wave++; g.phase='gate'; g.keys={}; g.mouse.on=false; g.btn.atk=false; g.joy.x=g.joy.y=0; overlay(g);
+  var n=g.wave, wv=n;
+  gate({title:'Wave '+n+' of '+TOTAL+(bossWave(n)?' - BOSS':''),sub:'Each correct answer heals you, boosts damage and score this wave',count:3,label:'Wave '+n}).then(function(r){
+    if(!state.games||state.games.gx!==g||g.phase!=='gate'||g.wave!==wv) return;
+    r=r||{}; var c=r.correct||0, t=r.total||0, p=g.p;
+    g.qc=c; g.wrong=Math.max(0,t-c); g.sMul=1+.2*c; g.qTotal+=t; g.qCorrect+=c; g.keys={}; g.last=performance.now();
+    if(c){ p.hp=Math.min(p.maxhp,p.hp+c); if(c>=2&&p.shieldCh<1) p.shieldCh=1; }
+    if(t&&c===t){ p.rage=Math.max(p.rage,6); p.dashCharges=g.m.dashMax; }
+    var msg=t?(c+'/'+t+' correct'+(c?'  +'+(8*c)+'% dmg, +'+c+' heart'+(c>1?'s':''):'  -  no buff')):'';
+    g.phase='play'; overlay(g); startWave(g,msg);
+  });
+}
+function startWave(g,msg){
+  g.queue=waveDef(g.wave); g.spawnT=1.1; g.noHit=true;
+  g.banner=g.wave===TOTAL?'⚠ FINAL BOSSES: King + Titan':g.wave===8?'⚠ BOSS: Void Titan':g.wave===4?'⚠ BOSS: The Hollow King':'Wave '+g.wave; g.bannerT=2.4; sfx('wave');
+  if(msg) g.texts.push({x:g.p.x,y:g.p.y+70,t:2.6,max:2.6,s:msg,c:'#7cf0a0',big:true});
 }
 function solid(g,x,y,r){ return g.map.obs.some(function(o){ return Math.hypot(o.x-x,o.y-y)<o.r+r; }); }
 function spawn(g,type){
   var d=EN[type], p=g.p, x=0,y=0, tries=0;
   do { var a=rnd(0,TAU), dd=rnd(g.vw*.55,g.vw*.8); x=p.x+Math.cos(a)*dd; y=p.y+Math.sin(a)*dd*.8; x=clamp(x,150,WW-150); y=clamp(y,150,WH-150); tries++; } while(tries<14&&(solid(g,x,y,d.r+6)||Math.hypot(x-p.x,y-p.y)<g.vw*.4));
   if(d.boss&&tries>=14){ x=CX; y=CY-200; }
-  var sc=1+g.wave*.07;
+  var sc=(1+g.wave*.07)*(1+.05*g.wrong);
   var e={t:type,x:x,y:y,vx:0,vy:0,r:d.r,hp:d.hp*sc,maxhp:d.hp*sc,sp:d.sp*(1+g.wave*.015),cd:rnd(.8,2),flash:0,warp:.8,state:0,st:0,fuse:0,face:1,phase2:false,slow:0,freeze:0,burn:0,burnDps:0,orbT:0,stun:0};
   g.enemies.push(e); if(d.boss){ g.boss=e; g.shake=.5; }
   for(var i=0;i<10;i++) g.parts.push({x:x,y:y,vx:Math.cos(i/10*TAU)*60,vy:Math.sin(i/10*TAU)*60,life:.5,max:.5,c:d.col,s:3});
@@ -314,7 +330,7 @@ function spawn(g,type){
 /* =====================================================================
    Combat helpers
    ===================================================================== */
-function U(g){ return g.m.dmg*(g.p.rage>0?1.4:1); }
+function U(g){ return g.m.dmg*(g.p.rage>0?1.4:1)*(1+.08*g.qc); }
 function nearestEnemies(g,x,y,range,n,skip){
   var l=[]; g.enemies.forEach(function(e){ if(e.dead||e.warp>0||(skip&&skip.indexOf(e)>=0)) return; var d=Math.hypot(e.x-x,e.y-y); if(d<range) l.push([d,e]); }); l.sort(function(a,b){return a[0]-b[0];}); return l.slice(0,n).map(function(a){return a[1];});
 }
@@ -329,12 +345,12 @@ function damage(g,e,dmg,o){
 }
 function mult(g){ return Math.min(g.m.mcap,1+Math.floor(g.combo/6)*.5); }
 function kill(g,e){
-  e.dead=true; var d=EN[e.t]; g.kills++; var pts=Math.round(d.pts*mult(g)); g.score+=pts; sfx('kill');
+  e.dead=true; var d=EN[e.t]; g.kills++; var pts=Math.round(d.pts*mult(g)*g.sMul); g.score+=pts; sfx('kill');
   for(var i=0;i<(d.boss?44:12);i++){ var a=rnd(0,TAU),s=rnd(40,d.boss?320:190); g.parts.push({x:e.x,y:e.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.3,.8),max:.8,c:d.col,s:rnd(2,5)}); }
   g.texts.push({x:e.x,y:e.y-e.r-10,t:.9,max:.9,s:'+'+pts,c:'#7cf0a0',big:false});
   var r=Math.random();
   if(d.boss||r<g.m.drop+.04) g.drops.push({x:e.x,y:e.y,k:'heart',t:14}); else if(r<g.m.drop+.2) g.drops.push({x:e.x,y:e.y,k:'shard',t:12}); else if(r<g.m.drop+.23) g.drops.push({x:e.x,y:e.y,k:'rage',t:12});
-  if(d.boss){ g.hitstop=.25; g.shake=.8; g.boss=null; g.enemies.forEach(function(o){ if(o!==e&&!o.dead){ o.hp=0; o.dead=true; boom(g,o.x,o.y,'#fff',8); } }); g.shots=[]; }
+  if(d.boss){ var ob=g.enemies.filter(function(o){ return o!==e&&!o.dead&&EN[o.t].boss; })[0]; g.hitstop=.25; g.shake=.8; g.boss=ob||null; if(!ob){ g.enemies.forEach(function(o){ if(o!==e&&!o.dead){ o.hp=0; o.dead=true; boom(g,o.x,o.y,'#fff',8); } }); g.shots=[]; } }
 }
 function boom(g,x,y,c,n){ for(var i=0;i<n;i++){ var a=rnd(0,TAU),s=rnd(40,170); g.parts.push({x:x,y:y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.2,.45),max:.45,c:c,s:rnd(1.5,3.5)}); } }
 function aoe(g,x,y,r,dmg,o){ o=o||{}; g.enemies.forEach(function(e){ if(e.dead||e.warp>0) return; var d=Math.hypot(e.x-x,e.y-y); if(d<r+e.r){ damage(g,e,dmg*(o.falloff?1-d/(r+e.r)*.5:1),Object.assign({nx:e.x-x,ny:e.y-y,kb:o.kb||120,col:o.col,small:o.small,silent:o.silent},o.extra||{})); if(o.burn){ e.burn=3; e.burnDps=o.burn; } if(o.slow) e.slow=Math.max(e.slow,o.slow); if(o.freeze) e.freeze=Math.max(e.freeze,o.freeze); if(o.stun) e.stun=Math.max(e.stun,o.stun); } });
@@ -384,7 +400,7 @@ function end(g,win){
   var gp=arcadeGameProgress(); gp.gauntlet=gp.gauntlet||{best:0};
   g.newBest=g.score>(Number(gp.gauntlet.best)||0);
   gp.gauntlet.best=Math.max(Number(gp.gauntlet.best)||0,g.score); gp.gauntlet.bestWave=Math.max(Number(gp.gauntlet.bestWave)||0,g.wave);
-  gp.gauntlet.kills=(Number(gp.gauntlet.kills)||0)+g.kills; gp.gauntlet.wins=(Number(gp.gauntlet.wins)||0)+(win?1:0); gp.gauntlet.runs=(Number(gp.gauntlet.runs)||0)+1;
+  gp.gauntlet.kills=(Number(gp.gauntlet.kills)||0)+g.kills; gp.gauntlet.studyAsked=(Number(gp.gauntlet.studyAsked)||0)+g.qTotal; gp.gauntlet.studyCorrect=(Number(gp.gauntlet.studyCorrect)||0)+g.qCorrect; gp.gauntlet.wins=(Number(gp.gauntlet.wins)||0)+(win?1:0); gp.gauntlet.runs=(Number(gp.gauntlet.runs)||0)+1;
   try{ persistProgress(); }catch(e){}
   setTimeout(function(){ if(state.games&&state.games.gx===g) overlay(g); },win?900:700);
 }
@@ -525,8 +541,8 @@ function update(g,dt){
     if(dd<p.r+16){ d.t=0; sfx('pick'); if(d.k==='heart'){ p.hp=Math.min(p.maxhp,p.hp+1); g.texts.push({x:p.x,y:p.y-30,t:.9,max:.9,s:'❤ +1',c:'#ff6a8a',big:true}); } else if(d.k==='shard'){ p.sp=Math.min(100,p.sp+30); g.texts.push({x:p.x,y:p.y-30,t:.9,max:.9,s:'🔮 +30',c:'#c07cff',big:true}); } else { p.rage=8; g.texts.push({x:p.x,y:p.y-30,t:.9,max:.9,s:'🔥 RAGE',c:'#ffb02a',big:true}); } }
   }); g.drops=g.drops.filter(function(d){ return d.t>0; });
   if(g.wave>0&&!g.queue.length&&!g.enemies.length&&g.phase==='play'){
-    var bonus=100*g.wave+(g.noHit?150:0); g.score+=bonus; g.texts.push({x:p.x,y:p.y-80,t:1.8,max:1.8,s:'Wave clear +'+bonus+(g.noHit?' (flawless!)':''),c:'#ffd24a',big:true});
-    if(g.wave>=10){ end(g,true); return; }
+    var bonus=Math.round((100*g.wave+(g.noHit?150:0))*g.sMul); g.score+=bonus; g.texts.push({x:p.x,y:p.y-80,t:1.8,max:1.8,s:'Wave clear +'+bonus+(g.noHit?' (flawless!)':''),c:'#ffd24a',big:true});
+    if(g.wave>=TOTAL){ end(g,true); return; }
     g.phase='wait'; setTimeout(function(){ if(state.games&&state.games.gx===g&&g.phase==='wait'){ offerPU(g,false); } },1300);
   }
 }
@@ -692,7 +708,7 @@ function hud(g,c){
   for(var i=0;i<p.maxhp;i++){ c.font=(22*sc)+'px sans-serif'; c.textAlign='left'; c.globalAlpha=i<p.hp?1:.25; c.fillText(i<p.hp?'❤️':'🖤',14+i*26*sc,26); } c.globalAlpha=1;
   c.textAlign='right'; c.font='900 '+(24*sc)+'px Inter,sans-serif'; c.lineWidth=4; c.strokeStyle='rgba(0,0,0,.7)'; c.strokeText(String(g.score),vw-92,26); c.fillStyle='#fff'; c.fillText(String(g.score),vw-92,26);
   if(g.combo>1){ var m=mult(g); c.font='900 '+((20+Math.min(12,g.combo/3))*sc)+'px Inter,sans-serif'; c.fillStyle=m>=3?'#ff6a3a':m>=2?'#ffd24a':'#fff'; c.strokeText(g.combo+' HITS  ×'+m.toFixed(1),vw-92,56); c.fillText(g.combo+' HITS  ×'+m.toFixed(1),vw-92,56); c.fillStyle='rgba(255,255,255,.2)'; c.fillRect(vw-212,70,120,5); c.fillStyle='#ffd24a'; c.fillRect(vw-212,70,120*clamp(g.comboTimer/g.m.comboT,0,1),5); }
-  c.textAlign='center'; c.font='800 '+(15*sc)+'px Inter,sans-serif'; c.fillStyle='#e6e0ff'; c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.6)'; var wt='WAVE '+Math.max(1,g.wave)+' / 10  ·  '+(g.queue.length+g.enemies.length)+' left'; c.strokeText(wt,vw/2,22); c.fillText(wt,vw/2,22);
+  c.textAlign='center'; c.font='800 '+(15*sc)+'px Inter,sans-serif'; c.fillStyle='#e6e0ff'; c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.6)'; var wt='WAVE '+Math.max(1,g.wave)+' / '+TOTAL+'  ·  '+(g.queue.length+g.enemies.length)+' left'; c.strokeText(wt,vw/2,22); c.fillText(wt,vw/2,22);
   if(g.boss&&!g.boss.dead){ var b=g.boss, w=Math.min(420,vw*.5); c.fillStyle='rgba(0,0,0,.65)'; c.fillRect(vw/2-w/2,38,w,14); c.fillStyle=EN[b.t].col; c.fillRect(vw/2-w/2,38,w*clamp(b.hp/b.maxhp,0,1),14); c.strokeStyle='#fff'; c.lineWidth=2; c.strokeRect(vw/2-w/2,38,w,14); c.font='900 13px Inter,sans-serif'; c.fillStyle='#fff'; c.fillText(EN[b.t].name,vw/2,66);
     var ang=Math.atan2(b.y-(g.cam.y+vh/2),b.x-(g.cam.x+vw/2)); if(b.x<g.cam.x||b.x>g.cam.x+vw||b.y<g.cam.y||b.y>g.cam.y+vh){ var ax=vw/2+Math.cos(ang)*(vw/2-40), ay=vh/2+Math.sin(ang)*(vh/2-40); ax=clamp(ax,30,vw-30); ay=clamp(ay,30,vh-30); c.save(); c.translate(ax,ay); c.rotate(ang); c.fillStyle=EN[b.t].col; c.beginPath(); c.moveTo(14,0); c.lineTo(-8,-10); c.lineTo(-8,10); c.fill(); c.restore(); } }
   // special + dash
@@ -711,4 +727,5 @@ function hud(g,c){
   act.forEach(function(k,i){ var y=ry+i*(26*sc); c.fillStyle='rgba(10,8,24,.62)'; c.fillRect(vw-98,y-11,86,22); c.strokeStyle=PU[k].col; c.lineWidth=1.5; c.strokeRect(vw-98,y-11,86,22); c.font=(15*sc)+'px sans-serif'; c.textAlign='left'; c.fillStyle='#fff'; c.fillText(PU[k].icon,vw-94,y+1); for(var l=0;l<4;l++){ c.fillStyle=l<g.pu[k].lv?PU[k].col:'rgba(255,255,255,.18)'; c.fillRect(vw-70+l*14,y-4,11,8); } });
   if(g.bannerT>0){ var al=clamp(Math.min(g.bannerT,2.4-g.bannerT)*3,0,1); c.globalAlpha=al; c.textAlign='center'; c.font='900 '+(46*sc)+'px Inter,sans-serif'; c.lineWidth=7; c.strokeStyle='rgba(0,0,0,.75)'; var yy=vh/2-90+(1-al)*-14; c.strokeText(g.banner,vw/2,yy); c.fillStyle=g.banner.indexOf('BOSS')>=0?'#ff6a6a':'#fff'; c.fillText(g.banner,vw/2,yy); c.globalAlpha=1; }
 }
+try{ (ARCADE_MODES.filter(function(m){return m.id==='gauntlet';})[0]||{}).desc='A 12-wave campaign with three boss fights. Pick a study topic, then answer 3 AI questions before every wave: right answers heal you and power up the wave.'; }catch(e){}
 })();
