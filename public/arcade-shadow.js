@@ -1,5 +1,7 @@
 /* Shadow Arena Campaign v2 — animated tactical turn-based battles on a trapped grid.
-   Overrides the arcade Shadow hooks from the main script. Floor progress persists in gameProgress.shadow (floor, wins, bestFloor, kills, runs). */
+   Overrides the arcade Shadow hooks from the main script. Floor progress persists in gameProgress.shadow (floor, match, wins, bestFloor, kills, runs).
+   Each floor is 3 matches against AI clones (the 3rd match of every 3rd floor is a boss clone). A study checkpoint (GameStudy.gate) opens before every
+   match: each correct answer gives starting shield, 2+ correct add attack power, a perfect score adds energy and heals, wrong answers cost 1 HP. */
 (function(){
 'use strict';
 var COLS=8, ROWS=6, CS=70, BX=(1000-COLS*CS)/2, BY=52, LW=1000, LH=562, TAU=Math.PI*2;
@@ -8,6 +10,11 @@ function $(id){ return document.getElementById(id); }
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return((t^t>>>14)>>>0)/4294967296; }; }
 function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 var DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+var MATCHES=3, carry=null;
+function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
+function studyHtml(){ try{ return (window.GameStudy&&GameStudy.summaryHtml())||''; }catch(e){ return ''; } }
+function isBoss(f,m){ return f%3===0&&m===MATCHES; }
+try{ (ARCADE_MODES.filter(function(m){ return m.id==='shadow'; })[0]||{}).desc='Three clone matches per floor with a boss clone every 3rd floor. A study question round before every match powers you up, and your cleared floor is saved.'; }catch(e){}
 
 /* ------------------------------ abilities ------------------------------ */
 var AB=[
@@ -65,9 +72,9 @@ function sfx(kind){
 
 /* ------------------------------ map generation ------------------------------ */
 function inb(x,y){ return x>=0&&x<COLS&&y>=0&&y<ROWS; }
-function genMap(f,spawnsN){
+function genMap(f,spawnsN,sd){
   for(var attempt=0;attempt<60;attempt++){
-    var r=mulberry(f*7919+13+attempt*101), t=[]; for(var y=0;y<ROWS;y++){ t.push([]); for(var x=0;x<COLS;x++) t[y].push(0); }
+    var r=mulberry((sd||f)*7919+13+attempt*101), t=[]; for(var y=0;y<ROWS;y++){ t.push([]); for(var x=0;x<COLS;x++) t[y].push(0); }
     function free(x,y){ return t[y][x]===0&&!(y===ROWS-1&&x>=2&&x<=5)&&y>0&&!(y===1&&x>=2&&x<=5); }
     function place(v,n){ var tries=0; while(n>0&&tries++<200){ var x=(r()*COLS)|0, y=(r()*ROWS)|0; if(free(x,y)){ t[y][x]=v; n--; } } }
     place(1,3+Math.min(6,Math.floor(f/2))); place(2,2+Math.min(4,Math.floor(f/3))); place(3,2);
@@ -78,12 +85,12 @@ function genMap(f,spawnsN){
   }
   var t2=[]; for(var yy=0;yy<ROWS;yy++){ t2.push([]); for(var xx=0;xx<COLS;xx++) t2[yy].push(0); } return {t:t2,spawns:[{x:3,y:0},{x:4,y:0},{x:2,y:0},{x:5,y:0}].slice(0,spawnsN)};
 }
-function composition(f){
-  var r=mulberry(f*31+7), list=[];
-  if(f%5===0){ list.push('boss'); if(f>=10) list.push('shade'); if(f>=15) list.push('archer'); return list; }
-  var n=Math.min(4,1+Math.floor((f-1)/2)), pool=['shade']; if(f>=2) pool.push('archer'); if(f>=3) pool.push('brute'); if(f>=4) pool.push('wisp');
-  list.push(f===1?'shade':pool[(r()*pool.length)|0]); while(list.length<n) list.push(pool[(r()*pool.length)|0]);
-  if(f>=2&&list.indexOf('shade')<0&&list.length>1) list[0]='shade';
+function composition(f,m){
+  var st=(f-1)*MATCHES+m, r=mulberry(st*31+7), list=[];
+  if(isBoss(f,m)){ list.push('boss'); if(f>=6) list.push('shade'); if(f>=9) list.push('archer'); return list; }
+  var n=Math.min(4,1+Math.floor((st-1)/4)), pool=['shade']; if(st>=3) pool.push('archer'); if(st>=6) pool.push('brute'); if(st>=8) pool.push('wisp');
+  list.push(st===1?'shade':pool[(r()*pool.length)|0]); while(list.length<n) list.push(pool[(r()*pool.length)|0]);
+  if(st>=2&&list.indexOf('shade')<0&&list.length>1) list[0]='shade';
   return list;
 }
 
@@ -91,25 +98,27 @@ function composition(f){
 var uidN=0;
 window.arcadeShadowStart=function(){
   var gp=arcadeGameProgress(); gp.shadow=gp.shadow||{floor:1}; var f=Math.max(1,Number(gp.shadow.floor)||1), s=arcadeCharacterStats();
-  var comp=composition(f), map=genMap(f,comp.length);
+  var m=clamp(Number(gp.shadow.match)||1,1,MATCHES); if(Number(gp.shadow.matchFloor)&&Number(gp.shadow.matchFloor)!==f) m=1;
+  var st=(f-1)*MATCHES+m, lv=.07*(f-1)+.025*(m-1);
+  var comp=composition(f,m), map=genMap(f+(m-1)/3,comp.length,st);
   var vet=Math.floor(f/4);
-  var g={floor:f,t:map.t,phase:'ready',turn:1,busy:false,sel:'move',s:s,
+  var g={floor:f,match:m,boss:isBoss(f,m),t:map.t,phase:'ready',turn:1,busy:false,sel:'move',s:s,
     maxHp:10+s.vitality*2+Math.floor(f/3)*2, energyMax:3+(s.speed>=3?1:0), power:2+Math.max(0,Math.round(s.power))-1+vet, crit:.08+(s.luck||0)*.03,
     shield:0,empower:0,kills:0,log:[],fx:[],texts:[],parts:[],shake:0,flash:0,hover:null,time:0,banner:'',bannerT:0,dmgTaken:0,
-    cdBar:'',enemies:[]};
-  g.hp=g.maxHp; g.energy=g.energyMax;
+    cdBar:'',enemies:[],studyOk:0,studyTotal:0};
+  g.hp=(carry&&carry.floor===f&&carry.match===m)?clamp(carry.hp,1,g.maxHp):g.maxHp; g.energy=g.energyMax;
   g.p={id:'p',type:'p',x:3,y:ROWS-1,vx:3,vy:ROWS-1,hp:g.hp,flash:0,bump:null};
-  comp.forEach(function(type,i){ var D=ENEMY[type], sc=1+.09*(f-1), sp=map.spawns[i];
-    var hp=Math.round(D.hp*sc*(type==='boss'?1+f*.04:1)); g.enemies.push({id:'e'+(++uidN),type:type,x:sp.x,y:sp.y,vx:sp.x,vy:sp.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(f/4),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); });
+  comp.forEach(function(type,i){ var D=ENEMY[type], sc=1+lv, sp=map.spawns[i];
+    var hp=Math.round(D.hp*sc*(type==='boss'?1+f*.04:1)); g.enemies.push({id:'e'+(++uidN),type:type,x:sp.x,y:sp.y,vx:sp.x,vy:sp.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(st/8),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); });
   state.games={active:'shadow',keys:{},sh:g};
-  log(g,'Floor '+f+' — '+comp.length+' enemy'+(comp.length>1?'ies':'')+' ahead.');
+  log(g,'Floor '+f+' · match '+m+'/'+MATCHES+' — '+comp.length+' enem'+(comp.length>1?'ies':'y')+' ahead.');
 };
 function log(g,t){ g.log.unshift(t); if(g.log.length>6) g.log.pop(); }
 window.arcadeShadowMove=function(){}; window.arcadeShadowAttack=function(){};
 window.arcadeShadowHtml=function(){
   var g=state.games.sh; if(!g) return ''; setTimeout(mount,0);
   var sp=arcadeGameProgress().shadow||{};
-  var stats='<span class="arcade-pill">🏛 Floor <b>'+g.floor+'</b></span><span class="arcade-pill">🏆 Best floor <b>'+(sp.bestFloor||Math.max(0,g.floor-1))+'</b></span><span class="arcade-pill">⚔️ Wins <b>'+(sp.wins||0)+'</b></span>';
+  var stats='<span class="arcade-pill">🏛 Floor <b>'+g.floor+'</b> · match <b>'+g.match+'/'+MATCHES+'</b></span><span class="arcade-pill">🏆 Best floor <b>'+(sp.bestFloor||Math.max(0,g.floor-1))+'</b></span><span class="arcade-pill">⚔️ Wins <b>'+(sp.wins||0)+'</b></span>';
   return arcadeFrame('Shadow Arena Campaign','Click tiles to move · 1–6 abilities · E end turn · F fullscreen',stats,
     '<div class="gx-wrap sh-wrap" id="sh-wrap"><canvas id="sh-canvas" width="1000" height="562"></canvas><div class="gx-ov" id="sh-ov"></div>'+
     '<div class="gx-tools"><button class="gx-mute" id="sh-mute" type="button" aria-label="Toggle sound">'+(muted()?'🔇':'🔊')+'</button><button class="gx-mute" id="sh-fs" type="button" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button></div>'+
@@ -168,7 +177,21 @@ document.addEventListener('keydown',function(e){
   if(k==='escape'){ g.sel='move'; return; }
   var d={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]}[k]; if(d) clickTile(g,g.p.x+d[0],g.p.y+d[1],true);
 },true);
-function begin(g){ if(g.phase!=='ready') return; g.phase='player'; overlay(g); banner(g,'YOUR TURN'); sfx('turn'); }
+async function begin(g){
+  if(g.phase!=='ready') return; g.phase='gate'; overlay(g);
+  var r=await gate({title:'Floor '+g.floor+' · Match '+g.match+'/'+MATCHES+(g.boss?' · BOSS CLONE':''),sub:g.boss?'Your Shadow waits. Each correct answer gives you shield and strength for this fight; a perfect score adds energy.':'Each correct answer gives starting shield. 2 or more add attack power, a perfect score adds energy and heals. Wrong answers cost 1 HP.',count:g.boss?3:2,label:'MATCH CHECKPOINT'});
+  if(!(state.games&&state.games.sh===g)||g.phase!=='gate') return;
+  if(!r.skipped){
+    var c=r.correct, w=r.total-r.correct, msg=[]; g.studyOk+=c; g.studyTotal+=r.total;
+    if(c){ g.shield=Math.min(10,c*3); msg.push('+'+g.shield+' 🛡️'); }
+    if(c>=2){ g.power+=1; msg.push('+1 power'); }
+    if(r.perfect){ g.energyMax+=1; g.energy=g.energyMax; var h=Math.min(3,g.maxHp-g.hp); g.hp+=h; g.p.hp=g.hp; msg.push('+1 ⚡'+(h?' +'+h+' ❤️':'')); }
+    if(w){ g.hp=Math.max(1,g.hp-w); g.p.hp=g.hp; msg.push('-'+w+' ❤️'); }
+    log(g,'Study check '+c+'/'+r.total+(msg.length?' ('+msg.join(', ')+')':'')+'.');
+    floatText(g,cx(g.p.x),cy(g.p.y)-52,c+'/'+r.total+' ✓',r.perfect?'#7dffa8':c?'#ffe08a':'#ff8a8a');
+  }
+  g.phase='player'; overlay(g); banner(g,'YOUR TURN'); sfx('turn');
+}
 function banner(g,t){ g.banner=t; g.bannerT=1.3; }
 
 /* ------------------------------ overlays ------------------------------ */
@@ -176,10 +199,11 @@ function overlay(g){
   var o=g.ov; if(!o) return; var h='';
   if(g.phase==='ready'){
     var cards=g.enemies.map(function(e){ var D=ENEMY[e.type]; return '<span class="sh-pre" style="--c:'+D.glow+'"><b>'+D.name+'</b><i>'+e.hp+' HP</i></span>'; }).join('');
-    h='<div class="gx-card wide"><h2>🏛 Floor '+g.floor+(g.floor%5===0?' — BOSS':'')+'</h2><p>Defeat every shadow. Spend <b>'+g.energyMax+' ⚡ energy</b> a turn on moving and abilities, then end your turn.</p><div class="sh-pres">'+cards+'</div><ul class="gx-keys"><li><kbd>Click</kbd> a glowing tile to move or use the selected ability</li><li><kbd>1–6</kbd> pick an ability · <kbd>E</kbd> end turn · <kbd>F</kbd> fullscreen</li><li>Red tiles are where enemies can hit you next. Spikes ⚠ hurt, green glyphs heal.</li></ul><p class="gx-stats">'+g.maxHp+' HP · attack power '+g.power+' · crit '+Math.round(g.crit*100)+'%</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-sh-start>Begin floor</button><button class="btn btn-ghost" data-sh-fs type="button">⛶ Fullscreen</button></div></div>';
+    h='<div class="gx-card wide"><h2>🏛 Floor '+g.floor+' · Match '+g.match+'/'+MATCHES+(g.boss?' — BOSS CLONE':'')+'</h2><p>📚 A short study question round comes first and powers you up. Then defeat every shadow. Spend <b>'+g.energyMax+' ⚡ energy</b> a turn on moving and abilities, then end your turn.</p><div class="sh-pres">'+cards+'</div><ul class="gx-keys"><li><kbd>Click</kbd> a glowing tile to move or use the selected ability</li><li><kbd>1–6</kbd> pick an ability · <kbd>E</kbd> end turn · <kbd>F</kbd> fullscreen</li><li>Red tiles are where enemies can hit you next. Spikes ⚠ hurt, green glyphs heal.</li></ul><p class="gx-stats">'+g.maxHp+' HP · attack power '+g.power+' · crit '+Math.round(g.crit*100)+'%</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-sh-start>Start study round</button><button class="btn btn-ghost" data-sh-fs type="button">⛶ Fullscreen</button></div></div>';
   } else if(g.phase==='win'||g.phase==='over'){
     var sp=arcadeGameProgress().shadow||{};
-    h='<div class="gx-card"><h2>'+(g.phase==='win'?'🏆 Floor '+g.floor+' cleared!':'💀 Defeated')+'</h2><div class="gx-res" style="grid-template-columns:repeat(3,1fr)"><div><b>'+g.turn+'</b><span>Turns</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>'+Math.max(0,g.hp)+'</b><span>HP left</span></div></div><p class="gx-fine">'+(g.phase==='win'?'Progress saved — next up: floor '+(g.floor+1)+'.':'This floor remains uncleared. Try a different approach!')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-shadow-next">'+(g.phase==='win'?'Next floor':'Retry floor')+'</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    var last=g.match>=MATCHES, won=g.phase==='win';
+    h='<div class="gx-card"><h2>'+(won?(last?'🏆 Floor '+g.floor+' cleared!':'⚔️ Match '+g.match+'/'+MATCHES+' won!'):'💀 Defeated')+'</h2><div class="gx-res" style="grid-template-columns:repeat(3,1fr)"><div><b>'+g.turn+'</b><span>Turns</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>'+Math.max(0,g.hp)+'</b><span>HP left</span></div></div>'+studyHtml()+'<p class="gx-fine">'+(won?(last?'Progress saved — next up: floor '+(g.floor+1)+'.':'You recover some HP. Next: match '+(g.match+1)+' of '+MATCHES+' on floor '+g.floor+'.'):'This match remains unfinished. Try a different approach!')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-shadow-next">'+(won?(last?'Next floor':'Next match'):'Retry match')+'</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   }
   o.innerHTML=h; o.style.display=h?'flex':'none';
 }
@@ -305,11 +329,14 @@ async function enemyAct(g,e){
 }
 async function winFloor(g){
   if(g.phase==='win'||g.phase==='over') return; g.phase='win'; await sleep(500); sfx('win'); try{ celebrate(); }catch(e){}
-  var gp=arcadeGameProgress(); gp.shadow=gp.shadow||{floor:1}; gp.shadow.floor=Math.max(Number(gp.shadow.floor)||1,g.floor+1); gp.shadow.wins=(Number(gp.shadow.wins)||0)+1; gp.shadow.bestFloor=Math.max(Number(gp.shadow.bestFloor)||0,g.floor); gp.shadow.kills=(Number(gp.shadow.kills)||0)+g.kills; gp.shadow.runs=(Number(gp.shadow.runs)||0)+1;
+  var gp=arcadeGameProgress(); gp.shadow=gp.shadow||{floor:1}; var sh=gp.shadow, last=g.match>=MATCHES;
+  sh.kills=(Number(sh.kills)||0)+g.kills; sh.wins=(Number(sh.wins)||0)+1;
+  if(last){ sh.floor=Math.max(Number(sh.floor)||1,g.floor+1); sh.match=1; sh.matchFloor=sh.floor; sh.bestFloor=Math.max(Number(sh.bestFloor)||0,g.floor); sh.runs=(Number(sh.runs)||0)+1; carry=null; }
+  else { sh.match=g.match+1; sh.matchFloor=g.floor; carry={floor:g.floor,match:g.match+1,hp:Math.min(g.maxHp,Math.max(1,g.hp)+Math.ceil(g.maxHp*.4))}; }
   try{ persistProgress(); }catch(e){} g.busy=false; overlay(g);
 }
 function loseFloor(g){
-  if(g.phase==='over'||g.phase==='win') return; g.phase='over'; sfx('lose'); var gp=arcadeGameProgress(); gp.shadow=gp.shadow||{floor:1}; gp.shadow.kills=(Number(gp.shadow.kills)||0)+g.kills; gp.shadow.runs=(Number(gp.shadow.runs)||0)+1; try{ persistProgress(); }catch(e){}
+  if(g.phase==='over'||g.phase==='win') return; g.phase='over'; sfx('lose'); carry=null; var gp=arcadeGameProgress(); gp.shadow=gp.shadow||{floor:1}; gp.shadow.kills=(Number(gp.shadow.kills)||0)+g.kills; gp.shadow.runs=(Number(gp.shadow.runs)||0)+1; try{ persistProgress(); }catch(e){}
   setTimeout(function(){ if(state.games&&state.games.sh===g){ g.busy=false; overlay(g); } },700);
 }
 
@@ -418,7 +445,7 @@ function intent(g,e){
 function hud(g,c){
   c.setTransform(g.sc*g.dpr,0,0,g.sc*g.dpr,g.ox*g.dpr,g.oy*g.dpr); c.textBaseline='alphabetic';
   function T(s,x,y,sz,col,al){ c.textAlign=al||'left'; c.font='900 '+sz+'px Inter,sans-serif'; c.lineWidth=4; c.strokeStyle='rgba(0,0,0,.7)'; c.strokeText(s,x,y); c.fillStyle=col||'#fff'; c.fillText(s,x,y); }
-  T('FLOOR '+g.floor+(g.floor%5===0?' · BOSS':''),16,28,20,'#e0d0ff'); T('Turn '+g.turn,16,48,13,'#a898d8');
+  T('FLOOR '+g.floor+' · MATCH '+g.match+'/'+MATCHES+(g.boss?' · BOSS':''),16,28,20,'#e0d0ff'); T('Turn '+g.turn,16,48,13,'#a898d8');
   /* hp + energy */
   var hx=16, hy=LH-40; c.fillStyle='rgba(0,0,0,.55)'; c.beginPath(); rr(c,hx-6,hy-22,170,50,10); c.fill();
   c.fillStyle='rgba(0,0,0,.6)'; c.fillRect(hx,hy-14,150,12); c.fillStyle='#6bff9a'; c.fillRect(hx,hy-14,150*clamp(g.hp/g.maxHp,0,1),12); T('❤ '+Math.max(0,g.hp)+'/'+g.maxHp,hx+4,hy-4,11,'#fff');

@@ -1,8 +1,10 @@
 /* Rogue's Sanctuary v2 — a roguelike deckbuilder.
    Equipped Indexling fights with a skill deck: 3 energy, 5-card hands, enemy intents shown a turn ahead, block / strength /
    weak / vulnerable / poison / thorns, 18 cards (all upgradable), 8 relics, branching floor map (fights, elites, rests, shops,
-   events, a boss every 5th floor), floating damage numbers, fullscreen on the persistent games stage.
+   events, an elite on floor 5 and a boss on floor 10), floating damage numbers, fullscreen on the persistent games stage.
    Overrides the arcade Rogue hooks. Progress lives in gameProgress.rogue = {floor,wins,deck,hp,run,best,...} (old saves still load).
+   A study checkpoint (GameStudy.gate) opens before every battle: each correct answer gives starting block, 2+ give Strength, a perfect score adds
+   energy and a card, wrong answers cost 2 HP. Floor 10's boss ends the run in victory (the player may also keep climbing endlessly).
    Coins: +20 per boss, and on a run ending, 2 per floor cleared beyond the first (max 40). Run state is saved at the start of
    every player turn and at every screen change. */
 (function(){
@@ -21,6 +23,9 @@ function sfx(k){ if(muted()) return; try{ AC=AC||new (window.AudioContext||windo
 function ling(){ try{ var id=(state.progress.equipped&&state.progress.equipped.indexling)||'ling-sugarbug', sid=(typeof getEquippedSkinId==='function'&&getEquippedSkinId(id))||'', l=cosmeticById(id)||cosmeticById('ling-sugarbug'), sk=sid&&typeof skinById==='function'?skinById(sid):null; if(typeof indexlingArtHtml==='function') return indexlingArtHtml(l,true,sk||{}); }catch(e){} return arcadeCharacterHtml(); }
 /* ------------------------------- data ------------------------------- */
 // t: a=attack s=skill p=power · c=cost · d=damage hits=n b=block h=heal draw en=energy vuln weak psn str thorns · ex=exhaust · r=rarity weight
+function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
+function studyHtml(){ try{ return (window.GameStudy&&GameStudy.summaryHtml())||''; }catch(e){ return ''; } }
+try{ (ARCADE_MODES.filter(function(m){ return m.id==='rogue'; })[0]||{}).desc='A 10-floor deckbuilder run: study questions before every battle power you up, an elite on floor 5, a boss on floor 10, and your run is saved mid-battle.'; }catch(e){}
 var C={
   strike:{n:'Strike',i:'⚔️',t:'a',c:1,d:6,r:0,up:{d:9}},
   guard:{n:'Guard',i:'🛡️',t:'s',c:1,b:6,r:0,up:{b:9}},
@@ -82,16 +87,16 @@ function stats(){ try{ return arcadeCharacterStats()||{}; }catch(e){ return {}; 
 function maxHpBase(){ return 30+Math.round((stats().vitality||3)*2); }
 function relic(g,id){ return g.relics.indexOf(id)>=0; }
 function deckAll(g){ return g.deck.slice(); }
-function floorTier(f){ return Math.floor((f-1)/5); }
-function scaleHp(hp,f){ return Math.round(hp*(1+(f-1)*.12)); }
-function scaleV(v,f){ return Math.max(1,Math.round(v*(1+(f-1)*.09))); }
+function floorTier(f){ return Math.max(0,Math.floor(f/10)-1); }
+function scaleHp(hp,f){ return Math.round(hp*(1+(f-1)*.09)); }
+function scaleV(v,f){ return Math.max(1,Math.round(v*(1+(f-1)*.07))); }
 
 function snapshot(g){
   var b=g.b, run={v:2,ph:g.ph,floor:g.floor,hp:g.hp,maxHp:g.maxHp,gold:g.gold,deck:g.deck.slice(),relics:g.relics.slice(),phx:g.phx?1:0,nodes:g.nodes||[],rewards:g.rewards||[],shop:g.shop||null,ev:g.ev||null,evText:g.evText||'',goldGain:g.goldGain||0,relicGain:g.relicGain||'',kind:g.kind||'',up:g.upMode||''};
   if(b&&g.ph==='battle'){ run.b={e:{id:b.e.id,hp:b.e.hp,max:b.e.max,block:b.e.block,str:b.e.str,weak:b.e.weak,vuln:b.e.vuln,psn:b.e.psn,mi:b.e.mi},p:{block:b.p.block,str:b.p.str,weak:b.p.weak,vuln:b.p.vuln,thorns:b.p.thorns},energy:b.energy,turn:b.turn,draw:b.draw.slice(),hand:b.hand.slice(),disc:b.disc.slice(),exh:b.exh.slice()}; }
   return run;
 }
-function save(g){ try{ var gp=arcadeGameProgress(); var r=gp.rogue=gp.rogue||{}; r.floor=g.floor; r.deck=g.deck.slice(); r.hp=g.hp; r.wins=g.wins; r.best=Math.max(r.best||0,g.best||0); r.gold=g.gold; r.relics=g.relics.slice(); r.maxHp=g.maxHp; r.run=(g.ph==='title'||g.ph==='dead')?null:snapshot(g); persistProgress(); }catch(e){} }
+function save(g){ try{ var gp=arcadeGameProgress(); var r=gp.rogue=gp.rogue||{}; r.floor=g.floor; r.deck=g.deck.slice(); r.hp=g.hp; r.wins=g.wins; r.best=Math.max(r.best||0,g.best||0); r.gold=g.gold; r.relics=g.relics.slice(); r.maxHp=g.maxHp; r.run=(g.ph==='title'||g.ph==='dead'||g.ph==='won')?null:snapshot(g); persistProgress(); }catch(e){} }
 function fresh(g){ g.floor=1; g.deck=STARTER.slice(); g.relics=[]; g.gold=30; g.maxHp=maxHpBase(); g.hp=g.maxHp; g.phx=false; g.nodes=[]; g.b=null; g.ev=null; g.shop=null; g.rewards=[]; }
 
 window.arcadeRogueStart=function(){
@@ -112,7 +117,7 @@ function restore(g,run){
   g.floor=run.floor; g.hp=run.hp; g.maxHp=run.maxHp||maxHpBase(); g.gold=run.gold||0; g.deck=(run.deck||[]).slice(); g.relics=(run.relics||[]).slice(); g.phx=!!run.phx; g.nodes=run.nodes||[]; g.rewards=run.rewards||[]; g.shop=run.shop||null; g.ev=run.ev||null; g.evText=run.evText||''; g.goldGain=run.goldGain||0; g.relicGain=run.relicGain||''; g.kind=run.kind||''; g.upMode=run.up||'';
   g.ph=run.ph; g.log=['Run resumed — pick up where you left off.'];
   if(run.ph==='battle'&&run.b){ var rb=run.b, fo=FOES[rb.e.id]||FOES.slime; g.b={e:{id:rb.e.id,def:fo,hp:rb.e.hp,max:rb.e.max,block:rb.e.block,str:rb.e.str,weak:rb.e.weak,vuln:rb.e.vuln,psn:rb.e.psn,mi:rb.e.mi},p:rb.p,energy:rb.energy,turn:rb.turn,draw:rb.draw,hand:rb.hand,disc:rb.disc,exh:rb.exh}; }
-  else if(run.ph==='battle'){ g.ph='map'; }
+  else if(run.ph==='battle'||run.ph==='gate'){ g.ph='map'; if(!g.nodes||!g.nodes.length) g.nodes=['fight']; }
 }
 
 /* ------------------------------- run flow ------------------------------- */
@@ -120,11 +125,12 @@ function newRun(g){ fresh(g); g.log=[]; g.wins=g.wins||0; genMap(g); }
 function continueLegacy(g){ var l=g.legacy; fresh(g); g.floor=l.floor; g.deck=l.deck.length?l.deck:STARTER.slice(); g.hp=Math.min(g.maxHp,Math.max(l.hp||0,Math.ceil(g.maxHp*.7))); g.log=[]; genMap(g); }
 function genMap(g){
   g.ph='map'; var f=g.floor;
-  if(f%5===0){ g.nodes=['boss']; save(g); return; }
-  var pool=['fight','fight','fight','rest','rest','shop','shop','event','event']; if(f>=3) pool.push('elite','elite');
-  var kinds=['fight']; var rest=shuf(pool.filter(function(k){ return k!=='fight'; }));
+  if(f%10===0){ g.nodes=['boss']; save(g); return; }
+  if(f%10===5){ g.nodes=['elite']; save(g); return; }
+  var pool=['rest','rest','shop','shop','event','event']; if(f>=3) pool.push('elite');
+  var kinds=['fight']; var rest=shuf(pool);
   while(kinds.length<3&&rest.length){ var k=rest.shift(); if(kinds.indexOf(k)<0) kinds.push(k); }
-  if(f%5===4&&kinds.indexOf('rest')<0) kinds[2]='rest';
+  if(f%10===4&&kinds.indexOf('rest')<0) kinds[2]='rest';
   g.nodes=shuf(kinds); save(g);
 }
 function enter(g,k){
@@ -135,23 +141,40 @@ function enter(g,k){
   if(k==='event'){ var id=pick(Object.keys(EVENTS)); g.ev=id; g.evText=''; g.ph='event'; save(g); return; }
 }
 function nextFloor(g){ g.floor++; if(g.floor>g.best) g.best=g.floor; genMap(g); }
+/* a rest / shop / event is one side stop on a floor: afterwards only the battle remains, so every floor still has its fight */
+function afterSide(g){ g.nodes=(g.nodes||[]).filter(function(k){ return k==='fight'||k==='elite'||k==='boss'; }); if(!g.nodes.length) g.nodes=['fight']; g.ph='map'; g.upMode=''; save(g); }
+function finalBoss(g){ return g.kind==='boss'&&g.floor%10===0&&!g.keepGoing; }
 
-function startBattle(g,kind){
-  var f=g.floor, id;
+async function startBattle(g,kind){
+  if(g.gating) return; g.gating=true; g.busy=true; paint(g);
+  var f=g.floor, hard=kind!=='fight';
+  var r=await gate({title:'Floor '+f+' · '+(kind==='boss'?'Boss battle':kind==='elite'?'Elite battle':'Battle'),sub:'Each correct answer gives you starting block. 2 or more add Strength, a perfect score adds energy and a card. Wrong answers cost 2 HP.',count:hard?3:2,label:'BATTLE CHECKPOINT'});
+  g.gating=false; g.busy=false;
+  if(G()!==g||g.ph!=='map') return;
+  var id;
   if(kind==='boss') id=['boss1','boss2','boss3'][floorTier(f)%3];
   else if(kind==='elite') id=pick(['knight','warlock']);
   else id=pick(NORMAL);
   var fo=FOES[id], hp=scaleHp(fo.hp,f);
   g.ph='battle'; g.fx=[]; g.busy=false; g.log=[]; g.fxWin=0; g.lunge=0; g.overlay='';
   g.b={e:{id:id,def:fo,hp:hp,max:hp,block:0,str:0,weak:0,vuln:0,psn:0,mi:0},p:{block:0,str:0,weak:0,vuln:0,thorns:0},energy:3,turn:1,draw:shuf(g.deck.slice()),hand:[],disc:[],exh:[]};
-  var b=g.b;
+  var b=g.b, extra=0;
   if(relic(g,'ring')) b.p.block+=6;
   if(relic(g,'whet')) b.p.str+=1;
   if(relic(g,'mail')) b.p.thorns+=2;
   if(relic(g,'crystal')) b.energy+=1;
-  drawCards(g,handSize(g));
+  var msg=[];
+  if(!r.skipped){
+    var c=r.correct, w=r.total-r.correct; g.studyOk=(g.studyOk||0)+c; g.studyTotal=(g.studyTotal||0)+r.total;
+    if(c){ b.p.block+=4*c; msg.push('+'+(4*c)+' 🛡'); }
+    if(c>=2){ b.p.str+=1; msg.push('+1 💪'); }
+    if(r.perfect){ b.energy+=1; extra=1; msg.push('+1 ⚡ +1 card'); }
+    if(w){ g.hp=Math.max(1,g.hp-2*w); msg.push('-'+(2*w)+' ❤️'); }
+  }
+  drawCards(g,handSize(g)+extra);
+  if(!r.skipped) g.log.push('Study check '+r.correct+'/'+r.total+(msg.length?' ('+msg.join(', ')+')':'')+'.');
   g.log.push(fo.n+' blocks your path!');
-  save(g);
+  save(g); paint(g);
 }
 function handSize(g){ return 5+(relic(g,'lantern')?1:0); }
 function drawCards(g,n){ var b=g.b; for(var i=0;i<n;i++){ if(!b.draw.length){ if(!b.disc.length) break; b.draw=shuf(b.disc); b.disc=[]; } b.hand.push(b.draw.pop()); } }
@@ -253,15 +276,17 @@ function cardChoices(g,n,rich){
   var guard=0; while(out.length<n&&guard++<200){ var k=pick(bag); if(out.indexOf(k)<0) out.push(k); }
   return out;
 }
-function die(g){
-  g.ph='dead'; sfx('lose');
+function advance(g){ if(finalBoss(g)){ g.ph='victory'; g.rewards=[]; save(g); return; } nextFloor(g); }
+function endRun(g,won){
+  g.ph=won?'won':'dead'; sfx(won?'win':'lose');
   var gp=arcadeGameProgress(), r=gp.rogue; var reached=g.floor;
-  g.reached=reached; g.coinsEarned=Math.min(40,Math.max(0,(reached-1)*2));
+  g.reached=reached; g.won=!!won; g.coinsEarned=Math.min(60,Math.max(0,(reached-1)*3))+(won?40:0);
   if(g.coinsEarned){ try{ addCoins(g.coinsEarned,"Rogue's Sanctuary run"); }catch(e){} }
   g.best=Math.max(g.best||0,reached);
-  r.best=g.best; r.wins=g.wins; r.floor=1; r.deck=STARTER.slice(); r.hp=maxHpBase(); r.run=null; r.gold=0; r.relics=[]; try{ persistProgress(); }catch(e){}
+  r.best=g.best; r.wins=g.wins; r.clears=(Number(r.clears)||0)+(won?1:0); r.floor=1; r.deck=STARTER.slice(); r.hp=maxHpBase(); r.run=null; r.gold=0; r.relics=[]; try{ persistProgress(); }catch(e){}
   paint(g);
 }
+function die(g){ endRun(g,false); }
 
 /* ------------------------------- shop ------------------------------- */
 function buildShop(g){
@@ -279,11 +304,11 @@ function shopBuy(g,kind,i){
 }
 
 /* ------------------------------- rest / events / deck picking ------------------------------- */
-function restHeal(g){ var h=Math.round(g.maxHp*.3); g.hp=Math.min(g.maxHp,g.hp+h); sfx('heal'); nextFloor(g); paint(g); }
+function restHeal(g){ var h=Math.round(g.maxHp*.3); g.hp=Math.min(g.maxHp,g.hp+h); sfx('heal'); afterSide(g); paint(g); }
 function upgradeable(g){ var out=[]; g.deck.forEach(function(id,i){ if(!/\+$/.test(id)&&C[id]&&C[id].up) out.push(i); }); return out; }
 function eventChoose(g,k){
   var res='';
-  if(k==='leave'){ nextFloor(g); paint(g); return; }
+  if(k==='leave'){ afterSide(g); paint(g); return; }
   if(k==='altar1'){ g.hp=Math.max(1,g.hp-7); var pool=Object.keys(RELICS).filter(function(r){ return g.relics.indexOf(r)<0; }); if(pool.length){ var r=pick(pool); g.relics.push(r); res='You pay in blood. Gained '+RELICS[r].i+' '+RELICS[r].n+' (−7 HP).'; } else res='The altar is silent. You lose 7 HP for nothing.'; sfx('hurt'); }
   else if(k==='fount1'){ var b=g.hp; g.hp=Math.min(g.maxHp,g.hp+18); res='You drink deeply. +'+(g.hp-b)+' HP.'; sfx('heal'); }
   else if(k==='fount2'){ g.maxHp+=5; g.hp+=5; res='Your spirit swells. +5 max HP.'; sfx('heal'); }
@@ -303,7 +328,7 @@ function cardHtml(id,opt){
 }
 function topbar(g){
   var track='';
-  var f0=Math.max(1,g.floor-2); for(var f=f0;f<f0+7;f++){ track+='<span class="rg-fl '+(f<g.floor?'done':f===g.floor?'cur':'')+(f%5===0?' boss':'')+'">'+(f%5===0?'👑':f)+'</span>'; }
+  var f0=g.floor<=10?1:Math.max(1,g.floor-4), f1=g.floor<=10?10:f0+9; for(var f=f0;f<=f1;f++){ track+='<span class="rg-fl '+(f<g.floor?'done':f===g.floor?'cur':'')+(f%10===0?' boss':'')+'">'+(f%10===0?'👑':f%10===5?'💀':f)+'</span>'; }
   var rel=g.relics.map(function(r){ return '<span class="rg-rel" title="'+E(RELICS[r].n+': '+RELICS[r].d)+'">'+RELICS[r].i+'</span>'; }).join('')||'<span class="rg-none">No relics yet</span>';
   return '<div class="rg-top"><div class="rg-track">'+track+'</div><div class="rg-relics">'+rel+'</div><div class="rg-res"><span class="rg-gold">🪙 <b>'+g.gold+'</b></span><button class="rg-tool" data-rg="deck" title="View deck (D)">🂠 '+g.deck.length+'</button><button class="rg-tool" data-rg="mute" title="Sound">'+(muted()?'🔇':'🔊')+'</button><button class="rg-tool" data-rg="fs" title="Fullscreen (F)">⛶</button></div></div>';
 }
@@ -325,7 +350,7 @@ function battleHtml(g){
 function nodeInfo(k,f){ return {fight:['⚔️','Monster','A normal battle. Earn gold and add a card.'],elite:['👹','Elite','Tough battle. Wins a relic.'],rest:['🔥','Campfire','Heal 30% or sharpen a card.'],shop:['🛒','Merchant','Spend gold on cards, relics, cures.'],event:['❔','Mystery','Something strange waits…'],boss:['👑','Boss','Defeat the guardian of this floor.']}[k]; }
 function mapHtml(g){
   var nodes=g.nodes.map(function(k,i){ var n=nodeInfo(k); return '<button class="rg-node k-'+k+'" data-rg="node" data-i="'+i+'"><span class="rg-ni">'+n[0]+'</span><b>'+n[1]+'</b><small>'+n[2]+'</small></button>'; }).join('');
-  var next=g.floor%5===0?'A boss guards this floor.':'Floor '+g.floor+' — choose your path.';
+  var next=g.floor%10===0?'A boss guards this floor.':g.floor%10===5?'An elite blocks the way.':'Floor '+g.floor+(g.nodes.length>1?' — choose your path.':' — the battle awaits.');
   return topbar(g)+'<div class="rg-screen"><div class="rg-hero">'+ling()+'</div><h3>'+next+'</h3><div class="rg-hp">'+bar(g.hp,g.maxHp,'hp')+'</div><div class="rg-nodes">'+nodes+'</div></div>';
 }
 function rewardHtml(g){
@@ -358,10 +383,14 @@ function titleHtml(g){
   if(s) c+='<button class="btn btn-primary btn-lg" data-rg="resume">▶ Continue run · Floor '+s.floor+' · '+s.hp+'/'+(s.maxHp||maxHpBase())+' HP</button>';
   else if(l) c+='<button class="btn btn-primary btn-lg" data-rg="legacy">▶ Continue climb · Floor '+l.floor+' · '+l.deck.length+'-card deck</button>';
   c+='<button class="btn '+(s||l?'btn-ghost':'btn-primary btn-lg')+'" data-rg="new">'+(s||l?'Start a new run':'⚔ Begin the climb')+'</button>';
-  return '<div class="rg-title"><div class="rg-hero big">'+ling()+'</div><h2>Rogue\'s Sanctuary</h2><p>Climb the sanctuary floor by floor. Fight with a deck of skills, read enemy intents, pick your path, find relics, and defeat a boss every 5th floor.</p><div class="rg-facts"><span>❤️ '+maxHpBase()+' HP</span><span>⚡ 3 energy</span><span>🃏 5 cards / turn</span><span>🍀 Luck '+(st.luck||0)+': bonus gold</span>'+best+'</div><div class="rg-how"><span>1–5 play cards</span><span>E end turn</span><span>D deck</span><span>F fullscreen</span></div><div class="rg-tbtns">'+c+'<button class="btn btn-ghost" data-rg="fs">⛶ Fullscreen</button></div></div>';
+  return '<div class="rg-title"><div class="rg-hero big">'+ling()+'</div><h2>Rogue\'s Sanctuary</h2><p>Climb the sanctuary floor by floor. Fight with a deck of skills, read enemy intents, pick your path, find relics, face an elite on floor 5 and a boss on floor 10. A study question round before every battle powers you up.</p><div class="rg-facts"><span>❤️ '+maxHpBase()+' HP</span><span>⚡ 3 energy</span><span>🃏 5 cards / turn</span><span>📚 Questions power you up</span><span>🍀 Luck '+(st.luck||0)+': bonus gold</span>'+best+'</div><div class="rg-how"><span>1–5 play cards</span><span>E end turn</span><span>D deck</span><span>F fullscreen</span></div><div class="rg-tbtns">'+c+'<button class="btn btn-ghost" data-rg="fs">⛶ Fullscreen</button></div></div>';
+}
+function victoryHtml(g){
+  return topbar(g)+'<div class="rg-screen"><div class="rg-evi">🏆</div><h3>The boss falls! Sanctuary conquered</h3><p class="rg-sub">You cleared all 10 floors with a '+g.deck.length+'-card deck.</p>'+studyHtml()+'<div class="rg-choices"><button class="rg-opt" data-rg="finish"><span>🪙</span><b>Claim victory</b><small>End the run now for a coin bonus</small></button><button class="rg-opt" data-rg="keep"><span>♾️</span><b>Keep climbing</b><small>Endless floors, tougher foes</small></button></div></div>';
 }
 function deadHtml(g){
-  return '<div class="rg-title dead"><div class="rg-evi">💀</div><h2>Your climb ends on floor '+g.reached+'</h2><p>You defeated '+g.wins+' foes across all runs. Best floor: '+g.best+'.'+(g.coinsEarned?' <b>+'+g.coinsEarned+' 🪙</b>':'')+'</p><div class="rg-tbtns"><button class="btn btn-primary btn-lg" data-rg="new">Start a new run</button><button class="btn btn-ghost" data-rg="hub">Back to games</button></div></div>';
+  if(g.won) return '<div class="rg-title dead"><div class="rg-evi">🏆</div><h2>Victory! You conquered the sanctuary</h2><p>Reached floor '+g.reached+'. Best floor: '+g.best+'.'+(g.coinsEarned?' <b>+'+g.coinsEarned+' 🪙</b>':'')+'</p>'+studyHtml()+'<div class="rg-tbtns"><button class="btn btn-primary btn-lg" data-rg="new">Start a new run</button><button class="btn btn-ghost" data-rg="hub">Back to games</button></div></div>';
+  return '<div class="rg-title dead"><div class="rg-evi">💀</div><h2>Your climb ends on floor '+g.reached+'</h2><p>You defeated '+g.wins+' foes across all runs. Best floor: '+g.best+'.'+(g.coinsEarned?' <b>+'+g.coinsEarned+' 🪙</b>':'')+'</p>'+studyHtml()+'<div class="rg-tbtns"><button class="btn btn-primary btn-lg" data-rg="new">Start a new run</button><button class="btn btn-ghost" data-rg="hub">Back to games</button></div></div>';
 }
 function deckOverlay(g){
   var sorted=g.deck.slice().sort(function(a,b){ return cd(a).n<cd(b).n?-1:1; });
@@ -370,7 +399,8 @@ function deckOverlay(g){
 function inner(g){
   var h;
   if(g.ph==='title') h=titleHtml(g);
-  else if(g.ph==='dead') h=deadHtml(g);
+  else if(g.ph==='dead'||g.ph==='won') h=deadHtml(g);
+  else if(g.ph==='victory') h=victoryHtml(g);
   else if(g.ph==='battle') h=battleHtml(g);
   else if(g.ph==='map') h=mapHtml(g);
   else if(g.ph==='reward') h=rewardHtml(g);
@@ -417,24 +447,26 @@ document.addEventListener('click',function(e){
   else if(a==='legacy'){ continueLegacy(g); g.legacy=null; renderGames(); }
   else if(a==='new'){ newRun(g); g.saved=null; g.legacy=null; renderGames(); }
   else if(a==='node'){ enter(g,g.nodes[i]); paint(g); }
-  else if(a==='reward'){ var id=g.rewards[i]; if(id){ g.deck.push(id); sfx('gold'); } nextFloor(g); paint(g); }
-  else if(a==='skip'){ g.gold+=8; nextFloor(g); paint(g); }
+  else if(a==='reward'){ var id=g.rewards[i]; if(id){ g.deck.push(id); sfx('gold'); } advance(g); paint(g); }
+  else if(a==='skip'){ g.gold+=8; advance(g); paint(g); }
+  else if(a==='keep'){ g.keepGoing=true; nextFloor(g); paint(g); }
+  else if(a==='finish'){ endRun(g,true); paint(g); }
   else if(a==='rest-heal') restHeal(g);
   else if(a==='rest-up'){ g.upMode='up'; g.ph='deckpick'; paint(g); }
-  else if(a==='pickcard'){ if(g.upMode==='remove'){ g.deck.splice(i,1); g.gold-=g.shop.rm; g.shop.rmUsed=1; g.ph='shop'; sfx('hurt'); } else { g.deck[i]=g.deck[i]+'+'; sfx('buff'); g.upMode=''; nextFloor(g); } if(g.ph==='shop') save(g); paint(g); }
+  else if(a==='pickcard'){ if(g.upMode==='remove'){ g.deck.splice(i,1); g.gold-=g.shop.rm; g.shop.rmUsed=1; g.ph='shop'; sfx('hurt'); } else { g.deck[i]=g.deck[i]+'+'; sfx('buff'); g.upMode=''; afterSide(g); } if(g.ph==='shop') save(g); paint(g); }
   else if(a==='cancelpick'){ if(g.upMode==='remove'){ g.ph='shop'; } else g.ph='rest'; g.upMode=''; paint(g); }
   else if(a==='buy-card') shopBuy(g,'card',i);
   else if(a==='buy-relic') shopBuy(g,'relic');
   else if(a==='buy-rm') shopBuy(g,'rm');
   else if(a==='buy-heal') shopBuy(g,'heal');
-  else if(a==='leave'){ nextFloor(g); paint(g); }
+  else if(a==='leave'){ afterSide(g); paint(g); }
   else if(a==='ev') eventChoose(g,t.getAttribute('data-k'));
-  else if(a==='evnext'){ nextFloor(g); paint(g); }
+  else if(a==='evnext'){ afterSide(g); paint(g); }
 });
 document.addEventListener('keydown',function(e){
   var g=G(); if(!g||state.view!=='games') return; var k=e.key.toLowerCase(); if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName)) return;
   if(k==='f'){ toggleFS(); return; }
-  if(k==='d'&&g.ph!=='title'&&g.ph!=='dead'){ g.overlay=g.overlay==='deck'?'':'deck'; paint(g); return; }
+  if(k==='d'&&g.ph!=='title'&&g.ph!=='dead'&&g.ph!=='won'){ g.overlay=g.overlay==='deck'?'':'deck'; paint(g); return; }
   if(g.ph==='battle'&&!g.busy){ if(k==='e'||k==='enter'){ endTurn(g); e.preventDefault(); } else if(k>='1'&&k<='9'){ var n=+k-1; if(n<g.b.hand.length) playCard(g,n); } }
 },true);
 window.__rg={get:function(){ return G(); },playCard:playCard,endTurn:endTurn,enter:enter,newRun:newRun,genMap:genMap,die:die,cd:cd,C:C,RELICS:RELICS,intent:intent,startBattle:startBattle,winBattle:winBattle,save:save,shopBuy:shopBuy};

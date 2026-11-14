@@ -1,7 +1,7 @@
 /* Rogue's Sanctuary v2 */
 .rg-root{position:relative;background:var(--card);border:2px solid var(--line);border-radius:20px;margin-top:6px;overflow:hidden;min-height:560px;display:flex;flex-direction:column;color:var(--ink)}
 .rg-top{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;border-bottom:2px solid var(--line);background:rgba(124,92,252,.08)}
-.rg-track{display:flex;gap:4px}.rg-fl{min-width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;opacity:.7}
+.rg-track{display:flex;gap:4px;flex-wrap:wrap}.rg-fl{min-width:26px;height:26px;border-radius:8px;border:2px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;opacity:.7}
 .rg-fl.done{background:rgba(47,212,139,.2);border-color:var(--green);opacity:1}.rg-fl.cur{background:var(--purple);color:#fff;border-color:var(--purple);opacity:1;transform:scale(1.12)}.rg-fl.boss{border-color:#f5b83d}
 .rg-relics{flex:1;display:flex;gap:4px;flex-wrap:wrap;min-width:90px}.rg-rel{font-size:20px;cursor:help;background:rgba(255,200,60,.14);border-radius:9px;padding:1px 5px}.rg-none{font-size:12px;opacity:.55;font-weight:700}
 .rg-res{display:flex;align-items:center;gap:6px}.rg-gold{font-weight:800;background:rgba(245,184,61,.18);border-radius:999px;padding:4px 11px}

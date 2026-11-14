@@ -3,13 +3,16 @@
    Overrides the arcade Expedition hooks from the main script. Saves to gameProgress.expedition. */
 (function(){
 'use strict';
-var LW=1000, LH=562, COLS=9, TAU=Math.PI*2;
+var LW=1000, LH=562, COLS=16, TAU=Math.PI*2, SINGLE={0:1,5:1,10:1,15:1};
 var clamp=function(n,a,b){ return Math.max(a,Math.min(b,n)); };
 function $(id){ return document.getElementById(id); }
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return((t^t>>>14)>>>0)/4294967296; }; }
 function esc2(s){ return (typeof esc==='function')?esc(String(s==null?'':s)):String(s==null?'':s); }
+function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
+function studyHtml(){ try{ return (window.GameStudy&&GameStudy.summaryHtml())||''; }catch(e){ return ''; } }
+try{ (ARCADE_MODES.filter(function(m){ return m.id==='expedition'; })[0]||{}).desc='A 15-room branching dungeon crawl: study questions before every room power up your rolls, two mini-bosses and a final boss.'; }catch(e){}
 function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
-var NT={monster:{icon:'⚔️',name:'Monster',col:'#ff7a7a'},elite:{icon:'💀',name:'Elite',col:'#ff4a8a'},event:{icon:'❓',name:'Mystery',col:'#9bb0ff'},treasure:{icon:'💰',name:'Treasure',col:'#ffd24a'},camp:{icon:'🔥',name:'Campfire',col:'#ffa24a'},shop:{icon:'🛒',name:'Merchant',col:'#7ae8c0'},trap:{icon:'⚠️',name:'Trap',col:'#ffb04a'},boss:{icon:'👑',name:'Boss',col:'#ff5aa0'},start:{icon:'🚪',name:'Entrance',col:'#aaa'}};
+var NT={monster:{icon:'⚔️',name:'Monster',col:'#ff7a7a'},elite:{icon:'💀',name:'Elite',col:'#ff4a8a'},event:{icon:'❓',name:'Mystery',col:'#9bb0ff'},treasure:{icon:'💰',name:'Treasure',col:'#ffd24a'},camp:{icon:'🔥',name:'Campfire',col:'#ffa24a'},shop:{icon:'🛒',name:'Merchant',col:'#7ae8c0'},trap:{icon:'⚠️',name:'Trap',col:'#ffb04a'},boss:{icon:'👑',name:'Boss',col:'#ff5aa0'},miniboss:{icon:'☠️',name:'Mini-boss',col:'#ff3a6a'},start:{icon:'🚪',name:'Entrance',col:'#aaa'}};
 
 /* ------------------------------ sprite / sound ------------------------------ */
 var spriteCache={};
@@ -50,7 +53,8 @@ var MON=[
   [{n:'Wraith',i:'👻',hp:14,atk:5},{n:'Ogre',i:'👹',hp:22,atk:5},{n:'Gargoyle',i:'🗿',hp:18,atk:4}]
 ];
 var ELITE=[{n:'Ogre Warlord',i:'👹',hp:30,atk:6},{n:'Lich Acolyte',i:'🧙',hp:26,atk:7},{n:'Crystal Golem',i:'💎',hp:34,atk:5}];
-var BOSS={n:'The Warden',i:'🐲',hp:54,atk:7,boss:true};
+var BOSS={n:'The Warden',i:'🐲',hp:90,atk:9,boss:true};
+var MINI=[null,{n:'The Gatekeeper',i:'🦂',hp:46,atk:6,mini:true},{n:'The Chimera',i:'🦁',hp:68,atk:8,mini:true}];
 var EVENTS=[
  {t:'Collapsed Bridge',i:'🌉',x:'A rope bridge sags over a deep chasm. The far side glitters with something shiny.',c:[
    {l:'Leap across',s:'speed',dc:12,w:{x:'You sail over and snatch a purse of coins!',fx:{gold:10}},f:{x:'You barely catch the ledge, scraping yourself badly.',fx:{hp:-3}}},
@@ -103,6 +107,24 @@ var EVENTS=[
    {l:'Inspect it first',s:'wits',dc:9,w:{x:'You spot the trap and strike the mimic first!',fx:{combat:'mimic',pre:8}},f:{x:'It looks normal... until it bites.',fx:{combat:'mimic'}}},
    {l:'Back away slowly',w:{x:'It watches you go.',fx:{}}}]}
 ];
+EVENTS.push(
+ {t:'Dusty Shrine',i:'⛩️',x:'A forgotten shrine to the god of scholars. A faded plaque asks for a worthy mind.',c:[
+   {l:'Meditate',s:'wits',dc:10,w:{x:'Clarity washes over you. (+1 Wits for the run)',fx:{wits:1,hp:2}},f:{x:'Your thoughts wander and the torch gutters.',fx:{torch:-1}}},
+   {l:'Leave an offering (12 gold)',need:{gold:12},w:{x:'The shrine blesses your journey.',fx:{gold:-12,maxHp:3,hp:3}}},
+   {l:'Take the plaque',s:'power',dc:12,w:{x:'Behind it: a hidden relic!',fx:{relic:1}},f:{x:'The plaque is trapped.',fx:{hp:-3}}}]},
+ {t:'Underground River',i:'🛶',x:'A dark river cuts the tunnel. A leaky raft bobs at the bank.',c:[
+   {l:'Ride the raft',s:'speed',dc:11,w:{x:'You shoot the rapids and find a washed-up pack.',fx:{item:'bomb',gold:8}},f:{x:'The raft tips and you swim, soaked.',fx:{hp:-3,torch:-2}}},
+   {l:'Wade across',s:'power',dc:10,w:{x:'You haul yourself out the far side.',fx:{}},f:{x:'The current drags you.',fx:{hp:-3}}},
+   {l:'Follow the bank',w:{x:'A long detour, but a safe one.',fx:{torch:-2}}}]},
+ {t:'Merchant Ghost',i:'👻',x:'A translucent trader floats before you, jingling a spectral purse. "A trade?"',c:[
+   {l:'Trade 8 HP for gold',s:'luck',dc:9,w:{x:'A fair deal: gold rains down.',fx:{hp:-4,gold:30}},f:{x:'The ghost cackles and steals from you.',fx:{hp:-4,gold:-5}}},
+   {l:'Haggle for a potion',s:'wits',dc:11,w:{x:'The ghost sighs and hands over a potion.',fx:{item:'smoke',gold:-5}},f:{x:'It fades, offended.',fx:{}}},
+   {l:'Ignore it',w:{x:'It drifts away through the wall.',fx:{}}}]},
+ {t:'Crystal Cavern',i:'🔮',x:'Giant crystals hum with light. One of them is cracked and leaking energy.',c:[
+   {l:'Absorb the energy',s:'luck',dc:12,w:{x:'Power surges through your arms! (+1 attack)',fx:{hp:2,relic:1}},f:{x:'The crystal shatters in your face.',fx:{hp:-4}}},
+   {l:'Chip off a shard',s:'power',dc:9,w:{x:'A valuable shard!',fx:{gold:20}},f:{x:'The shard cuts your hand.',fx:{hp:-2}}},
+   {l:'Use as a lamp',w:{x:'The glow lights your way.',fx:{torch:4}}}]}
+);
 var TRAPS=[
  {t:'Pressure Plate',i:'🔻',x:'Click. The floor dips under your boot. Hidden darts line the wall.',c:[{l:'Leap clear',s:'speed',dc:11,w:{x:'Darts whistle harmlessly past.',fx:{}},f:{x:'A dart finds you.',fx:{hp:-3}}},{l:'Raise your shield',w:{x:'You block most of them.',fx:{hp:-1}}}]},
  {t:'Swinging Blade',i:'🪓',x:'A pendulum blade swings across the corridor, scything back and forth.',c:[{l:'Time it and run',s:'speed',dc:12,w:{x:'Perfect timing!',fx:{gold:6}},f:{x:'It nicks you on the way through.',fx:{hp:-3}}},{l:'Study the rhythm',s:'wits',dc:9,w:{x:'You walk through safely.',fx:{}},f:{x:'You miscount.',fx:{hp:-2,torch:-1}}}]},
@@ -111,16 +133,18 @@ var TRAPS=[
 
 /* ------------------------------ map ------------------------------ */
 function genMap(seed){
-  var r=mulberry(seed), cols=[];
-  for(var c=0;c<COLS;c++){ var n=c===0||c===COLS-1?1:3, nodes=[]; for(var j=0;j<n;j++){ nodes.push({id:c+'-'+j,c:c,j:j,type:'event',next:[],prev:[],vis:false,x:0,y:0}); } cols.push(nodes); }
-  cols[0][0].type='start'; cols[COLS-1][0].type='boss';
+  var r=mulberry(seed), cols=[], last=COLS-1;
+  for(var c=0;c<COLS;c++){ var n=SINGLE[c]?1:3, nodes=[]; for(var j=0;j<n;j++){ nodes.push({id:c+'-'+j,c:c,j:j,type:'event',next:[],prev:[],vis:false,x:0,y:0}); } cols.push(nodes); }
+  cols[0][0].type='start'; cols[last][0].type='boss'; cols[5][0].type='miniboss'; cols[10][0].type='miniboss';
   var rows=[150,281,412];
-  cols.forEach(function(ns,c){ ns.forEach(function(n){ n.x=Math.round(90+c*(820/(COLS-1))+(c>0&&c<COLS-1?(r()-.5)*30:0)); n.y=ns.length===1?281:Math.round(rows[n.j]+(r()-.5)*40); }); });
-  for(var c2=1;c2<COLS-1;c2++){ cols[c2].forEach(function(n){ var t=r();
-    n.type=t<.34?'monster':t<.60?'event':t<.70?'treasure':t<.80?'trap':t<.88?'shop':'camp'; if(c2>=3&&r()<.22) n.type='elite'; }); }
-  cols[1][(r()*3)|0].type='monster'; cols[2][(r()*3)|0].type='shop'; cols[3][(r()*3)|0].type='camp'; cols[5][(r()*3)|0].type='shop'; cols[COLS-2][(r()*3)|0].type='camp'; cols[COLS-2][(r()*3)|0].type='elite'; var any=cols[COLS-2].some(function(n){ return n.type==='camp'; }); if(!any) cols[COLS-2][0].type='camp';
+  cols.forEach(function(ns,c){ ns.forEach(function(n){ n.x=Math.round(60+c*(880/last)+(c>0&&c<last&&ns.length>1?(r()-.5)*14:0)); n.y=ns.length===1?281:Math.round(rows[n.j]+(r()-.5)*30); }); });
+  for(var c2=1;c2<last;c2++){ if(SINGLE[c2]) continue; cols[c2].forEach(function(n){ var t=r();
+    n.type=t<.34?'monster':t<.60?'event':t<.70?'treasure':t<.80?'trap':t<.88?'shop':'camp'; if(c2>=3&&r()<.18) n.type='elite'; }); }
+  function setT(c,type){ var ns=cols[c]; var n=ns[(r()*ns.length)|0]; n.type=type; return n; }
+  setT(1,'monster'); setT(2,'shop'); setT(3,'event'); setT(4,'camp'); setT(6,'event'); setT(8,'shop'); setT(9,'camp'); setT(12,'shop'); setT(13,'camp');
+  var cc=cols[last-1], ca=(r()*3)|0; cc[ca].type='camp'; cc[(ca+1)%3].type='elite';
   function link(a,b){ if(a.next.indexOf(b)<0){ a.next.push(b); b.prev.push(a); } }
-  for(var c3=0;c3<COLS-1;c3++){ var A=cols[c3], B=cols[c3+1]; if(A.length===1){ B.forEach(function(b){ link(A[0],b); }); } else if(B.length===1){ A.forEach(function(a){ link(a,B[0]); }); } else { A.forEach(function(a){ link(a,B[a.j]); if(r()<.55&&a.j>0) link(a,B[a.j-1]); if(r()<.55&&a.j<2) link(a,B[a.j+1]); }); B.forEach(function(b){ if(!b.prev.length) link(A[b.j],b); }); } }
+  for(var c3=0;c3<last;c3++){ var A=cols[c3], B=cols[c3+1]; if(A.length===1){ B.forEach(function(b){ link(A[0],b); }); } else if(B.length===1){ A.forEach(function(a){ link(a,B[0]); }); } else { A.forEach(function(a){ link(a,B[a.j]); if(r()<.55&&a.j>0) link(a,B[a.j-1]); if(r()<.55&&a.j<2) link(a,B[a.j+1]); }); B.forEach(function(b){ if(!b.prev.length) link(A[b.j],b); }); } }
   return cols;
 }
 
@@ -128,14 +152,14 @@ function genMap(seed){
 window.arcadeExpeditionStart=function(){
   var s=arcadeCharacterStats(), seed=(Math.random()*1e9)|0, map=genMap(seed);
   var maxHp=10+s.vitality*2;
-  var g={seed:seed,map:map,cur:map[0][0],s:s,hp:maxHp,maxHp:maxHp,torch:12,maxTorch:12,gold:10,relics:[],items:['potion'],mods:{power:Math.round(s.power),speed:Math.round(s.speed),luck:Math.round(s.luck),wits:Math.max(0,Math.floor((s.focus||100)/50))},
-    dmg:3+Math.round(s.power),phase:'ready',busy:false,steps:0,kills:0,col:0,log:[],time:0,tok:{x:map[0][0].x,y:map[0][0].y},hover:null,parts:[],texts:[],shake:0,flash:0,enc:null,score:0,nextRelic:null,wasStart:true};
+  var g={seed:seed,map:map,cur:map[0][0],s:s,hp:maxHp,maxHp:maxHp,torch:20,maxTorch:20,gold:12,relics:[],items:['potion'],mods:{power:Math.round(s.power),speed:Math.round(s.speed),luck:Math.round(s.luck),wits:Math.max(0,Math.floor((s.focus||100)/50))},
+    dmg:3+Math.round(s.power),phase:'ready',busy:false,steps:0,kills:0,col:0,log:[],time:0,tok:{x:map[0][0].x,y:map[0][0].y},hover:null,parts:[],texts:[],shake:0,flash:0,enc:null,score:0,nextRelic:null,wasStart:true,roomBonus:0,studyOk:0,studyTotal:0};
   map[0][0].vis=true; state.games={active:'expedition',keys:{},ex:g};
 };
 window.arcadeExpeditionChoose=function(){};
 window.arcadeExpeditionHtml=function(){
   var g=state.games.ex; if(!g) return ''; setTimeout(mount,0); var ep=arcadeGameProgress().expedition||{};
-  var stats='<span class="arcade-pill">🏆 Best <b>'+(ep.best||0)+'</b></span><span class="arcade-pill">🏁 Clears <b>'+(ep.clears||0)+'</b></span><span class="arcade-pill">🗺 Deepest <b>'+(ep.bestDepth||0)+'/'+COLS+'</b></span>';
+  var stats='<span class="arcade-pill">🏆 Best <b>'+(ep.best||0)+'</b></span><span class="arcade-pill">🏁 Clears <b>'+(ep.clears||0)+'</b></span><span class="arcade-pill">🗺 Deepest <b>'+(ep.bestDepth||0)+'/'+(COLS-1)+'</b></span>';
   return arcadeFrame('Expedition Dash','Click a glowing room to advance · roll d20 + stat vs a difficulty · keep your torch lit · F fullscreen',stats,
     '<div class="gx-wrap ex-wrap" id="ex-wrap"><canvas id="ex-canvas" width="1000" height="562"></canvas><div class="gx-ov ex-ov" id="ex-ov"></div>'+
     '<div class="gx-tools"><button class="gx-mute" id="ex-mute" type="button" aria-label="Toggle sound">'+(muted()?'🔇':'🔊')+'</button><button class="gx-mute" id="ex-fs" type="button" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button></div>'+
@@ -175,6 +199,7 @@ document.addEventListener('fullscreenchange',onFS); document.addEventListener('w
 document.addEventListener('keydown',function(e){
   var gm=state.games; if(state.view!=='games'||!gm||gm.active!=='expedition'||!gm.ex) return; var g=gm.ex, k=e.key.toLowerCase();
   if(k==='f'){ toggleFS(); return; }
+  if(window.GameStudy&&GameStudy.isOpen()) return;
   if(g.phase==='ready'&&(k==='enter'||k===' ')){ handle(g,'start'); return; }
   if(g.enc&&'123456'.indexOf(k)>=0&&k!==''){ var btn=g.ov&&g.ov.querySelector('[data-key="'+k+'"]'); if(btn) btn.click(); }
 },true);
@@ -196,9 +221,9 @@ function addLog(g,t){ g.log.unshift(t); if(g.log.length>5) g.log.pop(); }
 function floatText(g,x,y,t,c){ g.texts.push({x:x,y:y,t:t,c:c,l:1.2}); }
 function parts(g,x,y,n,col,sp){ for(var i=0;i<n;i++){ var a=Math.random()*TAU, v=sp*(.3+Math.random()*.7); g.parts.push({x:x,y:y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,l:.5+Math.random()*.4,m:.9,c:col,r:2+Math.random()*3}); } }
 function hasR(g,id){ return g.relics.indexOf(id)>=0; }
-function modOf(g,stat){ return (g.mods[stat]||0)+(hasR(g,'coin')?1:0); }
+function modOf(g,stat){ return (g.mods[stat]||0)+(hasR(g,'coin')?1:0)+(g.roomBonus||0); }
 function chance(g,stat,dc){ return clamp((21-(dc-modOf(g,stat)))/20,.05,.95); }
-function dmgOut(g){ return g.dmg+(hasR(g,'banner')?2:0); }
+function dmgOut(g){ return g.dmg+(hasR(g,'banner')?2:0)+(g.roomBonus||0); }
 function giveRelic(g){ var pool=Object.keys(RELICS).filter(function(k){ return !hasR(g,k); }); if(!pool.length) return null; var k=pool[(Math.random()*pool.length)|0]; g.relics.push(k); if(k==='skin'){ g.maxHp+=4; g.hp+=4; } if(k==='ember'){ g.torch=Math.min(g.maxTorch+3,g.torch+3); } return k; }
 function fxSummary(g,fx){
   var out=[]; if(fx.hp){ g.hp=clamp(g.hp+fx.hp,0,g.maxHp); out.push((fx.hp>0?'+':'')+fx.hp+' ❤️'); parts(g,g.tok.x,g.tok.y,10,fx.hp>0?'#7dffa8':'#ff6a7a',150); g.flash=fx.hp<0?.25:0; }
@@ -218,11 +243,26 @@ async function travel(g,n){
   var from=g.cur; var t0=0; await new Promise(function(res){ var iv=setInterval(function(){ t0+=.06; var k=clamp(t0/.5,0,1), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2; g.tok.x=from.x+(n.x-from.x)*e; g.tok.y=from.y+(n.y-from.y)*e; if(k>=1){ clearInterval(iv); res(); } },30); });
   g.cur=n; n.vis=true; g.col=n.c; g.steps++;
   var free=hasR(g,'ember')&&g.steps%3===0; if(!free){ if(g.torch>0) g.torch--; else { g.hp-=1; floatText(g,n.x,n.y-30,'-1 ❤️ darkness','#ff6a7a'); g.flash=.3; } }
-  addLog(g,'Moved to '+NT[n.type].name+'.'); g.busy=false; g.phase='map'; if(dead(g)) return; enter(g,n);
+  addLog(g,'Moved to '+NT[n.type].name+'.'); g.phase='map'; g.roomBonus=0; if(dead(g)){ g.busy=false; return; } g.busy=true;
+  var ok=await roomGate(g,n); if(!ok) return; g.busy=false; if(dead(g)) return; enter(g,n);
+}
+async function roomGate(g,n){
+  var T=NT[n.type].name, hard=n.type==='boss'||n.type==='miniboss';
+  var r=await gate({title:'Room '+n.c+' of '+(COLS-1)+' · '+T,sub:hard?'A powerful foe waits ahead. Each correct answer sharpens your blade and your luck for this fight.':'Each correct answer gives +1 to every roll and +1 damage in this room. A perfect score also heals you.',count:2,label:'ROOM CHECKPOINT'});
+  if(!(state.games&&state.games.ex===g)||g.phase==='over'||g.phase==='win') return false;
+  if(r.skipped){ return true; }
+  g.studyOk+=r.correct; g.studyTotal+=r.total; g.roomBonus=r.correct;
+  var wrong=r.total-r.correct, msg=[];
+  if(r.correct) msg.push('+'+r.correct+' roll/dmg');
+  if(r.perfect){ var h=Math.min(2,g.maxHp-g.hp); g.hp+=h; if(h) msg.push('+'+h+' ❤️'); }
+  if(wrong&&g.torch>0){ g.torch=Math.max(0,g.torch-wrong); msg.push('-'+wrong+' 🕯️'); }
+  addLog(g,'Study check: '+r.correct+'/'+r.total+(msg.length?' ('+msg.join(', ')+')':''));
+  floatText(g,g.tok.x,g.tok.y-40,r.correct+'/'+r.total+' ✓',r.perfect?'#7dffa8':r.correct?'#ffe08a':'#ff8a8a');
+  bar(g); return true;
 }
 function enter(g,n){
   var T=n.type;
-  if(T==='monster'||T==='elite'||T==='boss'){ var m=pickMon(g,T); startCombat(g,m); return; }
+  if(T==='monster'||T==='elite'||T==='boss'||T==='miniboss'){ var m=pickMon(g,T); startCombat(g,m); return; }
   if(T==='event'){ var ev=EVENTS[(Math.random()*EVENTS.length)|0]; openEvent(g,ev); return; }
   if(T==='trap'){ openEvent(g,TRAPS[(Math.random()*TRAPS.length)|0]); return; }
   if(T==='treasure'){ openTreasure(g); return; }
@@ -231,9 +271,10 @@ function enter(g,n){
   bar(g);
 }
 function pickMon(g,type){
-  var c=g.cur.c, tier=c<=2?0:c<=4?1:2;
-  var base=type==='boss'?BOSS:type==='elite'?ELITE[(Math.random()*ELITE.length)|0]:MON[tier][(Math.random()*3)|0], sc=1+.06*c;
-  return {n:base.n,i:base.i,hp:Math.round(base.hp*(type==='boss'?1:sc)),max:Math.round(base.hp*(type==='boss'?1:sc)),atk:base.atk+(type==='boss'?0:Math.floor(c/3)),type:type,boss:!!base.boss,intent:null,guard:false};
+  var c=g.cur.c, tier=c<=4?0:c<=9?1:2;
+  if(type==='miniboss'){ var mb=MINI[c>=10?2:1]; return {n:mb.n,i:mb.i,hp:mb.hp,max:mb.hp,atk:mb.atk,type:'miniboss',boss:false,mini:true,intent:null,guard:false}; }
+  var base=type==='boss'?BOSS:type==='elite'?ELITE[(Math.random()*ELITE.length)|0]:MON[tier][(Math.random()*3)|0], sc=1+.05*c;
+  return {n:base.n,i:base.i,hp:Math.round(base.hp*(type==='boss'?1:sc)),max:Math.round(base.hp*(type==='boss'?1:sc)),atk:base.atk+(type==='boss'?0:Math.floor(c/4)),type:type,boss:!!base.boss,intent:null,guard:false};
 }
 function mimic(g){ return {n:'Mimic',i:'👾',hp:16,max:16,atk:5,type:'monster',intent:null}; }
 function ogre(g){ return {n:'Ogre',i:'👹',hp:20,max:20,atk:5,type:'monster',intent:null}; }
@@ -287,9 +328,9 @@ function buy(g,k){
 
 /* ------------------------------ combat ------------------------------ */
 function startCombat(g,m,fromEvent){
-  m.intent=pickIntent(g,m); g.enc={kind:'combat',m:m,log:['A '+m.n+' blocks your path!'],won:false,turn:1}; if(m.boss) sfx('boss'); showOv(g); bar(g);
+  m.intent=pickIntent(g,m); g.enc={kind:'combat',m:m,log:['A '+m.n+' blocks your path!'],won:false,turn:1}; if(m.boss||m.mini) sfx('boss'); showOv(g); bar(g);
 }
-function pickIntent(g,m){ var r=Math.random(); if(m.boss&&m.hp<=m.max/2) return r<.5?'heavy':'attack'; return r<.58?'attack':r<.8?'heavy':'defend'; }
+function pickIntent(g,m){ var r=Math.random(); if((m.boss||m.mini)&&m.hp<=m.max/2) return r<.5?'heavy':'attack'; return r<.58?'attack':r<.8?'heavy':'defend'; }
 async function combatAct(g,act){
   var e=g.enc; if(!e||e.kind!=='combat'||e.won||g.busy) return; var m=e.m; g.busy=true; var msgs=[], pdmg=0, guardMode=false;
   var el=g.ov.querySelector('.ex-fight');
@@ -313,8 +354,8 @@ async function combatAct(g,act){
 }
 function flashEl(root,sel){ if(!root) return; var x=root.querySelector(sel); if(!x) return; x.classList.remove('hit'); void x.offsetWidth; x.classList.add('hit'); }
 function winCombat(g){
-  var e=g.enc, m=e.m; e.won=true; g.kills++; var loot=m.boss?60:m.type==='elite'?30+((Math.random()*10)|0):8+((Math.random()*8)|0)+g.cur.c; var fx={gold:loot}; if(m.type==='elite') fx.relic=1; else if(Math.random()<.3) fx.item=['potion','torch','bomb'][(Math.random()*3)|0];
-  var sum=fxSummary(g,fx); sfx('win'); addLog(g,'Defeated '+m.n+'.'); e.log.push(m.n+' is defeated!'); e.res={text:m.boss?'The Warden crumbles — the treasure vault lies open!':'Victory!',sum:sum,ok:true}; g.busy=false; showOv(g); bar(g);
+  var e=g.enc, m=e.m; e.won=true; g.kills++; var loot=m.boss?80:m.mini?50:m.type==='elite'?30+((Math.random()*10)|0):8+((Math.random()*8)|0)+g.cur.c; var fx={gold:loot}; if(m.type==='elite'||m.mini) fx.relic=1; if(m.mini) fx.hp=Math.round(g.maxHp*.3); else if(Math.random()<.3) fx.item=['potion','torch','bomb'][(Math.random()*3)|0];
+  var sum=fxSummary(g,fx); sfx('win'); addLog(g,'Defeated '+m.n+'.'); e.log.push(m.n+' is defeated!'); e.res={text:m.boss?'The Warden crumbles — the treasure vault lies open!':m.mini?m.n+' falls! You catch your breath and take its prize.':'Victory!',sum:sum,ok:true}; g.busy=false; showOv(g); bar(g);
 }
 function useItem(g,k){
   var idx=g.items.indexOf(k); if(idx<0||g.busy) return; var e=g.enc, inFight=e&&e.kind==='combat'&&!e.won;
@@ -326,7 +367,7 @@ function useItem(g,k){
 }
 function finish(g,win){
   if(g.phase==='over'||g.phase==='win') return; g.phase=win?'win':'over'; g.enc=null; sfx(win?'win':'lose');
-  var depth=g.cur.c+(win?1:0); g.score=g.gold+depth*20+g.relics.length*15+g.kills*5+(win?150:0)+Math.max(0,g.hp)*2; var gp=arcadeGameProgress(); gp.expedition=gp.expedition||{}; var s=gp.expedition;
+  var depth=g.cur.c; g.score=g.gold+depth*20+(g.studyOk||0)*10+g.relics.length*15+g.kills*5+(win?150:0)+Math.max(0,g.hp)*2; var gp=arcadeGameProgress(); gp.expedition=gp.expedition||{}; var s=gp.expedition;
   g.newBest=g.score>(Number(s.best)||0); s.best=Math.max(Number(s.best)||0,g.score); s.runs=(Number(s.runs)||0)+1; s.clears=(Number(s.clears)||0)+(win?1:0); s.bestDepth=Math.max(Number(s.bestDepth)||0,depth); s.kills=(Number(s.kills)||0)+g.kills;
   try{ persistProgress(); }catch(e){} if(win){ try{ celebrate(); }catch(e){} }
   setTimeout(function(){ if(state.games&&state.games.ex===g){ showOv(g); bar(g); } },win?700:900);
@@ -337,10 +378,10 @@ function chip(g,c){ var out=''; if(c.s){ var p=Math.round(chance(g,c.s,c.dc)*100
 function showOv(g){
   var o=g.ov; if(!o) return; var h='', e=g.enc;
   if(g.phase==='ready'){
-    h='<div class="gx-card wide"><h2>🗺️ Expedition Dash</h2><p>Descend through a branching dungeon of <b>'+COLS+'</b> rooms and defeat <b>The Warden</b> in the final chamber.</p><ul class="gx-keys"><li>🎲 <b>Stat checks:</b> roll a d20 + your stat against a difficulty. Choices show your odds.</li><li>🕯️ <b>Torch:</b> every move burns it. In the dark you bleed HP — rest at 🔥 campfires.</li><li>⚔️ <b>Combat:</b> enemies telegraph their next move — Guard vs heavy hits, Strike when they defend not.</li><li>💰 Shops, relics and consumables help. <kbd>F</kbd> fullscreen · <kbd>1–3</kbd> pick a choice</li></ul><p class="gx-stats">❤️ '+g.maxHp+' · 💪 '+g.mods.power+' · ⚡ '+g.mods.speed+' · 🍀 '+g.mods.luck+' · 🧠 '+g.mods.wits+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-ex="start">Enter the dungeon</button><button class="btn btn-ghost" data-ex-fs type="button">⛶ Fullscreen</button></div></div>';
+    h='<div class="gx-card wide"><h2>🗺️ Expedition Dash</h2><p>Descend through a branching dungeon of <b>'+(COLS-1)+'</b> rooms, beat two mini-bosses and defeat <b>The Warden</b> in the final chamber.</p><ul class="gx-keys"><li>📚 <b>Study checkpoints:</b> answer 2 questions before every room. Correct answers boost your rolls and damage there; wrong answers burn torch.</li><li>🎲 <b>Stat checks:</b> roll a d20 + your stat against a difficulty. Choices show your odds.</li><li>🕯️ <b>Torch:</b> every move burns it. In the dark you bleed HP — rest at 🔥 campfires.</li><li>⚔️ <b>Combat:</b> enemies telegraph their next move — Guard vs heavy hits, Strike when they defend not.</li><li>💰 Shops, relics and consumables help. <kbd>F</kbd> fullscreen · <kbd>1–3</kbd> pick a choice</li></ul><p class="gx-stats">❤️ '+g.maxHp+' · 💪 '+g.mods.power+' · ⚡ '+g.mods.speed+' · 🍀 '+g.mods.luck+' · 🧠 '+g.mods.wits+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-ex="start">Enter the dungeon</button><button class="btn btn-ghost" data-ex-fs type="button">⛶ Fullscreen</button></div></div>';
   } else if(g.phase==='win'||g.phase==='over'){
     var ep=arcadeGameProgress().expedition||{};
-    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Dungeon conquered!':'💀 Your expedition ends')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+(g.cur.c+(g.phase==='win'?1:0))+'/'+COLS+'</b><span>Depth</span></div><div><b>'+g.kills+'</b><span>Foes slain</span></div><div><b>'+g.gold+'🪙</b><span>Gold</span></div></div>'+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(ep.best||0)+'</p>')+'<div class="ex-relics">'+g.relics.map(function(k){ return '<span title="'+RELICS[k].name+' — '+RELICS[k].d+'">'+RELICS[k].icon+'</span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-exp-replay">New expedition</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Dungeon conquered!':'💀 Your expedition ends')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.cur.c+'/'+(COLS-1)+'</b><span>Depth</span></div><div><b>'+g.kills+'</b><span>Foes slain</span></div><div><b>'+g.gold+'🪙</b><span>Gold</span></div></div>'+studyHtml()+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(ep.best||0)+'</p>')+'<div class="ex-relics">'+g.relics.map(function(k){ return '<span title="'+RELICS[k].name+' — '+RELICS[k].d+'">'+RELICS[k].icon+'</span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-exp-replay">New expedition</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   } else if(e){
     if(e.kind==='event'){
       h='<div class="gx-card wide ex-card"><div class="ex-icon">'+e.ev.i+'</div><h2>'+esc2(e.ev.t)+'</h2><p>'+esc2(e.ev.x)+'</p>'+(e.res?outcome(g,e.res):'<div class="ex-choices">'+e.ev.c.map(function(c,i){ var dis=c.need&&((c.need.gold&&g.gold<c.need.gold)||(c.need.torch&&g.torch<c.need.torch)); return '<button type="button" class="ex-choice" data-ex="choice" data-v="'+i+'" data-key="'+(i+1)+'" '+(dis?'disabled':'')+'><kbd>'+(i+1)+'</kbd><span>'+esc2(c.l)+'</span>'+chip(g,c)+'</button>'; }).join('')+'</div>')+'</div>';
@@ -414,7 +455,7 @@ function hud(g,c){
   c.fillStyle='rgba(0,0,0,.6)'; c.fillRect(20,20,160,12); c.fillStyle=g.hp/g.maxHp>.3?'#6bff9a':'#ff5a6a'; c.fillRect(20,20,160*clamp(g.hp/g.maxHp,0,1),12); T('❤ '+Math.max(0,g.hp)+'/'+g.maxHp,24,31,11,'#fff');
   var fl=''; for(var i=0;i<Math.min(g.torch,15);i++) fl+='🕯'; T(g.torch>0?'🕯️ '+g.torch:'🕯️ DARK!',20,56,15,g.torch>3?'#ffd878':'#ff7a6a'); T('🪙 '+g.gold,100,56,15,'#ffe08a');
   T('⚔ '+dmgOut(g),190,56,14,'#ffb0b0');
-  T('Depth '+(g.cur.c)+'/'+(COLS-1),LW-110,30,16,'#e0d0ff','right'); T('Room '+g.steps,LW-110,50,12,'#a898d8','right');
+  T('Depth '+(g.cur.c)+'/'+(COLS-1),LW-110,30,16,'#e0d0ff','right'); T('Room '+g.steps,LW-110,50,12,'#a898d8','right'); if(g.roomBonus) T('📚 +'+g.roomBonus+' study bonus',LW-110,68,12,'#7dffa8','right');
   if(g.phase==='map'&&!g.enc) T('Choose your next room — click a glowing node',LW/2,LH-16,15,'#ffe9a8','center');
   var ly=94; g.log.slice(0,4).forEach(function(l,i){ c.globalAlpha=1-i*.22; T(l,16,ly,12,'#d8ccf5'); ly+=16; }); c.globalAlpha=1;
 }

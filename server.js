@@ -1607,7 +1607,99 @@ app.post('/api/ai/commander-question',async(req,res)=>{
     });
   }
 });
+
+// ---- Study-game questions (all arcade games + Troop Commander) ----
+// One Gemini call returns a bank of multiple-choice questions on a course/unit/topic or on the student's own notes.
+async function geminiComplete(messages,{maxTokens=6000,timeoutMs=40000}={}){
+  if(!GEMINI_API_KEY) throw new Error('No Gemini key.');
+  const deadline=Date.now()+timeoutMs; let lastErr=null;
+  const ready=GEMINI_MODELS.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
+  const order=(ready.length?ready:GEMINI_MODELS).slice().sort((a,b)=>(/lite/.test(b)-/lite/.test(a)));
+  for(const model of order){
+    let noReason=false;
+    for(let attempt=0;attempt<3;attempt++){
+      const left=deadline-Date.now(); if(left<4000) throw lastErr||new Error('Question generation timed out.');
+      const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),Math.min(left,24000));
+      try{
+        const r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
+          body:JSON.stringify(Object.assign({model,messages,stream:false,max_tokens:maxTokens,temperature:0.7},noReason?{}:{reasoning_effort:'none'})),signal:ctl.signal});
+        if(r.ok){ const text=extractText(await r.json()); if(text) return text; lastErr=new Error('Gemini returned no text.'); break; }
+        const raw=await r.text().catch(()=> '');
+        lastErr=new Error('Gemini '+model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,160)); lastErr.status=r.status;
+        console.warn('[AI] '+lastErr.message);
+        if(r.status===400&&!noReason){ noReason=true; continue; }
+        if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); break; }
+        if(![500,502,503,504].includes(r.status)) break;
+        await new Promise(x=>setTimeout(x,700));
+      }catch(e){ lastErr=new Error('Gemini '+model+' failed: '+(e?.message||e)); console.warn('[AI] '+lastErr.message); break; }
+      finally{ clearTimeout(t); }
+    }
+  }
+  throw lastErr||new Error('Gemini unavailable.');
+}
+const GAMEQ_HITS=new Map();
+async function gameQuestions(req,res){
+  let charge=null, ctx=null;
+  try{
+    const key=(req.user&&req.user.id)||req.ip||'x', now=Date.now();
+    const hits=(GAMEQ_HITS.get(key)||[]).filter(t=>now-t<60000);
+    if(hits.length>=12) return res.status(429).json({error:'Too many question requests. Wait a few seconds and try again.'});
+    hits.push(now); GAMEQ_HITS.set(key,hits); if(GAMEQ_HITS.size>5000) GAMEQ_HITS.clear();
+    if(!GEMINI_API_KEY) return res.status(503).json({error:'AI question generation is not available right now.',code:'NO_AI'});
+    const b=req.body||{};
+    const countRaw=Number(b.count); const count=Number.isFinite(countRaw)?Math.max(1,Math.min(20,Math.floor(countRaw))):12;
+    const course=String(b.course||'').replace(/\s+/g,' ').trim().slice(0,120);
+    const unit=String(b.unit||'').replace(/\s+/g,' ').trim().slice(0,160);
+    const topic=String(b.topic||'').replace(/\s+/g,' ').trim().slice(0,200);
+    const material=String(b.material||'').replace(/\r/g,'').trim().slice(0,7000);
+    if(!material&&!(course&&unit)) return res.status(400).json({error:'Choose a course and unit (or your notes) first.'});
+    const exclude=Array.isArray(b.exclude)?Array.from(new Set(b.exclude.map(v=>String(v||'').trim().slice(0,200)).filter(Boolean))).slice(-25):[];
+    const subject=material?"the student's own notes below":('AP '+course+', unit "'+unit+'"'+(topic?', focused on "'+topic+'"':''));
+    const prompt=[
+      'Write '+count+' different multiple-choice study questions about '+subject+'.',
+      material?'Use ONLY facts found in these notes. Notes (title: '+(topic||unit||'My notes')+'):\n<notes>\n'+material+'\n</notes>':'',
+      'Mix recall, application and reasoning. Each question has exactly 4 options and exactly one correct option; the wrong options must be plausible. Keep each question under 220 characters and each explanation under 160 characters. Vary which option is correct.',
+      exclude.length?'Do NOT repeat or reword these earlier questions: '+exclude.map((q,i)=>'['+(i+1)+'] '+q).join(' | '):'',
+      'Return ONLY JSON like {"questions":[{"q":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}]} with correct a number 0 to 3.'
+    ].filter(Boolean).join('\n');
+    const messages=[{role:'system',content:'You are Index, an accurate study-question writer for high school students. Reply with JSON only.'},{role:'user',content:prompt}];
+    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+    // One credit per bank of 5+ questions; tiny top-ups are free (still rate limited).
+    if(count>=5){
+      ctx=creditContext(req,res); charge=chargeCredits(ctx,1);
+      if(!charge.ok){
+        const st=creditStatus(ctx);
+        return res.status(429).json({error:'You are out of AI credits for now. They refill in '+creditWaitText(st.resetsAt-Date.now())+'.',code:'NO_CREDITS',credits:st});
+      }
+    }
+    if(aiInFlight>=AI_MAX_CONCURRENT){ if(charge) refundCredits(ctx,charge); return res.status(503).json({error:'Index AI is very busy right now. Try again in a few seconds.',code:'BUSY'}); }
+    aiInFlight++;
+    let raw;
+    try{ raw=await geminiComplete(messages,{maxTokens:Math.min(8000,700+count*330),timeoutMs:42000}); } finally{ aiInFlight--; }
+    const data=parseCommanderQuestionJson(raw);
+    const list=Array.isArray(data)?data:(Array.isArray(data?.questions)?data.questions:(data?.question?[data.question]:[]));
+    const out=[]; const seen=new Set();
+    for(const q of list){
+      if(!q||typeof q.q!=='string'||!q.q.trim()||!Array.isArray(q.options)||q.options.length!==4) continue;
+      const opts=q.options.map(o=>String(o??'').trim()); const c=Number(q.correct);
+      if(opts.some(o=>!o)||!Number.isInteger(c)||c<0||c>3||new Set(opts.map(o=>o.toLowerCase())).size<4) continue;
+      const stem=q.q.trim(); if(seen.has(stem.toLowerCase())) continue; seen.add(stem.toLowerCase());
+      // shuffle so the right answer is not always in the same slot
+      const idx=[0,1,2,3]; for(let i=3;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [idx[i],idx[j]]=[idx[j],idx[i]]; }
+      out.push({q:stem.slice(0,300),options:idx.map(i=>opts[i].slice(0,200)),correct:idx.indexOf(c),explanation:String(q.explanation||'').slice(0,300)});
+    }
+    if(!out.length){ if(charge) refundCredits(ctx,charge); return res.status(502).json({error:'The AI did not return usable questions. Try again.'}); }
+    res.json({questions:out.slice(0,count),provider:'Gemini'});
+  }catch(e){
+    if(charge) refundCredits(ctx,charge);
+    console.warn('[AI] game questions failed:',e?.message||e);
+    if(!res.headersSent) res.status(502).json({error:'The AI could not prepare questions right now. Try again in a moment.'});
+  }
+}
+app.post('/api/games/questions',gameQuestions);
+
 app.post('/api/ai/commander-bank',async(req,res)=>{
+  if(GEMINI_API_KEY) return gameQuestions(req,res); // Gemini is primary; the Vireonix route below is only the no-key fallback
   try{
     const requestedCountRaw=Number(req.body?.count);
     const requestedCount=Number.isFinite(requestedCountRaw)&&requestedCountRaw>1?Math.max(2,Math.min(20,Math.floor(requestedCountRaw))):1;
