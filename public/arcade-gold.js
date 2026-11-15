@@ -2,11 +2,18 @@
    Tap the vein to dig (crits, heat combo), assign drones to Ore / Crystal / Relic layers, buy drills, drones, a Prospector,
    Lucky Pick, Refinery and Deep Storage, catch Mother-Lode nuggets, and Descend (prestige) for permanent Gems.
    Offline earnings still use the saved timestamp (cap 8h + 2h per Deep Storage level). Milestones pay small coin rewards once.
+   Study layer (GameStudy): a "Survey checkpoint" question gate fires each time LIFETIME earnings cross a growing threshold
+   (1,200 x 1.8^n); Mother-Lode nuggets and Descend also need answers. Correct answers give a temporary production boost,
+   bigger nuggets and bonus Gems; wrong answers give less. Production pauses while a question card is open; offline earnings never wait.
    Overrides arcadeGoldStart/arcadeGoldHtml/arcadeGoldAdjust. Progress: gameProgress.gold keeps {vault,workers,assign,lastSave}
    and adds {up:{},gems,lifetime,runEarned,clicks,nuggets,runs,ach:{}}. Fullscreen on the persistent games stage. */
 (function(){
 'use strict';
 var $=function(id){ return document.getElementById(id); };
+function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
+function fixR(r){ r=r||{}; if(r.skipped) return {correct:1,total:1,perfect:true,skipped:true}; return {correct:r.correct||0,total:r.total||0,perfect:!!r.perfect&&(r.total||0)>0,skipped:false}; }
+function surveyT(g){ return Math.floor(1200*Math.pow(1.8,g.survey||0)); }
+function fmtT(s){ s=Math.max(0,Math.ceil(s)); return Math.floor(s/60)+':'+('0'+(s%60)).slice(-2); }
 var LAYERS=[
   {id:'ore',icon:'⛏️',name:'Ore Seam',rate:1.6,value:1,col:'#d89a64',bg:'#4a3526',dc:150},
   {id:'crystal',icon:'💎',name:'Crystal Vein',rate:.9,value:3,col:'#6ee7ff',bg:'#183a4a',dc:450},
@@ -34,10 +41,11 @@ function sfx(k){ if(k==='dig') tone(260+Math.random()*80,120,.07,'square',.04); 
 
 /* ------------------------------ data ------------------------------ */
 function raw(){ var gp=arcadeGameProgress(); var g=gp.gold=gp.gold||{vault:0,workers:6,assign:{ore:2,crystal:2,relic:2},lastSave:Date.now()};
-  if(!g.assign) g.assign={ore:2,crystal:2,relic:2}; if(!g.up) g.up={}; ['gems','lifetime','runEarned','clicks','nuggets','runs'].forEach(function(k){ if(typeof g[k]!=='number') g[k]=0; }); if(!g.ach) g.ach={};
+  if(!g.assign) g.assign={ore:2,crystal:2,relic:2}; if(!g.up) g.up={}; ['gems','lifetime','runEarned','clicks','nuggets','runs','survey'].forEach(function(k){ if(typeof g[k]!=='number') g[k]=0; }); if(!g.ach) g.ach={};
   if(!g.lifetime) g.lifetime=Math.max(0,Number(g.vault)||0); if(!g.runEarned) g.runEarned=g.lifetime; return g; }
 function lvl(g,k){ return Number(g.up[k])||0; }
-function gm(g){ var s=stats(); return (1+.1*lvl(g,'refine'))*(1+.1*g.gems)*(1+(s.focus||0)/900); }
+function boostM(){ var m=G(); return m&&m.boost&&m.boost.t>0?m.boost.mult:1; }
+function gm(g){ var s=stats(); return (1+.1*lvl(g,'refine'))*(1+.1*g.gems)*(1+(s.focus||0)/900)*boostM(); }
 function layerRate(g,L){ return (Number(g.assign[L.id])||0)*L.rate*L.value*(1+.25*lvl(g,L.id)); }
 function rate(g){ return LAYERS.reduce(function(n,L){ return n+layerRate(g,L); },0)*gm(g); }
 function clickVal(g){ var s=stats(); return (2+(s.power||1)*1.5)*(1+.6*lvl(g,'click'))*gm(g); }
@@ -55,6 +63,7 @@ var COST={
 };
 var MAXL={crit:10,storage:10};
 function descGain(g){ return Math.floor(Math.sqrt(Math.max(0,g.runEarned)/20000)); }
+function surveyDone(g){ var k=g.survey||0; while(surveyT({survey:k})<=g.lifetime) k++; g.survey=k; }
 function earn(g,n){ g.vault+=n; g.lifetime+=n; g.runEarned+=n; }
 
 /* ------------------------------ lifecycle ------------------------------ */
@@ -62,7 +71,7 @@ window.arcadeGoldStart=function(){
   clearGameTimers(); var g=raw(), now=Date.now(), last=Number(g.lastSave)||now, back=null;
   if(last<now){ var off=Math.min(capH(g)*3600*1000,Math.max(0,now-last)); var gain=rate(g)*off/1000; if(gain>0&&off>30000){ earn(g,gain); back={gain:gain,secs:Math.round(off/1000),capped:(now-last)>capH(g)*3600*1000}; } }
   g.lastSave=now; try{ persistProgress(); }catch(e){}
-  state.games={active:'gold',gm:{back:back,last:now,nug:null,nugT:35+Math.random()*30,heat:0,heatT:0,lastClick:0,confirm:false,showAch:false,tab:'shop',saveT:0,unmuted:true},timerId:null};
+  state.games={active:'gold',gm:{back:back,last:now,nug:null,nugT:35+Math.random()*30,gating:false,boost:null,surveys:0,heat:0,heatT:0,lastClick:0,confirm:false,showAch:false,tab:'shop',saveT:0,unmuted:true},timerId:null};
   state.games.timerId=setInterval(tick,250);
 };
 window.arcadeGoldAdjust=function(id,d){ var g=raw(); var a=g.assign, total=Object.keys(a).reduce(function(n,k){ return n+Number(a[k]||0); },0); if(d>0&&total>=g.workers) return; if(d<0&&Number(a[id]||0)<=0) return; a[id]=Number(a[id]||0)+d; sfx('buy'); save(); paint(); };
@@ -71,12 +80,14 @@ function G(){ return state.games&&state.games.active==='gold'&&state.games.gm?st
 
 function tick(){
   var m=G(); if(!m||state.view!=='games'){ return; } var g=raw(), now=Date.now(), dt=Math.min(5,(now-m.last)/1000); m.last=now;
+  if(m.gating){ return; }
   var r=rate(g); if(r>0) earn(g,r*dt);
-  m.heat=Math.max(0,m.heat-dt*3);
+  m.heat=Math.max(0,m.heat-dt*3); if(m.boost){ m.boost.t-=dt; if(m.boost.t<=0){ m.boost=null; paint(); } }
   m.nugT-=dt; if(!m.nug&&m.nugT<=0){ m.nug={x:10+Math.random()*75,y:15+Math.random()*60,t:14}; }
   if(m.nug){ m.nug.t-=dt; if(m.nug.t<=0){ m.nug=null; m.nugT=40+Math.random()*40; } }
   m.saveT+=dt; if(m.saveT>=4){ m.saveT=0; save(); }
   checkAch(g,m); live(g,m);
+  if(!m.gating&&g.lifetime>=surveyT(g)) survey(g,m);
   m.layerT=(m.layerT||0)+dt; if(m.layerT>=1){ m.layerT=0; LAYERS.forEach(function(L){ var v=layerRate(g,L)*gm(g); if(v>0) floater('#gm-layer-'+L.id,'+'+fmt(v),L.col); }); }
 }
 function checkAch(g,m){ ACH.forEach(function(a){ if(!g.ach[a.id]&&a.f(g)){ g.ach[a.id]=1; try{ addCoins(a.c,'Gold Rush: '+a.n); }catch(e){} sfx('ach'); toast('🏆 '+a.n+' · +'+a.c+' 🪙'); save(); m.dirty=1; } }); if(m.dirty){ m.dirty=0; paint(); } }
@@ -85,23 +96,47 @@ function floater(sel,txt,col){ var host=document.querySelector(sel); if(!host) r
 
 /* ------------------------------ actions ------------------------------ */
 function dig(e){
-  var g=raw(), m=G(); if(!m) return; var now=Date.now(); m.heat=Math.min(20,m.heat+1); var heatMult=1+m.heat/20; var crit=Math.random()<critP(g);
+  var g=raw(), m=G(); if(!m||m.gating) return; var now=Date.now(); m.heat=Math.min(20,m.heat+1); var heatMult=1+m.heat/20; var crit=Math.random()<critP(g);
   var v=clickVal(g)*heatMult*(crit?5:1); earn(g,v); g.clicks++; m.lastClick=now; sfx(crit?'crit':'dig');
   floater('#gm-vein',(crit?'CRIT +':'+')+fmt(v),crit?'#ffd24a':'#fff'); var vb=$('gm-vein-btn'); if(vb){ vb.classList.remove('hit'); void vb.offsetWidth; vb.classList.add('hit'); }
   live(g,m);
 }
 function buy(k){
-  var g=raw(), m=G(); var cost=COST[k]?COST[k](g):0;
+  var g=raw(), m=G(); if(!m||m.gating) return; var cost=COST[k]?COST[k](g):0;
   if(k!=='drone'&&MAXL[k]&&lvl(g,k)>=MAXL[k]) return;
   if(g.vault<cost){ sfx('no'); toast('Not enough gold!'); return; }
   g.vault-=cost; if(k==='drone'){ g.workers++; var a=g.assign; var free=g.workers-Object.keys(a).reduce(function(n,q){ return n+Number(a[q]||0); },0); if(free>0) a.ore=(Number(a.ore)||0)+1; } else g.up[k]=lvl(g,k)+1;
   sfx('buy'); save(); paint();
 }
-function catchNug(){ var g=raw(), m=G(); if(!m||!m.nug) return; var v=Math.max(60,rate(g)*45+clickVal(g)*20); earn(g,v); g.nuggets++; m.nug=null; m.nugT=40+Math.random()*40; sfx('nug'); toast('✨ Mother Lode! +'+fmt(v)); try{ celebrate(); }catch(e){} save(); paint(); }
+function same(sg){ return state.games===sg&&sg&&sg.active==='gold'&&sg.gm; }
+function survey(g,m){
+  if(m.gating) return; var sg=state.games, n=(g.survey||0)+1, cnt=n>=5?3:2; m.gating=true; save();
+  gate({title:'Survey checkpoint '+n,sub:'Your lifetime earnings reached '+fmt(surveyT(g))+'. Answer to keep mining: every correct answer adds production boost time, and a perfect survey makes it x2.',count:cnt,label:'GOLD RUSH · SURVEY'}).then(function(r){
+    if(!same(sg)) return; r=fixR(r); var g2=raw(), m2=sg.gm; m2.gating=false; m2.last=Date.now(); surveyDone(g2); m2.surveys++;
+    var c=r.correct, dur=60*c+(r.perfect?30:0), mu=r.perfect?2:(c>0?1.5:1), lump=rate(g2)*15*c;
+    if(dur>0){ var b=m2.boost; m2.boost={mult:Math.max(mu,b?b.mult:1),t:(b?b.t:0)+dur}; }
+    if(lump>0) earn(g2,lump);
+    save(); paint(); toast(c>0?'📚 Survey '+c+'/'+r.total+' · x'+mu+' boost for '+fmtT(m2.boost.t)+(lump>0?' · +'+fmt(lump):''):'📚 Survey 0/'+r.total+' · no boost this time');
+  });
+}
+function catchNug(){
+  var g=raw(), m=G(); if(!m||!m.nug||m.gating) return; var sg=state.games, v=Math.max(60,rate(g)*45+clickVal(g)*20); m.nug=null; m.gating=true; paint();
+  gate({title:'Mother Lode!',sub:'Answer correctly to crack the nugget open: right = x1.5 gold, wrong = only 40%.',count:1,label:'GOLD RUSH · MOTHER LODE'}).then(function(r){
+    if(!same(sg)) return; r=fixR(r); var g2=raw(), m2=sg.gm; m2.gating=false; m2.last=Date.now(); var ok=r.correct>0, got=v*(ok?1.5:.4);
+    earn(g2,got); g2.nuggets++; m2.nugT=40+Math.random()*40; sfx('nug'); try{ celebrate(); }catch(e){} save(); paint(); toast((ok?'✨ Mother Lode cracked! +':'✨ Mother Lode crumbled. +')+fmt(got));
+  });
+}
 function descend(){
-  var g=raw(), m=G(); var gain=descGain(g); if(gain<1){ sfx('no'); return; }
+  var g=raw(), m=G(); if(!m||m.gating) return; var gain=descGain(g); if(gain<1){ sfx('no'); return; }
   if(!m.confirm){ m.confirm=true; paint(); return; }
-  g.gems+=gain; g.runs++; g.vault=0; g.runEarned=0; g.workers=6; g.assign={ore:2,crystal:2,relic:2}; g.up={}; m.confirm=false; m.nug=null; sfx('ach'); toast('⬇ You descended! +'+gain+' 💠 Gems (+'+gain*10+'% income forever)'); save(); paint();
+  var sg=state.games; m.confirm=false; m.gating=true; paint();
+  gate({title:'Descend: the Deep Survey',sub:'Answer to descend. You always keep the base '+gain+' Gems; each correct answer adds +1 bonus Gem, and a perfect survey adds 25% more.',count:3,label:'GOLD RUSH · DESCEND'}).then(function(r){
+    if(!same(sg)) return; r=fixR(r); var g2=raw(), m2=sg.gm; m2.gating=false; m2.last=Date.now();
+    var base=descGain(g2); if(base<1){ paint(); return; }
+    var bonus=r.correct+(r.perfect?Math.ceil(base*.25):0), tot=base+bonus;
+    g2.gems+=tot; g2.runs++; g2.vault=0; g2.runEarned=0; g2.workers=6; g2.assign={ore:2,crystal:2,relic:2}; g2.up={}; m2.confirm=false; m2.nug=null; sfx('ach'); save(); paint();
+    toast('⬇ You descended! +'+tot+' 💠 Gems'+(bonus?' ('+bonus+' study bonus)':'')+' · +'+tot*10+'% income forever');
+  });
 }
 var tab=null;
 
@@ -117,15 +152,17 @@ function inner(g,m){
   var gain=descGain(g);
   var desc='<div class="gm-desc"><b>⬇ Descend</b><small>Reset vault, drones &amp; upgrades for permanent <b>💠 Gems</b> (+10% income each).</small><div>Gain now: <b id="gm-dg">'+gain+'</b> 💠 · you have '+g.gems+'</div><button class="gm-buy '+(gain<1?'poor':'')+'" data-gm="descend">'+(m.confirm?'Tap again to confirm':gain<1?'Earn '+fmt(Math.max(0,20000-g.runEarned))+' more this run':'Descend for '+gain+' 💠')+'</button></div>';
   var ach='<div class="gm-ach">'+ACH.map(function(a){ var on=g.ach[a.id]; return '<div class="'+(on?'on':'')+'"><span>'+(on?'🏆':'🔒')+'</span><b>'+a.n+'</b><small>'+a.d+' · +'+a.c+' 🪙</small></div>'; }).join('')+'</div>';
+  var sv=surveyT(g), prev=(g.survey>0?surveyT({survey:g.survey-1}):0), pct=Math.max(0,Math.min(100,(g.lifetime-prev)/(sv-prev)*100));
+  var panel='<div class="gm-desc gm-survey"><b>📚 Survey checkpoint</b><small>Each time your lifetime earnings pass a milestone, a quick question survey appears. Correct answers boost production.</small><div>Next at <b>'+fmt(sv)+'</b> · now <b id="gm-lt">'+fmt(g.lifetime)+'</b></div><div class="gm-heat"><i id="gm-svbar" style="width:'+pct+'%"></i></div><div id="gm-boostline">'+(m.boost&&m.boost.t>0?'⚡ Boost x'+m.boost.mult+' · '+fmtT(m.boost.t)+' left':'No boost active')+'</div>'+((window.GameStudy&&GameStudy.summaryHtml)?GameStudy.summaryHtml():'')+'</div>';
   var back=m.back?'<div class="gm-back" data-gm="dismiss">💤 Welcome back! Your drones mined <b>'+fmt(m.back.gain)+'</b> over '+(m.back.secs>=3600?(m.back.secs/3600).toFixed(1)+'h':Math.round(m.back.secs/60)+'m')+(m.back.capped?' (offline cap reached)':'')+'. <u>Dismiss</u></div>':'';
-  return back+'<div class="gm-top"><div class="gm-big"><small>Vault</small><b id="gm-vault">'+fmt(g.vault)+'</b></div><div class="gm-box"><small>Income</small><b id="gm-rate">'+fmt(rate(g))+'/s</b></div><div class="gm-box"><small>Gems</small><b>💠 '+g.gems+'</b></div><div class="gm-box"><small>Drones</small><b>'+total+'/'+g.workers+'</b></div><div class="gm-tools"><button data-gm="mute" class="gm-tl">'+(muted()?'🔇':'🔊')+'</button><button data-gm="fs" class="gm-tl" title="Fullscreen">⛶</button></div></div>'+
+  return back+'<div class="gm-top"><div class="gm-big"><small>Vault</small><b id="gm-vault">'+fmt(g.vault)+'</b></div><div class="gm-box"><small>Income'+(boostM()>1?' x'+boostM():'')+'</small><b id="gm-rate">'+fmt(rate(g))+'/s</b></div><div class="gm-box"><small>Gems</small><b>💠 '+g.gems+'</b></div><div class="gm-box"><small>Drones</small><b>'+total+'/'+g.workers+'</b></div><div class="gm-tools"><button data-gm="mute" class="gm-tl">'+(muted()?'🔇':'🔊')+'</button><button data-gm="fs" class="gm-tl" title="Fullscreen">⛶</button></div></div>'+
     '<div class="gm-body"><div class="gm-left"><div class="gm-foreman">'+ling()+'</div><div class="gm-veinwrap" id="gm-vein"><button class="gm-vein" id="gm-vein-btn" data-gm="dig" aria-label="Dig"><span>⛏️</span><b>DIG</b><small id="gm-dig">+'+fmt(clickVal(g))+' · crit '+Math.round(critP(g)*100)+'%</small></button><div class="gm-heat"><i id="gm-heat" style="width:'+(m.heat/20*100)+'%"></i></div><small class="gm-ht">Keep digging fast to build heat (up to ×2)</small></div>'+(m.nug?'<button class="gm-nug" id="gm-nug" data-gm="nug" style="left:'+m.nug.x+'%;top:'+m.nug.y+'%">✨</button>':'')+'</div>'+
     '<div class="gm-mid"><div class="gm-free">'+(free>0?'👷 '+free+' idle drone'+(free>1?'s':'')+' — assign them below!':'All drones are working.')+'</div>'+layers+'</div>'+
-    '<div class="gm-right"><h4>🏪 Upgrades</h4><div class="gm-shop">'+shop+'</div>'+desc+'<h4 style="margin-top:10px">🏆 Milestones</h4>'+ach+'<div class="gm-fine">Offline earnings are capped at '+capH(g)+' hours and use your last saved time.</div></div></div><div class="gm-toast" id="gm-toast"></div>';
+    '<div class="gm-right"><h4>🏪 Upgrades</h4><div class="gm-shop">'+shop+'</div>'+panel+desc+'<h4 style="margin-top:10px">🏆 Milestones</h4>'+ach+'<div class="gm-fine">Offline earnings are capped at '+capH(g)+' hours and use your last saved time.</div></div></div><div class="gm-toast" id="gm-toast"></div>';
 }
 function live(g,m){
   var set=function(id,v){ var e=$(id); if(e) e.textContent=v; };
-  set('gm-vault',fmt(g.vault)); set('gm-rate',fmt(rate(g))+'/s'); set('gm-dg',descGain(g));
+  set('gm-vault',fmt(g.vault)); set('gm-lt',fmt(g.lifetime)); var sv=surveyT(g), pv=g.survey>0?surveyT({survey:g.survey-1}):0, sb=$('gm-svbar'); if(sb) sb.style.width=Math.max(0,Math.min(100,(g.lifetime-pv)/(sv-pv)*100))+'%'; set('gm-boostline',m.boost&&m.boost.t>0?'⚡ Boost x'+m.boost.mult+' · '+fmtT(m.boost.t)+' left':'No boost active'); set('gm-rate',fmt(rate(g))+'/s'); set('gm-dg',descGain(g));
   var h=$('gm-heat'); if(h) h.style.width=(m.heat/20*100)+'%';
   document.querySelectorAll('#gm-root [data-cost]').forEach(function(b){ var c=b.getAttribute('data-cost'); b.classList.toggle('poor',!c||g.vault<Number(c)); });
   if(m.nug&&!$('gm-nug')||!m.nug&&$('gm-nug')) paint();
@@ -134,7 +171,7 @@ function paint(){ var m=G(), root=$('gm-root'); if(!m||!root) return; var sc=roo
 window.arcadeGoldHtml=function(){
   var m=G(); if(!m) return ''; var g=raw();
   var st='<span class="arcade-pill">🏦 <b>'+fmt(g.vault)+'</b></span><span class="arcade-pill">⚙ <b>'+fmt(rate(g))+'/s</b></span><span class="arcade-pill">💠 <b>'+g.gems+'</b></span>';
-  return arcadeFrame('Gold Rush Mines','Dig, assign drones, upgrade, catch Mother Lodes and descend for permanent Gems.',st,'<div class="gm-root" id="gm-root">'+inner(g,m)+'</div>');
+  return arcadeFrame('Gold Rush Mines','Dig, assign drones, upgrade, and answer survey questions to boost your mine. Descend for permanent Gems.',st,'<div class="gm-root" id="gm-root">'+inner(g,m)+'</div>');
 };
 
 /* ------------------------------ input ------------------------------ */
@@ -153,5 +190,5 @@ document.addEventListener('click',function(e){
 });
 document.addEventListener('keydown',function(e){ var m=G(); if(!m||state.view!=='games') return; var k=e.key.toLowerCase(); if(k==='f'){ toggleFS(); } else if(k===' '||k==='enter'){ if(e.target&&/BUTTON|INPUT/.test(e.target.tagName)) return; e.preventDefault(); dig(e); } });
 document.addEventListener('visibilitychange',function(){ if(document.hidden&&G()) save(); });
-window.__gm={raw:raw,rate:rate,buy:buy,dig:dig,descend:descend,catchNug:catchNug,get:G,tick:tick,COST:COST,descGain:descGain};
+window.__gm={survey:survey,surveyT:surveyT,raw:raw,rate:rate,buy:buy,dig:dig,descend:descend,catchNug:catchNug,get:G,tick:tick,COST:COST,descGain:descGain};
 })();
