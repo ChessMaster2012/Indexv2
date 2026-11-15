@@ -1952,7 +1952,7 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
 
     <!-- Signed-out: email/password auth -->
     <div id="auth-panel">
-      <button class="btn btn-ghost" data-action="google-signin" id="google-signin-btn" type="button" style="width:100%;margin-bottom:10px;font-weight:900;display:block;">Continue with Google</button>
+      <button class="btn btn-ghost" data-action="google-signin" id="google-signin-btn" type="button" style="width:100%;margin-bottom:10px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:10px;"><svg class="ix-brand" width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" style="flex:none"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.2 5.5-4.7 7.2l7.6 5.9c4.4-4.1 6.9-10.1 6.9-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.300 0 11.600-2.100 15.500-5.700l-7.600-5.900c-2.100 1.400-4.800 2.300-7.900 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg><span>Continue with Google</span></button>
       <div id="google-signin-divider" style="display:none;align-items:center;gap:10px;margin:4px 0 12px;color:var(--ink-soft);font-size:11px;font-weight:800;"><span style="height:1px;background:var(--line);flex:1;"></span><span>OR</span><span style="height:1px;background:var(--line);flex:1;"></span></div>
       <div id="auth-complete-banner" class="lesson-result good hidden" style="margin-bottom:14px;">You're signed in! Add an optional display name so teammates can recognize you.</div>
       <div class="field"><label id="auth-identifier-label">Email</label><input type="text" id="auth-identifier" name="username" autocomplete="username" placeholder="you@example.com"></div>
@@ -5462,9 +5462,9 @@ async function refreshAuthStatus(){
   }catch(e){ state.googleEnabled=false; }
   const gb=document.getElementById('google-signin-btn'); const gd=document.getElementById('google-signin-divider');
   if(gb){
-    gb.style.display='block';
+    gb.style.display='flex'; gb.style.alignItems='center'; gb.style.justifyContent='center'; gb.style.gap='10px';
     gb.disabled=!state.googleEnabled;
-    gb.textContent=state.googleEnabled?'Continue with Google':'Google sign-in not configured';
+    gb.innerHTML=state.googleEnabled?'<svg class="ix-brand" width="18" height="18" viewBox="0 0 48 48" aria-hidden="true" style="flex:none"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.2 5.5-4.7 7.2l7.6 5.9c4.4-4.1 6.9-10.1 6.9-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.3.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.300 0 11.600-2.100 15.500-5.700l-7.600-5.900c-2.100 1.400-4.800 2.300-7.900 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg><span>Continue with Google</span>':'Google sign-in not configured';
   }
   if(gd) gd.style.display=state.googleEnabled?'flex':'none';
   try{ const r=await fetch('/api/auth/me',{cache:'no-store'}); const d=await r.json(); state.account=d.user||null; }catch(e){ state.account=null; }
