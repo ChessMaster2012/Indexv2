@@ -1,10 +1,14 @@
-/* Rhythm Reflector v2 — a 4-lane rhythm game with a synthesized backing track.
-   Three procedurally charted tracks (100 / 124 / 150 BPM), notes are magical projectiles fired by a caster that your equipped
+/* Rhythm Reflector v3 — a 4-lane rhythm game with a synthesized backing track, now a 6-stage STUDY RUN.
+   Pick one of three tracks (100 / 124 / 150 BPM base tempo). A run is six stages (Warm-up, Verse, Chorus, Bridge, Drop, Finale),
+   each a ~45-60 s song section that gets faster and denser. Before every stage a 3-question study gate (GameStudy) asks about the
+   chosen topic: each correct answer heals you and adds +10% score for that stage, 3/3 also half-fills Overdrive. Wrong answers just
+   give less. HP only ends a stage (retry it with fresh questions), never the whole run. Notes are magical projectiles fired by a caster that your equipped
    Indexling reflects on the beat. Timing is read from the WebAudio clock (so it stays in sync with the music), Perfect/Great/Good/Miss
    windows widened by Focus, combo multiplier, HP (Vitality), Overdrive (Space, charges faster with Luck, +Power boosts score),
    hit sounds, ranks D–S, per-track best saved in gameProgress.rhythm = {best, tracks:{id:{best,rank,combo,acc}}}.
    Controls: D F J K or ← ↓ ↑ → or tap the lanes · Space overdrive · P pause · Shift+F or ⛶ fullscreen. Fullscreen uses the persistent games stage.
-   Coins: first time you reach a better rank on a track → B +2, A +4, S +6; otherwise +1 for a B or better. */
+   Coins (full run only): first time you reach a better rank on a track → B +4, A +8, S +12; otherwise +2 for a B or better, +1 otherwise.
+   Saved: gameProgress.rhythm = {best, tracks, runs, wins, bestStage, studyAsked, studyCorrect}. */
 (function(){
 'use strict';
 var LW=1000,LH=562,PX=300,LANEW=100,HITY=410,TOPY=96;
@@ -14,6 +18,8 @@ function stats(){ try{ return arcadeCharacterStats()||{}; }catch(e){ return {}; 
 function muted(){ try{ return localStorage.getItem('gx-mute')==='1'; }catch(e){ return false; } }
 function prog(){ var gp=arcadeGameProgress(); gp.rhythm=gp.rhythm||{best:0}; gp.rhythm.tracks=gp.rhythm.tracks||{}; return gp.rhythm; }
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+var NST=6, GATEQ=3, STAGE_NAMES=['Warm-up','Verse','Chorus','Bridge','Drop','Finale'];
+function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
 var LANE_COL=['#ff6b8a','#ffd24a','#5be68f','#55b0ff'], LANE_KEYS=['D','F','J','K'];
 var TRACKS=[
   {id:'sunrise',name:'Sunrise Reflect',bpm:100,bars:24,dens:.62,seed:11,icon:'🌅',caster:'🧙',col:'#ffb45a',desc:'Gentle tempo. Learn the lanes.',diff:'Easy'},
@@ -21,6 +27,8 @@ var TRACKS=[
   {id:'storm',name:'Hex Storm',bpm:150,bars:40,dens:.9,seed:37,icon:'⚡',caster:'👹',col:'#c07cff',desc:'Fast streams and double hits.',diff:'Hard'}
 ];
 function trackById(id){ for(var i=0;i<TRACKS.length;i++) if(TRACKS[i].id===id) return TRACKS[i]; return TRACKS[0]; }
+/* one song section: bpm and density grow with the stage index */
+function stageCfg(tr,i){ var bpm=Math.round(tr.bpm*(1+.03*i)), secs=44+i*3; return {i:i,bpm:bpm,bars:Math.round(secs*bpm/240)+3,dens:tr.dens*(.8+.04*i),seed:tr.seed+i*101,name:STAGE_NAMES[i]}; }
 function chart(tr){
   var rnd=mulberry(tr.seed), step=60/tr.bpm/4, notes=[], lane=1, last=-9;
   for(var bar=2;bar<tr.bars-1;bar++){
@@ -30,7 +38,7 @@ function chart(tr){
       var idx=bar*16+s; if(idx-last<2&&rnd()<.85) continue; if(rnd()<p){
         var mv=[-2,-1,-1,1,1,2,0]; lane=Math.max(0,Math.min(3,lane+mv[(rnd()*mv.length)|0]));
         notes.push({t:idx*step,lane:lane,st:0}); last=idx;
-        if(tr.dens>.6&&s%4===0&&rnd()<.1*(tr.dens)&&bar>8){ var l2=(lane+2)%4; notes.push({t:idx*step,lane:l2,st:0}); }
+        if(tr.dens>.5&&s%4===0&&rnd()<.1*(tr.dens)&&bar>6+(tr.i<2?4:0)){ var l2=(lane+2)%4; notes.push({t:idx*step,lane:l2,st:0}); }
       }
     }
   }
@@ -83,12 +91,30 @@ window.arcadeRhythmHit=function(){};
 window.arcadeRhythmFinish=function(){};
 function readOffset(){ try{ return parseInt(localStorage.getItem('rr-offset')||'0',10)||0; }catch(e){ return 0; } }
 function setOffset(g,v){ g.offset=Math.max(-200,Math.min(200,v)); try{ localStorage.setItem('rr-offset',String(g.offset)); }catch(e){} overlay(g); }
+function copyCnt(c){ return {perfect:c.perfect,great:c.great,good:c.good,miss:c.miss}; }
+/* start a whole run: reset the run totals, then go to stage 1's study gate */
 function begin(g){
-  ctx(); var tr=trackById(g.track); g.tr=tr; g.ch=chart(tr); g.notes=g.ch.notes.map(function(n){ return {t:n.t,lane:n.lane,st:0,h:0}; }); g.total=g.notes.length;
-  g.totalSteps=tr.bars*16+8; g.nextK=0; g.t0=AC.currentTime+1.6; g.nextStepTime=g.t0; g.phase='play';
-  g.score=0; g.combo=0; g.maxCombo=0; g.cnt={perfect:0,great:0,good:0,miss:0}; g.hp=g.maxHp; g.od=0; g.odT=0; g.odOn=false; g.fx=[]; g.judge=null; g.pulse=0; g.swing=0; g.paused=false; g.flash=[0,0,0,0]; g.shake=0; g.approach=1.55-(stats().speed||2)*.04;
-  var p=prog(); p.last=g.track; overlay(g); g.sp=sprite();
-  try{ AC.resume(); }catch(e){}
+  ctx(); var tr=trackById(g.track); g.tr=tr; g.stage=0; g.cleared=0; g.retries=0; g.qT=0; g.qC=0; g.bonusT=0;
+  g.score=0; g.combo=0; g.maxCombo=0; g.cnt={perfect:0,great:0,good:0,miss:0}; g.total=0; g.hp=g.maxHp; g.od=0; g.odT=0; g.odOn=false; g.buff=1; g.notes=[]; g.result=null; g.endWhy='';
+  g.fx=[]; g.judge=null; g.pulse=0; g.swing=0; g.paused=false; g.flash=[0,0,0,0]; g.shake=0; g.bpm=tr.bpm;
+  var p=prog(); p.last=g.track; startStage(g);
+}
+function startStage(g){
+  var i=g.stage, n=i+1, tr=g.tr; g.phase='gate'; g.paused=false; try{ if(AC) AC.suspend(); }catch(e){} overlay(g);
+  gate({title:'Stage '+n+' of '+NST+' - '+STAGE_NAMES[i],sub:'Each correct answer heals you and adds +10% score for this stage; all correct also half-fills Overdrive',count:GATEQ,label:tr.name+' · Stage '+n}).then(function(r){
+    if(rr()!==g||g.phase!=='gate'||g.stage!==i) return;
+    r=r||{}; var c=r.correct||0, t=r.total||0; g.qT+=t; g.qC+=c;
+    g.hp=Math.min(g.maxHp,g.hp+Math.round(g.maxHp*.12*c)); playStage(g,c,t,!!r.perfect&&t>0);
+  });
+}
+function playStage(g,c,t,perfect){
+  ctx(); var st=stageCfg(g.tr,g.stage); g.st=st; g.bpm=st.bpm; g.ch=chart(st); g.notes=g.ch.notes.map(function(n){ return {t:n.t,lane:n.lane,st:0,h:0}; }); g.stNotes=g.notes.length;
+  g.totalSteps=st.bars*16+8; g.nextK=0; g.t0=AC.currentTime+1.6; g.nextStepTime=g.t0; g.lastBeat=-1;
+  g.snap={score:g.score,cnt:copyCnt(g.cnt),maxCombo:g.maxCombo}; g.stCnt0=copyCnt(g.cnt);
+  g.buff=1+.1*c; g.combo=0; g.od=perfect?50:0; g.odT=0; g.odOn=false; g.fx=[]; g.judge=null; g.pulse=0; g.swing=0; g.paused=false; g.flash=[0,0,0,0]; g.shake=0;
+  g.approach=Math.max(1.05,1.55-(stats().speed||2)*.04-g.stage*.04); g.phase='play';
+  if(t) addFx(g,2,c+'/'+t+' correct'+(c?' · +'+(c*10)+'% score':''),c?'#9bffb0':'#ffb0b0',true);
+  overlay(g); g.sp=sprite(); try{ AC.resume(); }catch(e){}
 }
 function songT(g){ return AC.currentTime-g.t0-g.offset/1000; }
 function winP(g){ var f=stats().focus||100, P=.036+f/9000; if(g.odOn) P*=1.2; return {perfect:P,great:P*1.9,good:P*2.8}; }
@@ -101,7 +127,7 @@ function judge(g,lane){
   if(!best||bd>w.good){ g.hit=g.hit||0; return; }
   var q=bd<=w.perfect?'perfect':bd<=w.great?'great':'good'; best.st=1; best.q=q; best.h=1; g.cnt[q]++; g.combo++; if(g.combo>g.maxCombo) g.maxCombo=g.combo;
   var base={perfect:300,great:200,good:100}[q], mult=1+Math.min(4,Math.floor(g.combo/10))*.25; var pw=1+(stats().power||0)*.02;
-  g.score+=Math.round(base*mult*pw*(g.odOn?2:1));
+  g.score+=Math.round(base*mult*pw*(g.buff||1)*(g.odOn?2:1));
   g.hp=Math.min(g.maxHp,g.hp+(q==='perfect'?.8:q==='great'?.4:0));
   if(!g.odOn){ g.od=Math.min(100,g.od+({perfect:4,great:2.5,good:1}[q])*(1+(stats().luck||0)*.08)); }
   g.judge={q:q,t:0,d:(songT(g)-best.t)};
@@ -110,16 +136,39 @@ function judge(g,lane){
   if(g.combo>0&&g.combo%25===0){ addFx(g,2,g.combo+' COMBO!','#ffffff',true); g.shake=.3; }
 }
 function activateOD(g){ if(g.phase!=='play'||g.paused||g.odOn||g.od<100) return; g.odOn=true; g.odT=8; addFx(g,2,'OVERDRIVE!','#ffd24a',true); g.shake=.5; if(AC&&!muted()){ var t=AC.currentTime; note(t,300,'sawtooth',.01,.4,.12); note(t,600,'square',.02,.5,.08); } }
+function nextStage(g){ if(g.phase!=='clear') return; g.stage++; startStage(g); }
 function togglePause(g){ if(g.phase!=='play') return; g.paused=!g.paused; if(g.paused){ try{ AC.suspend(); }catch(e){} } else { try{ AC.resume(); }catch(e){} } overlay(g); }
 
 function rankOf(g){ var tot=g.total||1, acc=(g.cnt.perfect+g.cnt.great*.75+g.cnt.good*.4)/tot; var r=acc>=.95?'S':acc>=.88?'A':acc>=.75?'B':acc>=.6?'C':'D'; return {acc:acc,rank:r}; }
 var RORD={F:-1,D:0,C:1,B:2,A:3,S:4};
-function finish(g,failed){
-  if(g.phase!=='play') return; g.phase=failed?'failed':'done'; g.paused=false; try{ AC.suspend(); }catch(e){}
-  var rk=rankOf(g); g.result=rk; var p=prog(), key=g.tr.id, rec=p.tracks[key]||{best:0,rank:'-',combo:0,acc:0};
+function sumCnt(c){ return c.perfect+c.great+c.good+c.miss; }
+/* the stage's song ran out: bank it, heal a little, go to the stage-clear card (or finish the run) */
+function clearStage(g){
+  if(g.phase!=='play') return; g.paused=false; try{ AC.suspend(); }catch(e){}
+  var d={perfect:g.cnt.perfect-g.stCnt0.perfect,great:g.cnt.great-g.stCnt0.great,good:g.cnt.good-g.stCnt0.good,miss:g.cnt.miss-g.stCnt0.miss};
+  var rk=rankOf({cnt:d,total:Math.max(1,g.stNotes)}); g.stRank=rk; g.stScore=g.score-g.snap.score;
+  g.stBonus=(d.miss===0?600:0)+(g.stage+1)*150; g.score+=g.stBonus; g.cleared++; g.hp=Math.min(g.maxHp,g.hp+Math.round(g.maxHp*.2));
+  try{ celebrate(); }catch(e){}
+  if(g.stage>=NST-1){ endRun(g,true); return; }
+  g.phase='clear'; overlay(g);
+}
+/* HP ran out: the stage does not count. Retry it (new study questions, HP partly restored) or end the run */
+function failStage(g){
+  if(g.phase!=='play') return; g.paused=false; g.phase='stagefail'; try{ AC.suspend(); }catch(e){} g.hp=0; overlay(g);
+}
+function retryStage(g){
+  if(g.phase!=='stagefail') return; var sn=g.snap; g.score=sn.score; g.cnt=copyCnt(sn.cnt); g.maxCombo=sn.maxCombo; g.retries++; g.hp=Math.round(g.maxHp*.7); startStage(g);
+}
+function endRun(g,won,why){
+  if(g.phase==='done'||g.phase==='failed') return;
+  if(g.phase==='stagefail'&&g.snap){ g.score=g.snap.score; g.cnt=copyCnt(g.snap.cnt); g.maxCombo=g.snap.maxCombo; }
+  g.phase=won?'done':'failed'; g.endWhy=why||(won?'':'hp'); g.paused=false; try{ AC.suspend(); }catch(e){}
+  g.total=sumCnt(g.cnt); var rk=rankOf(g); g.result=rk; var p=prog(), key=g.tr.id, rec=p.tracks[key]||{best:0,rank:'-',combo:0,acc:0};
   g.newBest=g.score>rec.best; g.coins=0;
-  if(!failed){ var better=(RORD[rk.rank]||0)>(RORD[rec.rank]||-2); var base={B:2,A:4,S:6}[rk.rank]||0; g.coins=better?base:(RORD[rk.rank]>=2?1:0); if(g.coins){ try{ addCoins(g.coins,'Rhythm Reflector '+rk.rank+' rank'); }catch(e){} } if(better) rec.rank=rk.rank; if(rk.rank==='S'&&g.cnt.miss===0) { try{ celebrate(); }catch(e){} } }
-  rec.best=Math.max(rec.best,g.score); rec.combo=Math.max(rec.combo,g.maxCombo); rec.acc=Math.max(rec.acc,Math.round(rk.acc*1000)/10); p.tracks[key]=rec; p.best=Math.max(Number(p.best)||0,g.score);
+  if(won){ var better=(RORD[rk.rank]||0)>(RORD[rec.rank]||-2); var base={B:4,A:8,S:12}[rk.rank]||0; g.coins=better?base:((RORD[rk.rank]>=2)?2:1); if(g.coins){ try{ addCoins(g.coins,'Rhythm Reflector '+rk.rank+' rank'); }catch(e){} } if(better) rec.rank=rk.rank; rec.acc=Math.max(rec.acc,Math.round(rk.acc*1000)/10); if(rk.rank==='S'&&g.cnt.miss===0){ try{ celebrate(); }catch(e){} } }
+  else if(g.cleared>=3){ g.coins=1; try{ addCoins(1,'Rhythm Reflector stages'); }catch(e){} }
+  rec.best=Math.max(rec.best,g.score); rec.combo=Math.max(rec.combo,g.maxCombo); p.tracks[key]=rec; p.best=Math.max(Number(p.best)||0,g.score);
+  p.runs=(Number(p.runs)||0)+1; if(won) p.wins=(Number(p.wins)||0)+1; p.bestStage=Math.max(Number(p.bestStage)||0,g.cleared); p.studyAsked=(Number(p.studyAsked)||0)+g.qT; p.studyCorrect=(Number(p.studyCorrect)||0)+g.qC;
   try{ persistProgress(); }catch(e){} overlay(g);
 }
 
@@ -131,10 +180,10 @@ function update(g,dt){
   for(var l=0;l<4;l++) g.flash[l]=Math.max(0,g.flash[l]-dt*5);
   if(g.odOn){ g.odT-=dt; g.od=Math.max(0,g.odT/8*100); if(g.odT<=0){ g.odOn=false; g.od=0; } }
   g.fx.forEach(function(f){ f.t+=dt; }); g.fx=g.fx.filter(function(f){ return f.t<1; }); if(g.judge) g.judge.t+=dt;
-  var beatPh=((t/ (60/g.tr.bpm))%1+1)%1; if(beatPh<.06&&t>0&&g.lastBeat!==Math.floor(t/(60/g.tr.bpm))){ g.lastBeat=Math.floor(t/(60/g.tr.bpm)); g.pulse=Math.max(g.pulse,.35); }
+  var bl=60/g.bpm, beatPh=((t/bl)%1+1)%1; if(beatPh<.06&&t>0&&g.lastBeat!==Math.floor(t/bl)){ g.lastBeat=Math.floor(t/bl); g.pulse=Math.max(g.pulse,.35); }
   for(var i=0;i<g.notes.length;i++){ var n=g.notes[i]; if(n.st) { if(n.h>0) n.h=Math.max(0,n.h-dt*4); continue; } if(t-n.t>w.good){ n.st=2; g.cnt.miss++; g.combo=0; g.hp-=6; addFx(g,n.lane,'MISS','#ff6b7a'); g.judge={q:'miss',t:0}; missSound(); g.shake=.15; } }
-  if(g.hp<=0){ finish(g,true); return; }
-  if(t>g.ch.len+1.2){ finish(g,false); }
+  if(g.hp<=0){ failStage(g); return; }
+  if(t>g.ch.len+1.2){ clearStage(g); }
 }
 function X(l){ return PX+l*LANEW+LANEW/2; }
 function draw(g){
@@ -168,8 +217,8 @@ function draw(g){
   // fx text
   (g.fx||[]).forEach(function(f){ var a=1-f.t; c.globalAlpha=Math.max(0,a); c.fillStyle=f.col; c.font='900 '+(f.big?34:22)+'px system-ui,sans-serif'; c.textAlign='center'; c.fillText(f.txt,f.big?LW/2:X(f.lane),(f.big?HITY-150:HITY-52)-f.t*40); c.globalAlpha=1; });
   // HUD
-  c.textAlign='left'; c.fillStyle='#fff'; c.font='900 30px system-ui,sans-serif'; c.fillText(String(g.score||0).padStart(7,'0'),24,50); c.font='700 13px system-ui,sans-serif'; c.fillStyle='#b9b0ee'; c.fillText(tr.name+' · '+tr.bpm+' BPM',24,74);
-  if(g.phase==='play'){ var rk=rankOf({cnt:g.cnt,total:Math.max(1,g.cnt.perfect+g.cnt.great+g.cnt.good+g.cnt.miss)}); c.font='900 54px system-ui,sans-serif'; c.fillStyle=rankCol(rk.rank); c.fillText(rk.rank,28,140); c.font='700 13px system-ui,sans-serif'; c.fillStyle='#b9b0ee'; c.fillText(Math.round(rk.acc*100)+'% accuracy',28,162); }
+  c.textAlign='left'; c.fillStyle='#fff'; c.font='900 30px system-ui,sans-serif'; c.fillText(String(g.score||0).padStart(7,'0'),24,50); c.font='700 13px system-ui,sans-serif'; c.fillStyle='#b9b0ee'; c.fillText(tr.name+' · '+(g.bpm||tr.bpm)+' BPM',24,74); if(g.st&&(g.phase==='play')){ c.fillStyle='#fff'; c.font='800 13px system-ui,sans-serif'; c.fillText('STAGE '+(g.stage+1)+' / '+NST+' · '+g.st.name,24,94); }
+  if(g.phase==='play'){ var rk=rankOf({cnt:g.cnt,total:Math.max(1,g.cnt.perfect+g.cnt.great+g.cnt.good+g.cnt.miss)}); c.font='900 54px system-ui,sans-serif'; c.fillStyle=rankCol(rk.rank); c.fillText(rk.rank,28,140); c.font='700 13px system-ui,sans-serif'; c.fillStyle='#b9b0ee'; c.fillText(Math.round(rk.acc*100)+'% accuracy',28,162); if((g.buff||1)>1){ c.fillStyle='#9bffb0'; c.fillText('📚 Study buff ×'+(g.buff).toFixed(1),28,182); } }
   if((g.combo||0)>=2){ c.textAlign='center'; c.globalAlpha=.9; c.fillStyle='#fff'; c.font='900 '+(44+pr*10)+'px system-ui,sans-serif'; c.fillText(g.combo,LW/2,250); c.font='800 14px system-ui,sans-serif'; c.fillStyle=g.odOn?'#ffd24a':'#b9b0ee'; c.fillText('COMBO'+(g.odOn?' · ×2':'  ×'+(1+Math.min(4,Math.floor(g.combo/10))*.25).toFixed(2)),LW/2,272); c.globalAlpha=1; }
   // hp & overdrive bars
   bar(c,760,60,200,14,(g.hp||0)/(g.maxHp||1),'#4be39a','HP'); bar(c,760,96,200,14,(g.od||0)/100,g.odOn?'#ffd24a':'#b07cff',(g.od>=100&&!g.odOn)?'OVERDRIVE READY · SPACE':'OVERDRIVE');
@@ -184,22 +233,31 @@ function drawOrb(c,x,y,lane,sc,dead){ var col=LANE_COL[lane], r=28*sc; var gr=c.
   if(!dead){ c.fillStyle=hexA(col,.25); c.beginPath(); c.moveTo(x-r*.5,y); c.lineTo(x,y-r*3); c.lineTo(x+r*.5,y); c.fill(); } }
 
 /* ------------------------------ overlays ------------------------------ */
+function topicName(){ return (window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic'):'your topic').replace(/[<>&"']/g,''); }
 function overlay(g){
   var ov=g.ov; if(!ov) return; var h='';
   if(g.phase==='ready'){
     var p=prog();
-    h='<div class="gx-card wide"><h2>🎵 Rhythm Reflector</h2><p>Reflect the caster\'s magic back on the beat. Pick a track:</p><div class="rr-tracks">'+TRACKS.map(function(t){ var rec=p.tracks[t.id]; return '<button type="button" class="rr-track'+(g.track===t.id?' on':'')+'" data-rr-track="'+t.id+'" style="--tc:'+t.col+'"><span class="rr-ti">'+t.icon+'</span><b>'+t.name+'</b><small>'+t.bpm+' BPM · '+t.diff+'</small><em>'+(rec?'Rank '+rec.rank+' · '+rec.best:'Not played')+'</em></button>'; }).join('')+'</div>'+
+    h='<div class="gx-card wide"><h2>🎵 Rhythm Reflector</h2><p>Reflect the caster\'s magic back on the beat across <b>six stages</b> that get faster and denser. Before every stage you answer <b>3 study questions</b> on <i>'+topicName()+'</i>: each right answer heals you and adds +10% score for the stage. Pick a track:</p><div class="rr-tracks">'+TRACKS.map(function(t){ var rec=p.tracks[t.id]; return '<button type="button" class="rr-track'+(g.track===t.id?' on':'')+'" data-rr-track="'+t.id+'" style="--tc:'+t.col+'"><span class="rr-ti">'+t.icon+'</span><b>'+t.name+'</b><small>'+t.bpm+'+ BPM · '+t.diff+'</small><em>'+(rec?'Rank '+rec.rank+' · '+rec.best:'Not played')+'</em></button>'; }).join('')+'</div>'+
       '<ul class="gx-keys"><li><kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd> or <kbd>←</kbd><kbd>↓</kbd><kbd>↑</kbd><kbd>→</kbd> or tap a lane — reflect when the orb hits the ring</li><li><kbd>Space</kbd> Overdrive when the meter is full (×2 score, wider timing) · <kbd>P</kbd> pause · <kbd>Shift</kbd>+<kbd>F</kbd> fullscreen (or the ⛶ button)</li></ul>'+
       '<p class="gx-stats">Your Indexling: Focus '+(stats().focus||0)+' (timing window) · Vitality → HP '+g.maxHp+' · Luck charges Overdrive · Power boosts score</p>'+
       '<div class="rr-off">Audio offset <button type="button" data-rr-off="-10">−</button><b>'+g.offset+' ms</b><button type="button" data-rr-off="10">+</button><small>Raise if you hit late, lower if early. Headphones recommended.</small></div>'+
-      '<div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-rr-start>▶ Start</button><button class="btn btn-ghost" data-rr-fs>⛶ Fullscreen</button></div></div>';
+      '<div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-rr-start>▶ Start run</button><button class="btn btn-ghost" data-rr-fs>⛶ Fullscreen</button></div></div>';
   } else if(g.phase==='play'&&g.paused){
     h='<div class="gx-card"><h2>⏸ Paused</h2><div class="gx-endbtns"><button class="btn btn-primary" data-rr-resume>Resume</button><button class="btn btn-ghost" data-rr-quit>Quit to menu</button></div></div>';
+  } else if(g.phase==='clear'){
+    var sr=g.stRank, nx=stageCfg(g.tr,g.stage+1);
+    h='<div class="gx-card wide"><h2>🎶 Stage '+(g.stage+1)+' of '+NST+' cleared</h2><div class="rr-rank" style="color:'+rankCol(sr.rank)+'">'+sr.rank+'</div><p>'+STAGE_NAMES[g.stage]+' · '+Math.round(sr.acc*1000)/10+'% accuracy'+(g.stBonus>600?' · <b>Flawless!</b>':'')+'</p>'+
+      '<div class="gx-res"><div><b>'+g.stScore+'</b><span>Stage score</span></div><div><b>'+g.score+'</b><span>Run score</span></div><div><b>'+g.hp+'/'+g.maxHp+'</b><span>HP</span></div><div><b>'+g.maxCombo+'</b><span>Best combo</span></div></div>'+
+      '<p class="gx-fine">Next: Stage '+(g.stage+2)+' of '+NST+' - '+nx.name+' · '+nx.bpm+' BPM. Study questions first.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-rr-next>Next stage ▶ <span class="gx-fine">(Space)</span></button><button class="btn btn-ghost" data-rr-end>End run</button></div></div>';
+  } else if(g.phase==='stagefail'){
+    h='<div class="gx-card"><h2>💔 Overwhelmed</h2><p>You ran out of HP in <b>Stage '+(g.stage+1)+' - '+STAGE_NAMES[g.stage]+'</b>. That stage does not count, but your earlier stages are safe.</p><p class="gx-fine">Retry with fresh study questions (HP back to 70%). Right answers heal you again. Tip: Overdrive widens your timing window.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-rr-retry>Retry stage <span class="gx-fine">(Space)</span></button><button class="btn btn-ghost" data-rr-end>End run</button></div></div>';
   } else if(g.phase==='done'||g.phase==='failed'){
-    var r=g.result, f=g.phase==='failed';
-    h='<div class="gx-card wide"><h2>'+(f?'💔 Overwhelmed':'🎉 Track complete')+'</h2><div class="rr-rank" style="color:'+(f?'#ff8a9a':rankCol(r.rank))+'">'+(f?'—':r.rank)+'</div><p>'+g.tr.name+' · '+Math.round(r.acc*1000)/10+'% accuracy'+(g.newBest?' · <span class="gx-newbest">New best!</span>':'')+'</p>'+
+    var r=g.result, f=g.phase==='failed', quit=f&&g.endWhy==='quit';
+    h='<div class="gx-card wide"><h2>'+(f?(g.endWhy==='quit'?'🏁 Run ended':'💔 Run over'):'🎉 Track complete')+'</h2><div class="rr-rank" style="color:'+(f?'#ff8a9a':rankCol(r.rank))+'">'+(f?'—':r.rank)+'</div><p>'+g.tr.name+' · '+g.cleared+'/'+NST+' stages · '+Math.round(r.acc*1000)/10+'% accuracy'+(g.newBest?' · <span class="gx-newbest">New best!</span>':'')+'</p>'+
       '<div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.maxCombo+'</b><span>Max combo</span></div><div><b>'+g.cnt.perfect+'</b><span>Perfect</span></div><div><b>'+g.cnt.great+'/'+g.cnt.good+'</b><span>Great/Good</span></div></div>'+
-      '<p class="gx-stats">'+g.cnt.miss+' missed'+(g.coins?' · +'+g.coins+' 🪙':'')+(f?' · You ran out of HP — keep your combo alive and use Overdrive.':'')+'</p>'+
+      (window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.qT?'<p class="gx-fine">This run: '+g.qC+' / '+g.qT+' study questions correct'+(g.retries?' · '+g.retries+' retr'+(g.retries>1?'ies':'y'):'')+'</p>':'')+
+      '<p class="gx-stats">'+g.cnt.miss+' missed'+(g.coins?' · +'+g.coins+' 🪙':'')+(f&&!quit?' · Keep your combo alive and use Overdrive.':'')+'</p>'+
       '<div class="gx-endbtns"><button class="btn btn-primary" data-rr-start>Play again</button><button class="btn btn-ghost" data-rr-quit>Track select</button></div></div>';
   }
   ov.innerHTML=h; ov.style.display=h?'flex':'none';
@@ -209,7 +267,7 @@ function overlay(g){
 var loopId=0;
 window.arcadeRhythmHtml=function(){
   var g=rr(); if(!g) return ''; setTimeout(mount,0); var p=prog();
-  var stats2='<span class="arcade-pill">⭐ Best <b>'+(Number(p.best)||0)+'</b></span><span class="arcade-pill">🎼 Tracks cleared <b>'+Object.keys(p.tracks).length+'/3</b></span>';
+  var stats2='<span class="arcade-pill">⭐ Best <b>'+(Number(p.best)||0)+'</b></span><span class="arcade-pill">🎼 Tracks played <b>'+Object.keys(p.tracks).length+'/3</b></span>';
   return arcadeFrame('Rhythm Reflector','Reflect the caster\'s magic on the beat · D F J K or arrows · Space overdrive · Shift+F fullscreen',stats2,
     '<div class="gx-wrap rr-wrap" id="rr-wrap"><canvas id="rr-canvas" width="1000" height="562"></canvas><div class="gx-ov" id="rr-ov"></div><div class="gx-tools"><button class="gx-mute" id="rr-pause" type="button" aria-label="Pause" title="Pause (P)">⏸</button><button class="gx-mute" id="rr-mute" type="button" aria-label="Toggle sound">'+(muted()?'🔇':'🔊')+'</button><button class="gx-mute" id="rr-fs" type="button" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button></div></div>');
 };
@@ -235,12 +293,15 @@ function wire(g){
     var of=t.closest('[data-rr-off]'); if(of){ setOffset(g,g.offset+parseInt(of.getAttribute('data-rr-off'),10)); return; }
     if(t.closest('[data-rr-start]')){ begin(g); return; }
     if(t.closest('[data-rr-resume]')){ togglePause(g); return; }
-    if(t.closest('[data-rr-quit]')){ g.phase='ready'; g.paused=false; try{ AC&&AC.suspend(); }catch(er){} overlay(g); return; }
+    if(t.closest('[data-rr-next]')){ nextStage(g); return; }
+    if(t.closest('[data-rr-retry]')){ retryStage(g); return; }
+    if(t.closest('[data-rr-end]')){ endRun(g,false,'quit'); return; }
+    if(t.closest('[data-rr-quit]')){ if(g.phase==='play'&&g.cleared>=1){ endRun(g,false,'quit'); return; } g.phase='ready'; g.paused=false; try{ AC&&AC.suspend(); }catch(er){} overlay(g); return; }
     if(t.closest('#rr-pause')){ togglePause(g); return; }
     if(t.closest('#rr-fs,[data-rr-fs]')){ toggleFS(); return; }
     if(t.closest('#rr-mute')){ try{ localStorage.setItem('gx-mute',muted()?'0':'1'); }catch(er){} $('rr-mute').textContent=muted()?'🔇':'🔊'; } });
   if(window.ResizeObserver) new ResizeObserver(function(){ fit(g); }).observe(wrap);
-  g.api={begin:function(){ begin(g); },judge:function(l){ judge(g,l); },songT:function(){ return songT(g); },od:function(){ activateOD(g); }};
+  g.api={begin:function(){ begin(g); },next:function(){ nextStage(g); },retry:function(){ retryStage(g); },judge:function(l){ judge(g,l); },songT:function(){ return songT(g); },od:function(){ activateOD(g); }};
 }
 function onFS(){ var g=rr(); if(g) setTimeout(function(){ fit(g); },60); }
 document.addEventListener('fullscreenchange',onFS); document.addEventListener('webkitfullscreenchange',onFS);
@@ -254,6 +315,11 @@ document.addEventListener('keydown',function(e){
     if(k===' '){ activateOD(g); return; }
     if(k==='f'&&!(g.phase==='play'&&false)){ /* F is also a lane key; fullscreen uses the button or Shift+F */ if(e.shiftKey){ toggleFS(); return; } }
     if(KEYL.hasOwnProperty(k)){ g.lastLane=KEYL[k]; judge(g,KEYL[k]); }
-  } else { if(k==='f'){ toggleFS(); } else if(k==='enter'&&g.phase==='ready'){ begin(g); } }
+  } else if(g.phase==='clear'){ if(k===' '||k==='enter') nextStage(g); }
+  else if(g.phase==='stagefail'){ if(k===' '||k==='enter') retryStage(g); }
+  else if(g.phase==='gate'){ /* study gate open: GameStudy owns the keys */ }
+  else { if(k==='f'){ toggleFS(); } else if(k==='enter'&&g.phase==='ready'){ begin(g); } }
 },true);
+window.addEventListener('blur',function(){ var g=rr(); if(g&&g.phase==='play'&&!g.paused) togglePause(g); });
+try{ (ARCADE_MODES.filter(function(m){return m.id==='rhythm';})[0]||{}).desc='A six-stage rhythm run that gets faster and denser. Pick a study topic, then answer 3 AI questions before every stage: right answers heal you and boost your score.'; }catch(e){}
 })();

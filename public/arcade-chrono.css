@@ -45,3 +45,6 @@
 #games-stage:fullscreen .cx-root,#games-stage:-webkit-full-screen .cx-root{flex:1;margin:0;border-radius:0;border:0;min-height:100vh}
 #games-stage:fullscreen .cx-body{align-items:center}#games-stage:fullscreen .cx-ling{width:170px}
 .cx-cell.ice{z-index:3;pointer-events:none;background:rgba(150,220,255,.3)}
+/* study run: stage pips + small text */
+.cx-pips{display:flex;gap:6px;justify-content:center}.cx-pips i{width:26px;height:8px;border-radius:5px;background:rgba(124,92,252,.25)}.cx-pips i.done{background:#5be68f}.cx-pips i.cur{background:#ffdc5a;box-shadow:0 0 8px #ffdc5a}
+.cx-fine{font-size:12.5px;opacity:.75;font-weight:700}.cx-title .gs-summary{background:rgba(124,92,252,.16);border-radius:12px;padding:8px 14px;font-size:13px}
