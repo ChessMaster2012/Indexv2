@@ -1,7 +1,7 @@
 /* Classrooms (student + teacher views) with the Tutor in a side panel. Talks to /api/classes (see classroom.js on the server). */
 (function () {
   'use strict';
-  var CR = { list: null, cur: null, tab: 'stream', aid: null, editing: null, tutor: { open: true, msgs: [], busy: false }, err: '', busy: false, gradeSel: null };
+  var CR = { list: null, cur: null, tab: 'stream', aid: null, editing: null, tutor: { open: false, msgs: [], busy: false }, showStats: (function () { try { return localStorage.getItem('cr-stats') !== '0'; } catch (e) { return true; } })(), err: '', busy: false, gradeSel: null };
   var $ = function (s, r) { return (r || document).querySelector(s); };
   function E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function role() { try { return localStorage.getItem('index-role') === 'teacher' ? 'teacher' : 'student'; } catch (e) { return 'student'; } }
@@ -45,8 +45,8 @@
   function render() {
     var root = $('#cr-root'); if (!root) return;
     var main = CR.cur ? classHtml() : homeHtml();
-    root.innerHTML = '<div class="cr-wrap' + (CR.tutor.open ? ' cr-with-tutor' : '') + '"><div class="cr-main">' + (CR.err ? '<div class="cr-err">' + E(CR.err) + '</div>' : '') + main + '</div>' + tutorHtml() + '</div>' +
-      '<button class="cr-tutor-fab" data-cr="tutor-toggle" aria-label="Toggle Tutor">🤖 Tutor</button>' + (CR.editing ? editorHtml() : '');
+    root.innerHTML = '<div class="cr-wrap"><div class="cr-main">' + (CR.err ? '<div class="cr-err">' + E(CR.err) + '</div>' : '') + main + '</div></div>' + tutorHtml() +
+      '<button class="cr-dot' + (CR.tutor.open ? ' open' : '') + '" data-cr="tutor-toggle" aria-label="' + (CR.tutor.open ? 'Close' : 'Open') + ' the ' + (isT() ? 'teacher assistant' : 'tutor') + '" title="' + (isT() ? 'Teacher assistant' : 'Class Tutor') + '">' + (CR.tutor.open ? '✕' : '🤖') + '</button>' + (CR.editing ? editorHtml() : '');
     var log = $('.cr-chat-log'); if (log) log.scrollTop = log.scrollHeight;
   }
   function homeHtml() {
@@ -187,7 +187,7 @@
     var tools = '<div class="cr-tools"><div class="cr-tool"><h5>🎲 Random student</h5><div id="cr-pick" class="cr-pickbox">?</div><button class="cr-mini" data-cr="pick">Pick one</button></div>' +
       '<div class="cr-tool"><h5>👥 Make groups</h5><div class="cr-row"><select id="cr-gsize"><option value="2">Pairs</option><option value="3" selected>Groups of 3</option><option value="4">Groups of 4</option><option value="5">Groups of 5</option></select><button class="cr-mini" data-cr="groups">Shuffle</button></div></div></div><div id="cr-groups">' + (CR.groups || '') + '</div>';
     return '<div class="cr-people"><section class="cr-invite"><h4>Invite students</h4><p>Give your students this code. They choose <b>My Classes</b> and enter it.</p><div class="cr-codebig">' + E(k.code) + '</div><button class="btn btn-primary" data-cr="copy" data-v="' + E(k.code) + '">Copy code</button>' + (k.students.length ? tools : '') + '</section>' +
-      '<section><h4>Students (' + k.students.length + ')</h4>' + (k.students.length ? '<div class="cr-stugrid">' + cards + '</div>' : '<div class="cr-empty sm"><p>No students yet. Share the code to get started.</p></div>') + sel + '</section></div>' +
+      '<section><div class="cr-sh"><h4>Students (' + k.students.length + ')</h4><button class="cr-switch' + (CR.showStats ? ' on' : '') + '" data-cr="toggle-stats" role="switch" aria-checked="' + (CR.showStats ? 'true' : 'false') + '"><span class="cr-knob"></span><span class="cr-swl">Show stats</span></button></div>' + (k.students.length ? '<div class="cr-stugrid' + (CR.showStats ? '' : ' cr-nostats') + '">' + cards + '</div>' : '<div class="cr-empty sm"><p>No students yet. Share the code to get started.</p></div>') + sel + '</section></div>' +
       '<div class="cr-bar"><button class="cr-mini danger" data-cr="del-class">Delete this class</button></div>';
   }
   function studentPanel(k, sid) {
@@ -348,6 +348,7 @@
       case 'tutor-stu': { var q = k.students.filter(function (z) { return z.id === sid; })[0], qs = sstats(k, q); CR.tutor.open = true; sendTutor('Give me 4 practical, kind ways to support a student named ' + q.name.split(' ')[0] + ' in my class "' + k.name + '". Their current average is ' + (qs.avg == null ? 'not graded yet' : qs.avg + '%') + ', with ' + qs.missing + ' missing assignment(s) out of ' + qs.total + '.'); break; }
       case 'pick': { var box = $('#cr-pick'); if (!box || !k.students.length) break; var n = 0, iv = setInterval(function () { var st = k.students[Math.floor(Math.random() * k.students.length)]; box.innerHTML = avHtml(st, 'sm') + ' ' + E(st.name); n++; if (window.SFX) SFX.play('tick'); if (n > 14) { clearInterval(iv); box.classList.add('cr-won'); if (window.SFX) SFX.play('win'); } }, 80); box.classList.remove('cr-won'); break; }
       case 'groups': { var size = Number(($('#cr-gsize') || {}).value) || 3, arr = k.students.slice(); for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t2 = arr[i]; arr[i] = arr[j]; arr[j] = t2; } var gc = Math.max(1, Math.round(arr.length / size)), gs = []; for (var g = 0; g < gc; g++) gs.push([]); arr.forEach(function (st, ix) { gs[ix % gc].push(st); }); CR.groups = '<div class="cr-grp">' + gs.map(function (grp, gi) { return '<div><b>Group ' + (gi + 1) + '</b>' + grp.map(function (st) { return '<span>' + avHtml(st, 'sm') + E(st.name) + '</span>'; }).join('') + '</div>'; }).join('') + '</div>'; if (window.SFX) SFX.play('win'); render(); break; }
+      case 'toggle-stats': CR.showStats = !CR.showStats; try { localStorage.setItem('cr-stats', CR.showStats ? '1' : '0'); } catch (x) { } render(); break;
       case 'new-chat': CR.tutor.msgs = []; render(); break;
       case 'copy-reply': try { navigator.clipboard.writeText(CR.tutor.msgs[Number(el.getAttribute('data-i'))].text); toast('Copied to clipboard.'); } catch (x) { } break;
       case 'post-reply': { var rr = CR.tutor.msgs[Number(el.getAttribute('data-i'))]; if (k && rr) guard(api('/classes/' + k.id + '/posts', 'POST', { text: rr.text.replace(/\*\*/g, '').slice(0, 2000) }).then(function () { toast('Posted to the class stream.'); return refresh(); })); break; }
