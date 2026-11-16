@@ -167,9 +167,25 @@ module.exports = function registerClassrooms(app, deps) {
     if (!k || !k.students.some(s => s.id === me.id)) throw bad('You are no longer in this class.', 404);
     return { teacher: false, k, me, tid: t.id, tname: dn(t) };
   }
+  /* Teacher roster extras: each student's equipped Indexling, frame and level (cached briefly so a busy page stays fast). */
+  const avCache = new Map();
+  async function avatarOf(id) {
+    const hit = avCache.get(id); if (hit && Date.now() - hit.t < 45000) return hit.v;
+    let v = { avatar: { indexling: '', skin: '', frame: 'default' }, level: 1, xp: 0 };
+    try {
+      const u = await getUser(id); const p = (u && u.accountData && u.accountData.progress) || {}; const eq = p.equipped || {};
+      const xp = Math.max(0, Math.floor(Number(p.xp) || 0));
+      v = { avatar: { indexling: S(eq.indexling, 80), skin: S(eq.indexlingSkin, 80), frame: S(eq.frame, 40) || 'default' }, level: Math.floor(xp / 100) + 1, xp };
+    } catch (e) { }
+    avCache.set(id, { t: Date.now(), v }); if (avCache.size > 500) avCache.clear();
+    return v;
+  }
   app.get('/api/classes/:id', wrap(async (req, res) => {
     const v = await loadForViewer(req, req.params.id);
-    if (v.teacher) return res.json({ class: Object.assign({}, v.k, { role: 'teacher', posts: v.k.posts.slice().reverse() }) });
+    if (v.teacher) {
+      const students = await Promise.all(v.k.students.map(async st => Object.assign({}, st, await avatarOf(st.id))));
+      return res.json({ class: Object.assign({}, v.k, { role: 'teacher', students, posts: v.k.posts.slice().reverse() }) });
+    }
     res.json({ class: studentView(v.k, v.me.id, v.tname) });
   }));
 
