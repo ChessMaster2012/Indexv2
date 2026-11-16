@@ -14,10 +14,10 @@ body[data-role="teacher"] .nav-btn[data-view="classroom"] > span:first-child::be
 .cr-tutor-h .cr-mini{background:rgba(255,255,255,.2);color:#fff;border-color:transparent}
 .cr-chat-log{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .cr-tutor-hi{font-size:13px;color:var(--crt);line-height:1.5;padding:10px;border-radius:12px;background:rgba(124,92,252,.08)}
-.cr-msg{max-width:92%;font-size:13px;line-height:1.5}.cr-msg>div{padding:9px 12px;border-radius:14px;overflow-wrap:anywhere}
-.cr-msg.user{align-self:flex-end}.cr-msg.user>div{background:#5b43d6;color:#fff;border-bottom-right-radius:4px}
-.cr-msg.assistant>div{background:rgba(124,92,252,.1);border-bottom-left-radius:4px}
-.cr-msg .cr-mini{margin-top:4px}
+.cr-cmsg{max-width:92%;font-size:13px;line-height:1.5}.cr-cmsg>div{padding:9px 12px;border-radius:14px;overflow-wrap:anywhere}
+.cr-cmsg.user{align-self:flex-end}.cr-cmsg.user>div{background:#5b43d6;color:#fff;border-bottom-right-radius:4px}
+.cr-cmsg.assistant>div{background:rgba(124,92,252,.1);border-bottom-left-radius:4px}
+.cr-cmsg .cr-mini{margin-top:4px}
 .cr-dots i{display:inline-block;width:6px;height:6px;margin:0 2px;border-radius:50%;background:#7c5cfc;animation:crd 1s infinite}.cr-dots i:nth-child(2){animation-delay:.15s}.cr-dots i:nth-child(3){animation-delay:.3s}
 @keyframes crd{0%,80%,100%{opacity:.25}40%{opacity:1}}
 .cr-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 8px}.cr-chips button{font-size:11.5px;font-weight:800;padding:6px 10px;border-radius:99px;border:1px solid var(--crl);background:transparent;color:inherit;cursor:pointer}.cr-chips button:hover{border-color:#7c5cfc}
@@ -29,7 +29,7 @@ body[data-role="teacher"] .nav-btn[data-view="classroom"] > span:first-child::be
 .cr-eyebrow{font-size:11px;font-weight:900;letter-spacing:.14em;opacity:.8}
 .cr-newclass,.cr-join{display:grid;gap:10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);border-radius:18px;padding:16px}.cr-join label{font-size:11px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
 .cr input:not([type=radio]):not([type=checkbox]),.cr textarea,.cr select{width:100%;box-sizing:border-box;border:1px solid var(--crl);border-radius:12px;padding:10px 12px;font:inherit;font-size:13.5px;background:var(--crb);color:var(--ink,#241f3d)}
-.cr-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.cr-row>*{flex:1;min-width:0}.cr-row>.btn,.cr-row>.cr-mini{flex:0 0 auto}.cr-end{justify-content:flex-end}
+.cr-crow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.cr-crow>*{flex:1;min-width:0}.cr-crow>.btn,.cr-crow>.cr-mini{flex:0 0 auto}.cr-end{justify-content:flex-end}
 .cr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
 .cr-card{display:flex;flex-direction:column;gap:12px;background:var(--crb);border:1px solid var(--crl);border-radius:20px;padding:18px;border-top:5px solid #7c5cfc}
 .cr-card-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.cr-card h3{margin:0;font-size:17px}
@@ -44,12 +44,12 @@ body[data-role="teacher"] .nav-btn[data-view="classroom"] > span:first-child::be
 .cr-mini{font:inherit;font-size:11.5px;font-weight:800;padding:6px 10px;border-radius:10px;border:1px solid var(--crl);background:transparent;color:inherit;cursor:pointer}.cr-mini:hover{border-color:#7c5cfc}.cr-mini.danger{color:#dc2626}.cr-mini:disabled{opacity:.5}
 .cr-err{padding:12px 14px;border-radius:12px;background:rgba(220,38,38,.1);color:#dc2626;font-weight:700;margin-bottom:12px;font-size:13px}
 .cr-back{margin-bottom:8px;font-size:13px}.cr-chead{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.cr-chead h2{margin:0;font-family:var(--font-display);font-size:28px}
-.cr-tabs{display:flex;gap:4px;border-bottom:2px solid var(--crl);margin-bottom:16px;overflow-x:auto}.cr-tabs button{padding:10px 14px;border:0;background:none;font:inherit;font-weight:800;font-size:13px;color:var(--crt);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}.cr-tabs button.on{color:#5a3fdb;border-bottom-color:#7c5cfc}
+.cr-tabs{display:flex;gap:4px;border-bottom:2px solid var(--crl);margin-bottom:16px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}.cr-tabs::-webkit-scrollbar{display:none}.cr-tabs button{padding:10px 14px;border:0;background:none;font:inherit;font-weight:800;font-size:13px;color:var(--crt);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap}.cr-tabs button.on{color:#5a3fdb;border-bottom-color:#7c5cfc}
 .cr-streamgrid{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:16px;align-items:start}
 .cr-post{display:grid;gap:8px;margin-bottom:14px}.cr-post .btn{justify-self:end}
 .cr-post-i{background:var(--crb);border:1px solid var(--crl);border-radius:16px;padding:14px;margin-bottom:10px}.cr-post-h{display:flex;gap:10px;align-items:center;font-size:12px}.cr-post-h span{color:var(--crt);flex:1}.cr-post-i p{margin:8px 0 0;font-size:14px;line-height:1.55}
 .cr-up{background:var(--crb);border:1px solid var(--crl);border-radius:16px;padding:14px}.cr-up h4{margin:0 0 8px;font-size:13px}.cr-up button{display:block;width:100%;text-align:left;border:0;border-top:1px solid var(--crl);background:none;padding:9px 0;font:inherit;color:inherit;cursor:pointer}.cr-up b{display:block;font-size:13px}.cr-up span{font-size:11.5px;color:var(--crt)}
-.cr-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
+.cr-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:6px 0 14px}
 .cr-list{display:grid;gap:8px}.cr-item{display:flex;gap:12px;align-items:center;text-align:left;width:100%;padding:12px 14px;border:1px solid var(--crl);border-radius:14px;background:var(--crb);color:inherit;font:inherit;cursor:pointer}.cr-item:hover{border-color:#7c5cfc}
 .cr-ic{font-size:22px}.cr-it{flex:1;min-width:0}.cr-it b{display:block}.cr-it small{color:var(--crt);font-size:12px}
 .cr-st{font-size:11px;font-weight:900;padding:4px 10px;border-radius:99px;background:rgba(124,92,252,.12);color:#5a3fdb;white-space:nowrap}.cr-st.bad{background:rgba(220,38,38,.12);color:#dc2626}.cr-st.ok{background:rgba(22,163,74,.13);color:#15803d}.cr-st.todo{background:rgba(217,119,6,.14);color:#b45309}
@@ -62,7 +62,7 @@ body[data-role="teacher"] .nav-btn[data-view="classroom"] > span:first-child::be
 .cr-gradepanel{margin-top:16px;padding:16px;border:2px solid #7c5cfc;border-radius:16px;background:var(--crb)}.cr-gradepanel h4{margin:0 0 8px}.cr-gradepanel textarea{margin:8px 0}
 .cr-qr{padding:10px 12px;border-radius:12px;margin:8px 0;border:1px solid var(--crl);font-size:13px}.cr-qr.ok{border-color:rgba(22,163,74,.5);background:rgba(22,163,74,.07)}.cr-qr.no{border-color:rgba(220,38,38,.45);background:rgba(220,38,38,.06)}.cr-qr small{display:block;color:var(--crt);margin-top:4px}
 .cr-q{border:1px solid var(--crl);border-radius:14px;padding:12px 14px;margin:0 0 12px;background:var(--crb)}.cr-q legend{font-weight:800;padding:0 6px}.cr-q label{display:flex;gap:8px;align-items:center;padding:7px 4px;cursor:pointer}
-.cr-result{text-align:center;padding:18px;border-radius:16px;background:rgba(124,92,252,.08);margin-bottom:12px}.cr-big{font-family:var(--font-display);font-size:38px;font-weight:800}
+.cr-result{text-align:center;padding:18px;border-radius:16px;background:rgba(124,92,252,.08);margin-bottom:12px}.cr-bigx{font-family:var(--font-display);font-size:38px;font-weight:800}
 .cr-fb{margin-top:10px;text-align:left;padding:10px 12px;border-radius:12px;background:var(--crb);font-size:13px;line-height:1.5}
 .cr-warnnote{font-size:12.5px;color:var(--crt);margin:6px 0 12px}.cr-lab{display:block;font-size:12px;font-weight:900;margin:12px 0 5px}.cr form textarea+.cr-lab{margin-top:12px}
 .cr-people{display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px}.cr-invite{text-align:center;padding:18px;border:1px solid var(--crl);border-radius:16px;background:var(--crb)}.cr-invite h4,.cr-people h4{margin:0 0 8px}.cr-codebig{font-family:monospace;font-size:28px;font-weight:900;letter-spacing:.08em;margin:10px 0}
@@ -99,24 +99,24 @@ body[data-role="teacher"] .nav-btn[data-view="classroom"] > span:first-child::be
 .cr-gbn{white-space:nowrap}.cr-gbn .cr-av{margin-right:6px}
 .cr-person .cr-av{margin-right:2px}
 .cr-tools{margin-top:16px;display:grid;gap:12px;text-align:left}.cr-tool{padding:12px;border-radius:14px;background:rgba(124,92,252,.07)}.cr-tool h5{margin:0 0 8px;font-size:13px}
-.cr-pickbox{min-height:40px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:900;font-size:15px;margin-bottom:8px;border-radius:10px;border:2px dashed var(--crl);padding:6px}.cr-pickbox.cr-won{border:2px solid #16a34a;background:rgba(22,163,74,.1);animation:crwin .5s}
+.cr-pickbox{min-height:40px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:900;font-size:15px;margin-bottom:8px;border-radius:10px;border:2px dashed var(--crl);padding:6px}.cr-pickbox.cr-cwon{border:2px solid #16a34a;background:rgba(22,163,74,.1);animation:crwin .5s}
 @keyframes crwin{0%{transform:scale(.9)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
 .cr-grp{display:grid;gap:8px;margin-top:10px;text-align:left}.cr-grp>div{padding:10px;border-radius:12px;border:1px solid var(--crl);background:var(--crb);font-size:12.5px}.cr-grp b{display:block;margin-bottom:4px;color:#5a3fdb}.cr-grp span{display:flex;align-items:center;gap:6px;padding:2px 0}
 /* tutor polish */
 .cr-tutor{border-radius:22px;box-shadow:0 14px 34px rgba(36,31,61,.16)}
 .cr-tutor-h{align-items:center}.cr-tutor-h small{display:block;font-size:11px;opacity:.85;margin-top:2px;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cr-th-b{display:flex;gap:6px}
 .cr-tutor-hi{text-align:center;padding:22px 16px}.cr-hi-ic{font-size:38px;margin-bottom:4px}.cr-tutor-hi b{display:block;font-size:15px}.cr-tutor-hi p{margin:6px 0 0}
-.cr-msg{display:flex;gap:8px;align-items:flex-start;max-width:100%}.cr-msg.user{justify-content:flex-end}.cr-bot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#5b43d6,#ff5ca8);font-size:14px;flex:none}
-.cr-bub{max-width:calc(100% - 38px)}.cr-msg.user .cr-bub{max-width:88%}.cr-bub>div:first-child{padding:9px 12px;border-radius:14px;overflow-wrap:anywhere}
-.cr-msg.user .cr-bub>div:first-child{background:#5b43d6;color:#fff;border-bottom-right-radius:4px}.cr-msg.assistant .cr-bub>div:first-child{background:rgba(124,92,252,.1);border-bottom-left-radius:4px}
-.cr-msg>div{padding:0!important;background:none!important;box-shadow:none!important}
+.cr-cmsg{display:flex;gap:8px;align-items:flex-start;max-width:100%}.cr-cmsg.user{justify-content:flex-end}.cr-bot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#5b43d6,#ff5ca8);font-size:14px;flex:none}
+.cr-bub{max-width:calc(100% - 38px)}.cr-cmsg.user .cr-bub{max-width:88%}.cr-bub>div:first-child{padding:9px 12px;border-radius:14px;overflow-wrap:anywhere}
+.cr-cmsg.user .cr-bub>div:first-child{background:#5b43d6;color:#fff;border-bottom-right-radius:4px}.cr-cmsg.assistant .cr-bub>div:first-child{background:rgba(124,92,252,.1);border-bottom-left-radius:4px}
+.cr-cmsg>div{padding:0!important;background:none!important;box-shadow:none!important}
 .cr-macts{display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
-.cr-msg p{margin:0 0 6px}.cr-msg ul,.cr-msg ol{margin:4px 0 6px;padding-left:18px}
+.cr-cmsg p{margin:0 0 6px}.cr-cmsg ul,.cr-cmsg ol{margin:4px 0 6px;padding-left:18px}
 .cr-chips{overflow-x:auto;flex-wrap:nowrap}.cr-chips button{white-space:nowrap}
 .cr-chat-in .btn{align-self:flex-end}
 .cr-item,.cr-card,.cr-btnpress{transition:transform .12s,border-color .15s,box-shadow .15s}.cr-item:hover{transform:translateX(3px)}
 .cr-card:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(36,31,61,.12)}
-@media(prefers-reduced-motion:reduce){.cr-stu,.cr-card,.cr-item{transition:none}.cr-pickbox.cr-won{animation:none}}
+@media(prefers-reduced-motion:reduce){.cr-stu,.cr-card,.cr-item{transition:none}.cr-pickbox.cr-cwon{animation:none}}
 .sfx-toggle{display:block;width:calc(100% - 24px);margin:6px 12px;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:transparent;color:inherit;font:inherit;font-size:12px;font-weight:800;cursor:pointer;opacity:.85}.sfx-toggle:hover{opacity:1;border-color:#7c5cfc}
 /* wider screen + floating assistant (the small dot, bottom right) */
 .cr{max-width:1760px;padding-left:6px;padding-right:6px}
