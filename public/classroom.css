@@ -141,3 +141,16 @@ body[data-role="teacher"] .nav-btn[data-view="classroom"] > span:first-child::be
 .cr-knob{width:34px;height:20px;border-radius:99px;background:#9ca3af;position:relative;transition:background .2s}.cr-knob::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
 .cr-switch.on .cr-knob{background:#7c5cfc}.cr-switch.on .cr-knob::after{transform:translateX(14px)}
 .cr-nostats .cr-sm,.cr-nostats .cr-lv,.cr-nostats .cr-stu>.cr-st{display:none}.cr-nostats .cr-stu{padding:14px 8px}
+/* assistant dot: a true circle, nudged up and left */
+.cr-dot{right:52px!important;bottom:52px!important;width:56px!important;height:56px!important;min-width:56px;aspect-ratio:1/1;border-radius:50%!important;padding:0!important;overflow:visible}
+.cr-dot svg{display:block}
+.cr-tutor,.cr-tutor.open{right:52px;bottom:120px}
+@media(max-width:700px){.cr-dot{right:18px!important;bottom:18px!important}.cr-tutor,.cr-tutor.open{right:10px;bottom:86px}}
+/* roster: own scroll area + per-student arrow */
+.cr-stuscroll{max-height:min(560px,calc(100vh - 330px));min-height:200px;overflow-y:auto;overflow-x:hidden;padding:4px 6px 4px 2px;border-radius:14px;scrollbar-width:thin;scrollbar-color:#7c5cfc transparent}
+.cr-stuscroll::-webkit-scrollbar{width:10px}.cr-stuscroll::-webkit-scrollbar-thumb{background:#7c5cfc;border-radius:99px;border:2px solid transparent;background-clip:padding-box}.cr-stuscroll::-webkit-scrollbar-track{background:rgba(124,92,252,.08);border-radius:99px}
+.cr-stu{position:relative}
+.cr-chev{position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;border:1px solid var(--crl);background:transparent;color:inherit;display:grid;place-items:center;cursor:pointer;padding:0;transition:transform .2s,background .15s}
+.cr-chev:hover{background:rgba(124,92,252,.15)}.cr-open .cr-chev{transform:rotate(180deg)}
+.cr-closed .cr-sm,.cr-closed .cr-lv,.cr-closed>.cr-st{display:none}.cr-closed{padding:14px 8px}
+.cr-stu .cr-sm,.cr-stu .cr-lv{animation:crfade .18s ease-out}@keyframes crfade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}

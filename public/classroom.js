@@ -1,7 +1,7 @@
 /* Classrooms (student + teacher views) with the Tutor in a side panel. Talks to /api/classes (see classroom.js on the server). */
 (function () {
   'use strict';
-  var CR = { list: null, cur: null, tab: 'stream', aid: null, editing: null, tutor: { open: false, msgs: [], busy: false }, showStats: (function () { try { return localStorage.getItem('cr-stats') !== '0'; } catch (e) { return true; } })(), err: '', busy: false, gradeSel: null };
+  var CR = { list: null, cur: null, tab: 'stream', aid: null, editing: null, tutor: { open: false, msgs: [], busy: false }, statOv: {}, showStats: (function () { try { return localStorage.getItem('cr-stats') !== '0'; } catch (e) { return true; } })(), err: '', busy: false, gradeSel: null };
   var $ = function (s, r) { return (r || document).querySelector(s); };
   function E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function role() { try { return localStorage.getItem('index-role') === 'teacher' ? 'teacher' : 'student'; } catch (e) { return 'student'; } }
@@ -46,7 +46,7 @@
     var root = $('#cr-root'); if (!root) return;
     var main = CR.cur ? classHtml() : homeHtml();
     root.innerHTML = '<div class="cr-wrap"><div class="cr-main">' + (CR.err ? '<div class="cr-err">' + E(CR.err) + '</div>' : '') + main + '</div></div>' + tutorHtml() +
-      '<button class="cr-dot' + (CR.tutor.open ? ' open' : '') + '" data-cr="tutor-toggle" aria-label="' + (CR.tutor.open ? 'Close' : 'Open') + ' the ' + (isT() ? 'teacher assistant' : 'tutor') + '" title="' + (isT() ? 'Teacher assistant' : 'Class Tutor') + '">' + (CR.tutor.open ? '✕' : '🤖') + '</button>' + (CR.editing ? editorHtml() : '');
+      '<button class="cr-dot' + (CR.tutor.open ? ' open' : '') + '" data-cr="tutor-toggle" aria-label="' + (CR.tutor.open ? 'Close' : 'Open') + ' the ' + (isT() ? 'teacher assistant' : 'tutor') + '" title="' + (isT() ? 'Teacher assistant' : 'Class Tutor') + '">' + (CR.tutor.open ? '✕' : '<svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true"><path d="M6 7.5A4.5 4.5 0 0 1 10.5 3h11A4.5 4.5 0 0 1 26 7.5v8A4.5 4.5 0 0 1 21.5 20H15l-5.2 4.6c-.7.6-1.8.1-1.8-.8V20.2A4.5 4.5 0 0 1 6 15.5z" fill="#fff"/><path d="M16 6.8l1.5 3.6 3.6 1.5-3.6 1.5L16 17l-1.5-3.6-3.6-1.5 3.6-1.5z" fill="#7c5cfc"/><path d="M23.6 17.4l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" fill="#ff5ca8"/></svg>') + '</button>' + (CR.editing ? editorHtml() : '');
     var log = $('.cr-chat-log'); if (log) log.scrollTop = log.scrollHeight;
   }
   function homeHtml() {
@@ -179,7 +179,8 @@
   function peopleHtml(k) {
     var cards = k.students.map(function (s) {
       var st = sstats(k, s), tone = st.missing >= 2 || (st.avg != null && st.avg < 65) ? 'warn' : (st.avg != null && st.avg >= 90 ? 'star' : '');
-      return '<article class="cr-stu ' + tone + '" data-cr="stu" data-s="' + s.id + '" tabindex="0">' + avHtml(s) + '<b class="cr-sn">' + E(s.name) + '</b><span class="cr-lv">Lv ' + (s.level || 1) + ' · ' + (s.xp || 0).toLocaleString() + ' XP</span>' +
+      var open = (s.id in CR.statOv) ? CR.statOv[s.id] : CR.showStats;
+      return '<article class="cr-stu ' + tone + (open ? ' cr-open' : ' cr-closed') + '" data-cr="stu" data-s="' + s.id + '" tabindex="0"><button class="cr-chev" data-cr="stu-stats" data-s="' + s.id + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-label="' + (open ? 'Hide' : 'Show') + ' stats for ' + E(s.name) + '" title="' + (open ? 'Hide' : 'Show') + ' stats"><svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M5 7.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' + avHtml(s) + '<b class="cr-sn">' + E(s.name) + '</b><span class="cr-lv">Lv ' + (s.level || 1) + ' · ' + (s.xp || 0).toLocaleString() + ' XP</span>' +
         '<div class="cr-sm"><div><b>' + (st.avg == null ? '–' : st.avg + '%') + '</b><small>avg</small></div><div class="' + (st.missing ? 'cr-bad' : '') + '"><b>' + st.missing + '</b><small>missing</small></div><div><b>' + st.done + '/' + st.total + '</b><small>done</small></div></div>' +
         (st.review ? '<span class="cr-st todo">' + st.review + ' to grade</span>' : '') + '</article>';
     }).join('');
@@ -187,7 +188,7 @@
     var tools = '<div class="cr-tools"><div class="cr-tool"><h5>🎲 Random student</h5><div id="cr-pick" class="cr-pickbox">?</div><button class="cr-mini" data-cr="pick">Pick one</button></div>' +
       '<div class="cr-tool"><h5>👥 Make groups</h5><div class="cr-row"><select id="cr-gsize"><option value="2">Pairs</option><option value="3" selected>Groups of 3</option><option value="4">Groups of 4</option><option value="5">Groups of 5</option></select><button class="cr-mini" data-cr="groups">Shuffle</button></div></div></div><div id="cr-groups">' + (CR.groups || '') + '</div>';
     return '<div class="cr-people"><section class="cr-invite"><h4>Invite students</h4><p>Give your students this code. They choose <b>My Classes</b> and enter it.</p><div class="cr-codebig">' + E(k.code) + '</div><button class="btn btn-primary" data-cr="copy" data-v="' + E(k.code) + '">Copy code</button>' + (k.students.length ? tools : '') + '</section>' +
-      '<section><div class="cr-sh"><h4>Students (' + k.students.length + ')</h4><button class="cr-switch' + (CR.showStats ? ' on' : '') + '" data-cr="toggle-stats" role="switch" aria-checked="' + (CR.showStats ? 'true' : 'false') + '"><span class="cr-knob"></span><span class="cr-swl">Show stats</span></button></div>' + (k.students.length ? '<div class="cr-stugrid' + (CR.showStats ? '' : ' cr-nostats') + '">' + cards + '</div>' : '<div class="cr-empty sm"><p>No students yet. Share the code to get started.</p></div>') + sel + '</section></div>' +
+      '<section><div class="cr-sh"><h4>Students (' + k.students.length + ')</h4><button class="cr-switch' + (CR.showStats ? ' on' : '') + '" data-cr="toggle-stats" role="switch" aria-checked="' + (CR.showStats ? 'true' : 'false') + '"><span class="cr-knob"></span><span class="cr-swl">Show stats</span></button></div>' + (k.students.length ? '<div class="cr-stuscroll"><div class="cr-stugrid">' + cards + '</div></div>' : '<div class="cr-empty sm"><p>No students yet. Share the code to get started.</p></div>') + sel + '</section></div>' +
       '<div class="cr-bar"><button class="cr-mini danger" data-cr="del-class">Delete this class</button></div>';
   }
   function studentPanel(k, sid) {
@@ -304,7 +305,7 @@
       if (m.role === 'assistant' && m.text) {
         acts = '<div class="cr-macts"><button class="cr-mini" data-cr="copy-reply" data-i="' + i + '">Copy</button>' + (t && CR.editing ? '<button class="cr-mini" data-cr="use-reply" data-i="' + i + '">Use in assignment</button>' : '') + (t && k && !CR.editing ? '<button class="cr-mini" data-cr="post-reply" data-i="' + i + '">Post to stream</button>' : '') + '</div>';
       }
-      return '<div class="cr-msg ' + m.role + '">' + (m.role === 'assistant' ? '<span class="cr-bot">🤖</span>' : '') + '<div class="cr-bub"><div>' + (m.text ? body : '<span class="cr-dots"><i></i><i></i><i></i></span>') + '</div>' + acts + '</div></div>';
+      return '<div class="cr-msg ' + m.role + '">' + (m.role === 'assistant' ? '<span class="cr-bot">✨</span>' : '') + '<div class="cr-bub"><div>' + (m.text ? body : '<span class="cr-dots"><i></i><i></i><i></i></span>') + '</div>' + acts + '</div></div>';
     }).join('');
     var hi = '<div class="cr-tutor-hi"><div class="cr-hi-ic">' + (t ? '🍎' : '🎒') + '</div><b>' + (t ? 'Your teaching assistant' : 'Your class tutor') + '</b><p>' + (t ? 'Plan lessons, write assignments, rubrics and quizzes, or draft feedback. Open an assignment and I will know what it is about.' : 'Ask me anything about your class. I will coach you with hints and explanations, not hand over answers.') + '</p></div>';
     return '<aside class="cr-tutor' + (T.open ? ' open' : '') + '"><div class="cr-tutor-h"><div><b>🤖 ' + (t ? 'Teaching assistant' : 'Class Tutor') + '</b><small>' + E(ctx) + '</small></div><div class="cr-th-b">' + (T.msgs.length ? '<button class="cr-mini" data-cr="new-chat" title="Start a new chat">New</button>' : '') + '<button class="cr-mini" data-cr="tutor-toggle" aria-label="Close tutor">✕</button></div></div>' +
@@ -348,7 +349,8 @@
       case 'tutor-stu': { var q = k.students.filter(function (z) { return z.id === sid; })[0], qs = sstats(k, q); CR.tutor.open = true; sendTutor('Give me 4 practical, kind ways to support a student named ' + q.name.split(' ')[0] + ' in my class "' + k.name + '". Their current average is ' + (qs.avg == null ? 'not graded yet' : qs.avg + '%') + ', with ' + qs.missing + ' missing assignment(s) out of ' + qs.total + '.'); break; }
       case 'pick': { var box = $('#cr-pick'); if (!box || !k.students.length) break; var n = 0, iv = setInterval(function () { var st = k.students[Math.floor(Math.random() * k.students.length)]; box.innerHTML = avHtml(st, 'sm') + ' ' + E(st.name); n++; if (window.SFX) SFX.play('tick'); if (n > 14) { clearInterval(iv); box.classList.add('cr-won'); if (window.SFX) SFX.play('win'); } }, 80); box.classList.remove('cr-won'); break; }
       case 'groups': { var size = Number(($('#cr-gsize') || {}).value) || 3, arr = k.students.slice(); for (var i = arr.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t2 = arr[i]; arr[i] = arr[j]; arr[j] = t2; } var gc = Math.max(1, Math.round(arr.length / size)), gs = []; for (var g = 0; g < gc; g++) gs.push([]); arr.forEach(function (st, ix) { gs[ix % gc].push(st); }); CR.groups = '<div class="cr-grp">' + gs.map(function (grp, gi) { return '<div><b>Group ' + (gi + 1) + '</b>' + grp.map(function (st) { return '<span>' + avHtml(st, 'sm') + E(st.name) + '</span>'; }).join('') + '</div>'; }).join('') + '</div>'; if (window.SFX) SFX.play('win'); render(); break; }
-      case 'toggle-stats': CR.showStats = !CR.showStats; try { localStorage.setItem('cr-stats', CR.showStats ? '1' : '0'); } catch (x) { } render(); break;
+      case 'stu-stats': { var cur2 = (sid in CR.statOv) ? CR.statOv[sid] : CR.showStats; CR.statOv[sid] = !cur2; var sc = $('.cr-stuscroll'), top = sc ? sc.scrollTop : 0; render(); var sc2 = $('.cr-stuscroll'); if (sc2) sc2.scrollTop = top; break; }
+      case 'toggle-stats': CR.statOv = {}; CR.showStats = !CR.showStats; try { localStorage.setItem('cr-stats', CR.showStats ? '1' : '0'); } catch (x) { } render(); break;
       case 'new-chat': CR.tutor.msgs = []; render(); break;
       case 'copy-reply': try { navigator.clipboard.writeText(CR.tutor.msgs[Number(el.getAttribute('data-i'))].text); toast('Copied to clipboard.'); } catch (x) { } break;
       case 'post-reply': { var rr = CR.tutor.msgs[Number(el.getAttribute('data-i'))]; if (k && rr) guard(api('/classes/' + k.id + '/posts', 'POST', { text: rr.text.replace(/\*\*/g, '').slice(0, 2000) }).then(function () { toast('Posted to the class stream.'); return refresh(); })); break; }
