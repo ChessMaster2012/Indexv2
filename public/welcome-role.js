@@ -73,7 +73,7 @@ function afterSignIn(){
     if(typeof state==='undefined'||!state.account) return;
     ls(PEND,null); ls(ROLE,pend); tag();
     if(window.AccountExtras&&AccountExtras.touchRole) AccountExtras.touchRole();
-    if(pend==='teacher'&&typeof switchView==='function'){ var m=document.getElementById('signin-modal'); setTimeout(function(){ if(m) m.classList.add('hidden'); switchView('live'); },900); }
+    if(pend==='teacher'&&typeof switchView==='function'){ var m=document.getElementById('signin-modal'); setTimeout(function(){ if(m) m.classList.add('hidden'); switchView('classroom'); },900); }
   }catch(e){}
 }
 var wasIn=false;

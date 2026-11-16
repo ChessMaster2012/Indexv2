@@ -1956,7 +1956,32 @@ function dbRowToUser(row) {
   }
   return user;
 }
-async function dbSaveUser(user, extra = {}) {
+const ACCOUNT_LOCKS = new Map();
+function withUserLock(id, fn) {
+  const prev = ACCOUNT_LOCKS.get(id) || Promise.resolve();
+  const run = prev.catch(() => {}).then(fn);
+  const tail = run.catch(() => {}).then(() => { if (ACCOUNT_LOCKS.get(id) === tail) ACCOUNT_LOCKS.delete(id); });
+  ACCOUNT_LOCKS.set(id, tail);
+  return run;
+}
+/* Classroom data lives inside accountData.classroom and is changed by other people's actions (a student turning in work
+   changes the teacher's account). Any ordinary save therefore re-reads the stored classroom first and keeps it, so a
+   slow request holding an old copy of the account can never erase it. Classroom writes pass ownClassroom=true. */
+async function dbSaveUser(user, extra = {}, ownClassroom = false) {
+  if (!SUPABASE_ENABLED) return;
+  if (ownClassroom || !user.id) return dbSaveUserInner(user, extra);
+  return withUserLock(user.id, async () => {
+    if (user.accountData && typeof user.accountData === 'object') {
+      try {
+        const row = await supabaseRequest(`${SUPABASE_TABLE}?select=account_data,account_data_blob&id=eq.${encodeURIComponent(user.id)}&limit=1`);
+        const fresh = Array.isArray(row) && row[0] ? decodeAccountData(row[0]) : null;
+        if (fresh && fresh.classroom) user.accountData.classroom = fresh.classroom;
+      } catch (e) { console.error('classroom keep-alive read failed:', e.message); throw e; }
+    }
+    return dbSaveUserInner(user, extra);
+  });
+}
+async function dbSaveUserInner(user, extra = {}) {
   if (!SUPABASE_ENABLED) return;
   const row = {
     id: user.id,
@@ -2506,6 +2531,7 @@ function sanitizeAccountState(input){
     credits: sanitizeCredits(src.credits),
     tutorChats: sanitizeTutorChats(src.tutorChats),
     tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
+    classroom: src.classroom && typeof src.classroom === 'object' ? src.classroom : undefined,
     role: src.role === 'teacher' ? 'teacher' : (src.role === 'student' ? 'student' : undefined),
     learnStore: sanitizeLearnStore(src.learnStore),
     learnAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.learnAt)||0)),
@@ -3087,6 +3113,8 @@ app.put('/api/account/state', async (req,res)=>{
     mergedAccountState.achievements=existingAccountState.achievements||{claimed:{}};
     const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
     if(mergedQuests) mergedAccountState.quests=mergedQuests;
+    // Classrooms are server-owned: a browser snapshot can never add, edit or erase them.
+    mergedAccountState.classroom = existingAccountState.classroom;
     req.user.accountData = sanitizeAccountState(mergedAccountState);
     if (SUPABASE_ENABLED) await dbSaveUser(req.user);
     else saveUsers();
@@ -3607,8 +3635,10 @@ const CANVAS = require('./canvas').init({ app, dataDir: DATA_DIR, publicBaseUrl:
 require('./liveengine').attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTitle, cappedDailyCoins });
 
 const SEC_ERR = SEC.errorHandlers();
+require('./classroom.js')(app, { usersById, dbFindUserById, dbRowToUser, dbSaveUser: (u) => dbSaveUser(u, {}, true), saveUsers, SUPABASE_ENABLED, supabaseRequest, supabaseTable: SUPABASE_TABLE, withLock: withUserLock });
 app.use(SEC_ERR.notFoundApi);
 app.use(SEC_ERR.error);
+
 
 server.listen(PORT, () => {
   console.log(`Index study app listening on http://localhost:${PORT}`);
