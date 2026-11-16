@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 const express = require('express');
 const SeasonCore = require('./public/season-core.js');
+const MembershipCore = require('./public/membership-core.js');
 const LIBRARY = require('./library');
 const LIBRARY_QUESTIONS = LIBRARY.normalizeQuestions;
 const http = require('http');
@@ -2095,12 +2096,7 @@ function isOwnerUser(user){
 }
 // Everything about credits depends on the account's membership plan. Numbers are kept modest on purpose:
 // the AI providers have free-tier limits shared by every student, so the allowance has to stay fair at scale.
-const CREDIT_PLANS = Object.freeze({
-  free:     { allowance: 20,  starter: 20,  bonusCap: 100, rollMult: 1 },
-  gold:     { allowance: 40,  starter: 40,  bonusCap: 150, rollMult: 1.5 },
-  platinum: { allowance: 70,  starter: 75,  bonusCap: 250, rollMult: 2 },
-  diamond:  { allowance: 120, starter: 150, bonusCap: 400, rollMult: 3 }
-});
+const CREDIT_PLANS = Object.freeze(Object.fromEntries(MembershipCore.ORDER.map(k => { const t = MembershipCore.TIERS[k]; return [k, { allowance: t.credits, starter: t.starter, bonusCap: t.bonusCap, rollMult: t.rollMult }]; })));
 const CREDIT_PLAN_ALLOWANCE = Object.freeze(Object.fromEntries(Object.entries(CREDIT_PLANS).map(([k, v]) => [k, v.allowance])));
 const CREDIT_ANON_ALLOWANCE = 5;
 const AI_MAX_CONCURRENT = Math.max(4, Number(process.env.AI_MAX_CONCURRENT) || 24); // global cap on simultaneous AI requests
@@ -2614,12 +2610,12 @@ function mergeQuestState(existingQuest,incomingQuest){
 
 
 /* ============================== MEMBERSHIP / BILLING ============================== */
-const MEMBERSHIP_PLANS = Object.freeze({
-  free:{tier:'free',name:'Basic',priceCents:0,interval:'month',studySetLimit:50,noteLimit:50,features:['Core study tools','AI Tutor','Up to 50 saved study sets','Up to 50 saved notes','Daily rewards']},
-  gold:{tier:'gold',name:'Gold',priceCents:499,interval:'month',studySetLimit:250,noteLimit:250,features:['Everything in Basic','Up to 250 saved study sets','Up to 250 saved notes','Gold membership badge','Higher account limits']},
-  platinum:{tier:'platinum',name:'Platinum',priceCents:749,interval:'month',studySetLimit:500,noteLimit:350,features:['Everything in Gold','Up to 500 saved study sets','Up to 350 saved notes','Platinum membership badge','Expanded account limits']},
-  diamond:{tier:'diamond',name:'Diamond',priceCents:999,interval:'month',studySetLimit:1000,noteLimit:500,features:['Everything in Platinum','Up to 1,000 saved study sets','Up to 500 saved notes','Diamond membership badge','Highest account limits']}
-});
+const MEMBERSHIP_PLANS = Object.freeze(Object.fromEntries(MembershipCore.ORDER.map(k => {
+  const t = MembershipCore.TIERS[k];
+  const feats = [k === 'free' ? 'Core study tools' : 'Everything in ' + MembershipCore.TIERS[MembershipCore.ORDER[MembershipCore.ORDER.indexOf(k) - 1]].name,
+    t.credits + ' AI credits every 6 hours', t.sets + ' saved study sets', t.notes + ' saved notes', t.chats + ' saved Tutor chats', t.flair !== 'None' ? t.flair : 'Daily rewards'];
+  return [k, { tier: k, name: t.name, priceCents: t.priceCents, interval: 'month', studySetLimit: t.sets, noteLimit: t.notes, tutorChatLimit: t.chats, features: feats }];
+})));
 
 app.get('/api/account/credits', (req, res) => {
   res.set('Cache-Control', 'no-store');
@@ -3012,6 +3008,10 @@ app.put('/api/account/state', async (req,res)=>{
       return res.status(403).json({error:'Your '+limits.name+' plan allows up to '+limits.noteLimit+' saved notes. Upgrade your membership to save more.'});
     }
     const mergedAccountState={...incomingAccountState};
+    if(Array.isArray(mergedAccountState.tutorChats)&&mergedAccountState.tutorChats.length>limits.tutorChatLimit){
+      // Plan limit on saved Tutor chats: keep pinned chats first, then the newest.
+      mergedAccountState.tutorChats=mergedAccountState.tutorChats.slice().sort((a,b)=>(b&&b.pin?1:0)-(a&&a.pin?1:0)||(Number(b&&b.t)||0)-(Number(a&&a.t)||0)).slice(0,limits.tutorChatLimit);
+    }
     // XP, achievements, owned cosmetics, and unlocked Commander units are
     // monotonic. A stale browser must not lower a level or erase inventory.
     const existingProgress=existingAccountState.progress&&typeof existingAccountState.progress==='object'?existingAccountState.progress:{};

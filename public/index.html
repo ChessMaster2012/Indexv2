@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <script src="/device-data.js?v=1"></script>
+<script src="/membership-core.js?v=1"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Index — Study every AP class</title>
@@ -2504,7 +2505,7 @@ function renderMembershipPage(){
   const paid=current.tier!=='free';
   const days=paid?membershipDaysLeftLocal():0;
   const badgeTier=current.lifetimeBadgeTier||(paid?current.tier:'');
-  const badgeHtml=badgeTier?'<span class="profile-member-badge">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
+  const badgeHtml=badgeTier?'<span class="profile-member-badge pmb-'+badgeTier+'">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
   const periodHtml=paid&&Number(current.currentPeriodEnd)?'<div style="font-size:11px;color:var(--ink-soft);margin-top:4px;">'+days+' day'+(days===1?'':'s')+' left · ends '+esc(membershipEndDate(current.currentPeriodEnd))+' · <b style="color:var(--green-deep)">auto-renewal off</b></div>':'';
   const perks=[['📚','More saved study sets','Up to 1,000 on Diamond'],['📝','More saved notes','Up to 500 on Diamond'],['🏅','Member badge','Shown on your profile'],['🔒','Stripe checkout','Index never sees your card']];
   const faq=[['Does it renew automatically?','No. Paid plans run for the current monthly period and end automatically — nothing renews unless you choose again.'],['Where is my payment handled?','On Stripe\'s secure hosted checkout. Index never stores card numbers.'],['Does it follow my account?','Yes. Your membership is tied to your signed-in Index account on every device.'],['Can I switch plans?','Yes — pick another plan any time, or open Billing to manage your current one.']];
@@ -3677,7 +3678,7 @@ function renderDashboardMembershipCard(){
   const days=active?membershipDaysLeftLocal():0;
   const badgeTier=m.lifetimeBadgeTier||(active?m.tier:'');
   const hasEndedPeriod=Number(m.currentPeriodEnd)>0&&Number(m.currentPeriodEnd)<=Math.floor(Date.now()/1000);
-  const badgeHtml=badgeTier?'<span class="profile-member-badge">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
+  const badgeHtml=badgeTier?'<span class="profile-member-badge pmb-'+badgeTier+'">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
   if(active&&days>0){
     root.innerHTML='<div class="membership-status-card active"><div class="membership-status-main"><div class="membership-status-kicker">⭐ Current membership</div><div class="membership-status-title">'+esc(m.plan?.name||membershipTierName(m.tier))+' · '+days+' day'+(days===1?'':'s')+' left</div><div class="membership-status-sub">Ends '+esc(membershipEndDate(m.currentPeriodEnd))+' · No automatic renewal</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">View membership</button></div></div>';
   }else if(badgeTier&&hasEndedPeriod){
@@ -3747,7 +3748,7 @@ function renderProfileSlot(){
     const art=ling?indexlingArtHtml(ling,true,skin,null):'<span style="font-size:18px">👤</span>';
     const frameStyle=typeof indexlingFrameStyle==='function'?indexlingFrameStyle(frame):'';
     const badgeTier=state.membership?.lifetimeBadgeTier||(state.membership?.tier&&state.membership.tier!=='free'?state.membership.tier:'');
-    const badgeHtml=badgeTier?'<span class="profile-member-badge">💎 '+esc(membershipTierName(badgeTier))+'</span>':'';
+    const badgeHtml=badgeTier?'<span class="profile-member-badge pmb-'+badgeTier+'">💎 '+esc(membershipTierName(badgeTier))+'</span>':'';
     el.innerHTML='<button type="button" class="profile-btn" data-action="open-signin"><span class="profile-indexling-frame" style="'+frameStyle+'"><span class="profile-indexling-art">'+art+'</span></span><span style="min-width:0;display:flex;flex-direction:column;gap:2px;"><span class="profile-name-label" title="'+esc(name||'Your account')+'">'+esc(name||'Your account')+'</span>'+badgeHtml+'</span></button>';
   }else{
     el.innerHTML='<button type="button" class="signin-btn" data-action="open-signin">👋 Sign in</button>';
@@ -9155,12 +9156,14 @@ setInterval(function(){
 <link rel="stylesheet" href="/rewards-ui.css?v=9">
 <link rel="stylesheet" href="/quests-ui.css?v=2">
 <link rel="stylesheet" href="/membership-ui.css?v=3">
+<link rel="stylesheet" href="/membership-pro.css?v=1">
 <script src="/rewards-ui.js?v=3"></script>
 <script src="/rewards-ui-packs.js?v=3"></script>
 <script src="/rewards-ui-reel.js?v=3"></script>
 <link rel="stylesheet" href="/season-pass.css?v=1">
 <link rel="stylesheet" href="/welcome-role.css?v=1">
 <script src="/season-core.js?v=1"></script>
+<script src="/membership-pro.js?v=2"></script>
 <script src="/season-pass.js?v=1"></script>
 <script src="/welcome-role.js?v=2"></script>
 <script src="/game-study.js?v=4"></script>
