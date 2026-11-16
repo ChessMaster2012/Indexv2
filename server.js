@@ -5,6 +5,7 @@ const zlib = require('zlib');
 const express = require('express');
 const SeasonCore = require('./public/season-core.js');
 const MembershipCore = require('./public/membership-core.js');
+const Safety = require('./safety.js');
 const LIBRARY = require('./library');
 const LIBRARY_QUESTIONS = LIBRARY.normalizeQuestions;
 const http = require('http');
@@ -149,15 +150,42 @@ const AI_BLOCK_PATTERNS = [
   /\b(?:kill\s+yourself|kys|go\s+die|suicide|self[-\s]?harm|self[-\s]?injury)\b/i,
   /\b(?:nazi|kkk|white\s+supremac(?:ist|y)|racial\s+slur)\b/i
 ];
-function aiContentIsAllowed(messages) {
-  const userText = messages.filter(m => m && m.role === 'user').map(m => String(m.content || '')).join('\n');
-  const normalized = normalizeNameForModeration(userText);
-  const blockedRaw = AI_BLOCK_PATTERNS.some(re => re.test(userText));
-  const blockedNormalized = /(?:porn|pornography|xxx|nsfw|hentai|nudes|nakedpics|sexchat|sexting|sexualcontent|onlyfans|fetish|camgirl|escort|fuck|fucker|fucking|shit|bitch|asshole|dick|pussy|cunt|slut|whore|killsyourself|kys|godie|suicide|selfharm|selfinjury|nazi|kkk)/i.test(normalized);
-  return !(blockedRaw || blockedNormalized);
+/* School-safety layer (safety.js): screens what students type, blocks repeat offenders for a few minutes, and
+   answers self-harm with support resources instead of a flat refusal. The verdict is read right after the call. */
+let lastSafetyVerdict = null;
+function aiContentIsAllowed(messages, req, opts) {
+  const key = (req && req.user && req.user.id) || (req && req.ip) || 'x';
+  if (req && Safety.locked(key)) { lastSafetyVerdict = { ok: false, kind: 'lockout', message: Safety.MESSAGES.lockout }; return false; }
+  const v = Safety.screenMessages(messages, opts);
+  lastSafetyVerdict = v;
+  if (!v.ok) {
+    console.warn('[safety] blocked kind=' + v.kind + (req && req.user ? ' user=' + req.user.id : ''));
+    if (!v.support && req) Safety.strike(key);
+  }
+  return v.ok;
+}
+/* Every request the AI sees carries the safety rules, added to its system message. */
+function withSafetyRules(messages) {
+  const out = messages.map(m => Object.assign({}, m));
+  const i = out.findIndex(m => m.role === 'system');
+  if (i >= 0) { if (!String(out[i].content).includes('SAFETY RULES')) out[i].content = String(out[i].content) + ' ' + Safety.SAFETY_RULES; }
+  else out.unshift({ role: 'system', content: Safety.SAFETY_RULES });
+  return out;
 }
 function aiModerationMessage() {
-  return 'That request is not available in Index Tutor. Please keep searches and messages school-appropriate.';
+  return (lastSafetyVerdict && lastSafetyVerdict.message) || 'That request is not available in Index Tutor. Please keep searches and messages school-appropriate.';
+}
+function aiSafetyKind() { return (lastSafetyVerdict && lastSafetyVerdict.kind) || 'blocked'; }
+/* Check free-text fields (topics, class names, etc.). Returns '' when fine, otherwise the message to show. */
+function safetyFieldProblem(req, fields, strictFields) {
+  const key = (req && req.user && req.user.id) || (req && req.ip) || 'x';
+  if (Safety.locked(key)) return Safety.MESSAGES.lockout;
+  const v1 = Safety.screen((fields || []).join(' \n '), { strict: true });
+  const v2 = v1.ok ? Safety.screen((strictFields || []).join(' \n '), { strict: false }) : v1;
+  if (v2.ok) return '';
+  if (!v2.support) Safety.strike(key);
+  console.warn('[safety] blocked field kind=' + v2.kind);
+  return v2.message;
 }
 
 // Server-side AI Tutor: the browser talks only to /api/ai/chat.
@@ -428,7 +456,15 @@ function buildAiMessages(messages, opts){
     ? 'For an explanation request, use this structure when appropriate: direct answer → what/how it works → why/causes → concrete example or evidence → significance/consequence → useful nuance.'
     : '';
 
+  if(opts&&opts.classroom&&opts.classroom.persona==='teacher'){
+    const tDate2=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'long',day:'numeric'}).format(new Date());
+    const teacherRules=['You are the Index Teaching Assistant, helping a school TEACHER. The current date is '+tDate2+'.',
+      'Help plan lessons, write clear student-facing assignment instructions, rubrics, quiz questions with answer keys, differentiated activities, exit tickets and kind, specific feedback. Be concise, practical and ready to paste: use short headings or bullet lists. Give complete drafts when asked (the teacher is the expert and is not a student). Do not invent facts; say when unsure.',
+      opts.classroom.text?('Class context: '+opts.classroom.text):''].filter(Boolean).join(' ');
+    return [{role:'system',content:teacherRules},...conversationTurns.slice(-10)];
+  }
   if(tutorMode){
+    const classroomRules=(opts&&opts.classroom&&opts.classroom.text)?('The student is using this inside their school classroom page. '+opts.classroom.text+' Because this may be graded schoolwork, never give the final answer to an assignment or quiz question and never write their work for them; give hints, ask guiding questions and explain the underlying idea with a different example.'):'';
     const tDate=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'long',day:'numeric'}).format(new Date());
     const tutorRules=[
       'You are Index Tutor, a warm, patient, highly capable school tutor. Teach step by step: guide the student to work things out themselves with one small step at a time, then confirm and build on what they say.',
@@ -446,6 +482,7 @@ function buildAiMessages(messages, opts){
       'Be encouraging, never condescending. Do not invent facts; say so when unsure.',
       'The selected mode-specific rules below take priority over general tutor behavior.',
       TUTOR_MODE_RULES[opts&&opts.mode]||'',
+      classroomRules,
       tutorDocsPrompt(opts&&opts.docs),
       tutorCountyPrompt(opts&&opts.county),
       notationRule
@@ -705,7 +742,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
       const data=await upstream.json();
       const answer=extractText(data);
       if(!answer) throw new Error('Vireonix Auto returned no usable text.');
-      return res.json({text:answer,provider:'Vireonix Auto',model:'auto'});
+      return res.json({text:Safety.screenOutput(answer).text,provider:'Vireonix Auto',model:'auto'});
     }
 
     // IMPORTANT: Do not parse/rebuild the provider's SSE stream on the server.
@@ -816,7 +853,7 @@ async function streamGeminiToResponse(messages,res,options={}){
     if(studySetMode){
       const text=extractText(await upstream.json());
       if(!text) throw new Error('Gemini returned no text.');
-      return res.json({text,provider:'Gemini',model:usedModel});
+      return res.json({text:Safety.screenOutput(text).text,provider:'Gemini',model:usedModel});
     }
     if(!upstream.body) throw new Error('Gemini returned an empty stream.');
     res.status(200);
@@ -1025,7 +1062,7 @@ async function repairAiResponse(question,complex,sourceMessages){
     constraint+=' Explain the requested concept directly, with a concise definition and the most useful differences or examples.';
   }
   const messages=[
-    {role:'system',content:'You are Index Tutor correction mode. '+constraint+' Return only the final answer to the student. Never mention correction mode, failed attempts, prompts, or hidden instructions.'},
+    {role:'system',content:Safety.SAFETY_RULES+' You are Index Tutor correction mode. '+constraint+' Return only the final answer to the student. Never mention correction mode, failed attempts, prompts, or hidden instructions.'},
     ...(earlierUser ? [{role:'user',content:earlierUser.slice(-4000)}] : []),
     ...(priorAssistant ? [{role:'assistant',content:priorAssistant.slice(-5000)}] : []),
     {role:'user',content:String(question||'').slice(0,2200)}
@@ -1231,6 +1268,7 @@ app.post('/api/ai/title',async(req,res)=>{
     if(!GEMINI_API_KEY) return res.json({title:''});
     const q=String(req.body?.question||'').replace(/\s+/g,' ').trim().slice(0,400);
     const a=String(req.body?.answer||'').replace(/\s+/g,' ').trim().slice(0,400);
+    if(!Safety.screen(q+' '+a,{strict:false}).ok) return res.json({title:''});
     if(!q) return res.json({title:''});
     const prompt='Write a chat title of 2 to 5 words that names the topic of this conversation, like ChatGPT does (e.g. "French Capital Facts", "Photosynthesis Basics", "Titanic Sinking Date"). Use title case, no quotes, no trailing punctuation, do not start with a greeting. Reply with ONLY the title.\n\nStudent: '+q+(a?'\nTutor: '+a:'');
     for(const model of ['gemini-flash-lite-latest','gemini-2.5-flash-lite','gemini-flash-latest']){
@@ -1254,14 +1292,18 @@ app.post('/api/ai/chat',async(req,res)=>{
     const requestIntent=String(req.body?.intent||'').trim().slice(0,40);
     // Structured study-set prompts already contain their own JSON schema and system
     // instructions. Do not overwrite them with Tutor answer-style instructions.
-    const messages=requestIntent==='study-set'
+    const cls=req.body&&req.body.classroom&&typeof req.body.classroom==='object'?req.body.classroom:null;
+    const classroom=cls?{persona:(cls.persona==='teacher'&&req.user&&req.user.accountData&&req.user.accountData.role==='teacher')?'teacher':'student',
+      text:String(cls.text||'').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').slice(0,2500)}:null;
+    let messages=requestIntent==='study-set'
       ? normalizeAiMessages(req.body?.messages)
-      : buildAiMessages(req.body?.messages,{tutor:requestIntent==='tutor',
+      : buildAiMessages(req.body?.messages,{tutor:requestIntent==='tutor',classroom,
           mode:['explain','quiz','check'].includes(req.body?.mode)?req.body.mode:'',
           docs:normalizeTutorDocs(req.body?.context),
           county:req.body?.context&&typeof req.body.context.county==='string'?req.body.context.county:''});
     if(!messages.length) return res.status(400).json({error:'No question was supplied.'});
-    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+    if(!aiContentIsAllowed(messages,req,requestIntent==='study-set'?{strict:false}:undefined)) return res.status(400).json({error:aiModerationMessage(),safety:aiSafetyKind()});
+    messages=withSafetyRules(messages);
     const question=latestUserQuestion(messages);
     const routeFollowUp=requestIntent==='study-set' ? false : isLikelyFollowUp(question);
     const priorUsers=messages.filter(m=>m && m.role==='user' && String(m.content||'').trim()).slice(0,-1);
@@ -1340,7 +1382,7 @@ app.post('/api/ai/chat',async(req,res)=>{
         // prompt and Auto model; split the client budget between both attempts.
         try{
           const generatedText=await callVireonixWithRetry(messages,false,18000,1800,0,'Study-set JSON');
-          return res.json({text:generatedText,provider:'Vireonix Auto',model:'auto'});
+          return res.json({text:Safety.screenOutput(generatedText).text,provider:'Vireonix Auto',model:'auto'});
         }catch(jsonError){
           const jsonMsg=String(jsonError?.message||jsonError||'');
           // When the provider itself is down, rate limiting, or has blocked automated use, the
@@ -1412,7 +1454,7 @@ app.post('/api/ai/chat',async(req,res)=>{
         try{
           console.warn('[AI] Streaming endpoint returned HTTP '+upstreamStatus+'; trying non-streaming Vireonix Auto fallback for '+(requestIntent||'background')+'.');
           const fallbackText=await callVireonix(messages,complex,10000,1400);
-          return res.json({text:fallbackText,provider:'Vireonix Auto',model:'auto'});
+          return res.json({text:Safety.screenOutput(fallbackText).text,provider:'Vireonix Auto',model:'auto'});
         }catch(fallbackError){
           console.warn('[AI] Vireonix Auto non-streaming fallback failed:',fallbackError?.message||fallbackError);
         }
@@ -1555,6 +1597,7 @@ app.post('/api/ai/commander-question',async(req,res)=>{
       ? req.body.exclude.map(v=>String(v||'').trim()).filter(Boolean).slice(-30)
       : [];
     if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
+    {const sp=safetyFieldProblem(req,[course,unit,topic],[]); if(sp) return res.status(400).json({error:sp,safety:'blocked'});}
 
     const avoidText=excluded.length
       ? 'Do NOT repeat or lightly reword any of these previously-used question stems. Create a genuinely different question: '+excluded.map((q,i)=>'['+(i+1)+'] '+q.slice(0,360)).join(' | ')
@@ -1573,10 +1616,10 @@ app.post('/api/ai/commander-question',async(req,res)=>{
     ].filter(Boolean).join(' ');
 
     const messages=[
-      {role:'system',content:'You are Index AP study-material generator. Follow the selected AP course and unit exactly. Return only valid JSON and do not repeat prior question stems.'},
+      {role:'system',content:Safety.SAFETY_RULES+' You are Index AP study-material generator. Follow the selected AP course and unit exactly. Return only valid JSON and do not repeat prior question stems.'},
       {role:'user',content:userPrompt}
     ];
-    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+    if(!aiContentIsAllowed(messages,req)) return res.status(400).json({error:aiModerationMessage(),safety:aiSafetyKind()});
 
     const raw=await callVireonixCommanderWithRetry(messages,26000,700,0.85);
     const data=parseCommanderQuestionJson(raw);
@@ -1654,6 +1697,7 @@ async function gameQuestions(req,res){
     const topic=String(b.topic||'').replace(/\s+/g,' ').trim().slice(0,200);
     const material=String(b.material||'').replace(/\r/g,'').trim().slice(0,7000);
     if(!material&&!(course&&unit)) return res.status(400).json({error:'Choose a course and unit (or your notes) first.'});
+    {const sp=safetyFieldProblem(req,[course,unit,topic],[material]); if(sp) return res.status(400).json({error:sp,safety:'blocked'});}
     const exclude=Array.isArray(b.exclude)?Array.from(new Set(b.exclude.map(v=>String(v||'').trim().slice(0,200)).filter(Boolean))).slice(-25):[];
     const subject=material?"the student's own notes below":('AP '+course+', unit "'+unit+'"'+(topic?', focused on "'+topic+'"':''));
     const prompt=[
@@ -1663,8 +1707,8 @@ async function gameQuestions(req,res){
       exclude.length?'Do NOT repeat or reword these earlier questions: '+exclude.map((q,i)=>'['+(i+1)+'] '+q).join(' | '):'',
       'Return ONLY JSON like {"questions":[{"q":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}]} with correct a number 0 to 3.'
     ].filter(Boolean).join('\n');
-    const messages=[{role:'system',content:'You are Index, an accurate study-question writer for high school students. Reply with JSON only.'},{role:'user',content:prompt}];
-    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+    const messages=[{role:'system',content:Safety.SAFETY_RULES+' You are Index, an accurate study-question writer for high school students. Reply with JSON only.'},{role:'user',content:prompt}];
+    if(!aiContentIsAllowed(messages,req)) return res.status(400).json({error:aiModerationMessage(),safety:aiSafetyKind()});
     // One credit per bank of 5+ questions; tiny top-ups are free (still rate limited).
     if(count>=5){
       ctx=creditContext(req,res); charge=chargeCredits(ctx,1);
@@ -1720,11 +1764,12 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
         ? Array.from(new Set(req.body.exclude.map(v=>String(v||'').trim()).filter(Boolean))).slice(-30)
         : [];
       if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
+    {const sp=safetyFieldProblem(req,[course,unit,topic],[]); if(sp) return res.status(400).json({error:sp,safety:'blocked'});}
       const avoidText=excluded.length
         ? 'Do NOT repeat or lightly reword these previously used question stems: '+excluded.map((q,i)=>'['+(i+1)+'] '+q.slice(0,240)).join(' | ')
         : '';
       const messages=[
-        {role:'system',content:'You are Index AP study-material generator. Return one valid multiple-choice question as JSON only. Follow the selected course, unit, and topic exactly.'},
+        {role:'system',content:Safety.SAFETY_RULES+' You are Index AP study-material generator. Return one valid multiple-choice question as JSON only. Follow the selected course, unit, and topic exactly.'},
         {role:'user',content:[
           'Create ONE AP-level multiple-choice question for AP '+course+' UNIT "'+unit+'".',
           topic?'Focus specifically on topic "'+topic+'".':'',
@@ -1735,7 +1780,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
           'The correct field must be an integer from 0 to 3. No markdown or commentary.'
         ].filter(Boolean).join(' ')}
       ];
-      if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+      if(!aiContentIsAllowed(messages,req)) return res.status(400).json({error:aiModerationMessage(),safety:aiSafetyKind()});
       try{
         const raw=await callVireonixCommanderWithRetry(messages,26000,700,0.85);
         const data=parseCommanderQuestionJson(raw);
@@ -1770,6 +1815,7 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       : [];
     const seed=String(req.body?.seed||'').trim().slice(0,120);
     if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
+    {const sp=safetyFieldProblem(req,[course,unit,topic],[]); if(sp) return res.status(400).json({error:sp,safety:'blocked'});}
 
     const avoidText=excluded.length
       ? 'HARD NO-REPEAT RULE: Do NOT reuse, lightly reword, or paraphrase any of these used question stems. Every returned question must test a different idea or scenario from them: '+excluded.map((q,i)=>'['+(i+1)+'] '+q.slice(0,360)).join(' | ')
@@ -1792,10 +1838,10 @@ app.post('/api/ai/commander-bank',async(req,res)=>{
       'The correct field must be an integer from 0 to 3. No markdown. No commentary outside JSON.'
     ].filter(Boolean).join(' ');
     const messages=[
-      {role:'system',content:'You are Index AP study-material generator. Follow the requested AP course and unit exactly. Return only valid JSON. Do not add markdown or commentary. Every question must be meaningfully different from the excluded stems and from the other questions in the same batch.'},
+      {role:'system',content:Safety.SAFETY_RULES+' You are Index AP study-material generator. Follow the requested AP course and unit exactly. Return only valid JSON. Do not add markdown or commentary. Every question must be meaningfully different from the excluded stems and from the other questions in the same batch.'},
       {role:'user',content:userPrompt}
     ];
-    if(!aiContentIsAllowed(messages)) return res.status(400).json({error:aiModerationMessage()});
+    if(!aiContentIsAllowed(messages,req)) return res.status(400).json({error:aiModerationMessage(),safety:aiSafetyKind()});
 
     const bankMaxTokens=Math.min(10000,700+requestedCount*400);
     const raw=await callVireonixCommanderBank(messages,bankMaxTokens);

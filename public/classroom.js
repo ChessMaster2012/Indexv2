@@ -316,8 +316,7 @@
     var T = CR.tutor; text = String(text || '').trim(); if (!text || T.busy) return;
     T.msgs.push({ role: 'user', text: text }); var reply = { role: 'assistant', text: '' }; T.msgs.push(reply); T.busy = true; render();
     var hist = T.msgs.slice(0, -1).slice(-10).map(function (m) { return { role: m.role, content: m.text }; });
-    var msgs = [{ role: 'system', content: tutorContext() }].concat(hist);
-    runLocalAi(msgs, { intent: 'tutor', onChunk: function (c) { reply.text += c; var el = $('.cr-msg.assistant:last-child > div'); if (el) { el.innerHTML = typeof formatTutorText === 'function' ? formatTutorText(reply.text) : E(reply.text); var log = $('.cr-chat-log'); if (log) log.scrollTop = log.scrollHeight; } } })
+    runLocalAi(hist, { intent: 'tutor', classroom: { persona: isT() ? 'teacher' : 'student', text: tutorContext() }, onChunk: function (c) { reply.text += c; var el = $('.cr-msg.assistant:last-child > div'); if (el) { el.innerHTML = typeof formatTutorText === 'function' ? formatTutorText(reply.text) : E(reply.text); var log = $('.cr-chat-log'); if (log) log.scrollTop = log.scrollHeight; } } })
       .then(function (r) { var full = typeof r === 'string' ? r : (r && (r.text || r.content || r.reply)) || ''; if (full && !reply.text) reply.text = full; if (!reply.text) reply.text = 'Sorry, I could not answer that. Please try again.'; })
       .catch(function (e) { reply.text = '⚠️ ' + (e && e.message || 'The Tutor could not answer right now.'); })
       .then(function () { T.busy = false; render(); });

@@ -9,7 +9,17 @@ const crypto = require('crypto');
 const CODE_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const LIM = { classes: 12, students: 80, assignments: 80, posts: 60, questions: 30, links: 5, text: 8000, title: 120 };
 
+const Safety = require('./safety.js');
 module.exports = function registerClassrooms(app, deps) {
+  /* Everything typed into a class (names, posts, assignments, answers) is shown to other people, so screen it first. */
+  app.use('/api/classes', (req, res, next) => {
+    if ((req.method !== 'POST' && req.method !== 'PUT') || /\/join$/.test(req.path)) return next();
+    const texts = [];
+    (function walk(v, d) { if (d > 6) return; if (typeof v === 'string') texts.push(v); else if (Array.isArray(v)) v.forEach(x => walk(x, d + 1)); else if (v && typeof v === 'object') Object.keys(v).forEach(k => walk(v[k], d + 1)); })(req.body, 0);
+    const v = Safety.screen(texts.join(' \n '), { strict: false });
+    if (!v.ok) return res.status(400).json({ error: v.message });
+    next();
+  });
   const { usersById, dbFindUserById, dbRowToUser, dbSaveUser, saveUsers, SUPABASE_ENABLED, supabaseRequest, supabaseTable, withLock } = deps;
   const S = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, n);
   const newId = p => p + crypto.randomBytes(5).toString('hex');

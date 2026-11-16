@@ -2130,7 +2130,7 @@ async function runLocalAi(messages, options={}){
     const response=await fetch('/api/ai/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json','Accept':'text/event-stream, application/json'},
-      body:JSON.stringify({messages,intent:options.intent||'',mode:options.mode||'',context:options.context||null,creditGroup:options.creditGroup||''}),
+      body:JSON.stringify({messages,intent:options.intent||'',mode:options.mode||'',context:options.context||null,classroom:options.classroom||null,creditGroup:options.creditGroup||''}),
       signal:controller.signal
     });
 
@@ -9166,7 +9166,7 @@ setInterval(function(){
 <script src="/season-core.js?v=1"></script>
 <script src="/membership-pro.js?v=2"></script>
 <script src="/sfx.js?v=1"></script>
-<script src="/classroom.js?v=4"></script>
+<script src="/classroom.js?v=5"></script>
 <script src="/season-pass.js?v=1"></script>
 <script src="/welcome-role.js?v=2"></script>
 <script src="/game-study.js?v=4"></script>
