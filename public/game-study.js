@@ -43,6 +43,13 @@
   }
   function stemKey(q) { return String(q.q).toLowerCase().replace(/\s+/g, ' ').slice(0, 120); }
 
+  /* In fullscreen only the fullscreen element (the game stage) is drawn, so cards must live inside it. */
+  function host() { return document.fullscreenElement || document.webkitFullscreenElement || document.body; }
+  function follow(el) {
+    function mv() { var h = host(); if (el.isConnected && el.parentNode !== h) h.appendChild(el); }
+    document.addEventListener('fullscreenchange', mv); document.addEventListener('webkitfullscreenchange', mv);
+    var iv = setInterval(function () { if (!el.isConnected) { clearInterval(iv); document.removeEventListener('fullscreenchange', mv); document.removeEventListener('webkitfullscreenchange', mv); } }, 500);
+  }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   async function fetchBankOnce(body) {
     var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 50000), r, d;
@@ -107,7 +114,7 @@
       var i = 0, right = 0, streak = 0, answered = false;
       open++;
       var o = document.createElement('div'); o.id = 'gs-gate'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true');
-      document.body.appendChild(o);
+      host().appendChild(o); follow(o);
       function finish() {
         open = Math.max(0, open - 1);
         o.classList.add('gs-out'); setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 180);
@@ -159,7 +166,7 @@
     var prefs = jget(LSK, {}); var tab = prefs.tab || 'topic';
     if (tab === 'sets' && !sets().length) tab = 'topic'; if (tab === 'notes' && !notes().length) tab = 'topic';
     return new Promise(function (resolve) {
-      var o = document.createElement('div'); o.id = 'gs-picker'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); document.body.appendChild(o);
+      var o = document.createElement('div'); o.id = 'gs-picker'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); host().appendChild(o); follow(o);
       var busy = false, err = '', state0 = { subjectId: prefs.subjectId || (subjects()[0] || {}).id, unit: prefs.unit || '', topic: prefs.topic || '', setId: prefs.setId || '', noteId: prefs.noteId || '' };
       function close(res) { o.remove(); resolve(res); }
       function subj() { return subjects().filter(function (s) { return s.id === state0.subjectId; })[0] || subjects()[0] || { units: [], name: '' }; }
