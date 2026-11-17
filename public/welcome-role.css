@@ -56,3 +56,15 @@ html body #signin-modal.overlay:not(.hidden):has(#account-panel.hidden){position
 .pw-rules li{display:flex;gap:6px;align-items:flex-start}.pw-rules li span{width:14px;flex:none;font-weight:900}
 .pw-rules li.ok{color:#1cad6e}.pw-rules li.bad{color:#d9473a}
 .pw-match{font-size:12.5px;font-weight:700;min-height:18px;margin:-4px 0 8px}.pw-match.ok{color:#1cad6e}.pw-match.bad{color:#d9473a}
+
+/* obvious Back buttons */
+.wg-back,#auth-back-btn{display:inline-flex;align-items:center;gap:8px;border:1.5px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);color:#fff;border-radius:999px;padding:12px 22px;font:800 16px var(--font-ui,inherit);cursor:pointer;transition:transform .15s,background .15s,border-color .15s}
+.wg-back{margin-top:26px}
+.wg-back:hover,#auth-back-btn:hover{background:rgba(124,92,255,.35);border-color:#9f8bff;transform:translateX(-2px)}
+#auth-back-btn{display:none;position:fixed;top:16px;left:18px;z-index:100003}
+html body #signin-modal.overlay:not(.hidden):has(#account-panel.hidden) #auth-back-btn{display:inline-flex}
+html body #signin-modal:not(.hidden):has(#account-panel.hidden) #auth-back-btn{color:var(--ink,#fff);background:var(--card,rgba(255,255,255,.1));border-color:var(--line,rgba(255,255,255,.28));box-shadow:0 6px 20px rgba(0,0,0,.25)}
+html body #signin-modal:not(.hidden):has(#account-panel.hidden) #auth-back-btn{background:linear-gradient(135deg,#7c5cfc,#4f9bff);color:#fff;border-color:transparent;padding:13px 26px;font-size:17px;box-shadow:0 8px 24px rgba(124,92,252,.45)}
+html body #signin-modal:not(.hidden):has(#account-panel.hidden) #auth-back-btn:hover{filter:brightness(1.1)}
+.wg-back{background:linear-gradient(135deg,#7c5cfc,#4f9bff);border-color:transparent;box-shadow:0 8px 24px rgba(124,92,252,.4)}
+@media (max-width:760px){html body #signin-modal:not(.hidden):has(#account-panel.hidden) #auth-back-btn{top:12px;left:12px;padding:11px 20px;font-size:16px}}

@@ -10,9 +10,10 @@ function role(){ var r=ls(ROLE); return r==='teacher'||r==='student'?r:''; }
 function tag(){ document.body.setAttribute('data-role',role()||''); }
 
 var MODE='login'; /* 'login' | 'signup' chosen on the first screen */
-function build(){
+var FROM_GATE=false;
+function build(startStep){
   var o=document.createElement('div'); o.id='welcome-gate'; o.setAttribute('role','dialog'); o.setAttribute('aria-modal','true'); o.setAttribute('aria-labelledby','wg-title');
-  o.innerHTML='<div class="wg-card" id="wg-card"></div>'; step(o,1); return o;
+  o.innerHTML='<div class="wg-card" id="wg-card"></div>'; step(o,startStep||1); return o;
 }
 /* step 1: sign in or sign up. step 2: as a student or a teacher. Then the normal account form opens. */
 function step(o,n){
@@ -31,16 +32,17 @@ function step(o,n){
      '<div class="wg-choices">'+
        '<button type="button" class="wg-choice wg-student" data-role="student"><span class="wg-ic">🎒</span><b>'+(up?'Sign up':'Sign in')+' as a student</b><span>Study, play games, level up and use the AI Tutor.</span></button>'+
        '<button type="button" class="wg-choice wg-teacher" data-role="teacher"><span class="wg-ic">🍎</span><b>'+(up?'Sign up':'Sign in')+' as a teacher</b><span>Host Live Games and run quick class reviews.</span></button>'+
-     '</div><button type="button" class="wg-skip" data-back="1">← Back</button>';
+     '</div><button type="button" class="wg-back" data-back="1">← Back</button>';
   }
   var f=c.querySelector('.wg-student'); if(f&&n===1) f.focus();
 }
 function close(o){ o.classList.add('wg-out'); setTimeout(function(){ if(o.parentNode) o.parentNode.removeChild(o); document.body.style.overflow=''; },220); }
 function pick(o,r){
-  if(r){ ls(PEND,r); ls(ROLE,r); tag(); }
+  if(r){ ls(PEND,r); ls(ROLE,r); tag(); FROM_GATE=true; }
   close(o);
   if(r){
-    try{ openSignin().then(function(){ try{ setAuthMode(MODE); showAuthPanel(); }catch(e){} note(r); }); note(r); }catch(e){}
+    var chosen=MODE;
+    try{ openSignin().then(function(){ try{ setAuthMode(chosen); showAuthPanel(); }catch(e){} note(r); }); note(r); }catch(e){}
   }
 }
 function note(r){
@@ -49,15 +51,31 @@ function note(r){
   if(!n){ n=document.createElement('div'); n.id='auth-role-note'; n.className='lesson-result good'; n.style.cssText='margin-bottom:12px;font-weight:800;'; p.insertBefore(n,p.firstChild); }
   n.textContent=(MODE==='signup'?'Signing up as a ':'Signing in as a ')+(r==='teacher'?'🍎 teacher':'🎒 student');
 }
-function show(){
+function show(startStep){
   if(document.getElementById('welcome-gate')) return;
-  var o=build(); document.body.appendChild(o); document.body.style.overflow='hidden';
+  var o=build(startStep); document.body.appendChild(o); document.body.style.overflow='hidden';
   o.addEventListener('click',function(e){ var t=e.target.closest&&e.target.closest('[data-mode],[data-role],[data-back]'); if(!t) return;
     if(t.hasAttribute('data-mode')){ MODE=t.getAttribute('data-mode'); step(o,2); var f=o.querySelector('.wg-student'); if(f) f.focus(); }
     else if(t.hasAttribute('data-back')) step(o,1);
     else pick(o,t.getAttribute('data-role')||''); });
   var f=o.querySelector('.wg-student'); if(f) f.focus();
 }
+/* Back button on the full-screen account form: one step back, every time. */
+function visible(id){ var e=document.getElementById(id); return !!e&&!e.classList.contains('hidden'); }
+function goBack(){
+  if(visible('recovery-panel')||visible('reset-panel')||visible('guest-panel')){ try{ setAuthMode('login'); showAuthPanel(); }catch(e){} return; }
+  try{ closeSignin(); }catch(e){}
+  if(FROM_GATE||!(typeof state!=='undefined'&&state.account)){ FROM_GATE=false; show(2); }
+}
+function addBack(){
+  var m=document.getElementById('signin-modal'); if(!m||document.getElementById('auth-back-btn')) return;
+  var b=document.createElement('button'); b.type='button'; b.id='auth-back-btn'; b.innerHTML='<span aria-hidden="true">←</span> Back'; b.setAttribute('aria-label','Go back one step');
+  b.addEventListener('click',goBack); m.appendChild(b);
+}
+var _sam=window.setAuthMode;
+if(typeof _sam==='function'){ window.setAuthMode=function(mode){ var r=_sam.apply(this,arguments); MODE=mode==='signup'?'signup':'login'; var n=document.getElementById('auth-role-note'); if(n){ var t=role(); n.textContent=(MODE==='signup'?'Signing up as a ':'Signing in as a ')+(t==='teacher'?'🍎 teacher':'🎒 student'); } return r; }; }
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&visible('auth-panel')===true){ var m=document.getElementById('signin-modal'); if(m&&!m.classList.contains('hidden')&&!visible('account-panel')) goBack(); } });
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addBack); else addBack();
 function init(){
   tag();
   if(gateOpen()) return;            // county screen still up: the page reloads after "Continue", then we run
