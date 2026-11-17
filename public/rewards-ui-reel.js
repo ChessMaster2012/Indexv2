@@ -135,7 +135,7 @@
     });
   };
   var _close = window.closePackModal;
-  window.closePackModal = function () { setAuto(false); clearTimers(); return _close.apply(this, arguments); };
+  window.closePackModal = function () { if (state.rewardPackOpening) return; setAuto(false); clearTimers(); return _close.apply(this, arguments); };
 
   /* ---------- skin crates ---------- */
   var _sopen = window.openSkinCrate;

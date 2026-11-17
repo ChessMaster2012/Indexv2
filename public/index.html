@@ -566,7 +566,7 @@ h1,h2,h3{font-family:var(--font-display);color:var(--ink);margin:0;}
 .inventory-group{margin-top:18px}.inventory-group:first-child{margin-top:0}.inventory-group h3{font-size:14px;margin-bottom:10px}
 @media(max-width:760px){.rewards-layout{grid-template-columns:1fr}.rewards-rail{position:static;flex-direction:row}.inventory-rail-btn{width:auto;min-height:54px;flex-direction:row;padding:8px 12px}.inventory-rail-icon{font-size:22px}}
 .pack-modal .pack-close{border:0;background:transparent;color:var(--ink-soft);font-size:27px;line-height:1;cursor:pointer;padding:2px 7px;border-radius:10px}.pack-modal .pack-close:hover{background:#ebe7f5;color:var(--ink)}
-.pack-opening.is-opening .pack-box-hero{animation:packBoxBounce .9s ease infinite alternate}
+.pack-opening.is-opening .pack-close{visibility:hidden;pointer-events:none}.pack-opening.is-opening .pack-box-hero{animation:packBoxBounce .9s ease infinite alternate}
 .pack-box-hero{font-size:76px;line-height:1;margin:8px 0 12px;display:inline-block;filter:drop-shadow(0 10px 14px rgba(0,0,0,.22))}
 @keyframes packBoxBounce{from{transform:translateY(0) rotate(-2deg) scale(.98)}to{transform:translateY(-8px) rotate(2deg) scale(1.04)}}
 
@@ -3124,6 +3124,7 @@ function openRewardPack(kind='study'){
   },5550);
 }
 function closePackModal(){
+  if(state.rewardPackOpening) return; /* can't close mid-animation */
   state.rewardPackOpening=false;
   const modal=document.getElementById('pack-modal');
   const opening=modal?.querySelector('.pack-opening');
