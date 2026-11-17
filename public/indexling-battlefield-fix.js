@@ -9,7 +9,10 @@ var PACK_META={
   robo:{label:'Robo Works',costBase:55},
   ocean:{label:'Deep Sea',costBase:60},
   arcade:{label:'Arcade Afterdark',costBase:65},
-  cosmic:{label:'Cosmic Odyssey',costBase:70}
+  cosmic:{label:'Cosmic Odyssey',costBase:70},
+  garden:{label:'Enchanted Garden',costBase:75},
+  frost:{label:'Frostbound Peaks',costBase:80},
+  spooky:{label:'Haunted Hollow',costBase:85}
 };
 /* Everyone fights with the same fixed roster; rarity does not affect stats or cost. */
 var ROSTER=[
@@ -37,7 +40,10 @@ var PACK_ATTACK_TYPES={
   robo:['pulse-beam','circuit-arc','servo-punch','drone-laser','mecha-rocket','reactor-ring','cyber-disc','overclock-bolt'],
   ocean:['bubble-shot','coral-spear','pearl-burst','harpoon','kelp-snare','kraken-tentacle','abyss-wave','trident-bolt'],
   arcade:['pixel-bolt','joystick-pulse','pixel-burst','glitch-beam','synth-wave','racer-boost','arcade-cannon','highscore-ray'],
-  cosmic:['comet-trail','moon-ray','star-burst','nebula-pulse','eclipse-orb','quasar-beam','void-collapse','supernova']
+  cosmic:['comet-trail','moon-ray','star-burst','nebula-pulse','eclipse-orb','quasar-beam','void-collapse','supernova'],
+  garden:['sugar-stinger','gumdrop-bounce','jelly-spray','kelp-snare','coral-spear','sprinkle-storm','nebula-pulse','supernova'],
+  frost:['pearl-burst','coral-spear','bubble-shot','harpoon','choco-burst','bardic-note','nebula-pulse','star-burst'],
+  spooky:['pulse-beam','pixel-bolt','moon-ray','alchemy-flask','lance-thrust','arcane-orb','void-collapse','eclipse-orb']
 };
 var ATTACK_PREFIX={
   candy:['Sugar Sting','Gumdrop Bounce','Taffy Whip','Choco Crush','Jelly Burst','Caramel Lash','Sprinkle Volley','Lolli Crown'],
@@ -45,7 +51,10 @@ var ATTACK_PREFIX={
   robo:['Pulse Shot','Circuit Surge','Servo Slam','Drone Beam','Mecha Burst','Reactor Blast','Cyber Pulse','Overclock Beam'],
   ocean:['Bubble Shot','Coral Spike','Pearl Burst','Diver Harpoon','Kelp Snare','Kraken Crush','Abyss Wave','Tide King Surge'],
   arcade:['Token Toss','Joystick Strike','Pixel Burst','Glitch Zap','Synth Wave','Racer Rush','Arcade Blast','Highscore Beam'],
-  cosmic:['Comet Trail','Moon Ray','Star Burst','Nebula Wave','Eclipse Field','Quasar Beam','Void Collapse','Supernova Burst']
+  cosmic:['Comet Trail','Moon Ray','Star Burst','Nebula Wave','Eclipse Field','Quasar Beam','Void Collapse','Supernova Burst'],
+  garden:['Seed Spit','Ladybug Bounce','Pollen Spray','Sting Barrage','Mushroom Spore','Sun Beam','Wing Gust','Ancient Bloom'],
+  frost:['Snow Pelt','Icicle Spear','Frost Shot','Mitten Slap','Snowman Snap','Yeti Roar','Aurora Veil','Frost Decree'],
+  spooky:['Boo Scare','Jack Flame','Echo Screech','Cauldron Brew','Bone Throw','Hex Bolt','Fang Strike','Midnight Curse']
 };
 
 function esc(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}

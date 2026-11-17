@@ -3226,7 +3226,7 @@ const QUEST_CATALOG = require('./public/quest-catalog.js');
 const QUEST_REWARDS = Object.freeze(Object.fromEntries(QUEST_CATALOG.DAILY.map(q=>[q.id,{xp:q.xp,coins:q.coins,packTokens:q.packTokens,skinCrates:q.skinCrates}])));
 /* Battle Pass rewards. Row = [coins, skinCrates, freePackTokens, indexlingId]. MIRRORED in public/index.html (BP_TABLE): keep both tables identical. */
 const BP_TABLE = [[60,0,0,''],[20,0,1,''],[20,1,0,''],[90,0,0,''],[150,5,1,''],[60,0,0,''],[20,0,1,'ling-gumdrop'],[20,1,0,''],[90,0,0,''],[150,5,2,''],[70,0,0,''],[25,0,1,''],[25,1,0,'ling-squire'],[100,0,0,''],[175,5,1,''],[70,0,0,''],[25,0,1,'ling-botlet'],[25,1,0,''],[100,0,0,''],[175,5,2,''],[80,0,0,''],[30,0,1,''],[30,1,0,'ling-guppy'],[110,0,0,''],[200,5,1,''],[80,0,0,''],[30,0,1,'ling-token'],[30,1,0,''],[110,0,0,''],[200,5,2,''],[90,0,0,''],[35,0,1,''],[35,1,0,'ling-knight'],[120,0,0,''],[225,5,1,''],[90,0,0,''],[35,0,1,'ling-alchemist'],[35,1,0,''],[120,0,0,''],[225,5,2,''],[100,0,0,''],[40,0,1,''],[40,1,0,'ling-nebula'],[130,0,0,''],[250,5,1,''],[100,0,0,''],[40,0,1,'ling-royalmage'],[40,1,0,''],[130,0,0,'ling-voidling'],[1500,10,5,'*legendary']];
-const BP_FINALE_ORDER = ['ling-supernova','ling-crownling','ling-overclock','ling-tideking','ling-lolliking','ling-highscore'];
+const BP_FINALE_ORDER = ['ling-supernova','ling-crownling','ling-overclock','ling-tideking','ling-lolliking','ling-highscore','ling-elderoak','ling-frostking','ling-midnightking'];
 const BP_DUPLICATE_BONUS = 40;
 const BP_FINALE_DUPLICATE_BONUS = 1000;
 function applyQuestBattlePassRewards(progress){

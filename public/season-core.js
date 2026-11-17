@@ -18,22 +18,25 @@
     robo:     ['ling-botlet', 'ling-circuit', 'ling-servo', 'ling-drone', 'ling-mecha', 'ling-reactor', 'ling-cyber', 'ling-overclock'],
     ocean:    ['ling-guppy', 'ling-coral', 'ling-pearl', 'ling-diver', 'ling-kelp', 'ling-kraken', 'ling-abyssal', 'ling-tideking'],
     arcade:   ['ling-token', 'ling-joystick', 'ling-pixel', 'ling-glitch', 'ling-synth', 'ling-racer', 'ling-arcadeboss', 'ling-highscore'],
-    cosmic:   ['ling-comet', 'ling-moonlet', 'ling-starling', 'ling-nebula', 'ling-eclipse', 'ling-quasar', 'ling-voidling', 'ling-supernova']
+    cosmic:   ['ling-comet', 'ling-moonlet', 'ling-starling', 'ling-nebula', 'ling-eclipse', 'ling-quasar', 'ling-voidling', 'ling-supernova'],
+    garden: ['ling-seedling', 'ling-ladybug', 'ling-daisy', 'ling-bumble', 'ling-mushling', 'ling-sunny', 'ling-flutterwing', 'ling-elderoak'],
+    frost: ['ling-snowball', 'ling-icicle', 'ling-mittens', 'ling-waddle', 'ling-frosty', 'ling-yeti', 'ling-aurora', 'ling-frostking'],
+    spooky: ['ling-boo', 'ling-jack', 'ling-batty', 'ling-bubbles', 'ling-skelly', 'ling-hexie', 'ling-vampling', 'ling-midnightking']
   };
-  var PACK_NAMES = { candy: 'Candy Carnival', medieval: 'Medieval Keep', robo: 'Robo Works', ocean: 'Deep Sea', arcade: 'Arcade Afterdark', cosmic: 'Cosmic Odyssey' };
+  var PACK_NAMES = { candy: 'Candy Carnival', medieval: 'Medieval Keep', robo: 'Robo Works', ocean: 'Deep Sea', arcade: 'Arcade Afterdark', cosmic: 'Cosmic Odyssey', garden: 'Enchanted Garden', frost: 'Frostbound Peaks', spooky: 'Haunted Hollow' };
 
   /* index = month (0 = January) */
   var THEMES = [
-    { name: 'Frostbite Frenzy',   icon: '❄️', pack: 'ocean',    c1: '#7dd3fc', c2: '#3b82f6', word: 'Frost',   tag: 'Ice-cold streaks and glacier-sized rewards.' },
+    { name: 'Frostbite Frenzy',   icon: '❄️', pack: 'frost',    c1: '#7dd3fc', c2: '#3b82f6', word: 'Frost',   tag: 'Ice-cold streaks and glacier-sized rewards.' },
     { name: 'Heartbeat Havoc',    icon: '💘', pack: 'candy',    c1: '#fb7185', c2: '#be185d', word: 'Heart',   tag: 'Study with heart. Sweet loot all month.' },
     { name: 'Lucky Circuit',      icon: '🍀', pack: 'robo',     c1: '#4ade80', c2: '#15803d', word: 'Lucky',   tag: 'Charge up your luck and your grades.' },
     { name: 'Rainmaker Rush',     icon: '🌧️', pack: 'arcade',   c1: '#60a5fa', c2: '#4338ca', word: 'Rain',    tag: 'April showers bring arcade powers.' },
-    { name: 'Bloom & Boom',       icon: '🌸', pack: 'candy',    c1: '#f9a8d4', c2: '#a21caf', word: 'Bloom',   tag: 'Watch your knowledge blossom.' },
+    { name: 'Bloom & Boom',       icon: '🌸', pack: 'garden',   c1: '#f9a8d4', c2: '#a21caf', word: 'Bloom',   tag: 'Watch your knowledge blossom.' },
     { name: 'Solar Surge',        icon: '☀️', pack: 'robo',     c1: '#fbbf24', c2: '#ea580c', word: 'Solar',   tag: 'Max out before summer.' },
     { name: 'Starfall Summer',    icon: '🌠', pack: 'cosmic',   c1: '#a78bfa', c2: '#4c1d95', word: 'Star',    tag: 'Wish upon a streak.' },
     { name: 'Tidal Takeover',     icon: '🌊', pack: 'ocean',    c1: '#22d3ee', c2: '#0e7490', word: 'Tide',    tag: 'Dive deep into the sea of rewards.' },
     { name: "Scholar's Siege",    icon: '📚', pack: 'medieval', c1: '#fcd34d', c2: '#92400e', word: 'Scholar', tag: 'Back to the keep: knowledge is power.' },
-    { name: 'Midnight Manor',     icon: '🎃', pack: 'arcade',   c1: '#fb923c', c2: '#6d28d9', word: 'Spooky',  tag: 'Spooky good loot after dark.' },
+    { name: 'Midnight Manor',     icon: '🎃', pack: 'spooky',   c1: '#fb923c', c2: '#6d28d9', word: 'Spooky',  tag: 'Spooky good loot after dark.' },
     { name: 'Harvest Quest',      icon: '🍂', pack: 'medieval', c1: '#f59e0b', c2: '#9a3412', word: 'Harvest', tag: 'Gather XP, reap rewards.' },
     { name: 'Snowglobe Showdown', icon: '⛄', pack: 'candy',    c1: '#bae6fd', c2: '#6366f1', word: 'Snow',    tag: 'Finish the year frosted and unstoppable.' }
   ];
