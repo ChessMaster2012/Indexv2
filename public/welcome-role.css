@@ -15,3 +15,21 @@
 .wg-skip:hover{color:#fff}
 .wg-fine{margin:6px 0 0;font-size:12px;color:#7f86ab}
 @media (max-width:620px){.wg-choices{grid-template-columns:1fr}.wg-choice{padding:20px 16px}.wg-ic{font-size:40px}}
+
+/* ---- Full-screen sign in / sign up (same look as the first welcome pages) ---- */
+html body #signin-modal.overlay:not(.hidden):has(#account-panel.hidden){position:fixed;inset:0;z-index:99999;display:grid;place-items:center;padding:20px;overflow:auto;
+  background:radial-gradient(1200px 700px at 20% 10%,rgba(124,92,255,.30),transparent 60%),radial-gradient(900px 600px at 90% 90%,rgba(255,111,158,.24),transparent 60%),var(--bg,#0b1020) !important;backdrop-filter:none !important;z-index:100001 !important}
+#signin-modal:not(.hidden):has(#account-panel.hidden) .modal{max-width:480px!important;width:min(480px,100%);margin:auto;padding:34px 32px 30px;border-radius:26px;box-shadow:0 30px 90px rgba(20,10,60,.35)}
+#signin-modal:not(.hidden):has(#account-panel.hidden) .modal-head{flex-direction:column;align-items:center;text-align:center;margin-bottom:20px;position:relative}
+#signin-modal:not(.hidden):has(#account-panel.hidden) .modal-head::before{content:'Index';font:800 30px var(--font-display,Fredoka,sans-serif);background:linear-gradient(90deg,#9f8bff,#ff8fb8);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:6px}
+#signin-modal:not(.hidden):has(#account-panel.hidden) #signin-modal-title{font:800 clamp(22px,4vw,28px)/1.15 var(--font-display,Fredoka,sans-serif)!important}
+#signin-modal:not(.hidden):has(#account-panel.hidden) .modal-close{position:fixed;top:16px;right:18px;width:42px;height:42px;border-radius:50%;font-size:22px}
+@media (max-width:520px){#signin-modal:not(.hidden):has(#account-panel.hidden) .modal{padding:26px 18px 22px;border-radius:20px}}
+/* password checklist */
+.pw-meter{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin:2px 0 8px}.pw-meter span{height:6px;border-radius:99px;background:var(--line,#ddd)}
+.pw-meter span.on.l1{background:#ff6b6b}.pw-meter span.on.l2{background:#ffb347}.pw-meter span.on.l3{background:#e8d44d}.pw-meter span.on.l4{background:#7bd88f}.pw-meter span.on.l5{background:#2fd48b}
+.pw-rules{list-style:none;margin:0 0 12px;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:12px;color:var(--ink-soft)}
+.pw-rules li{display:flex;gap:6px;align-items:flex-start}.pw-rules li span{width:14px;flex:none;font-weight:900}
+.pw-rules li.ok{color:#1cad6e}.pw-rules li.bad{color:#d9473a}
+@media (max-width:520px){.pw-rules{grid-template-columns:1fr}}
+.pw-match{font-size:12.5px;font-weight:700;min-height:18px;margin:-4px 0 8px}.pw-match.ok{color:#1cad6e}.pw-match.bad{color:#d9473a}

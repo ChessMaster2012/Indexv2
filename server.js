@@ -6,6 +6,7 @@ const express = require('express');
 const SeasonCore = require('./public/season-core.js');
 const MembershipCore = require('./public/membership-core.js');
 const Safety = require('./safety.js');
+const PasswordPolicy = require('./public/password-policy.js');
 const LIBRARY = require('./library');
 const LIBRARY_QUESTIONS = LIBRARY.normalizeQuestions;
 const http = require('http');
@@ -2406,7 +2407,8 @@ app.post('/api/auth/signup', async (req, res) => {
     username = normalizeUsername(username);
     if (!isValidEmail(identifier)) return res.status(400).json({ error: 'Enter a valid email address.' });
     if (!isValidUsername(username)) return res.status(400).json({ error: 'Username must be 3–24 characters and use only letters, numbers, periods, underscores, or hyphens.' });
-    if (!password || password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    if (!password) return res.status(400).json({ error: 'Choose a password.' });
+    { const pc = PasswordPolicy.check(String(password), { username, email: identifier }); if (!pc.ok) return res.status(400).json({ error: pc.message, passwordRules: pc.failed.map(f => f.id) }); }
     let existing = users.get('email:' + identifier);    if (SUPABASE_ENABLED) { const row = await dbFindUserByEmail(identifier); if (row) existing = dbRowToUser(row); }
     if (existing) return res.status(409).json({ error: 'An account with that email already exists — try logging in instead.' });
     let existingUsername = usersByUsername.get(username);
@@ -3630,7 +3632,7 @@ app.post('/api/auth/reset-password', (req,res)=>{
   const token=String(req.body?.token||'');
   const password=String(req.body?.password||'');
   if(token.length<20) return res.status(400).json({error:'This reset link is invalid or expired.'});
-  if(password.length<8) return res.status(400).json({error:'Password must be at least 8 characters.'});
+  { const pc=PasswordPolicy.check(password,{}); if(!pc.ok) return res.status(400).json({error:pc.message,passwordRules:pc.failed.map(f=>f.id)}); }
   const tokenHash=hashRecoveryToken(token);
   let user=null;
   for(const u of usersById.values()){

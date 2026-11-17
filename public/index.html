@@ -3,6 +3,7 @@
 <head>
 <script src="/device-data.js?v=1"></script>
 <script src="/membership-core.js?v=1"></script>
+<script src="/password-policy.js?v=1"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Index — Study every AP class</title>
@@ -1958,7 +1959,13 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
       <div id="auth-complete-banner" class="lesson-result good hidden" style="margin-bottom:14px;">You're signed in! Add an optional display name so teammates can recognize you.</div>
       <div class="field"><label id="auth-identifier-label">Email</label><input type="text" id="auth-identifier" name="username" autocomplete="username" placeholder="you@example.com"></div>
       <div class="field hidden" id="auth-username-field"><label>Username</label><input type="text" id="auth-username" name="signup-username" maxlength="24" autocomplete="username" placeholder="3–24 letters, numbers, or . _ -"></div>
-      <div class="field"><label>Password</label><input type="password" id="auth-password" name="password" autocomplete="current-password" placeholder="At least 8 characters"></div>
+      <div class="field"><label>Password</label><input type="password" id="auth-password" name="password" autocomplete="current-password" placeholder="Your password"></div>
+      <div id="auth-signup-extra" class="hidden">
+        <div class="pw-meter" id="auth-pw-meter"><span></span><span></span><span></span><span></span><span></span></div>
+        <ul class="pw-rules" id="auth-pw-rules"></ul>
+        <div class="field"><label>Retype your password <small style="font-weight:600;color:var(--ink-soft)">(pasting is turned off)</small></label><input type="password" id="auth-password-confirm" autocomplete="off" placeholder="Type it again" data-nopaste="1"></div>
+        <div id="auth-pw-match" class="pw-match"></div>
+      </div>
       <div id="auth-status"></div>
       <div id="auth-storage-status" class="lede" style="font-size:11px;margin:8px 0;"></div>
       <div class="modal-actions" style="justify-content:space-between;">
@@ -1987,8 +1994,9 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
     <!-- Reset password from a one-time email link -->
     <div id="reset-panel" class="hidden">
       <p class="lede" style="font-size:12.5px;margin:0 0 14px;">Choose a new password for your Index account. This reset link expires after one hour.</p>
-      <div class="field"><label>New password</label><input type="password" id="reset-password" autocomplete="new-password" placeholder="At least 8 characters"></div>
-      <div class="field"><label>Confirm new password</label><input type="password" id="reset-password-confirm" autocomplete="new-password" placeholder="Enter it again"></div>
+      <div class="field"><label>New password</label><input type="password" id="reset-password" autocomplete="new-password" placeholder="At least 12 characters" data-nocopy="1"></div>
+      <ul class="pw-rules" id="reset-pw-rules"></ul>
+      <div class="field"><label>Retype new password <small style="font-weight:600;color:var(--ink-soft)">(pasting is turned off)</small></label><input type="password" id="reset-password-confirm" autocomplete="off" placeholder="Type it again" data-nopaste="1"></div>
       <div id="reset-status"></div>
       <div class="modal-actions"><button class="btn btn-primary" data-action="reset-submit">Set new password</button></div>
     </div>
@@ -5543,12 +5551,55 @@ function setAuthMode(mode){
   idInput.placeholder = mode==='signup' ? 'you@example.com' : 'you@example.com or username';
   idInput.autocomplete = mode==='signup' ? 'email' : 'username';
   document.getElementById('auth-password').autocomplete = mode==='signup' ? 'new-password' : 'current-password';
+  document.getElementById('auth-password').placeholder = mode==='signup' ? 'At least 12 characters' : 'Your password';
+  document.getElementById('auth-signup-extra').classList.toggle('hidden', mode!=='signup');
+  document.getElementById('auth-password').toggleAttribute('data-nocopy', mode==='signup');
+  document.getElementById('auth-password-confirm').value='';
+  updatePwUi();
 }
+function pwCtx(){ return { username:(document.getElementById('auth-username')||{}).value||'', email:(document.getElementById('auth-identifier')||{}).value||'' }; }
+function renderPwRules(listId, pw, ctx){
+  const ul=document.getElementById(listId); if(!ul||!window.PasswordPolicy) return null;
+  const res=PasswordPolicy.evaluate(pw, ctx);
+  ul.innerHTML=res.map(r=>`<li class="${pw? (r.ok?'ok':'bad') : ''}"><span>${r.ok?'✓':'•'}</span>${esc(r.label)}</li>`).join('');
+  return res;
+}
+function updatePwUi(){
+  if(authMode!=='signup' || !window.PasswordPolicy) return;
+  const pw=document.getElementById('auth-password').value, c=document.getElementById('auth-password-confirm').value, ctx=pwCtx();
+  renderPwRules('auth-pw-rules', pw, ctx);
+  const lvl=pw? PasswordPolicy.score(pw, ctx).level : 0;
+  document.querySelectorAll('#auth-pw-meter span').forEach((el,i)=>{ el.className = i<lvl ? 'on l'+lvl : ''; });
+  const m=document.getElementById('auth-pw-match');
+  m.textContent = !c ? '' : (c===pw ? '✓ Passwords match' : 'Passwords do not match yet'); m.className='pw-match '+(!c?'':(c===pw?'ok':'bad'));
+}
+/* Retype boxes cannot be pasted into, and new-password boxes cannot be copied from. */
+function guardPasswordFields(){
+  const stop=e=>{ e.preventDefault(); e.stopPropagation(); };
+  document.querySelectorAll('input[type=password]').forEach(el=>{
+    if(el.__guard) return; el.__guard=1;
+    ['copy','cut','dragstart'].forEach(ev=>el.addEventListener(ev,e=>{ if(el.hasAttribute('data-nocopy')||el.hasAttribute('data-nopaste')) stop(e); }));
+    ['paste','drop'].forEach(ev=>el.addEventListener(ev,e=>{ if(el.hasAttribute('data-nopaste')){ stop(e); const st=el.closest('.field')?.parentNode?.querySelector('.pw-match')||document.getElementById('auth-status'); } }));
+    el.addEventListener('beforeinput',e=>{ if(el.hasAttribute('data-nopaste') && /^insertFrom(Paste|Drop|Yank)/.test(e.inputType||'')) stop(e); });
+    el.addEventListener('contextmenu',e=>{ if(el.hasAttribute('data-nopaste')||el.hasAttribute('data-nocopy')) stop(e); });
+    el.addEventListener('keydown',e=>{ if((e.ctrlKey||e.metaKey)&&/^[cxv]$/i.test(e.key)){ if(el.hasAttribute('data-nopaste')||(el.hasAttribute('data-nocopy')&&e.key.toLowerCase()!=='v')) stop(e); } if(e.shiftKey&&e.key==='Insert'&&el.hasAttribute('data-nopaste')) stop(e); });
+  });
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  guardPasswordFields();
+  ['auth-password','auth-password-confirm','auth-username','auth-identifier'].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener('input',updatePwUi); });
+  const rp=document.getElementById('reset-password'); if(rp) rp.addEventListener('input',()=>renderPwRules('reset-pw-rules', rp.value, {}));
+});
 async function authSubmit(){
   const identifier = document.getElementById('auth-identifier').value.trim();
   const username = document.getElementById('auth-username').value.trim();
   const password = document.getElementById('auth-password').value;
   const status = document.getElementById('auth-status');
+  if(authMode==='signup' && window.PasswordPolicy){
+    const pc=PasswordPolicy.check(password,{username,email:identifier});
+    if(identifier && username && password && !pc.ok){ status.innerHTML=`<div class="error-note">${esc(pc.message)}</div>`; updatePwUi(); return; }
+    if(identifier && username && password && password!==document.getElementById('auth-password-confirm').value){ status.innerHTML='<div class="error-note">The two passwords do not match. Type it again in the retype box (pasting is off).</div>'; return; }
+  }
   if(!identifier || !password || (authMode==='signup' && !username)){ status.innerHTML = `<div class="error-note">${authMode==='signup'?'Enter an email, username, and password.':'Enter your email or username and password.'}</div>`; return; }
   status.innerHTML = `<div class="loading-line"><span class="spinner"></span> ${authMode==='signup'?'Creating your account…':'Signing in…'}</div>`;
   try{
@@ -5596,7 +5647,7 @@ async function recoverySubmit(){
     status.innerHTML=`<div class="lesson-result good">${esc(d.message||'Check your email for the next step.')}</div>`;
   }catch(e){ status.innerHTML='<div class="error-note">Couldn’t reach the server. Please try again.</div>'; }
 }
-function openResetPanel(token){
+function openResetPanel(token){ try{ renderPwRules('reset-pw-rules','',{}); }catch(e){}
   resetToken=token||'';
   if(!resetToken) return;
   document.getElementById('account-panel').classList.add('hidden');
@@ -5610,7 +5661,7 @@ function openResetPanel(token){
 }
 async function resetPasswordSubmit(){
   const a=document.getElementById('reset-password').value, b=document.getElementById('reset-password-confirm').value, status=document.getElementById('reset-status');
-  if(a.length<8){ status.innerHTML='<div class="error-note">Password must be at least 8 characters.</div>'; return; }
+  { const pc=window.PasswordPolicy?PasswordPolicy.check(a,{}):{ok:a.length>=12,message:'Password must be at least 12 characters.'}; if(!pc.ok){ status.innerHTML=`<div class="error-note">${esc(pc.message)}</div>`; renderPwRules('reset-pw-rules',a,{}); return; } }
   if(a!==b){ status.innerHTML='<div class="error-note">The passwords do not match.</div>'; return; }
   status.innerHTML='<div class="loading-line"><span class="spinner"></span> Updating password…</div>';
   try{
@@ -9152,7 +9203,7 @@ setInterval(function(){
 <script src="/rewards-ui-packs.js?v=3"></script>
 <script src="/rewards-ui-reel.js?v=3"></script>
 <link rel="stylesheet" href="/season-pass.css?v=1">
-<link rel="stylesheet" href="/welcome-role.css?v=1">
+<link rel="stylesheet" href="/welcome-role.css?v=3">
 <script src="/season-core.js?v=1"></script>
 <script src="/membership-pro.js?v=2"></script>
 <script src="/sfx.js?v=1"></script>
