@@ -43,13 +43,26 @@
   }
   function stemKey(q) { return String(q.q).toLowerCase().replace(/\s+/g, ' ').slice(0, 120); }
 
-  async function fetchBank(body) {
-    var r = await fetch('/api/games/questions', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    var d = await r.json().catch(function () { return {}; });
-    if (!r.ok) { var e = new Error(d.error || 'The AI could not prepare questions right now.'); e.code = d.code; throw e; }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function fetchBankOnce(body) {
+    var ctl = new AbortController(), t = setTimeout(function () { ctl.abort(); }, 50000), r, d;
+    try {
+      r = await fetch('/api/games/questions', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
+      d = await r.json().catch(function () { return {}; });
+    } catch (x) { var ne = new Error('The question service is slow right now.'); ne.retry = true; throw ne; } finally { clearTimeout(t); }
+    if (!r.ok) { var e = new Error(d.error || 'The AI could not prepare questions right now.'); e.code = d.code; e.retry = r.status >= 500 || r.status === 429 && d.code !== 'NO_CREDITS'; e.status = r.status; throw e; }
     var qs = (d.questions || []).map(normQ).filter(Boolean);
-    if (!qs.length) throw new Error('The AI did not return usable questions. Try again.');
+    if (!qs.length) { var e2 = new Error('The AI did not return usable questions. Try again.'); e2.retry = true; throw e2; }
     return qs;
+  }
+  /* AI hiccups are common, so try up to 3 times (smaller banks are faster and more reliable on the retries). */
+  async function fetchBank(body) {
+    var want = body && body.count || 12, last;
+    for (var i = 0; i < 3; i++) {
+      try { return await fetchBankOnce(Object.assign({}, body, { count: i === 0 ? want : Math.max(5, Math.min(want, i === 1 ? 8 : 6)) })); }
+      catch (e) { last = e; if (!e.retry || e.code === 'NO_CREDITS' || e.code === 'NO_AI' || e.status === 400) break; await sleep(900 * (i + 1)); }
+    }
+    throw last;
   }
 
   /* ---------- session / question supply ---------- */

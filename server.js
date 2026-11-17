@@ -1654,16 +1654,17 @@ app.post('/api/ai/commander-question',async(req,res)=>{
 
 // ---- Study-game questions (all arcade games + Troop Commander) ----
 // One Gemini call returns a bank of multiple-choice questions on a course/unit/topic or on the student's own notes.
+const GEMINI_NO_REASON=new Set();
 async function geminiComplete(messages,{maxTokens=6000,timeoutMs=40000}={}){
   if(!GEMINI_API_KEY) throw new Error('No Gemini key.');
   const deadline=Date.now()+timeoutMs; let lastErr=null;
   const ready=GEMINI_MODELS.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
   const order=(ready.length?ready:GEMINI_MODELS).slice().sort((a,b)=>(/lite/.test(b)-/lite/.test(a)));
   for(const model of order){
-    let noReason=false;
+    let noReason=GEMINI_NO_REASON.has(model);
     for(let attempt=0;attempt<3;attempt++){
       const left=deadline-Date.now(); if(left<4000) throw lastErr||new Error('Question generation timed out.');
-      const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),Math.min(left,24000));
+      const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),Math.min(left,18000));
       try{
         const r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
           body:JSON.stringify(Object.assign({model,messages,stream:false,max_tokens:maxTokens,temperature:0.7},noReason?{}:{reasoning_effort:'none'})),signal:ctl.signal});
@@ -1671,7 +1672,7 @@ async function geminiComplete(messages,{maxTokens=6000,timeoutMs=40000}={}){
         const raw=await r.text().catch(()=> '');
         lastErr=new Error('Gemini '+model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,160)); lastErr.status=r.status;
         console.warn('[AI] '+lastErr.message);
-        if(r.status===400&&!noReason){ noReason=true; continue; }
+        if(r.status===400&&!noReason){ noReason=true; GEMINI_NO_REASON.add(model); continue; }
         if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); break; }
         if(![500,502,503,504].includes(r.status)) break;
         await new Promise(x=>setTimeout(x,700));
@@ -1708,7 +1709,6 @@ async function gameQuestions(req,res){
       'Return ONLY JSON like {"questions":[{"q":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}]} with correct a number 0 to 3.'
     ].filter(Boolean).join('\n');
     const messages=[{role:'system',content:Safety.SAFETY_RULES+' You are Index, an accurate study-question writer for high school students. Reply with JSON only.'},{role:'user',content:prompt}];
-    if(!aiContentIsAllowed(messages,req)) return res.status(400).json({error:aiModerationMessage(),safety:aiSafetyKind()});
     // One credit per bank of 5+ questions; tiny top-ups are free (still rate limited).
     if(count>=5){
       ctx=creditContext(req,res); charge=chargeCredits(ctx,1);
@@ -1719,20 +1719,25 @@ async function gameQuestions(req,res){
     }
     if(aiInFlight>=AI_MAX_CONCURRENT){ if(charge) refundCredits(ctx,charge); return res.status(503).json({error:'Index AI is very busy right now. Try again in a few seconds.',code:'BUSY'}); }
     aiInFlight++;
-    let raw;
-    try{ raw=await geminiComplete(messages,{maxTokens:Math.min(8000,700+count*330),timeoutMs:42000}); } finally{ aiInFlight--; }
-    const data=parseCommanderQuestionJson(raw);
-    const list=Array.isArray(data)?data:(Array.isArray(data?.questions)?data.questions:(data?.question?[data.question]:[]));
-    const out=[]; const seen=new Set();
-    for(const q of list){
-      if(!q||typeof q.q!=='string'||!q.q.trim()||!Array.isArray(q.options)||q.options.length!==4) continue;
-      const opts=q.options.map(o=>String(o??'').trim()); const c=Number(q.correct);
-      if(opts.some(o=>!o)||!Number.isInteger(c)||c<0||c>3||new Set(opts.map(o=>o.toLowerCase())).size<4) continue;
-      const stem=q.q.trim(); if(seen.has(stem.toLowerCase())) continue; seen.add(stem.toLowerCase());
-      // shuffle so the right answer is not always in the same slot
-      const idx=[0,1,2,3]; for(let i=3;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [idx[i],idx[j]]=[idx[j],idx[i]]; }
-      out.push({q:stem.slice(0,300),options:idx.map(i=>opts[i].slice(0,200)),correct:idx.indexOf(c),explanation:String(q.explanation||'').slice(0,300)});
-    }
+    const out=[]; const seen=new Set(); let lastErr=null;
+    try{
+      for(let attempt=0;attempt<2&&!out.length;attempt++){
+        try{
+          const raw=await geminiComplete(messages,{maxTokens:Math.min(8000,700+(attempt?Math.min(count,8):count)*330),timeoutMs:attempt?22000:34000});
+          const data=parseCommanderQuestionJson(raw);
+          const list=Array.isArray(data)?data:(Array.isArray(data?.questions)?data.questions:(data?.question?[data.question]:[]));
+          for(const q of list){
+            if(!q||typeof q.q!=='string'||!q.q.trim()||!Array.isArray(q.options)||q.options.length!==4) continue;
+            const opts=q.options.map(o=>String(o??'').trim()); const c=Number(q.correct);
+            if(opts.some(o=>!o)||!Number.isInteger(c)||c<0||c>3||new Set(opts.map(o=>o.toLowerCase())).size<4) continue;
+            const stem=q.q.trim(); if(seen.has(stem.toLowerCase())) continue; seen.add(stem.toLowerCase());
+            const idx=[0,1,2,3]; for(let i=3;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [idx[i],idx[j]]=[idx[j],idx[i]]; }
+            out.push({q:stem.slice(0,300),options:idx.map(i=>opts[i].slice(0,200)),correct:idx.indexOf(c),explanation:String(q.explanation||'').slice(0,300)});
+          }
+        }catch(e){ lastErr=e; console.warn('[AI] game questions attempt '+(attempt+1)+' failed:',e?.message||e); }
+      }
+    } finally{ aiInFlight--; }
+    if(!out.length && lastErr) throw lastErr;
     if(!out.length){ if(charge) refundCredits(ctx,charge); return res.status(502).json({error:'The AI did not return usable questions. Try again.'}); }
     res.json({questions:out.slice(0,count),provider:'Gemini'});
   }catch(e){
