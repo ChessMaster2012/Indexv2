@@ -112,8 +112,14 @@ module.exports = function registerClassrooms(app, deps) {
     }
     return out;
   }
+  function myAttendance(k, sid) {
+    const days = Object.keys(k.attendance || {}).sort(); const c = { p: 0, a: 0, l: 0, e: 0 }; const recent = [];
+    days.forEach(d => { const m = k.attendance[d][sid]; if (m && c[m] != null) { c[m]++; recent.push({ d, m }); } });
+    return { counts: c, recent: recent.slice(-10).reverse() };
+  }
   function studentView(k, sid, teacherName) {
-    return { id: k.id, name: k.name, subject: k.subject, section: k.section, code: '', teacherName, role: 'student', posts: k.posts.slice().reverse(), assignments: k.assignments.map(a => studentAssignment(a, sid)), students: k.students.length };
+    return { id: k.id, name: k.name, subject: k.subject, section: k.section, code: '', teacherName, role: 'student', posts: k.posts.slice().reverse(), assignments: k.assignments.map(a => studentAssignment(a, sid)), students: k.students.length,
+      resources: (k.resources || []).slice().reverse(), attendance: myAttendance(k, sid) };
   }
   function findOwned(c, id) { const k = c.owned.find(x => x.id === id); if (!k) throw bad('Class not found.', 404); return k; }
 
@@ -209,6 +215,25 @@ module.exports = function registerClassrooms(app, deps) {
   app.post('/api/classes/:id/posts', ownerOnly((k, req) => {
     const text = S(req.body.text, 2000); if (!text) throw bad('Write something to post.');
     k.posts.push({ id: newId('p'), text, at: Date.now() }); if (k.posts.length > LIM.posts) k.posts.splice(0, k.posts.length - LIM.posts);
+  }));
+  app.post('/api/classes/:id/posts/:pid/pin', ownerOnly((k, req) => {
+    const p = k.posts.find(x => x.id === req.params.pid); if (!p) throw bad('Post not found.', 404);
+    if (!p.pinned) k.posts.forEach(x => { x.pinned = false; }); p.pinned = !p.pinned;
+  }));
+  app.post('/api/classes/:id/resources', ownerOnly((k, req) => {
+    k.resources = k.resources || []; if (k.resources.length >= 40) throw bad('This class has the maximum number of resources.');
+    const title = S(req.body.title, 120); if (!title) throw bad('Give the resource a title.');
+    let url = S(req.body.url, 500); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url; if (url && !/^https?:\/\/[^\s]+\.[^\s]+/i.test(url)) throw bad('That link does not look right.');
+    const note = S(req.body.note, 600); if (!url && !note) throw bad('Add a link or a note.');
+    k.resources.push({ id: newId('r'), title, url, note, section: S(req.body.section, 40) || 'General', at: Date.now() });
+  }));
+  app.delete('/api/classes/:id/resources/:rid', ownerOnly((k, req) => { k.resources = (k.resources || []).filter(r => r.id !== req.params.rid); }));
+  app.post('/api/classes/:id/attendance', ownerOnly((k, req) => {
+    const date = String(req.body.date || ''); if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw bad('Pick a valid date.');
+    const marks = req.body.marks && typeof req.body.marks === 'object' ? req.body.marks : {}; const ids = new Set(k.students.map(s => s.id)); const clean = {};
+    Object.keys(marks).forEach(id => { if (ids.has(id) && ['p', 'a', 'l', 'e'].indexOf(marks[id]) >= 0) clean[id] = marks[id]; });
+    k.attendance = k.attendance || {}; k.attendance[date] = clean;
+    const keys = Object.keys(k.attendance).sort(); while (keys.length > 400) delete k.attendance[keys.shift()];
   }));
   app.delete('/api/classes/:id/posts/:pid', ownerOnly((k, req) => { k.posts = k.posts.filter(p => p.id !== req.params.pid); }));
   app.post('/api/classes/:id/assignments', ownerOnly((k, req) => {

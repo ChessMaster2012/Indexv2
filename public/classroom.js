@@ -1,7 +1,7 @@
 /* Classrooms (student + teacher views) with the Tutor in a side panel. Talks to /api/classes (see classroom.js on the server). */
 (function () {
   'use strict';
-  var CR = { list: null, cur: null, tab: 'stream', aid: null, editing: null, tutor: { open: false, msgs: [], busy: false }, statOv: {}, showStats: (function () { try { return localStorage.getItem('cr-stats') !== '0'; } catch (e) { return true; } })(), err: '', busy: false, gradeSel: null };
+  var CR = { list: null, cur: null, tab: 'stream', aid: null, editing: null, tutor: { open: false, msgs: [], busy: false }, statOv: {}, showStats: (function () { try { return localStorage.getItem('cr-stats') !== '0'; } catch (e) { return true; } })(), err: '', busy: false, gradeSel: null, wf: 'all', cal: null, calSel: '', attDate: '', attMarks: {}, aiBusy: false };
   var $ = function (s, r) { return (r || document).querySelector(s); };
   function E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function role() { try { return localStorage.getItem('index-role') === 'teacher' ? 'teacher' : 'student'; } catch (e) { return 'student'; } }
@@ -74,7 +74,7 @@
       '<div class="cr-note">Are you a teacher? <button class="cr-link" data-cr="be-teacher">Switch this account to Teacher</button></div>';
   }
   function tabsHtml() {
-    var t = isT() ? [['stream', '📣 Stream'], ['work', '📝 Classwork'], ['people', '👥 People'], ['grades', '📊 Grades'], ['insights', '💡 Insights']] : [['stream', '📣 Stream'], ['work', '📝 Classwork'], ['grades', '📊 My grades']];
+    var t = isT() ? [['stream', '📣 Stream'], ['work', '📝 Classwork'], ['calendar', '🗓️ Calendar'], ['resources', '📚 Resources'], ['people', '👥 People'], ['attendance', '✅ Attendance'], ['grades', '📊 Grades'], ['insights', '💡 Insights']] : [['stream', '📣 Stream'], ['todo', '✅ To-do'], ['work', '📝 Classwork'], ['calendar', '🗓️ Calendar'], ['resources', '📚 Resources'], ['grades', '📊 My grades']];
     return '<div class="cr-tabs" role="tablist">' + t.map(function (x) { return '<button class="' + (CR.tab === x[0] && !CR.aid ? 'on' : '') + '" data-cr="tab" data-t="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
   }
   function classHtml() {
@@ -85,7 +85,11 @@
     if (CR.aid) body = assignmentHtml(k, t);
     else if (CR.tab === 'work') body = workHtml(k, t);
     else if (CR.tab === 'people' && t) body = peopleHtml(k);
-    else if (CR.tab === 'grades') body = t ? gradesHtml(k) : myGradesHtml(k);
+    else if (CR.tab === 'calendar') body = calendarHtml(k, t);
+    else if (CR.tab === 'resources') body = resourcesHtml(k, t);
+    else if (CR.tab === 'attendance' && t) body = attendanceHtml(k);
+    else if (CR.tab === 'todo' && !t) body = todoHtml(k);
+    else if (CR.tab === 'grades') body = t ? gradesHtml(k) : myGradesHtml(k) + myAttHtml(k);
     else if (CR.tab === 'insights' && t) body = insightsHtml(k);
     else body = streamHtml(k, t);
     return head + tabsHtml() + '<div class="cr-body">' + body + '</div>';
@@ -95,7 +99,8 @@
     var post = t ? '<form class="cr-post" data-cr="post"><textarea name="text" rows="2" maxlength="2000" placeholder="Announce something to your class…" required></textarea><button class="btn btn-primary" type="submit">Post</button></form>' : '';
     var soon = k.assignments.filter(function (a) { return t ? true : (a.status === 'assigned' || a.status === 'missing'); }).sort(function (a, b) { return (a.due || 9e15) - (b.due || 9e15); }).slice(0, 4);
     var up = soon.length ? '<aside class="cr-up"><h4>' + (t ? 'Recent assignments' : 'Up next') + '</h4>' + soon.map(function (a) { return '<button data-cr="open-a" data-a="' + a.id + '"><b>' + E(a.title) + '</b><span class="' + (a.status === 'missing' ? 'cr-bad' : '') + '">' + (a.due ? E(fmtDue(a.due)) : 'No due date') + '</span></button>'; }).join('') + '</aside>' : '';
-    var posts = k.posts.length ? k.posts.map(function (p) { return '<article class="cr-post-i"><div class="cr-post-h"><b>📣 Announcement</b><span>' + ago(p.at) + '</span>' + (t ? '<button class="cr-mini danger" data-cr="del-post" data-p="' + p.id + '">Delete</button>' : '') + '</div><p>' + E(p.text).replace(/\n/g, '<br>') + '</p></article>'; }).join('') : '<div class="cr-empty sm"><p>' + (t ? 'Nothing posted yet. Welcome your class!' : 'No announcements yet.') + '</p></div>';
+    var sorted = k.posts.slice().sort(function (a, b) { return (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0); });
+    var posts = k.posts.length ? sorted.map(function (p) { return '<article class="cr-post-i' + (p.pinned ? ' pinned' : '') + '"><div class="cr-post-h"><b>' + (p.pinned ? '📌 Pinned' : '📣 Announcement') + '</b><span>' + ago(p.at) + '</span>' + (t ? '<button class="cr-mini" data-cr="pin-post" data-p="' + p.id + '">' + (p.pinned ? 'Unpin' : '📌 Pin') + '</button><button class="cr-mini danger" data-cr="del-post" data-p="' + p.id + '">Delete</button>' : '') + '</div><p>' + E(p.text).replace(/\n/g, '<br>') + '</p></article>'; }).join('') : '<div class="cr-empty sm"><p>' + (t ? 'Nothing posted yet. Welcome your class!' : 'No announcements yet.') + '</p></div>';
     return '<div class="cr-streamgrid"><div>' + post + posts + '</div>' + up + '</div>';
   }
   /* ---- classwork ---- */
@@ -105,8 +110,13 @@
   }
   function workHtml(k, t) {
     var bar = t ? '<div class="cr-actions"><button class="btn btn-primary" data-cr="new-a">＋ New assignment</button></div>' : '';
-    var list = k.assignments.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
-    if (!list.length) return bar + '<div class="cr-empty sm"><p>' + (t ? 'No assignments yet. Create a written task or an auto-graded quiz.' : 'Nothing assigned yet.') + '</p></div>';
+    var all = k.assignments.slice().sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+    var wf = CR.wf, soon = Date.now() + 7 * 86400000;
+    var list = all.filter(function (a) { return wf === 'quiz' ? a.type === 'quiz' : wf === 'task' ? a.type !== 'quiz' : wf === 'soon' ? (a.due && a.due > Date.now() && a.due < soon) : wf === 'open' ? (!t && (a.status === 'assigned' || a.status === 'missing')) : true; });
+    var chips = all.length > 2 ? '<div class="cr-filters">' + [['all', 'All'], ['quiz', '⚡ Quizzes'], ['task', '📝 Tasks'], ['soon', '⏰ Due this week']].concat(t ? [] : [['open', 'To do']]).map(function (f) { return '<button class="' + (wf === f[0] ? 'on' : '') + '" data-cr="wf" data-v="' + f[0] + '">' + f[1] + '</button>'; }).join('') + '</div>' : '';
+    bar = bar + chips;
+    if (!all.length) return bar + '<div class="cr-empty sm"><p>' + (t ? 'No assignments yet. Create a written task or an auto-graded quiz.' : 'Nothing assigned yet.') + '</p></div>';
+    if (!list.length) return bar + '<div class="cr-empty sm"><p>Nothing matches this filter.</p></div>';
     return bar + '<div class="cr-list">' + list.map(function (a) {
       var subs = t ? Object.keys(a.submissions || {}).length : 0;
       return '<button class="cr-item" data-cr="open-a" data-a="' + a.id + '"><span class="cr-ic">' + (a.type === 'quiz' ? '⚡' : '📝') + '</span><span class="cr-it"><b>' + E(a.title) + '</b><small>' + (a.type === 'quiz' ? 'Auto-graded quiz · ' + a.questions.length + ' questions · ' : 'Written task · ') + a.points + ' pts · ' + E(fmtDue(a.due)) + '</small></span>' +
@@ -216,6 +226,12 @@
     }).join('');
     return '<div class="cr-actions"><button class="btn btn-ghost" data-cr="csv">⬇ Export CSV</button><span class="cr-sub">M = missing · ✎ = needs grading</span></div><div class="cr-tablewrap"><table class="cr-table cr-gb"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>';
   }
+  function myAttHtml(k) {
+    var a = k.attendance; if (!a || !(a.counts.p + a.counts.a + a.counts.l + a.counts.e)) return '';
+    var c = a.counts, n = c.p + c.a + c.l + c.e, nm = { p: 'Present', a: 'Absent', l: 'Late', e: 'Excused' };
+    return '<section class="cr-ins" style="margin-top:16px"><h4>My attendance · ' + Math.round((c.p + c.l + c.e) / n * 100) + '%</h4><div class="cr-kpis"><div><b>' + c.p + '</b><span>present</span></div><div><b>' + c.a + '</b><span>absent</span></div><div><b>' + c.l + '</b><span>late</span></div><div><b>' + c.e + '</b><span>excused</span></div></div>' +
+      '<div class="cr-sub">' + a.recent.map(function (r) { return E(new Date(r.d + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })) + ': ' + nm[r.m]; }).join(' · ') + '</div></section>';
+  }
   function myGradesHtml(k) {
     var earned = 0, poss = 0;
     var rows = k.assignments.map(function (a) { var s = a.submission; if (s && s.status === 'graded') { earned += s.score; poss += a.points; } return '<tr><td><button class="cr-link" data-cr="open-a" data-a="' + a.id + '">' + E(a.title) + '</button></td><td>' + statusChip(a) + '</td><td>' + (s && s.status === 'graded' ? s.score + ' / ' + a.points : '–') + '</td></tr>'; }).join('');
@@ -241,17 +257,105 @@
       '<section class="cr-ins"><h4>Hardest quiz questions</h4>' + (hard.length ? hard.slice(0, 5).map(function (h) { return '<div class="cr-hq"><b>' + h.p + '% correct</b> <span>' + E(h.q) + '</span><small>' + E(h.a) + ' · ' + h.n + ' students</small></div>'; }).join('') + '<button class="cr-mini" data-cr="tutor-reteach">🤖 Plan a reteach with Tutor</button>' : '<p class="cr-sub">Hardest questions show after students take a quiz.</p>') + '</section>';
   }
 
+
+  /* ---- student to-do ---- */
+  function todoHtml(k) {
+    var now = Date.now(), wk = now + 7 * 86400000, g = { missing: [], week: [], later: [], none: [], done: [] };
+    k.assignments.forEach(function (a) {
+      if (a.status === 'submitted' || a.status === 'graded') g.done.push(a); else if (a.status === 'missing') g.missing.push(a); else if (!a.due) g.none.push(a); else if (a.due < wk) g.week.push(a); else g.later.push(a);
+    });
+    function sec(title, arr, cls) { if (!arr.length) return ''; arr.sort(function (x, y) { return (x.due || 9e15) - (y.due || 9e15); }); return '<section class="cr-todo ' + (cls || '') + '"><h4>' + title + ' <span>' + arr.length + '</span></h4>' + arr.map(function (a) { return '<button class="cr-item" data-cr="open-a" data-a="' + a.id + '"><span class="cr-ic">' + (a.type === 'quiz' ? '⚡' : '📝') + '</span><span class="cr-it"><b>' + E(a.title) + '</b><small>' + (a.due ? 'Due ' + E(fmtDue(a.due)) + ' (' + E(rel(a.due)) + ')' : 'No due date') + ' · ' + a.points + ' pts</small></span>' + statusChip(a) + '</button>'; }).join('') + '</section>'; }
+    var open = g.missing.length + g.week.length + g.later.length + g.none.length;
+    return '<div class="cr-kpis"><div><b>' + g.missing.length + '</b><span>missing</span></div><div><b>' + g.week.length + '</b><span>due this week</span></div><div><b>' + g.done.length + '</b><span>turned in</span></div></div>' +
+      (open || g.done.length ? sec('⚠️ Missing', g.missing, 'bad') + sec('⏰ Due this week', g.week) + sec('🗓️ Coming up', g.later) + sec('No due date', g.none) + sec('✅ Done', g.done, 'done') : '<div class="cr-empty sm"><p>Nothing assigned yet. 🎉</p></div>');
+  }
+  /* ---- calendar ---- */
+  function dkey(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  function calendarHtml(k, t) {
+    var now = new Date(); if (!CR.cal) CR.cal = new Date(now.getFullYear(), now.getMonth(), 1);
+    var first = new Date(CR.cal.getFullYear(), CR.cal.getMonth(), 1), start = new Date(first); start.setDate(1 - first.getDay());
+    var by = {}; k.assignments.forEach(function (a) { if (a.due) { var kk = dkey(new Date(a.due)); (by[kk] = by[kk] || []).push(a); } });
+    var cells = '', today = dkey(now);
+    for (var i = 0; i < 42; i++) {
+      var d = new Date(start); d.setDate(start.getDate() + i); var kk = dkey(d), items = by[kk] || [];
+      cells += '<button class="cr-day' + (d.getMonth() !== first.getMonth() ? ' off' : '') + (kk === today ? ' today' : '') + (CR.calSel === kk ? ' sel' : '') + '" data-cr="cal-day" data-v="' + kk + '"><span class="cr-dn">' + d.getDate() + '</span>' +
+        items.slice(0, 2).map(function (a) { return '<i class="' + (a.type === 'quiz' ? 'q' : 't') + (a.status === 'missing' ? ' m' : '') + '">' + E(a.title) + '</i>'; }).join('') + (items.length > 2 ? '<em>+' + (items.length - 2) + ' more</em>' : '') + '</button>';
+    }
+    var sel = CR.calSel && by[CR.calSel] ? '<div class="cr-calsel"><h4>Due ' + E(new Date(CR.calSel + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })) + '</h4>' + by[CR.calSel].map(function (a) { return '<button class="cr-item" data-cr="open-a" data-a="' + a.id + '"><span class="cr-ic">' + (a.type === 'quiz' ? '⚡' : '📝') + '</span><span class="cr-it"><b>' + E(a.title) + '</b><small>' + a.points + ' pts · ' + E(fmtDue(a.due)) + '</small></span>' + (t ? '' : statusChip(a)) + '</button>'; }).join('') + '</div>' : '';
+    return '<div class="cr-calhead"><button class="cr-mini" data-cr="cal-prev">‹</button><h3>' + E(first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })) + '</h3><button class="cr-mini" data-cr="cal-next">›</button><button class="cr-mini" data-cr="cal-today">Today</button></div>' +
+      '<div class="cr-calgrid"><div class="cr-dow">' + ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(function (x) { return '<span>' + x + '</span>'; }).join('') + '</div><div class="cr-days">' + cells + '</div></div>' + sel +
+      '<div class="cr-sub" style="margin-top:8px"><i class="cr-lg q"></i> Quiz &nbsp; <i class="cr-lg t"></i> Written task &nbsp; <i class="cr-lg m"></i> Missing</div>';
+  }
+  /* ---- resources ---- */
+  function resourcesHtml(k, t) {
+    var res = k.resources || [];
+    var form = t ? '<form class="cr-resform" data-cr="add-res"><b>Add a resource</b><div class="cr-crow"><input name="title" placeholder="Title (e.g. Unit 3 slides)" maxlength="120" required><input name="section" placeholder="Section (e.g. Unit 3)" maxlength="40"></div><input name="url" placeholder="Link (https://…) — optional" maxlength="500"><textarea name="note" rows="2" placeholder="Note or study tips (optional)" maxlength="600"></textarea><button class="btn btn-primary" type="submit">Add resource</button></form>' : '';
+    if (!res.length) return form + '<div class="cr-empty sm"><p>' + (t ? 'Share slides, readings, videos and study guides here. Students will see them instantly.' : 'Your teacher has not shared any resources yet.') + '</p></div>';
+    var groups = {}; res.forEach(function (r) { (groups[r.section || 'General'] = groups[r.section || 'General'] || []).push(r); });
+    return form + Object.keys(groups).map(function (g) {
+      return '<section class="cr-resgrp"><h4>' + E(g) + '</h4>' + groups[g].map(function (r) {
+        return '<div class="cr-res"><span class="cr-ic">' + (r.url ? '🔗' : '📌') + '</span><div class="cr-it"><b>' + (r.url ? '<a href="' + E(r.url) + '" target="_blank" rel="noopener noreferrer">' + E(r.title) + '</a>' : E(r.title)) + '</b>' + (r.note ? '<small>' + E(r.note) + '</small>' : '') + '</div>' + (t ? '<button class="cr-mini danger" data-cr="del-res" data-r="' + r.id + '">Delete</button>' : '') + '</div>';
+      }).join('') + '</section>';
+    }).join('');
+  }
+  /* ---- attendance ---- */
+  var ATT = [['p', 'Present', '✓'], ['a', 'Absent', '✕'], ['l', 'Late', '⏱'], ['e', 'Excused', 'E']];
+  function attendanceHtml(k) {
+    if (!k.students.length) return '<div class="cr-empty sm"><p>Attendance appears once students join your class.</p></div>';
+    if (!CR.attDate) CR.attDate = dkey(new Date());
+    var d = CR.attDate, saved = (k.attendance || {})[d] || {}, marks = CR.attMarks[d] || (CR.attMarks[d] = Object.assign({}, saved));
+    var rows = k.students.map(function (s) {
+      return '<div class="cr-attrow"><span class="cr-attn">' + avHtml(s, 'sm') + ' ' + E(s.name) + '</span><span class="cr-attbtns">' + ATT.map(function (x) { return '<button class="' + x[0] + (marks[s.id] === x[0] ? ' on' : '') + '" data-cr="att-mark" data-s="' + s.id + '" data-v="' + x[0] + '" title="' + x[1] + '">' + x[2] + '</button>'; }).join('') + '</span></div>';
+    }).join('');
+    var tally = { p: 0, a: 0, l: 0, e: 0 }; Object.keys(marks).forEach(function (id) { if (tally[marks[id]] != null) tally[marks[id]]++; });
+    var sum = k.students.map(function (s) {
+      var c = { p: 0, a: 0, l: 0, e: 0 }; Object.keys(k.attendance || {}).forEach(function (dd) { var m = k.attendance[dd][s.id]; if (c[m] != null) c[m]++; });
+      var n = c.p + c.a + c.l + c.e; return '<tr><td class="cr-gbn">' + avHtml(s, 'sm') + ' ' + E(s.name) + '</td><td>' + c.p + '</td><td class="' + (c.a >= 3 ? 'cr-bad' : '') + '">' + c.a + '</td><td>' + c.l + '</td><td>' + c.e + '</td><td>' + (n ? Math.round((c.p + c.l + c.e) / n * 100) + '%' : '–') + '</td></tr>';
+    }).join('');
+    return '<div class="cr-attbar"><label class="cr-lab">Date<input type="date" id="cr-attdate" value="' + d + '"></label><button class="cr-mini" data-cr="att-all">Mark all present</button><span class="cr-sub">' + tally.p + ' present · ' + tally.a + ' absent · ' + tally.l + ' late · ' + tally.e + ' excused</span><button class="btn btn-primary" data-cr="att-save">Save attendance</button></div>' +
+      '<div class="cr-attlist">' + rows + '</div><h4 style="margin:18px 0 8px">Totals</h4><div class="cr-tablewrap"><table class="cr-table cr-gb"><thead><tr><th>Student</th><th>Present</th><th>Absent</th><th>Late</th><th>Excused</th><th>Rate</th></tr></thead><tbody>' + sum + '</tbody></table></div>';
+  }
+  /* ---- AI assignment builder ---- */
+  function extractJson(t) { t = String(t || '').replace(/```(?:json)?/gi, ''); var a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a < 0 || b <= a) return null; try { return JSON.parse(t.slice(a, b + 1)); } catch (e) { return null; } }
+  function aiBuild(btn) {
+    readEditor(); var ed = CR.editing, brief = ($('#cr-ai-brief') || {}).value || '', n = Number(($('#cr-ai-n2') || {}).value) || 8, err = $('#cr-ed-err'), k = CR.cur;
+    if (brief.trim().length < 4) { if (err) err.textContent = 'Tell the Tutor what you want first, e.g. “a quiz on the causes of the Civil War”.'; return; }
+    var quiz = ed.type === 'quiz'; CR.aiBusy = true; btn.disabled = true; btn.textContent = '✨ Writing your assignment…'; if (err) err.textContent = '';
+    var prompt = 'Create a ready-to-assign school assignment for the class "' + k.name + '"' + (k.subject ? ' (' + k.subject + ')' : '') + '. The teacher asked for: ' + brief.trim().slice(0, 600) + '\n' +
+      'Format: ' + (quiz ? 'an auto-graded multiple-choice quiz with exactly ' + n + ' questions, 4 options each, exactly one correct.' : 'a written task students answer in their own words (no questions array).') + '\n' +
+      'Reply with ONLY one JSON object, no markdown and no commentary: {"title": string under 80 chars, "instructions": string (student-facing, plain text, clear steps and what a good answer includes' + (quiz ? ', plus a 1-2 sentence intro' : '') + '), "points": number (a sensible total), "questions": ' + (quiz ? '[{"q": string, "options": [4 strings], "correct": 0-3, "explanation": string}]' : '[]') + '}';
+    runLocalAi([{ role: 'user', content: prompt }], { intent: 'tutor', classroom: { persona: 'teacher', text: 'Class: ' + k.name + (k.subject ? ' (' + k.subject + ')' : '') + '. Return JSON only.' } })
+      .then(function (r) {
+        var txt = typeof r === 'string' ? r : (r && (r.text || r.content || r.reply)) || ''; var j = extractJson(txt);
+        if (!j || !j.title) throw new Error('The Tutor’s answer could not be read. Please try again.');
+        ed.title = String(j.title).slice(0, 120); ed.instructions = String(j.instructions || '').slice(0, 8000);
+        if (j.points && Number(j.points) > 0) ed.points = Math.min(1000, Math.round(Number(j.points)));
+        if (quiz) {
+          var qs = (Array.isArray(j.questions) ? j.questions : []).map(function (q) { var o = Array.isArray(q.options) ? q.options.map(function (x) { return String(x).slice(0, 200); }) : []; return { q: String(q.q || '').slice(0, 500), options: o, correct: Math.max(0, Math.min(3, parseInt(q.correct, 10) || 0)), explanation: String(q.explanation || '').slice(0, 500) }; }).filter(function (q) { return q.q && q.options.length === 4 && q.options.every(Boolean); }).slice(0, 30);
+          if (!qs.length) throw new Error('The Tutor did not return usable questions. Please try again.');
+          ed.questions = qs;
+        } else ed.questions = [];
+        CR.aiBusy = false; ed.aiDone = true; keepEditor();
+        var dd = $('.cr-editor input[name=due]'); if (dd) { dd.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+        if (window.SFX) SFX.play('win');
+      })
+      .catch(function (er) { CR.aiBusy = false; btn.disabled = false; btn.textContent = '✨ Create it for me'; var e2 = $('#cr-ed-err'); if (e2) e2.textContent = (er && er.message) || 'The Tutor could not write it right now.'; });
+  }
+
   /* ---------------- assignment editor ---------------- */
   function blankQ() { return { q: '', options: ['', '', '', ''], correct: 0, explanation: '' }; }
   function editorHtml() {
     var a = CR.editing, quiz = a.type === 'quiz';
     var sets = []; try { sets = (state.studySets || []).filter(function (s) { return s.type === 'quiz' && s.questions && s.questions.length; }); } catch (e) { }
     return '<div class="cr-modal" data-cr="modal-bg"><div class="cr-editor" role="dialog" aria-modal="true"><div class="cr-ed-h"><h3>' + (a.id ? 'Edit assignment' : 'New assignment') + '</h3><button class="cr-mini" data-cr="ed-close">✕</button></div><form data-cr="save-a">' +
+      '<div class="cr-aibox' + (a.aiDone ? ' done' : '') + '"><div class="cr-aih"><b>✨ Let the Tutor write it</b><span>' + (a.aiDone ? 'Draft ready. Review it below, then pick the due date and points.' : 'Describe what you want. The Tutor writes the title, instructions' + (quiz ? ' and every quiz question' : '') + '.') + '</span></div><textarea id="cr-ai-brief" rows="2" maxlength="600" placeholder="e.g. ' + (quiz ? 'A quiz on the causes of the Civil War for 10th graders' : 'A one-page response on how checks and balances work, with an example') + '">' + E(CR.aiBrief || '') + '</textarea><div class="cr-crow">' + (quiz ? '<label class="cr-lab">Questions <select id="cr-ai-n2"><option>5</option><option selected>8</option><option>10</option><option>15</option></select></label>' : '') + '<button type="button" class="btn btn-primary" data-cr="ai-build">' + (a.aiDone ? '✨ Write another version' : '✨ Create it for me') + '</button></div></div>' +
       '<div class="cr-seg"><label class="' + (!quiz ? 'on' : '') + '"><input type="radio" name="type" value="task" ' + (!quiz ? 'checked' : '') + '> 📝 Written task</label><label class="' + (quiz ? 'on' : '') + '"><input type="radio" name="type" value="quiz" ' + (quiz ? 'checked' : '') + '> ⚡ Auto-graded quiz</label></div>' +
       '<label class="cr-lab">Title</label><input name="title" maxlength="120" required value="' + E(a.title) + '">' +
       '<label class="cr-lab">Instructions</label><textarea name="instructions" rows="5" maxlength="8000" placeholder="What should students do?">' + E(a.instructions) + '</textarea>' +
-      '<div class="cr-crow"><button type="button" class="cr-mini" data-cr="ed-tutor">🤖 Draft with Tutor</button><label class="cr-mini cr-file">📄 Import a .txt/.md file<input type="file" accept=".txt,.md,.csv,text/plain" data-cr="ed-file" hidden></label></div>' +
+      '<div class="cr-crow"><label class="cr-mini cr-file">📄 Import a .txt/.md file<input type="file" accept=".txt,.md,.csv,text/plain" data-cr="ed-file" hidden></label></div>' +
       '<div class="cr-crow"><label class="cr-lab">Due<input name="due" type="datetime-local" value="' + inputDt(a.due) + '"></label><label class="cr-lab">Points<input name="points" type="number" min="0" max="1000" value="' + a.points + '"></label></div>' +
+      '<div class="cr-presets"><span>Due:</span>' + [['Tomorrow', 1], ['In 3 days', 3], ['Next week', 7], ['In 2 weeks', 14]].map(function (x) { return '<button type="button" data-cr="due-preset" data-d="' + x[1] + '">' + x[0] + '</button>'; }).join('') + '<button type="button" data-cr="due-preset" data-d="0">No date</button></div>' +
+      '<div class="cr-presets"><span>Points:</span>' + [10, 20, 25, 50, 100].map(function (x) { return '<button type="button" data-cr="pts" data-v="' + x + '">' + x + '</button>'; }).join('') + '</div>' +
       '<label class="cr-lab">Links (optional)</label><div id="cr-links">' + (a.links.length ? a.links : [{ label: '', url: '' }]).map(linkRow).join('') + '</div><button type="button" class="cr-mini" data-cr="add-link">＋ Add link</button>' +
       (quiz ? '<div class="cr-qed"><h4>Quiz questions (' + a.questions.length + ')</h4><div class="cr-ai"><input id="cr-ai-topic" placeholder="Topic for AI questions, e.g. Photosynthesis" maxlength="120"><select id="cr-ai-n"><option>5</option><option selected>8</option><option>10</option><option>15</option></select><button type="button" class="btn btn-ghost" data-cr="ai-q">✨ Generate with AI</button></div>' +
         (sets.length ? '<div class="cr-ai"><select id="cr-set"><option value="">Import from one of my quiz study sets…</option>' + sets.map(function (s) { return '<option value="' + s.id + '">' + E(s.title || 'Quiz') + ' (' + s.questions.length + ')</option>'; }).join('') + '</select><button type="button" class="cr-mini" data-cr="import-set">Import</button></div>' : '') +
@@ -266,7 +370,7 @@
   }
   function readEditor() {
     var f = $('.cr-editor form'); if (!f) return;
-    var a = CR.editing;
+    var a = CR.editing; var bx = $('#cr-ai-brief'); if (bx) CR.aiBrief = bx.value;
     a.type = (f.querySelector('input[name=type]:checked') || {}).value || 'task';
     a.title = f.title.value; a.instructions = f.instructions.value; a.points = Number(f.points.value) || 0;
     a.due = f.due.value ? new Date(f.due.value).getTime() : 0;
@@ -333,6 +437,19 @@
     switch (a) {
       case 'open': CR.stuSel = null; CR.groups = ''; CR.tab = 'stream'; CR.aid = null; CR.gradeSel = null; guard(loadClass(id).then(render)); break;
       case 'home': CR.cur = null; CR.aid = null; guard(loadList().then(render)); break;
+      case 'wf': CR.wf = el.getAttribute('data-v'); render(); break;
+      case 'pin-post': guard(api('/classes/' + k.id + '/posts/' + el.getAttribute('data-p') + '/pin', 'POST').then(refresh)); break;
+      case 'cal-prev': CR.cal = new Date(CR.cal.getFullYear(), CR.cal.getMonth() - 1, 1); render(); break;
+      case 'cal-next': CR.cal = new Date(CR.cal.getFullYear(), CR.cal.getMonth() + 1, 1); render(); break;
+      case 'cal-today': CR.cal = null; CR.calSel = dkey(new Date()); render(); break;
+      case 'cal-day': CR.calSel = el.getAttribute('data-v'); render(); break;
+      case 'del-res': if (confirm('Remove this resource?')) guard(api('/classes/' + k.id + '/resources/' + el.getAttribute('data-r'), 'DELETE').then(refresh)); break;
+      case 'att-mark': { var dm = CR.attMarks[CR.attDate] || (CR.attMarks[CR.attDate] = {}); dm[sid] = dm[sid] === el.getAttribute('data-v') ? '' : el.getAttribute('data-v'); if (!dm[sid]) delete dm[sid]; var sc0 = window.scrollY; render(); window.scrollTo(0, sc0); break; }
+      case 'att-all': { var dm2 = CR.attMarks[CR.attDate] = {}; k.students.forEach(function (st) { dm2[st.id] = 'p'; }); render(); break; }
+      case 'att-save': guard(api('/classes/' + k.id + '/attendance', 'POST', { date: CR.attDate, marks: CR.attMarks[CR.attDate] || {} }).then(function () { toast('Attendance saved.'); return refresh(); })); break;
+      case 'ai-build': aiBuild(el); break;
+      case 'due-preset': { var inp = $('.cr-editor input[name=due]'); if (!inp) break; var dN = Number(el.getAttribute('data-d')); if (!dN) { inp.value = ''; break; } var dt = new Date(); dt.setDate(dt.getDate() + dN); dt.setHours(23, 59, 0, 0); inp.value = inputDt(dt.getTime()); break; }
+      case 'pts': { var pi = $('.cr-editor input[name=points]'); if (pi) pi.value = el.getAttribute('data-v'); break; }
       case 'tab': CR.tab = el.getAttribute('data-t'); CR.aid = null; render(); break;
       case 'open-a': CR.aid = aid; CR.tab = 'work'; CR.gradeSel = null; render(); break;
       case 'back-work': CR.aid = null; CR.tab = 'work'; render(); break;
@@ -340,7 +457,7 @@
       case 'be-teacher': try { localStorage.setItem('index-role', 'teacher'); } catch (x) { } if (window.AccountExtras && AccountExtras.touchRole) AccountExtras.touchRole(); applyRole(); toast('Teacher tools turned on.'); break;
       case 'tutor-toggle': CR.tutor.open = !CR.tutor.open; render(); break;
       case 'chip': { var v = el.getAttribute('data-v'); var ta = $('.cr-chat-in textarea'); if (/: $/.test(v) && ta) { ta.value = v; ta.focus(); } else sendTutor(v); break; }
-      case 'new-a': CR.editing = { type: 'task', title: '', instructions: '', due: 0, points: 100, links: [], questions: [] }; render(); break;
+      case 'new-a': CR.aiBrief = ''; CR.editing = { type: 'task', title: '', instructions: '', due: 0, points: 100, links: [], questions: [] }; render(); break;
       case 'edit-a': { var x = findA(k, aid); CR.editing = JSON.parse(JSON.stringify({ id: x.id, type: x.type, title: x.title, instructions: x.instructions, due: x.due, points: x.points, links: x.links, questions: x.questions })); render(); break; }
       case 'dup-a': { var d = findA(k, aid); CR.editing = JSON.parse(JSON.stringify({ type: d.type, title: d.title + ' (copy)', instructions: d.instructions, due: 0, points: d.points, links: d.links, questions: d.questions })); render(); break; }
       case 'stu': CR.stuSel = el.getAttribute('data-s'); render(); { var pn = $('.cr-gradepanel'); if (pn) pn.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } break;
@@ -377,6 +494,7 @@
   function keepEditor() { var ed = $('.cr-editor'); var top = ed ? ed.scrollTop : 0; render(); var e2 = $('.cr-editor'); if (e2) e2.scrollTop = top; }
   function onChange(e) {
     var el = e.target;
+    if (el.id === 'cr-attdate' && el.value) { CR.attDate = el.value; render(); return; }
     if (el.matches && el.matches('.cr-editor input[name=type]')) { readEditor(); if (CR.editing.type === 'quiz' && !CR.editing.questions.length) CR.editing.questions = [blankQ()]; keepEditor(); }
     if (el.matches && el.matches('[data-cr=ed-file]')) {
       var f = el.files && el.files[0]; if (!f) return; if (f.size > 200000) { toast('That file is too large (max 200 KB).'); return; }
@@ -387,6 +505,7 @@
     var f = e.target.closest('form[data-cr]'); if (!f) return; e.preventDefault(); var a = f.getAttribute('data-cr'), k = CR.cur;
     if (a === 'newclass') guard(api('/classes', 'POST', { name: f.name.value, subject: f.subject.value, section: f.section.value }).then(function () { return loadList().then(render); }).catch(function (er) { if (er.status === 403) { er.message = 'Only teacher accounts can create classes. Make sure you chose Teacher when you signed up, then sign out and back in.'; } throw er; }));
     else if (a === 'join') guard(api('/classes/join', 'POST', { code: f.code.value }).then(function (d) { toast('Joined ' + d.name + '!'); return loadList().then(render); }));
+    else if (a === 'add-res') guard(api('/classes/' + k.id + '/resources', 'POST', { title: f.title.value, section: f.section.value, url: f.url.value, note: f.note.value }).then(refresh));
     else if (a === 'post') guard(api('/classes/' + k.id + '/posts', 'POST', { text: f.text.value }).then(refresh));
     else if (a === 'chat') { var ta = f.m; var v = ta.value; ta.value = ''; sendTutor(v); }
     else if (a === 'save-a') {
