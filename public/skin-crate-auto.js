@@ -10,7 +10,7 @@ function summary(){ var t=auto.tally; return auto.rolled?('Rolled '+auto.rolled+
 function bar(){
   var m=modal(); if(!m) return; var b=m.querySelector('.sca-bar');
   if(!b){ b=document.createElement('div'); b.className='sca-bar'; var anchor=m.querySelector('.reward-muted'); if(anchor&&anchor.parentNode) anchor.parentNode.insertBefore(b,anchor.nextSibling); else return; }
-  b.innerHTML='<button type="button" class="btn '+(auto.on?'btn-danger':'btn-primary')+'" data-sca="toggle">'+(auto.on?'⏹ Stop auto roll':'🔁 Auto roll')+'</button><label class="sca-chk"><input type="checkbox" data-sca="epic" '+(auto.stopEpic?'checked':'')+'> Stop on Epic</label><span class="sca-left">🧰 '+crates()+' left</span><span class="sca-sum">'+summary()+'</span>';
+  b.innerHTML='<button type="button" class="rw-auto'+(auto.on?' on':'')+'" data-sca="toggle"><i></i><span>Auto roll: '+(auto.on?'ON':'OFF')+'</span></button><label class="sca-chk"><input type="checkbox" data-sca="epic" '+(auto.stopEpic?'checked':'')+'> Stop on Epic</label><span class="sca-left">🧰 '+crates()+' left</span><span class="sca-sum">'+summary()+'</span>';
 }
 function stop(msg){ auto.on=false; clearTimeout(auto.timer); bar(); if(msg&&typeof showRewardToast==='function') showRewardToast(msg); }
 function start(){ auto.on=true; auto.rolled=0; auto.fresh=0; auto.tally={Common:0,Rare:0,Epic:0}; bar(); if(!state.skinCrateOpening&&crates()>0) window.openSkinCrate(); else if(crates()<=0) stop('You do not have a Skin Crate yet.'); }
