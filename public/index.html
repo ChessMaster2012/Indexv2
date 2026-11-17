@@ -5556,26 +5556,12 @@ async function authSubmit(){
     const r = await fetch(`/api/auth/${authMode}`, { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
     const d = await r.json();
     if(!r.ok){ status.innerHTML = `<div class="error-note">${esc(d.error||'Something went wrong.')}</div>`; return; }
-    state.account = d.user;
-    await loadAccountState();
-    await loadAccountCustomization();
     try { localStorage.setItem('index.authIdentifier', (d.user && d.user.email) ? d.user.email : identifier); } catch(e) {}
-    status.innerHTML = '';
-    document.getElementById('auth-identifier').value = ''; document.getElementById('auth-username').value = ''; document.getElementById('auth-password').value = '';
-    renderProfileSlot();
-    if(d.isNew || !d.user.firstName){
-      document.getElementById('account-panel').classList.remove('hidden');
-      document.getElementById('auth-panel').classList.add('hidden');
-      document.getElementById('signin-modal-title').textContent = 'Complete your profile';
-      document.getElementById('account-username').value=d.user.username||'';
-      document.getElementById('account-first').value=''; document.getElementById('account-last').value='';
-      document.getElementById('account-contact').textContent = `@${d.user.username} · ${d.user.email} · Account type: ${currentAccountTypeLabel()}`;
-      await loadAccountCustomization();
-      hydrateAccountCustomizer(); applyAccountProfilePreferences(); bindAccountCustomizerAutosave(); renderAccountSetupStep(1);
-      setTimeout(()=>openNewUserMembershipPrompt(),250);
-    }else{
-      closeSignin();
-    }
+    /* Always start from a clean page after signing in or up, so nothing from a previous account (or a guest session) in this tab can mix into this one. */
+    status.innerHTML = '<div class="loading-line"><span class="spinner"></span> Loading your account…</div>';
+    const fresh = !!(d.isNew || !d.user.firstName);
+    window.location.replace('/?' + (fresh ? 'welcome=1&via=email' : 'signedin=1'));
+    return;
   }catch(e){ status.innerHTML = `<div class="error-note">Couldn't reach the server. Please try again.</div>`; }
 }
 function googleSignin(){ window.location.href='/api/auth/google/start'; }
@@ -5784,6 +5770,7 @@ async function accountSignout(){
   try{ await syncAccountStateNow(); }catch(e){}
   try{ await fetch('/api/auth/logout', { method:'POST' }); }catch(e){}
   state.account = null; clearAccountScopedLocalCache(); renderProfileSlot(); closeSignin();
+  window.location.replace('/'); // fresh page: nothing from this account stays in memory
 }
 function saveName(){
   const name = document.getElementById('signin-name').value.trim();
@@ -6120,7 +6107,8 @@ async function handleAuthRedirectResult(){
   const authError = params.get('authError');
   const complete = params.get('complete') === '1';
   const welcome = params.get('welcome') === '1';
-  if(!authError && !complete && !welcome) return;
+  const viaEmail = params.get('via') === 'email';
+  if(!authError && !complete && !welcome && params.get('signedin') !== '1') return;
   history.replaceState({}, '', window.location.pathname);
   await refreshAuthStatus();
   if(state.account){ await loadAccountState(); await loadAccountCustomization(); await loadMembershipStatus(); }
@@ -6135,6 +6123,7 @@ async function handleAuthRedirectResult(){
   }
   if(state.account){
     if(welcome)setTimeout(()=>openNewUserMembershipPrompt(),350);
+    if(!complete && !welcome && state.account.firstName) return; // plain sign-in: just land on the dashboard
     document.getElementById('signin-modal').classList.remove('hidden');
     document.getElementById('auth-panel').classList.add('hidden');
     document.getElementById('guest-panel').classList.add('hidden');
@@ -6147,7 +6136,8 @@ async function handleAuthRedirectResult(){
     document.getElementById('account-contact').textContent = `${state.account.username ? '@'+state.account.username+' · ' : ''}${state.account.email || ''} · Account type: ${currentAccountTypeLabel()}`;
     if(complete || !state.account.firstName){
       document.getElementById('auth-complete-banner').classList.remove('hidden');
-      document.getElementById('auth-complete-banner').textContent = 'Google connected! Choose your username and display name, then save your profile.';
+      document.getElementById('auth-complete-banner').textContent = (viaEmail ? 'Account created! Choose' : 'Google connected! Choose')+' your username and display name, then save your profile.';
+      if(viaEmail){ try{ hydrateAccountCustomizer(); applyAccountProfilePreferences(); bindAccountCustomizerAutosave(); renderAccountSetupStep(1); }catch(e){} }
     }
   }
 }
