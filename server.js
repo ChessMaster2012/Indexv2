@@ -791,7 +791,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 // OpenAI-compatible endpoint, so the browser keeps receiving the same response shapes as from Vireonix.
 const GEMINI_API_KEY=String(process.env.GEMINI_API_KEY||'').trim();
 const GEMINI_COOLDOWN=new Map(); // model -> time until which it is skipped after a quota (429) error
-const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash,gemini-2.5-flash-lite').split(',').map(x=>x.trim()).filter(Boolean);
+const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-3.5-flash-lite,gemini-3.8-flash,gemini-flash-lite-latest,gemini-flash-latest').split(',').map(x=>x.trim()).filter(Boolean);
 
 // ---- Live web lookup for the Tutor -------------------------------------------------------------
 // Questions about current facts (news, scores, prices, "latest", recent years, or an explicit "search the web")
@@ -809,8 +809,9 @@ async function searchGeminiToResponse(messages,res){
   const sys=messages.filter(m=>m.role==='system').map(m=>String(m.content||'')).join('\n\n');
   const contents=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()&&!(m.role==='assistant'&&/cannot (see|access)|can't (see|access)|live (financial|information|data)|up-to-date/i.test(m.content))).slice(-8).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content).slice(0,4000)}]}));
   if(!contents.length||contents[contents.length-1].role!=='user') return false;
-  const models=['gemini-flash-lite-latest','gemini-flash-latest','gemini-2.5-flash-lite'].filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
-  for(const model of models.slice(0,2)){
+  const all=['gemini-3.5-flash-lite','gemini-3.8-flash','gemini-flash-lite-latest','gemini-flash-latest'];
+  const ready=all.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
+  for(const model of (ready.length?ready:all).slice(0,3)){
     const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),16000);
     try{
       const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{
@@ -818,7 +819,7 @@ async function searchGeminiToResponse(messages,res){
         body:JSON.stringify({systemInstruction:{parts:[{text:sys+'\n\nYou can search the web right now. For this question, use Google Search results and give the actual current answer with specific numbers or facts — never say you cannot access live or up-to-date information. Answer briefly and clearly for a student, only from reliable sources, then you may offer to help with schoolwork.'}]},contents,tools:[{google_search:{}}],generationConfig:{temperature:0.1,maxOutputTokens:1200}})
       });
       if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); continue; }
-      if(!r.ok){ console.warn('[AI] web search '+model+' HTTP '+r.status); continue; }
+      if(!r.ok){ const eb=await r.text().catch(()=>''); console.warn('[AI] web search '+model+' HTTP '+r.status+' '+eb.replace(/\s+/g,' ').slice(0,220)); continue; }
       const data=await r.json();
       const cand=data?.candidates?.[0];
       let text=(cand?.content?.parts||[]).map(x=>x.text||'').join('').trim();
