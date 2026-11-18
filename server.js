@@ -792,6 +792,59 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 const GEMINI_API_KEY=String(process.env.GEMINI_API_KEY||'').trim();
 const GEMINI_COOLDOWN=new Map(); // model -> time until which it is skipped after a quota (429) error
 const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-flash-latest,gemini-flash-lite-latest,gemini-2.5-flash,gemini-2.5-flash-lite').split(',').map(x=>x.trim()).filter(Boolean);
+
+// ---- Live web lookup for the Tutor -------------------------------------------------------------
+// Questions about current facts (news, scores, prices, "latest", recent years, or an explicit "search the web")
+// are answered by Gemini with Google Search grounding, so answers come from fresh pages instead of the model's
+// older memory. The student's question has already passed the safety screen, the safety rules stay in the system
+// prompt, and the answer is screened again before it is sent. Returns false when it can't answer, so the normal
+// Gemini/Vireonix path runs unchanged.
+const WEB_SEARCH_ON=String(process.env.TUTOR_WEB_SEARCH||'1')!=='0';
+function tutorNeedsWeb(q){
+  q=String(q||'');
+  if(q.length>400||q.length<4) return false;
+  return /\b(latest|current(ly)?|today'?s?|tonight|yesterday|this (week|month|year|season)|news|recent(ly)?|right now|up to date|score|standings|weather|forecast|price of|how much (is|does)|release[sd]?|released|who (is|are) the (current|new)|who won|won the|world record|202[4-9]|search (the )?(web|internet|online)|look (it |this )?up|google|on the internet|online)\b/i.test(q);
+}
+async function searchGeminiToResponse(messages,res){
+  const sys=messages.filter(m=>m.role==='system').map(m=>String(m.content||'')).join('\n\n');
+  const contents=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()).slice(-8).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content).slice(0,4000)}]}));
+  if(!contents.length||contents[contents.length-1].role!=='user') return false;
+  const models=['gemini-flash-lite-latest','gemini-flash-latest','gemini-2.5-flash-lite'].filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
+  for(const model of models.slice(0,2)){
+    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),16000);
+    try{
+      const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{
+        method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},signal:ctl.signal,
+        body:JSON.stringify({systemInstruction:{parts:[{text:sys+'\n\nUse Google Search results for current facts. Answer briefly and clearly for a student, and only from reliable sources.'}]},contents,tools:[{google_search:{}}],generationConfig:{temperature:0.1,maxOutputTokens:1200}})
+      });
+      if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); continue; }
+      if(!r.ok){ console.warn('[AI] web search '+model+' HTTP '+r.status); continue; }
+      const data=await r.json();
+      const cand=data?.candidates?.[0];
+      let text=(cand?.content?.parts||[]).map(x=>x.text||'').join('').trim();
+      if(!text) continue;
+      text=Safety.screenOutput(text).text;
+      const seen=new Set(), src=[];
+      for(const g of (cand?.groundingMetadata?.groundingChunks||[])){
+        const w=g&&g.web; if(!w||!w.uri||seen.has(w.title||w.uri)) continue;
+        seen.add(w.title||w.uri); src.push('['+String(w.title||'Source').replace(/[\[\]]/g,'').slice(0,60)+']('+w.uri+')');
+        if(src.length>=3) break;
+      }
+      if(src.length) text+='\n\n🌐 *Searched the web* · Sources: '+src.join(' · ');
+      res.status(200);
+      res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control','no-cache, no-transform');
+      if(typeof res.flushHeaders==='function') res.flushHeaders();
+      const parts=text.match(/[\s\S]{1,60}/g)||[text];
+      for(const c of parts) res.write('data: '+JSON.stringify({choices:[{delta:{content:c}}],model:'gemini-search'})+'\n\n');
+      res.write('data: [DONE]\n\n'); res.end();
+      return true;
+    }catch(e){ console.warn('[AI] web search failed:',e?.message||e); }
+    finally{ clearTimeout(t); }
+  }
+  return false;
+}
+
 async function streamGeminiToResponse(messages,res,options={}){
   const mode=String(options.mode||'');
   const tutorMode=mode==='tutor', studySetMode=mode==='study-set';
@@ -1366,6 +1419,9 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(GEMINI_API_KEY){
       geminiTried=true;
       try{
+        if(WEB_SEARCH_ON&&requestIntent==='tutor'&&!classroom&&tutorNeedsWeb(question)){
+          if(await searchGeminiToResponse(messages,res)) return;
+        }
         await streamGeminiToResponse(messages,res,{mode:requestIntent});
         return;
       }catch(geminiError){
