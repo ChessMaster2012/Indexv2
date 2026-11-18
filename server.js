@@ -807,12 +807,59 @@ function tutorNeedsWeb(q){
   return /\b(latest|curren\w*|today'?s?|tonight|yesterday|this (week|month|year|season)|news|recent\w*|right now|up to date|up-to-date|score|standings|weather|forecast|prices?|rates?|stocks?|how much (is|does|are)|releas\w+|who (is|are) the|who won|won the|world record|when (is|does|did) the|what time|202[4-9]|search\w*|look (it |this )?up|google|on the internet|online|website|net worth|worth|market cap|ceo|president|population|check (the )?(web|internet|online|net)|double.?check|make sure|verify|real.?time|live)\b/i.test(q);
 }
 
+
+// Own web search (no provider search needed): fetch DuckDuckGo results, then let any free model answer from
+// the snippets. Works with every provider in the pool, and is quick.
+async function ddgSnippets(query){
+  const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),8000);
+  try{
+    const r=await fetch('https://html.duckduckgo.com/html/?q='+encodeURIComponent(query),{signal:ctl.signal,headers:{'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36','Accept':'text/html','Accept-Language':'en-US,en;q=0.9'}});
+    if(!r.ok){ console.warn('[AI] ddg HTTP '+r.status); return []; }
+    const html=await r.text(); const out=[];
+    const strip=x=>String(x||'').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&#x27;|&#39;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/\s+/g,' ').trim();
+    const re=/<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g; let m;
+    while((m=re.exec(html))&&out.length<5){
+      let u=m[1]; const q=u.match(/[?&]uddg=([^&]+)/); if(q) u=decodeURIComponent(q[1]); else if(u.startsWith('//')) u='https:'+u;
+      let host=''; try{host=new URL(u).hostname.replace(/^www\./,'');}catch{}
+      if(!host||/duckduckgo\.com$/.test(host)) continue;
+      out.push({title:strip(m[2]).slice(0,100),snippet:strip(m[3]).slice(0,400),host});
+    }
+    if(!out.length) console.warn('[AI] ddg returned no parsable results');
+    return out;
+  }catch(e){ console.warn('[AI] ddg failed: '+(e?.message||e)); return []; }
+  finally{ clearTimeout(t); }
+}
+async function ddgAnswerToResponse(messages,res){
+  const users=messages.filter(m=>m.role==='user');
+  let q=String(users[users.length-1]?.content||'').replace(/\s+/g,' ').trim();
+  if(users.length>1&&/^(please )?(check|search|verify|look|google|make sure|are you sure|double)/i.test(q)) q=String(users[users.length-2].content||'').trim()+' '+q;
+  q=q.slice(0,200); if(!q) return false;
+  const hits=await ddgSnippets(q); if(!hits.length) return false;
+  const ctx=hits.map((h,i)=>(i+1)+'. '+h.title+' ('+h.host+'): '+h.snippet).join('\n');
+  const sys=messages.filter(m=>m.role==='system').map(m=>String(m.content||'')).join('\n\n')+'\n\nWeb search results for the student\'s question are below. Answer from them with the specific current facts, say where they come from by site name, and never claim you cannot access live information. If the results disagree or do not contain the answer, say so briefly. Keep it under 150 words, finish every sentence, plain text, no markdown links.\n\nSEARCH RESULTS:\n'+ctx;
+  const conv=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()&&!(m.role==='assistant'&&/cannot (see|access|browse)|can't (see|access|browse)|don't have the ability|live (financial|information|data)|up-to-date/i.test(m.content))).slice(-6);
+  const msgs=[{role:'system',content:sys},...conv];
+  let text='';
+  if(AIPOOL.configured()){ try{ text=(await AIPOOL.complete(msgs,{maxTokens:700,timeoutMs:25000,temperature:0.1,skipNames:['GROQ']})).text; }catch(e){ console.warn('[AI] ddg answer via pool failed: '+(e?.message||e)); } }
+  if(!text&&GEMINI_API_KEY){ try{ text=await geminiComplete(msgs,{maxTokens:700,timeoutMs:20000}); }catch(e){} }
+  if(!text) return false;
+  text=Safety.screenOutput(text).text+'\n\n🌐 Searched the web · Sources: '+[...new Set(hits.map(h=>h.host))].slice(0,3).join(' · ');
+  res.status(200);
+  res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control','no-cache, no-transform');
+  if(typeof res.flushHeaders==='function') res.flushHeaders();
+  for(const c of (text.match(/[\s\S]{1,60}/g)||[text])) res.write('data: '+JSON.stringify({choices:[{delta:{content:c}}],model:'web-snippets'})+'\n\n');
+  res.write('data: [DONE]\n\n'); res.end(); return true;
+}
+
 async function poolWebToResponse(messages,res){
-  if(!AIPOOL.configured()||res.headersSent) return false;
+  if(res.headersSent) return false;
+  if(await ddgAnswerToResponse(messages,res)) return true;
+  if(!AIPOOL.configured()) return false;
   try{
     const sys=messages.filter(m=>m.role==='system').map(m=>String(m.content||'')).join('\n\n')+'\n\nYou can search the web right now. Use the search results and give the actual current answer with specific facts; never say you cannot access live information. Keep it under 150 words, finish every sentence, plain text with no markdown links, and only from reliable sources.';
     const conv=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()&&!(m.role==='assistant'&&/cannot (see|access)|can't (see|access)|live (financial|information|data)|up-to-date/i.test(m.content))).slice(-6);
-    const out=await AIPOOL.webSearch([{role:'system',content:sys},...conv],{timeoutMs:30000});
+    const out=await AIPOOL.webSearch([{role:'system',content:sys},...conv],{timeoutMs:45000});
     let text=Safety.screenOutput(out.text).text;
     if(out.sources.length) text+='\n\n🌐 Searched the web · Sources: '+out.sources.map(x=>{ let h=''; try{h=new URL(x.url).hostname.replace(/^www\./,'');}catch{} return h||String(x.title||'Source').replace(/[\[\]()]/g,'').slice(0,50); }).join(' · ');
     res.status(200);

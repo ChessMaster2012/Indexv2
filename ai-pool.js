@@ -54,6 +54,7 @@ function textOf(d){ return String(d?.choices?.[0]?.message?.content||'').trim();
 async function complete(messages,o={}){
   const deadline=Date.now()+(o.timeoutMs||40000); let last=null;
   for(const c of candidates()){
+    if(o.skipNames&&o.skipNames.includes(c.p.name)) continue;
     const left=deadline-Date.now(); if(left<3000) break;
     try{
       const r=await post(c,messages,o,false,Math.min(left,20000));
@@ -91,7 +92,7 @@ async function stream(messages,res,o={}){
 
 // Live web answers from providers that have built-in search: Groq "compound" models and OpenRouter's web plugin.
 async function webSearch(messages,o={}){
-  const deadline=Date.now()+(o.timeoutMs||30000); let last=null;
+  const deadline=Date.now()+(o.timeoutMs||45000); let last=null;
   const tries=[];
   for(const p of active()){
     if(p.name==='GROQ') for(const m of ['groq/compound-mini','groq/compound']) tries.push({p,model:m,extra:{}});
@@ -100,7 +101,7 @@ async function webSearch(messages,o={}){
   for(const c of tries){
     if((cooldown.get(c.p.name+'|web|'+c.model)||0)>Date.now()) continue;
     const left=deadline-Date.now(); if(left<4000) break;
-    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),Math.min(left,22000));
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),Math.min(left,40000));
     try{
       const r=await fetch(c.p.url,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.p.token,'HTTP-Referer':'https://indexv2-jzld.onrender.com','X-Title':'Index'},
         body:JSON.stringify(Object.assign({model:c.model,messages,stream:false,max_tokens:o.maxTokens||1200,temperature:0.1},c.extra))});
