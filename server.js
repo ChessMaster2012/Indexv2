@@ -810,8 +810,31 @@ function tutorNeedsWeb(q){
 
 // Own web search (no provider search needed): fetch DuckDuckGo results, then let any free model answer from
 // the snippets. Works with every provider in the pool, and is quick.
+let DDG_BLOCKED_UNTIL=0;
+// Search API with a free tier (set TAVILY_API_KEY or BRAVE_API_KEY on Render); far more reliable from a server than scraping.
+async function keyedSearch(query){
+  const tav=String(process.env.TAVILY_API_KEY||'').trim(), brave=String(process.env.BRAVE_API_KEY||'').trim();
+  const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),9000);
+  const hostOf=u=>{ try{return new URL(u).hostname.replace(/^www\./,'');}catch{return '';} };
+  try{
+    if(tav){
+      const r=await fetch('https://api.tavily.com/search',{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tav},body:JSON.stringify({query,max_results:5,search_depth:'basic'})});
+      if(r.ok){ const d=await r.json(); const o=(d.results||[]).slice(0,5).map(x=>({title:String(x.title||'').slice(0,100),snippet:String(x.content||'').replace(/\s+/g,' ').slice(0,400),host:hostOf(x.url)})).filter(x=>x.host); if(o.length) return o; }
+      else console.warn('[AI] tavily HTTP '+r.status);
+    }
+    if(brave){
+      const r=await fetch('https://api.search.brave.com/res/v1/web/search?count=5&q='+encodeURIComponent(query),{signal:ctl.signal,headers:{'X-Subscription-Token':brave,'Accept':'application/json'}});
+      if(r.ok){ const d=await r.json(); const o=((d.web&&d.web.results)||[]).slice(0,5).map(x=>({title:String(x.title||'').replace(/<[^>]+>/g,'').slice(0,100),snippet:String(x.description||'').replace(/<[^>]+>/g,'').replace(/\s+/g,' ').slice(0,400),host:hostOf(x.url)})).filter(x=>x.host); if(o.length) return o; }
+      else console.warn('[AI] brave HTTP '+r.status);
+    }
+  }catch(e){ console.warn('[AI] keyed search failed: '+(e?.message||e)); }
+  finally{ clearTimeout(t); }
+  return [];
+}
 async function ddgSnippets(query){
-  const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),8000);
+  const keyed=await keyedSearch(query); if(keyed.length) return keyed;
+  if(Date.now()<DDG_BLOCKED_UNTIL) return [];
+  const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),4000);
   try{
     const r=await fetch('https://html.duckduckgo.com/html/?q='+encodeURIComponent(query),{signal:ctl.signal,headers:{'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36','Accept':'text/html','Accept-Language':'en-US,en;q=0.9'}});
     if(!r.ok){ console.warn('[AI] ddg HTTP '+r.status); return []; }
@@ -826,7 +849,7 @@ async function ddgSnippets(query){
     }
     if(!out.length) console.warn('[AI] ddg returned no parsable results');
     return out;
-  }catch(e){ console.warn('[AI] ddg failed: '+(e?.message||e)); return []; }
+  }catch(e){ console.warn('[AI] ddg failed: '+(e?.message||e)); DDG_BLOCKED_UNTIL=Date.now()+600000; return []; }
   finally{ clearTimeout(t); }
 }
 async function ddgAnswerToResponse(messages,res){
