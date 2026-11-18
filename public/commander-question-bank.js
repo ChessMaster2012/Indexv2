@@ -55,7 +55,7 @@ function modalHtml(){
    '<div class="cqb-tabs" role="tablist">'+
    '<button type="button" data-cqb-tab="ai">✦ AI Bank</button><button type="button" data-cqb-tab="mine">My Sets</button><button type="button" data-cqb-tab="public">Public Sets</button><button type="button" data-cqb-tab="builtin">Built-in</button></div>'+
    '<div id="cqb-body"></div><div id="cqb-status" aria-live="polite"></div>'+
-   '<div class="cqb-foot"><span>AP focus: '+esc(subjName(game()||{}))+' · '+esc((game()||{}).unit||'Course review')+'</span><span>AI-generated banks require provider access.</span></div>'+
+   '<div class="cqb-foot"><span>AP focus: '+esc(subjName(game()||{}))+' · '+esc((game()||{}).unit||'Course review')+'</span><span>AI-generated banks are made by Index AI.</span></div>'+
    '</section></div>';
 }
 function injectCss(){
@@ -124,7 +124,7 @@ function renderBody(){
  var body=document.getElementById('cqb-body');if(!body)return;
  tabButtons();showStatus('',false);
  if(ui.tab==='ai'){
-  body.innerHTML='<div class="cqb-panel"><h3>Generate one bank for this run</h3><p class="cqb-copy">Index generates a set once, then shuffles through that bank again and again. The selected course and unit stay fixed for the run.</p><div class="cqb-row"><div class="cqb-field"><label for="cqb-count">Questions in the bank</label><select id="cqb-count"><option value="5">5 questions</option><option value="10" selected>10 questions</option><option value="15">15 questions</option><option value="20">20 questions</option></select></div><div class="cqb-field"><label>Study focus</label><div style="padding:11px;border:1px solid #3c617a;border-radius:10px;background:#071a2a;font-size:12px;line-height:1.4;color:#dbeaf4;min-height:42px">'+esc(subjName(game()||{}))+' · '+esc((game()||{}).unit||'Course review')+((game()||{}).topic?' · '+esc((game()||{}).topic):'')+'</div></div></div><div class="cqb-actions"><button type="button" class="cqb-primary" data-cqb-generate '+(ui.loading?'disabled':'')+'>'+(ui.loading?'Preparing bank…':'✦ Generate AI Question Bank')+'</button><button type="button" class="cqb-secondary" data-cqb-use-builtin>Use built-in AP bank</button></div><p class="cqb-copy" style="margin:12px 0 0">If Vireonix has not approved automated bank generation, the request is blocked safely and no bulk request is sent. You can still choose your own or a public set.</p></div>';
+  body.innerHTML='<div class="cqb-panel"><h3>Generate one bank for this run</h3><p class="cqb-copy">Index generates a set once, then shuffles through that bank again and again. The selected course and unit stay fixed for the run.</p><div class="cqb-row"><div class="cqb-field"><label for="cqb-count">Questions in the bank</label><select id="cqb-count"><option value="5">5 questions</option><option value="10" selected>10 questions</option><option value="15">15 questions</option><option value="20">20 questions</option></select></div><div class="cqb-field"><label>Study focus</label><div style="padding:11px;border:1px solid #3c617a;border-radius:10px;background:#071a2a;font-size:12px;line-height:1.4;color:#dbeaf4;min-height:42px">'+esc(subjName(game()||{}))+' · '+esc((game()||{}).unit||'Course review')+((game()||{}).topic?' · '+esc((game()||{}).topic):'')+'</div></div></div><div class="cqb-actions"><button type="button" class="cqb-primary" data-cqb-generate '+(ui.loading?'disabled':'')+'>'+(ui.loading?'Preparing bank…':'✦ Generate AI Question Bank')+'</button><button type="button" class="cqb-secondary" data-cqb-use-builtin>Use built-in AP bank</button></div><p class="cqb-copy" style="margin:12px 0 0">If the AI is busy, the request can fail; just try again or use My Sets, Public Sets or the built-in AP bank.</p></div>';
  }else if(ui.tab==='mine'){
   var sets=currentOwnSets();
   body.innerHTML='<div class="cqb-panel"><h3>Your question sets</h3><p class="cqb-copy">Use an AP quiz you saved or a set you created in Live Game.</p>'+(sets.length?'<div class="cqb-list">'+sets.map(function(s,i){return setButton(s.title,s.questions.length+' compatible questions'+(s.meta?' · '+s.meta:''),'data-cqb-mine="'+i+'"');}).join('')+'</div>':'<div class="cqb-empty">No compatible personal sets were found. Create a multiple-choice or true/false set in Live Game, or use a public set.</div>')+'</div>';
@@ -226,7 +226,7 @@ async function generateAiBank(){
  var count=Math.max(5,Math.min(20,Number(countNode&&countNode.value)||10));
  var btn=document.querySelector('#commander-question-bank-modal [data-cqb-generate]');
  ui.loading=true;if(btn){btn.disabled=true;btn.textContent='Preparing bank…';}
- showStatus('Requesting one '+count+'-question bank from Vireonix Auto. The same bank will be shuffled for later waves.',false);
+ showStatus('Requesting one '+count+'-question bank from Index AI. The same bank will be shuffled for later waves.',false);
  try{
   var subject=subjName(g);
   var response=await fetch('/api/ai/commander-bank',{

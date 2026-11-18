@@ -1761,6 +1761,78 @@ function commanderJsonFailureDetail(rawText){
     '; start="'+head+'"; end="'+tail+'".';
 }
 
+
+// ---- Tower Defense (Indexling Commander) question gate: served from a per-topic cache -------------------------
+// One AI call writes a small batch and the rest are handed out instantly (and refilled in the background), so
+// the gate between waves almost never waits on the AI. Uses Gemini + the free provider pool like the arcade games.
+const CMDQ_CACHE=new Map(), CMDQ_BUSY=new Map();
+function cmdqClean(list,seen){
+  const out=[];
+  for(const q of list){
+    if(!q||typeof q.q!=='string'||!q.q.trim()||!Array.isArray(q.options)||q.options.length!==4) continue;
+    const opts=q.options.map(o=>String(o??'').trim()); const c=Number(q.correct);
+    if(opts.some(o=>!o)||!Number.isInteger(c)||c<0||c>3||new Set(opts.map(o=>o.toLowerCase())).size<4) continue;
+    const stem=q.q.trim(); if(seen.has(stem.toLowerCase())) continue; seen.add(stem.toLowerCase());
+    const idx=[0,1,2,3]; for(let i=3;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [idx[i],idx[j]]=[idx[j],idx[i]]; }
+    out.push({q:stem.slice(0,300),options:idx.map(i=>opts[i].slice(0,200)),correct:idx.indexOf(c),explanation:String(q.explanation||'').slice(0,300)});
+  }
+  return out;
+}
+function cmdqFill(key,course,unit,topic,count,exclude){
+  if(CMDQ_BUSY.has(key)) return CMDQ_BUSY.get(key);
+  const prompt=[
+    'Write '+count+' different multiple-choice study questions about AP '+course+', unit "'+unit+'"'+(topic?', focused on "'+topic+'"':'')+'.',
+    'Mix recall, application and reasoning; avoid plain definitions. Each question has exactly 4 options and exactly one correct option; wrong options must be plausible. Keep each question under 220 characters and each explanation under 140 characters.',
+    exclude.length?'Do NOT repeat or reword these earlier questions: '+exclude.map((q,i)=>'['+(i+1)+'] '+q.slice(0,160)).join(' | '):'',
+    'Return ONLY JSON like {"questions":[{"q":"...","options":["A","B","C","D"],"correct":0,"explanation":"..."}]} with correct a number 0 to 3.'
+  ].filter(Boolean).join('\n');
+  const messages=[{role:'system',content:Safety.SAFETY_RULES+' You are Index, an accurate study-question writer for high school students. Reply with JSON only.'},{role:'user',content:prompt}];
+  const task=(async()=>{
+    aiInFlight++;
+    try{
+      let lastErr=null;
+      for(let attempt=0;attempt<2;attempt++){
+        try{
+          const raw=await geminiComplete(messages,{maxTokens:700+count*330,timeoutMs:attempt?14000:20000});
+          const data=parseCommanderQuestionJson(raw);
+          const list=Array.isArray(data)?data:(Array.isArray(data?.questions)?data.questions:(data?.question?[data.question]:[]));
+          const out=cmdqClean(list,new Set(exclude.map(x=>x.toLowerCase())));
+          if(out.length){ const cur=CMDQ_CACHE.get(key)||[]; CMDQ_CACHE.set(key,cur.concat(out).slice(-24)); if(CMDQ_CACHE.size>300) CMDQ_CACHE.delete(CMDQ_CACHE.keys().next().value); return out; }
+        }catch(e){ lastErr=e; console.warn('[AI] commander batch attempt '+(attempt+1)+' failed:',e?.message||e); }
+      }
+      throw lastErr||new Error('no usable questions');
+    } finally{ aiInFlight--; CMDQ_BUSY.delete(key); }
+  })();
+  CMDQ_BUSY.set(key,task); task.catch(()=>{});
+  return task;
+}
+app.post('/api/ai/commander-question',async(req,res,next)=>{
+  if(!(GEMINI_API_KEY||AIPOOL.configured())) return next();
+  try{
+    const b=req.body||{};
+    const course=String(b.course||'').replace(/\s+/g,' ').trim().slice(0,120);
+    const unit=String(b.unit||'').replace(/\s+/g,' ').trim().slice(0,160);
+    const topic=String(b.topic||'').replace(/\s+/g,' ').trim().slice(0,200);
+    if(!course||!unit) return res.status(400).json({error:'A course and unit are required.'});
+    {const sp=safetyFieldProblem(req,[course,unit,topic],[]); if(sp) return res.status(400).json({error:sp,safety:'blocked'});}
+    const exclude=Array.isArray(b.exclude)?Array.from(new Set(b.exclude.map(v=>String(v||'').trim().slice(0,200)).filter(Boolean))).slice(-20):[];
+    const key=[course,unit,topic].join('|').toLowerCase();
+    const used=new Set(exclude.map(x=>x.toLowerCase()));
+    const take=()=>{ const cur=CMDQ_CACHE.get(key)||[]; const i=cur.findIndex(q=>!used.has(q.q.toLowerCase())); if(i<0) return null; const [q]=cur.splice(i,1); CMDQ_CACHE.set(key,cur); return q; };
+    let q=take();
+    if(q){ if((CMDQ_CACHE.get(key)||[]).length<3) cmdqFill(key,course,unit,topic,8,exclude); return res.json({question:q,provider:'Gemini',cached:true}); }
+    if(aiInFlight>=AI_MAX_CONCURRENT&&!CMDQ_BUSY.has(key)) return res.status(503).json({error:'Index AI is very busy right now. Try again in a few seconds.',code:'BUSY'});
+    await cmdqFill(key,course,unit,topic,6,exclude);
+    q=take();
+    if(!q) return res.status(502).json({error:'The AI did not return a usable question.'});
+    if((CMDQ_CACHE.get(key)||[]).length<3) cmdqFill(key,course,unit,topic,8,exclude);
+    return res.json({question:q,provider:'Gemini'});
+  }catch(e){
+    console.warn('[AI] commander question failed:',e?.message||e);
+    if(!res.headersSent) res.status(502).json({error:'The AI could not prepare the question right now. Try again in a moment.'});
+  }
+});
+
 app.post('/api/ai/commander-question',async(req,res)=>{
   try{
     const course=String(req.body?.course||'').trim();
