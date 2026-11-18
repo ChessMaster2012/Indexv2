@@ -806,6 +806,24 @@ function tutorNeedsWeb(q){
   if(q.length>400||q.length<4) return false;
   return /\b(latest|curren\w*|today'?s?|tonight|yesterday|this (week|month|year|season)|news|recent\w*|right now|up to date|up-to-date|score|standings|weather|forecast|prices?|rates?|stocks?|how much (is|does|are)|releas\w+|who (is|are) the|who won|won the|world record|when (is|does|did) the|what time|202[4-9]|search\w*|look (it |this )?up|google|on the internet|online|website)\b/i.test(q);
 }
+
+async function poolWebToResponse(messages,res){
+  if(!AIPOOL.configured()||res.headersSent) return false;
+  try{
+    const sys=messages.filter(m=>m.role==='system').map(m=>String(m.content||'')).join('\n\n')+'\n\nYou can search the web right now. Use the search results and give the actual current answer with specific facts; never say you cannot access live information. Answer briefly for a student, only from reliable sources.';
+    const conv=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()&&!(m.role==='assistant'&&/cannot (see|access)|can't (see|access)|live (financial|information|data)|up-to-date/i.test(m.content))).slice(-6);
+    const out=await AIPOOL.webSearch([{role:'system',content:sys},...conv],{timeoutMs:30000});
+    let text=Safety.screenOutput(out.text).text;
+    if(out.sources.length) text+='\n\n🌐 *Searched the web* · Sources: '+out.sources.map(x=>'['+(x.title||'Source').replace(/[\[\]]/g,'')+']('+x.url+')').join(' · ');
+    res.status(200);
+    res.setHeader('Content-Type','text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control','no-cache, no-transform');
+    if(typeof res.flushHeaders==='function') res.flushHeaders();
+    for(const c of (text.match(/[\s\S]{1,60}/g)||[text])) res.write('data: '+JSON.stringify({choices:[{delta:{content:c}}],model:out.model})+'\n\n');
+    res.write('data: [DONE]\n\n'); res.end(); return true;
+  }catch(e){ console.warn('[AI] pool web lookup failed:',e?.message||e); return false; }
+}
+
 async function searchGeminiToResponse(messages,res){
   const sys=messages.filter(m=>m.role==='system').map(m=>String(m.content||'')).join('\n\n');
   const contents=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()&&!(m.role==='assistant'&&/cannot (see|access)|can't (see|access)|live (financial|information|data)|up-to-date/i.test(m.content))).slice(-8).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content).slice(0,4000)}]}));
@@ -1438,6 +1456,7 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(AIPOOL.configured()&&!needsWebNow&&!AIPOOL.geminiTurn(!!GEMINI_API_KEY)){ if(await tryPool()) return; poolDone=false; }
 
     let geminiTried=false;
+    if(!GEMINI_API_KEY&&needsWebNow&&await poolWebToResponse(messages,res)) return;
     if(GEMINI_API_KEY){
       geminiTried=true;
       try{
@@ -1445,6 +1464,7 @@ app.post('/api/ai/chat',async(req,res)=>{
         console.log('[AI] web lookup '+(wantWeb?'yes':'no')+' intent='+requestIntent+' len='+String(question).length);
         if(wantWeb){
           if(await searchGeminiToResponse(messages,res)) return;
+          if(await poolWebToResponse(messages,res)) return;
           console.warn('[AI] web lookup gave no answer; using normal Gemini');
         }
         await streamGeminiToResponse(messages,res,{mode:requestIntent});

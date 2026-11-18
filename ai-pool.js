@@ -88,4 +88,32 @@ async function stream(messages,res,o={}){
   }
   return '';
 }
-module.exports={configured,names,complete,stream,geminiTurn};
+
+// Live web answers from providers that have built-in search: Groq "compound" models and OpenRouter's web plugin.
+async function webSearch(messages,o={}){
+  const deadline=Date.now()+(o.timeoutMs||30000); let last=null;
+  const tries=[];
+  for(const p of active()){
+    if(p.name==='GROQ') for(const m of ['groq/compound-mini','groq/compound']) tries.push({p,model:m,extra:{}});
+    if(p.name==='OPENROUTER') tries.push({p,model:p.models[0],extra:{plugins:[{id:'web',max_results:3}]}});
+  }
+  for(const c of tries){
+    if((cooldown.get(c.p.name+'|web|'+c.model)||0)>Date.now()) continue;
+    const left=deadline-Date.now(); if(left<4000) break;
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),Math.min(left,22000));
+    try{
+      const r=await fetch(c.p.url,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.p.token,'HTTP-Referer':'https://indexv2-jzld.onrender.com','X-Title':'Index'},
+        body:JSON.stringify(Object.assign({model:c.model,messages,stream:false,max_tokens:o.maxTokens||1200,temperature:0.1},c.extra))});
+      if(!r.ok){ const raw=await r.text().catch(()=> ''); last=new Error(c.p.name+' web '+c.model+' HTTP '+r.status+': '+raw.replace(/\s+/g,' ').slice(0,140)); console.warn('[AI pool] '+last.message); cooldown.set(c.p.name+'|web|'+c.model,Date.now()+(r.status===429?60000:600000)); continue; }
+      const d=await r.json(); const msg=d?.choices?.[0]?.message||{}; const text=String(msg.content||'').trim(); if(!text) continue;
+      const sources=[]; const seen=new Set();
+      const add=(u,ti)=>{ if(u&&!seen.has(u)&&sources.length<3){ seen.add(u); sources.push({url:u,title:String(ti||'').slice(0,60)}); } };
+      for(const a of (msg.annotations||[])) if(a&&a.url_citation) add(a.url_citation.url,a.url_citation.title);
+      for(const ex of (msg.executed_tools||[])) for(const x of (ex?.search_results?.results||[])) add(x.url,x.title);
+      return {text,sources,provider:c.p.name,model:c.model};
+    }catch(e){ last=new Error(c.p.name+' web failed: '+(e?.message||e)); console.warn('[AI pool] '+last.message); }
+    finally{ clearTimeout(t); }
+  }
+  throw last||new Error('No web-capable pool provider.');
+}
+module.exports={configured,names,complete,stream,geminiTurn,webSearch};
