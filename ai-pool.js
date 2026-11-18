@@ -6,9 +6,9 @@
 //   GROQ_API_KEY, CEREBRAS_API_KEY, OPENROUTER_API_KEY, MISTRAL_API_KEY, GITHUB_MODELS_TOKEN
 // Optional: AI_POOL_MODELS_<NAME> (comma list) overrides a provider's models, e.g. AI_POOL_MODELS_GROQ.
 const PROVIDERS=[
-  {name:'GROQ',url:'https://api.groq.com/openai/v1/chat/completions',key:'GROQ_API_KEY',models:['llama-3.3-70b-versatile','llama-3.1-8b-instant']},
+  {name:'GROQ',url:'https://api.groq.com/openai/v1/chat/completions',key:'GROQ_API_KEY',models:['llama-3.3-70b-versatile','openai/gpt-oss-20b','llama-3.1-8b-instant']},
   {name:'CEREBRAS',url:'https://api.cerebras.ai/v1/chat/completions',key:'CEREBRAS_API_KEY',models:['llama-3.3-70b','llama3.1-8b']},
-  {name:'OPENROUTER',url:'https://openrouter.ai/api/v1/chat/completions',key:'OPENROUTER_API_KEY',models:['meta-llama/llama-3.3-70b-instruct:free','openai/gpt-oss-20b:free','google/gemma-3-27b-it:free']},
+  {name:'OPENROUTER',url:'https://openrouter.ai/api/v1/chat/completions',key:'OPENROUTER_API_KEY',models:['openrouter/free']},
   {name:'MISTRAL',url:'https://api.mistral.ai/v1/chat/completions',key:'MISTRAL_API_KEY',models:['mistral-small-latest']},
   {name:'GITHUB',url:'https://models.github.ai/inference/chat/completions',key:'GITHUB_MODELS_TOKEN',models:['openai/gpt-4o-mini']}
 ];
