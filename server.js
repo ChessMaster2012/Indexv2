@@ -1417,6 +1417,26 @@ app.post('/api/ai/chat',async(req,res)=>{
 
     // Gemini is the primary provider whenever GEMINI_API_KEY is set; Vireonix Auto is the fallback
     // below. If Gemini fails before any bytes are sent, the existing Vireonix flow runs unchanged.
+    // Pool of other free AI providers (Groq, Cerebras, OpenRouter, ...). Requests rotate round-robin between
+    // Gemini and every configured provider so no single free quota is drained; if the chosen one fails the
+    // others are tried. Returns true when the response was sent.
+    let poolDone=false;
+    const tryPool=async()=>{
+      poolDone=true;
+      if(!AIPOOL.configured()||res.headersSent) return false;
+      try{
+        const poolMsgs=requestIntent==='tutor'&&routeFollowUp?[...messages.filter(m=>m.role==='system'),...messages.filter(m=>m.role!=='system').slice(-4)]:messages;
+        if(requestIntent==='study-set'){
+          const out=await AIPOOL.complete(poolMsgs,{maxTokens:8000,timeoutMs:50000,temperature:0});
+          res.json({text:Safety.screenOutput(out.text).text,provider:out.provider,model:out.model}); return true;
+        }
+        const used=await AIPOOL.stream(poolMsgs,res,{maxTokens:requestIntent==='tutor'?2000:1200,timeoutMs:55000});
+        return !!used;
+      }catch(poolError){ console.warn('[AI pool] failed:',poolError?.message||poolError); return res.headersSent; }
+    };
+    const needsWebNow=WEB_SEARCH_ON&&requestIntent==='tutor'&&!classroom&&tutorNeedsWeb(question);
+    if(AIPOOL.configured()&&!needsWebNow&&!AIPOOL.geminiTurn(!!GEMINI_API_KEY)){ if(await tryPool()) return; poolDone=false; }
+
     let geminiTried=false;
     if(GEMINI_API_KEY){
       geminiTried=true;
@@ -1435,19 +1455,7 @@ app.post('/api/ai/chat',async(req,res)=>{
       }
     }
 
-    // Backup pool of other free AI providers (Groq, Cerebras, OpenRouter, ...), used when Gemini is out of
-    // quota or down. Each only runs if its API key is set.
-    if(AIPOOL.configured()&&!res.headersSent){
-      try{
-        const poolMsgs=requestIntent==='tutor'&&routeFollowUp?[...messages.filter(m=>m.role==='system'),...messages.filter(m=>m.role!=='system').slice(-4)]:messages;
-        if(requestIntent==='study-set'){
-          const out=await AIPOOL.complete(poolMsgs,{maxTokens:8000,timeoutMs:50000,temperature:0});
-          return res.json({text:Safety.screenOutput(out.text).text,provider:out.provider,model:out.model});
-        }
-        const used=await AIPOOL.stream(poolMsgs,res,{maxTokens:requestIntent==='tutor'?2000:1200,timeoutMs:55000});
-        if(used) return;
-      }catch(poolError){ console.warn('[AI pool] failed:',poolError?.message||poolError); if(res.headersSent) return; }
-    }
+    if(!poolDone&&await tryPool()) return;
 
     // Keep Vireonix Auto as the only provider/model. Structured study sets use
     // JSON mode; Tutor and other background requests retain their existing stream.
@@ -1734,6 +1742,7 @@ const GEMINI_NO_REASON=new Set();
 async function geminiComplete(messages,{maxTokens=6000,timeoutMs=40000}={}){
   const poolFallback=async(err)=>{ if(!AIPOOL.configured()) throw err; return (await AIPOOL.complete(messages,{maxTokens,timeoutMs:Math.max(8000,timeoutMs),temperature:0.7})).text; };
   if(!GEMINI_API_KEY) return poolFallback(new Error('No Gemini key.'));
+  if(AIPOOL.configured()&&!AIPOOL.geminiTurn(true)){ try{ return (await AIPOOL.complete(messages,{maxTokens,timeoutMs:Math.min(timeoutMs,30000),temperature:0.7})).text; }catch(e){ /* fall through to Gemini */ } }
   const deadline=Date.now()+timeoutMs; let lastErr=null;
   const ready=GEMINI_MODELS.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
   const order=(ready.length?ready:GEMINI_MODELS).slice().sort((a,b)=>(/lite/.test(b)-/lite/.test(a)));

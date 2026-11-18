@@ -21,9 +21,17 @@ function active(){
 }
 function configured(){ return active().length>0; }
 function names(){ return active().map(p=>p.name); }
+let turn=0;
+// Round robin over every provider (Gemini counts as one when it has a key). True means "Gemini's turn".
+function geminiTurn(hasGemini){
+  const n=active().length+(hasGemini?1:0); if(!n) return true;
+  const t=turn++%n; if(hasGemini&&t===0) return true;
+  rot=hasGemini?t-1:t; return false;
+}
+let rot=0;
 function candidates(){
-  const out=[];
-  for(const p of active()) for(const m of p.models) if((cooldown.get(p.name+'|'+m)||0)<=Date.now()) out.push({p,model:m});
+  const out=[]; const list=active(); const r=list.length?rot%list.length:0;
+  for(const p of list.slice(r).concat(list.slice(0,r))) for(const m of p.models) if((cooldown.get(p.name+'|'+m)||0)<=Date.now()) out.push({p,model:m});
   return out;
 }
 function payload(model,messages,o,stream){
@@ -80,4 +88,4 @@ async function stream(messages,res,o={}){
   }
   return '';
 }
-module.exports={configured,names,complete,stream};
+module.exports={configured,names,complete,stream,geminiTurn};
