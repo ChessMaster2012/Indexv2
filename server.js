@@ -790,6 +790,7 @@ async function streamVireonixToResponse(messages,complex,res,options={}){
 // is configured in the environment. Without a key nothing here runs. Google's Gemini API exposes an
 // OpenAI-compatible endpoint, so the browser keeps receiving the same response shapes as from Vireonix.
 const GEMINI_API_KEY=String(process.env.GEMINI_API_KEY||'').trim();
+const AIPOOL=require('./ai-pool');
 const GEMINI_COOLDOWN=new Map(); // model -> time until which it is skipped after a quota (429) error
 const GEMINI_MODELS=String(process.env.GEMINI_MODEL||'gemini-3.5-flash-lite,gemini-3.8-flash,gemini-flash-lite-latest,gemini-flash-latest').split(',').map(x=>x.trim()).filter(Boolean);
 
@@ -1434,6 +1435,20 @@ app.post('/api/ai/chat',async(req,res)=>{
       }
     }
 
+    // Backup pool of other free AI providers (Groq, Cerebras, OpenRouter, ...), used when Gemini is out of
+    // quota or down. Each only runs if its API key is set.
+    if(AIPOOL.configured()&&!res.headersSent){
+      try{
+        const poolMsgs=requestIntent==='tutor'&&routeFollowUp?[...messages.filter(m=>m.role==='system'),...messages.filter(m=>m.role!=='system').slice(-4)]:messages;
+        if(requestIntent==='study-set'){
+          const out=await AIPOOL.complete(poolMsgs,{maxTokens:8000,timeoutMs:50000,temperature:0});
+          return res.json({text:Safety.screenOutput(out.text).text,provider:out.provider,model:out.model});
+        }
+        const used=await AIPOOL.stream(poolMsgs,res,{maxTokens:requestIntent==='tutor'?2000:1200,timeoutMs:55000});
+        if(used) return;
+      }catch(poolError){ console.warn('[AI pool] failed:',poolError?.message||poolError); if(res.headersSent) return; }
+    }
+
     // Keep Vireonix Auto as the only provider/model. Structured study sets use
     // JSON mode; Tutor and other background requests retain their existing stream.
     try{
@@ -1717,14 +1732,15 @@ app.post('/api/ai/commander-question',async(req,res)=>{
 // One Gemini call returns a bank of multiple-choice questions on a course/unit/topic or on the student's own notes.
 const GEMINI_NO_REASON=new Set();
 async function geminiComplete(messages,{maxTokens=6000,timeoutMs=40000}={}){
-  if(!GEMINI_API_KEY) throw new Error('No Gemini key.');
+  const poolFallback=async(err)=>{ if(!AIPOOL.configured()) throw err; return (await AIPOOL.complete(messages,{maxTokens,timeoutMs:Math.max(8000,timeoutMs),temperature:0.7})).text; };
+  if(!GEMINI_API_KEY) return poolFallback(new Error('No Gemini key.'));
   const deadline=Date.now()+timeoutMs; let lastErr=null;
   const ready=GEMINI_MODELS.filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
   const order=(ready.length?ready:GEMINI_MODELS).slice().sort((a,b)=>(/lite/.test(b)-/lite/.test(a)));
   for(const model of order){
     let noReason=GEMINI_NO_REASON.has(model);
     for(let attempt=0;attempt<3;attempt++){
-      const left=deadline-Date.now(); if(left<4000) throw lastErr||new Error('Question generation timed out.');
+      const left=deadline-Date.now(); if(left<4000) return poolFallback(lastErr||new Error('Question generation timed out.'));
       const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),Math.min(left,18000));
       try{
         const r=await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+GEMINI_API_KEY},
@@ -1741,7 +1757,7 @@ async function geminiComplete(messages,{maxTokens=6000,timeoutMs=40000}={}){
       finally{ clearTimeout(t); }
     }
   }
-  throw lastErr||new Error('Gemini unavailable.');
+  return poolFallback(lastErr||new Error('Gemini unavailable.'));
 }
 const GAMEQ_HITS=new Map();
 async function gameQuestions(req,res){
@@ -1751,7 +1767,7 @@ async function gameQuestions(req,res){
     const hits=(GAMEQ_HITS.get(key)||[]).filter(t=>now-t<60000);
     if(hits.length>=12) return res.status(429).json({error:'Too many question requests. Wait a few seconds and try again.'});
     hits.push(now); GAMEQ_HITS.set(key,hits); if(GAMEQ_HITS.size>5000) GAMEQ_HITS.clear();
-    if(!GEMINI_API_KEY) return res.status(503).json({error:'AI question generation is not available right now.',code:'NO_AI'});
+    if(!GEMINI_API_KEY&&!AIPOOL.configured()) return res.status(503).json({error:'AI question generation is not available right now.',code:'NO_AI'});
     const b=req.body||{};
     const countRaw=Number(b.count); const count=Number.isFinite(countRaw)?Math.max(1,Math.min(20,Math.floor(countRaw))):12;
     const course=String(b.course||'').replace(/\s+/g,' ').trim().slice(0,120);
@@ -1810,7 +1826,7 @@ async function gameQuestions(req,res){
 app.post('/api/games/questions',gameQuestions);
 
 app.post('/api/ai/commander-bank',async(req,res)=>{
-  if(GEMINI_API_KEY) return gameQuestions(req,res); // Gemini is primary; the Vireonix route below is only the no-key fallback
+  if(GEMINI_API_KEY||AIPOOL.configured()) return gameQuestions(req,res); // Gemini is primary; the Vireonix route below is only the no-key fallback
   try{
     const requestedCountRaw=Number(req.body?.count);
     const requestedCount=Number.isFinite(requestedCountRaw)&&requestedCountRaw>1?Math.max(2,Math.min(20,Math.floor(requestedCountRaw))):1;
