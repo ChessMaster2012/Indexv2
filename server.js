@@ -803,11 +803,11 @@ const WEB_SEARCH_ON=String(process.env.TUTOR_WEB_SEARCH||'1')!=='0';
 function tutorNeedsWeb(q){
   q=String(q||'');
   if(q.length>400||q.length<4) return false;
-  return /\b(latest|current(ly)?|today'?s?|tonight|yesterday|this (week|month|year|season)|news|recent(ly)?|right now|up to date|score|standings|weather|forecast|price of|how much (is|does)|release[sd]?|released|who (is|are) the (current|new)|who won|won the|world record|202[4-9]|search (the )?(web|internet|online)|look (it |this )?up|google|on the internet|online)\b/i.test(q);
+  return /\b(latest|curren\w*|today'?s?|tonight|yesterday|this (week|month|year|season)|news|recent\w*|right now|up to date|up-to-date|score|standings|weather|forecast|prices?|rates?|stocks?|how much (is|does|are)|releas\w+|who (is|are) the|who won|won the|world record|when (is|does|did) the|what time|202[4-9]|search\w*|look (it |this )?up|google|on the internet|online|website)\b/i.test(q);
 }
 async function searchGeminiToResponse(messages,res){
   const sys=messages.filter(m=>m.role==='system').map(m=>String(m.content||'')).join('\n\n');
-  const contents=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()).slice(-8).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content).slice(0,4000)}]}));
+  const contents=messages.filter(m=>m.role!=='system'&&String(m.content||'').trim()&&!(m.role==='assistant'&&/cannot (see|access)|can't (see|access)|live (financial|information|data)|up-to-date/i.test(m.content))).slice(-8).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:String(m.content).slice(0,4000)}]}));
   if(!contents.length||contents[contents.length-1].role!=='user') return false;
   const models=['gemini-flash-lite-latest','gemini-flash-latest','gemini-2.5-flash-lite'].filter(m=>(GEMINI_COOLDOWN.get(m)||0)<=Date.now());
   for(const model of models.slice(0,2)){
@@ -815,7 +815,7 @@ async function searchGeminiToResponse(messages,res){
     try{
       const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{
         method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},signal:ctl.signal,
-        body:JSON.stringify({systemInstruction:{parts:[{text:sys+'\n\nUse Google Search results for current facts. Answer briefly and clearly for a student, and only from reliable sources.'}]},contents,tools:[{google_search:{}}],generationConfig:{temperature:0.1,maxOutputTokens:1200}})
+        body:JSON.stringify({systemInstruction:{parts:[{text:sys+'\n\nYou can search the web right now. For this question, use Google Search results and give the actual current answer with specific numbers or facts — never say you cannot access live or up-to-date information. Answer briefly and clearly for a student, only from reliable sources, then you may offer to help with schoolwork.'}]},contents,tools:[{google_search:{}}],generationConfig:{temperature:0.1,maxOutputTokens:1200}})
       });
       if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); continue; }
       if(!r.ok){ console.warn('[AI] web search '+model+' HTTP '+r.status); continue; }
