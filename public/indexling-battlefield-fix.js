@@ -12,7 +12,8 @@ var PACK_META={
   cosmic:{label:'Cosmic Odyssey',costBase:70},
   garden:{label:'Enchanted Garden',costBase:75},
   frost:{label:'Frostbound Peaks',costBase:80},
-  spooky:{label:'Haunted Hollow',costBase:85}
+  spooky:{label:'Haunted Hollow',costBase:85},
+  winter:{label:'Winter Wonderland',costBase:90}
 };
 /* Everyone fights with the same fixed roster; rarity does not affect stats or cost. */
 var ROSTER=[
@@ -43,7 +44,8 @@ var PACK_ATTACK_TYPES={
   cosmic:['comet-trail','moon-ray','star-burst','nebula-pulse','eclipse-orb','quasar-beam','void-collapse','supernova'],
   garden:['sugar-stinger','gumdrop-bounce','jelly-spray','kelp-snare','coral-spear','sprinkle-storm','nebula-pulse','supernova'],
   frost:['pearl-burst','coral-spear','bubble-shot','harpoon','choco-burst','bardic-note','nebula-pulse','star-burst'],
-  spooky:['pulse-beam','pixel-bolt','moon-ray','alchemy-flask','lance-thrust','arcane-orb','void-collapse','eclipse-orb']
+  spooky:['pulse-beam','pixel-bolt','moon-ray','alchemy-flask','lance-thrust','arcane-orb','void-collapse','eclipse-orb'],
+  winter:['sugar-stinger','choco-burst','sprinkle-storm','lance-thrust','pearl-burst','jelly-spray','star-burst','supernova']
 };
 var ATTACK_PREFIX={
   candy:['Sugar Sting','Gumdrop Bounce','Taffy Whip','Choco Crush','Jelly Burst','Caramel Lash','Sprinkle Volley','Lolli Crown'],
@@ -54,7 +56,8 @@ var ATTACK_PREFIX={
   cosmic:['Comet Trail','Moon Ray','Star Burst','Nebula Wave','Eclipse Field','Quasar Beam','Void Collapse','Supernova Burst'],
   garden:['Seed Spit','Ladybug Bounce','Pollen Spray','Sting Barrage','Mushroom Spore','Sun Beam','Wing Gust','Ancient Bloom'],
   frost:['Snow Pelt','Icicle Spear','Frost Shot','Mitten Slap','Snowman Snap','Yeti Roar','Aurora Veil','Frost Decree'],
-  spooky:['Boo Scare','Jack Flame','Echo Screech','Cauldron Brew','Bone Throw','Hex Bolt','Fang Strike','Midnight Curse']
+  spooky:['Boo Scare','Jack Flame','Echo Screech','Cauldron Brew','Bone Throw','Hex Bolt','Fang Strike','Midnight Curse'],
+  winter:['Cocoa Splash','Gingerbread Crunch','Mistletoe Charm','Antler Charge','Snowglobe Blizzard','Jingle Bolt','Tinsel Twinkle','Yuletide Blast']
 };
 
 function esc(v){return String(v==null?'':v).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}

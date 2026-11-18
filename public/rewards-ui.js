@@ -117,7 +117,7 @@
 
   /* ---------- Inventory ---------- */
   var RAR = ['Legendary', 'Epic', 'Rare', 'Common'];
-  var PACK_LABEL = { candy: 'Candy Carnival', medieval: 'Medieval Keep', robo: 'Robo Works', ocean: 'Deep Sea', arcade: 'Arcade Afterdark', cosmic: 'Cosmic Odyssey', garden: 'Enchanted Garden', frost: 'Frostbound Peaks', spooky: 'Haunted Hollow' };
+  var PACK_LABEL = { candy: 'Candy Carnival', medieval: 'Medieval Keep', robo: 'Robo Works', ocean: 'Deep Sea', arcade: 'Arcade Afterdark', cosmic: 'Cosmic Odyssey', garden: 'Enchanted Garden', frost: 'Frostbound Peaks', spooky: 'Haunted Hollow', winter: 'Winter Wonderland' };
   var inv = window.__rwInv = window.__rwInv || { pack: 'all', rar: 'all', show: 'all' };
   function invHtml() {
     var s = st(), p = s.progress || {}, owned = p.unlockedCosmetics || [], eq = p.equipped || {};

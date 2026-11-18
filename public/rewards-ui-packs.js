@@ -20,7 +20,8 @@
     cosmic:   { a: '#8c9cff', b: '#3a2fa8', c: '#e6e9ff', d: '#120c45', tag: 'COSMIC' },
     garden: { a: '#9be8a0', b: '#3ea85a', c: '#e8ffe0', d: '#1d5a2c', tag: 'GARDEN' },
     frost: { a: '#c8ecff', b: '#4f9bdc', c: '#f2fbff', d: '#17406e', tag: 'FROST' },
-    spooky: { a: '#ffb35c', b: '#6a2fb0', c: '#fff1dc', d: '#2a0f4a', tag: 'SPOOKY' }
+    spooky: { a: '#ffb35c', b: '#6a2fb0', c: '#fff1dc', d: '#2a0f4a', tag: 'SPOOKY' },
+    winter: { a: '#ff6b6b', b: '#1f8a4c', c: '#fff7f0', d: '#5a1010', tag: 'WINTER' }
   };
   var EMBLEM = {
     candy: '<circle cx="80" cy="104" r="34" fill="#fff" stroke="#8a1f5a" stroke-width="4"/><path d="M80 104m0 0a6 6 0 1 1 8 5a14 14 0 1 1-22-12a22 22 0 1 1 33 24" fill="none" stroke="#ff4f9a" stroke-width="6" stroke-linecap="round"/><path d="M80 138v34" stroke="#fff" stroke-width="7" stroke-linecap="round"/><path d="M80 138v34" stroke="#8a1f5a" stroke-width="2" stroke-linecap="round" opacity=".4"/><circle cx="52" cy="70" r="4" fill="#fff"/><circle cx="112" cy="76" r="3" fill="#ffe36a"/>',
@@ -31,7 +32,8 @@
     cosmic: '<circle cx="80" cy="108" r="32" fill="#8c9cff" stroke="#120c45" stroke-width="4"/><path d="M60 96c10-8 28-8 40 2M56 114c14-6 32-6 48 2" stroke="#e6e9ff" stroke-width="5" stroke-linecap="round" fill="none" opacity=".75"/><ellipse cx="80" cy="110" rx="58" ry="14" fill="none" stroke="#ffd56a" stroke-width="6" transform="rotate(-18 80 110)"/><path d="M80 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4Z" fill="#fff"/><circle cx="36" cy="64" r="3" fill="#fff"/><circle cx="130" cy="150" r="3.5" fill="#ffd56a"/><circle cx="30" cy="150" r="2.5" fill="#fff"/>',
     garden: '<circle cx="80" cy="108" r="12" fill="#ffd23f" stroke="#1d5a2c" stroke-width="4"/><g fill="#e8ffe0" stroke="#1d5a2c" stroke-width="4"><ellipse cx="80" cy="76" rx="9" ry="14"/><ellipse cx="80" cy="140" rx="9" ry="14"/><ellipse cx="48" cy="108" rx="14" ry="9"/><ellipse cx="112" cy="108" rx="14" ry="9"/></g>',
     frost: '<g stroke="#17406e" stroke-width="7" stroke-linecap="round" fill="none"><path d="M80 66v84M44 87l72 42M44 129l72-42"/></g><g stroke="#f2fbff" stroke-width="3.5" stroke-linecap="round" fill="none"><path d="M80 66v84M44 87l72 42M44 129l72-42"/></g><circle cx="80" cy="108" r="9" fill="#f2fbff" stroke="#17406e" stroke-width="4"/>',
-    spooky: '<path d="M80 72c-30 0-44 20-44 38 0 22 18 36 44 36s44-14 44-36c0-18-14-38-44-38Z" fill="#ff9a3c" stroke="#2a0f4a" stroke-width="4"/><path d="M62 98l10 12-18-2ZM98 98l-10 12 18-2Z" fill="#2a0f4a"/><path d="M60 124q20 14 40 0" fill="none" stroke="#2a0f4a" stroke-width="5" stroke-linecap="round"/><path d="M80 72q-2-10 6-14" stroke="#2a0f4a" stroke-width="5" fill="none" stroke-linecap="round"/>'
+    spooky: '<path d="M80 72c-30 0-44 20-44 38 0 22 18 36 44 36s44-14 44-36c0-18-14-38-44-38Z" fill="#ff9a3c" stroke="#2a0f4a" stroke-width="4"/><path d="M62 98l10 12-18-2ZM98 98l-10 12 18-2Z" fill="#2a0f4a"/><path d="M60 124q20 14 40 0" fill="none" stroke="#2a0f4a" stroke-width="5" stroke-linecap="round"/><path d="M80 72q-2-10 6-14" stroke="#2a0f4a" stroke-width="5" fill="none" stroke-linecap="round"/>',
+    winter: '<g><path d="M80 62l9 22 24 2-18 16 6 24-21-13-21 13 6-24-18-16 24-2Z" fill="#ffd34d" stroke="#5a1010" stroke-width="4" stroke-linejoin="round"/><circle cx="80" cy="108" r="8" fill="#ff6b6b" stroke="#5a1010" stroke-width="3"/><path d="M40 140q40-18 80 0" stroke="#fff7f0" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M40 140q40-18 80 0" stroke="#5a1010" stroke-width="2" fill="none" stroke-dasharray="3 7"/></g>'
   };
   function packLogo(kind) {
     var k = THEME[kind] ? kind : 'candy', t = THEME[k], id = 'pl' + k;
@@ -54,20 +56,23 @@
   var RAR_ORDER = ['Common', 'Rare', 'Epic', 'Legendary'];
   function packsHtml() {
     var p = state.progress || {}, tokens = Math.max(0, Number(p.freePackTokens) || 0), owned = p.unlockedCosmetics || [];
-    var cards = PACK_ORDER.map(function (kind) {
+    var order = PACK_ORDER.slice().sort(function (a, b) { var la = packConfig(a).limitedUntil && !packExpired(a) ? 0 : 1, lb = packConfig(b).limitedUntil && !packExpired(b) ? 0 : 1; return la - lb; });
+    var cards = order.map(function (kind) {
       var c = packConfig(kind), cont = packContents(kind), t = THEME[kind] || THEME.candy;
-      var can = (tokens > 0 || (p.coins || 0) >= c.cost) && !state.rewardPackOpening;
+      var lim = c.limitedUntil || 0, ended = lim && packExpired(kind), left = lim ? Math.max(0, lim - Date.now()) : 0;
+      var leftTxt = left > 864e5 ? Math.ceil(left / 864e5) + ' days left' : left > 36e5 ? Math.floor(left / 36e5) + ' hours left' : 'Ending soon';
+      var can = !ended && (tokens > 0 || (p.coins || 0) >= c.cost) && !state.rewardPackOpening;
       var have = cont.filter(function (x) { return owned.indexOf(x.id) >= 0; }).length;
-      var btn = tokens > 0 ? 'Open free pack' : can ? 'Open pack' : 'Need ' + (c.cost - (p.coins || 0)) + ' more coins';
+      var btn = ended ? 'Pack has ended' : tokens > 0 ? 'Open free pack' : can ? 'Open pack' : 'Need ' + (c.cost - (p.coins || 0)) + ' more coins';
       var odds = RAR_ORDER.map(function (r) { return '<i class="o-' + r.toLowerCase() + '" style="flex:' + Math.max(.6, c.weights[r]) + '" title="' + r + ' ' + c.weights[r] + '%"></i>'; }).join('');
-      return '<article class="rw-pack" data-pack="' + kind + '" style="--pa:' + t.a + ';--pb:' + t.b + ';--pd:' + t.d + '">' +
-        '<div class="rw-pack-stage"><div class="rw-pack-glow"></div><div class="rw-pack-logo">' + packLogo(kind) + '</div></div>' +
-        '<div class="rw-pack-info"><h4>' + E(c.name) + '</h4><div class="rw-pack-meta"><span class="rw-pill rw-pill-coin">' + coin(14) + c.cost + '</span><span class="rw-pill">' + have + '/' + cont.length + ' collected</span></div>' +
+      return '<article class="rw-pack' + (lim ? (ended ? ' rw-ended' : ' rw-limited') : '') + '" data-pack="' + kind + '" style="--pa:' + t.a + ';--pb:' + t.b + ';--pd:' + t.d + '">' +
+        (lim ? '<div class="rw-ribbon">' + (ended ? 'ENDED' : '⏳ LIMITED TIME') + '</div>' : '') + '<div class="rw-pack-stage"><div class="rw-pack-glow"></div><i class="rw-spk s1"></i><i class="rw-spk s2"></i><i class="rw-spk s3"></i><div class="rw-pack-logo">' + packLogo(kind) + '</div></div>' +
+        '<div class="rw-pack-info"><h4>' + E(c.name) + (lim && !ended ? ' <span class="rw-left">' + leftTxt + '</span>' : '') + '</h4><div class="rw-pack-meta"><span class="rw-pill rw-pill-coin">' + coin(14) + c.cost + '</span><span class="rw-pill">' + have + '/' + cont.length + ' collected</span></div>' +
         '<div class="rw-pack-strip">' + cont.map(function (x) { var got = owned.indexOf(x.id) >= 0; return '<span class="rw-mini r-' + x.rarity.toLowerCase() + (got ? '' : ' dim') + '" title="' + E(x.name) + ' · ' + x.rarity + '">' + art(x) + '</span>'; }).join('') + '</div>' +
         '<div class="rw-odds">' + odds + '</div><div class="rw-odds-l"><span>Common ' + c.weights.Common + '%</span><span>Rare ' + c.weights.Rare + '%</span><span>Epic ' + c.weights.Epic + '%</span><span class="lg">Legendary ' + c.weights.Legendary + '%</span></div>' +
         '<button class="rw-btn ' + (can ? 'rw-btn-gold' : 'rw-btn-ghost') + '" data-action="open-pack" data-pack="' + kind + '" ' + (can ? '' : 'disabled') + '>' + btn + '</button></div></article>';
     }).join('');
-    return '<div class="rw-packs"><section class="rw-packs-hero"><div><div class="rw-eyebrow">INDEXLING VAULT</div><h3>Pick a world. Crack a pack.</h3><p>Six collections of eight Indexlings each. Duplicates are fine — spend a free token and nothing is lost.</p></div>' +
+    return '<div class="rw-packs"><section class="rw-packs-hero"><div><div class="rw-eyebrow">INDEXLING VAULT</div><h3>Pick a world. Crack a pack.</h3><p>Ten collections of eight Indexlings each — plus limited-time drops. Duplicates are fine — spend a free token and nothing is lost.</p></div>' +
       '<div class="rw-packs-right"><button type="button" class="rw-auto' + (window.__rwAutoOn ? ' on' : '') + '" data-rw-auto title="Open packs one after another automatically"><i></i><span>Auto open: ' + (window.__rwAutoOn ? 'ON' : 'OFF') + '</span></button><div class="rw-packs-tok"><span class="rw-chip-ic rw-ic-ticket">' + (window.__rwIcons ? '' : '') + '</span><b>' + tokens + '</b><small>free pack ' + (tokens === 1 ? 'token' : 'tokens') + '</small></div></div></section>' +
       '<div class="rw-pack-grid">' + cards + '</div></div>';
   }

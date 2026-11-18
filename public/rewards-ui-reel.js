@@ -70,6 +70,7 @@
     kind = kind || 'study';
     var cfg = packConfig(kind);
     if (state.rewardPackOpening) return;
+    if (packExpired(kind)) { showRewardToast('This limited-time pack has ended.'); return; }
     var modal = document.getElementById('pack-modal'), opening = modal && modal.querySelector('.pack-opening'), result = document.getElementById('pack-result');
     if (!modal || !opening || !result) { showRewardToast('The pack opener could not load. Please refresh the page before spending coins.'); return; }
     var freeToken = Math.max(0, Number(state.progress.freePackTokens) || 0);

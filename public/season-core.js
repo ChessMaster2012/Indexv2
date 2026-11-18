@@ -21,9 +21,10 @@
     cosmic:   ['ling-comet', 'ling-moonlet', 'ling-starling', 'ling-nebula', 'ling-eclipse', 'ling-quasar', 'ling-voidling', 'ling-supernova'],
     garden: ['ling-seedling', 'ling-ladybug', 'ling-daisy', 'ling-bumble', 'ling-mushling', 'ling-sunny', 'ling-flutterwing', 'ling-elderoak'],
     frost: ['ling-snowball', 'ling-icicle', 'ling-mittens', 'ling-waddle', 'ling-frosty', 'ling-yeti', 'ling-aurora', 'ling-frostking'],
-    spooky: ['ling-boo', 'ling-jack', 'ling-batty', 'ling-bubbles', 'ling-skelly', 'ling-hexie', 'ling-vampling', 'ling-midnightking']
+    spooky: ['ling-boo', 'ling-jack', 'ling-batty', 'ling-bubbles', 'ling-skelly', 'ling-hexie', 'ling-vampling', 'ling-midnightking'],
+    winter: ['ling-cocoa', 'ling-gingerbread', 'ling-mistletoe', 'ling-reindeer', 'ling-snowglobe', 'ling-elf', 'ling-tinsel', 'ling-yule']
   };
-  var PACK_NAMES = { candy: 'Candy Carnival', medieval: 'Medieval Keep', robo: 'Robo Works', ocean: 'Deep Sea', arcade: 'Arcade Afterdark', cosmic: 'Cosmic Odyssey', garden: 'Enchanted Garden', frost: 'Frostbound Peaks', spooky: 'Haunted Hollow' };
+  var PACK_NAMES = { candy: 'Candy Carnival', medieval: 'Medieval Keep', robo: 'Robo Works', ocean: 'Deep Sea', arcade: 'Arcade Afterdark', cosmic: 'Cosmic Odyssey', garden: 'Enchanted Garden', frost: 'Frostbound Peaks', spooky: 'Haunted Hollow', winter: 'Winter Wonderland' };
 
   /* index = month (0 = January) */
   var THEMES = [
