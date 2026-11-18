@@ -818,12 +818,12 @@ async function searchGeminiToResponse(messages,res){
         method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},signal:ctl.signal,
         body:JSON.stringify({systemInstruction:{parts:[{text:sys+'\n\nYou can search the web right now. For this question, use Google Search results and give the actual current answer with specific numbers or facts — never say you cannot access live or up-to-date information. Answer briefly and clearly for a student, only from reliable sources, then you may offer to help with schoolwork.'}]},contents,tools:[{google_search:{}}],generationConfig:{temperature:0.1,maxOutputTokens:1200}})
       });
-      if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); continue; }
+      if(r.status===429){ console.warn('[AI] web search '+model+' quota (429)'); GEMINI_COOLDOWN.set(model,Date.now()+60000); continue; }
       if(!r.ok){ const eb=await r.text().catch(()=>''); console.warn('[AI] web search '+model+' HTTP '+r.status+' '+eb.replace(/\s+/g,' ').slice(0,220)); continue; }
       const data=await r.json();
       const cand=data?.candidates?.[0];
       let text=(cand?.content?.parts||[]).map(x=>x.text||'').join('').trim();
-      if(!text) continue;
+      if(!text){ console.warn('[AI] web search '+model+' returned no text: '+JSON.stringify(data?.promptFeedback||cand?.finishReason||'').slice(0,200)); continue; }
       text=Safety.screenOutput(text).text;
       const seen=new Set(), src=[];
       for(const g of (cand?.groundingMetadata?.groundingChunks||[])){
@@ -1420,8 +1420,11 @@ app.post('/api/ai/chat',async(req,res)=>{
     if(GEMINI_API_KEY){
       geminiTried=true;
       try{
-        if(WEB_SEARCH_ON&&requestIntent==='tutor'&&!classroom&&tutorNeedsWeb(question)){
+        const wantWeb=WEB_SEARCH_ON&&requestIntent==='tutor'&&!classroom&&tutorNeedsWeb(question);
+        console.log('[AI] web lookup '+(wantWeb?'yes':'no')+' intent='+requestIntent+' len='+String(question).length);
+        if(wantWeb){
           if(await searchGeminiToResponse(messages,res)) return;
+          console.warn('[AI] web lookup gave no answer; using normal Gemini');
         }
         await streamGeminiToResponse(messages,res,{mode:requestIntent});
         return;
