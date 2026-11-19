@@ -3334,6 +3334,8 @@ app.post('/api/billing/webhook',async(req,res)=>{
   }
 });
 
+require('./studentvue').mount(app,{requireUser:(req,res,next)=>req.user?next():res.status(401).json({error:'Sign in to Index first.'})});
+
 /* ============================ ANTI-CHEAT + BANS ============================ */
 const SECURITY_LOG = [];
 function secLog(kind,user,detail){
