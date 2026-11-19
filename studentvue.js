@@ -131,7 +131,30 @@ async function probe(base, user, pass) {
   for (const lp of ['/PXP2_Login_Student.aspx?regenerateSessionId=True', '/PXP2_Login.aspx']) {
     const g = await follow('GET', lp); out.push(describe('GET ' + lp, g.r)); if (g.r.status === 200 && /<form/i.test(g.r.body)) { login = { page: g.path, html: g.r.body }; break; }
   }
-  if (!login) { out.push('Could not find a login form.'); return out.join('\n\n'); }
+  if (!login) {
+    // The page is script-driven (no plain <form>): list its inputs, inline config and the login script's request code.
+    const g = await follow('GET', '/PXP2_Login_Student.aspx?regenerateSessionId=True'); const html = g.r.body || '';
+    out.push('No plain <form>. Inputs on page: ' + [...html.matchAll(/<(input|button|select)\b([^>]*)>/gi)].map(m => m[1] + '{' + (/\bid\s*=\s*["']([^"']+)/i.exec(m[2]) || [])[1] + '|' + (/\bname\s*=\s*["']([^"']+)/i.exec(m[2]) || [])[1] + '|' + (/\btype\s*=\s*["']([^"']+)/i.exec(m[2]) || [])[1] + '}').join(' , '));
+    const inl = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1].trim()).filter(x => x.length > 20);
+    inl.slice(0, 6).forEach((x, i) => out.push('inline script ' + (i + 1) + ' (' + x.length + ' chars): ' + x.replace(/\s+/g, ' ').slice(0, 900)));
+    out.push('links/data attrs: ' + [...new Set([...html.matchAll(/(?:href|data-[a-z-]+)\s*=\s*["']([^"']{3,120})["']/gi)].map(m => m[1]))].filter(x => /login|google|sso|auth|api/i.test(x)).slice(0, 20).join(' , '));
+    for (const sp of ['/js/PXP/PXP2_Login.js', '/js/PXP/PXP2_Login.js?x=' + Date.now()].slice(0, 1)) {
+      try {
+        const sr = await follow('GET', sp); const js = sr.r.body || ''; out.push('## ' + sp + ' status ' + sr.r.status + ' · ' + js.length + ' bytes');
+        const lines = js.split(/\r?\n/), hit = [];
+        lines.forEach((l, i) => { if (/ajax|\.post\(|\.get\(|url\s*:|fetch\(|XMLHttp|Login|password|__Request|location|api\//i.test(l)) hit.push(i + ': ' + l.trim().slice(0, 220)); });
+        out.push(hit.slice(0, 120).join('\n') || js.slice(0, 1500));
+      } catch (e) { out.push(sp + ' failed: ' + e.message); }
+    }
+    for (const bp of [...html.matchAll(/(\/api\/v1\/bundle\/[^"']+pxp\.bundle\.js[^"']*)/g)].map(m => m[1]).slice(0, 1)) {
+      try {
+        const br = await follow('GET', bp), js = br.r.body || ''; out.push('## pxp bundle ' + br.r.status + ' · ' + js.length + ' bytes');
+        const found = new Set(); for (const m of js.matchAll(/["'`]([^"'`\s]{0,80}(?:[Ll]ogin|[Ss]ign[Ii]n|[Aa]uth)[^"'`\s]{0,80})["'`]/g)) { if (/\/|\.aspx|api|Service/i.test(m[1])) found.add(m[1]); if (found.size > 60) break; }
+        out.push('login-related strings: ' + [...found].join(' , '));
+      } catch (e) { out.push('bundle failed: ' + e.message); }
+    }
+    return out.join('\n\n');
+  }
   const f = formOf(login.html);
   out.push('login form action: ' + (f.action || '(none)') + '\ninputs: ' + f.inputs.map(i => i.name + '[' + i.type + (i.type === 'hidden' ? ',' + (i.value || '').length + 'ch' : '') + ']').join(' , '));
   const fields = new URLSearchParams();
