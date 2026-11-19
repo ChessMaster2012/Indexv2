@@ -71,7 +71,7 @@ function ensure(){
   if(!main||!nav) return false;
   var ex=$('#view-admin'); if(ex&&!$('.ad-wrap',ex)){ ex.remove(); }
   if(!$('#view-admin')){
-    var sec=document.createElement('section'); sec.className='view'; sec.id='view-admin'; var foot=main.querySelector('.app-footer'); if(foot) main.insertBefore(sec,foot); else main.appendChild(sec);
+    var sec=document.createElement('section'); sec.className='view'; sec.id='view-admin'; var foot=main.querySelector('.app-footer'); if(foot&&foot.parentNode) foot.parentNode.insertBefore(sec,foot); else main.appendChild(sec);
     sec.innerHTML='<div class="ad-wrap"><h2 style="font-size:24px;font-weight:600;margin:0">Admin panel</h2>'+
       '<p class="lede" style="margin:4px 0 18px">Only your account can see this. Find a player by email or username, then give or take items.</p>'+
       '<div class="ad-grid"><div>'+
@@ -176,6 +176,10 @@ function wire(sec){
     var inp=$('#ad-'+b.dataset.f); inp.value=(Number(inp.value)||0)+Number(b.dataset.v);
   });
 }
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest&&e.target.closest('.nav-btn[data-view="admin"]');
+  if(b){ try{ ensure(); }catch(err){} if(!$('#view-admin')){ e.stopPropagation(); e.preventDefault(); } }
+},true);
 var tries=0, iv=setInterval(function(){
   tries++;
   if(window.OwnerMode&&OwnerMode.active()){ if(ensure()) clearInterval(iv); }

@@ -11,6 +11,7 @@ function avatarFix(){
 }
 
 let questAccountKey='';
+let questReadyKey='',questLoading=false;   // today's board is only touched after the saved copy has been fetched
 const QUEST_VERSION='v7';
 let ui={tab:'daily',filter:'all'};
 let ach={claimed:null,values:null,loading:false};
@@ -156,6 +157,7 @@ async function loadQuestFromServer(){
 function ensureQuestDay(){
   if(!state.account)return false;
   const k=accountKey(),d=dayKey(),data=loadQuestData();
+  if(questReadyKey!==k)return false;   // never reset, announce or upload before the saved claims are loaded
   if(questAccountKey!==k||data.day!==d||!data.baseline){
     // A new Index day starts a completely new board. Never carry yesterday's flags over.
     saveQuestData({day:d,baseline:appSnapshot(),progress:{login:1},claimed:{},announced:{},crateRewardsClaimed:{},chestClaimed:{},ctr:{}});
@@ -442,6 +444,7 @@ function wire(){
   setInterval(function(){
     ensureView();avatarFix();installHooks();
     if(state.account){
+      if(questReadyKey!==accountKey()){ if(!questLoading) startWhenReady(); return; }
       pollGames();
       updateQuestProgressFromApp();
       checkQuestCompletions();
@@ -451,12 +454,16 @@ function wire(){
         const timer=document.getElementById('quest-reset-countdown');
         if(timer)timer.textContent=questCountdownText();
       }
-    }else{questAccountKey='';lastQuestServerSignature='';}
+    }else{questAccountKey='';questReadyKey='';lastQuestServerSignature='';}
   },1000);
 }
 async function startWhenReady(){
   if(!state.account){setTimeout(startWhenReady,500);return;}
-  await loadQuestFromServer();
+  if(questLoading)return;
+  questLoading=true;
+  const key=accountKey();
+  try{ await loadQuestFromServer(); }catch(e){}
+  questReadyKey=key; questLoading=false;
   ensureQuestDay();
   updateQuestProgressFromApp();
   scheduleQuestServerSave();
