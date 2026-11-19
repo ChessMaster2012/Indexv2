@@ -1399,6 +1399,16 @@ app.use(async (req, res, next) => {
   }
 });
 
+// Suspended accounts can only reach sign-out and the status check.
+app.use((req,res,next)=>{
+  const b=banInfo(req.user);
+  if(!b) return next();
+  const p=req.path;
+  if(p==='/api/auth/logout'||p==='/api/auth/me'||p==='/api/auth/status') return next();
+  if(p.startsWith('/api/')) return res.status(403).json({error:'This account is suspended.',banned:true,reason:b.reason||'',by:b.by||''});
+  next();
+});
+
 // Short AI chat titles (like ChatGPT). Costs no credits, is tiny and rate limited; the browser falls back to the first prompt.
 const titleHits=new Map();
 const CREDIT_GROUPS=new WeakMap();
@@ -2703,6 +2713,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Incorrect email/username or password.' });
     }
     LOGIN_LOCK.ok(identifier);
+    if (banInfo(user)) return res.status(403).json({ error: 'This account has been suspended. Reason: ' + (banInfo(user).reason || 'rule violation') + '. Contact the Index owner if you think this is a mistake.', banned: true });
     users.set('email:' + normalizeEmail(user.email || user.identifier), user);
     if(user.username) usersByUsername.set(normalizeUsername(user.username), user);
     usersById.set(user.id, user);
@@ -2740,6 +2751,19 @@ function sanitizeGameProgressValue(value, depth=0){
     return out;
   }
   return null;
+}
+function sanitizeSecurity(x){
+  const o=x&&typeof x==='object'?x:{};
+  const num=(v,max)=>Math.max(0,Math.min(max,Number(v)||0));
+  const b=o.banned&&typeof o.banned==='object'?{t:num(o.banned.t,9e15),reason:String(o.banned.reason||'').replace(/[<>]/g,'').slice(0,200),by:String(o.banned.by||'').slice(0,20),note:String(o.banned.note||'').replace(/[<>]/g,'').slice(0,200)}:null;
+  const econ=o.econ&&typeof o.econ==='object'?o.econ:null, bonus=o.bonus&&typeof o.bonus==='object'?o.bonus:{};
+  const K=['coins','tokens','crates','xp','items','ccoins'];
+  return {
+    banned:b,
+    strikes:(Array.isArray(o.strikes)?o.strikes:[]).slice(-20).map(z=>({t:num(z&&z.t,9e15),why:String(z&&z.why||'').replace(/[<>]/g,'').slice(0,160)})),
+    econ:econ?Object.fromEntries([['t',num(econ.t,9e15)]].concat(K.map(k=>[k,num(econ[k],1e9)]))):null,
+    bonus:Object.fromEntries(K.map(k=>[k,num(bonus[k],1e9)]))
+  };
 }
 function sanitizeAdminGrants(list){
   return (Array.isArray(list)?list:[]).slice(-50).map(g=>{
@@ -2843,6 +2867,7 @@ function sanitizeAccountState(input){
     membershipOnboardingCompleted: src.membershipOnboardingCompleted === true,
     credits: sanitizeCredits(src.credits),
     adminGrants: sanitizeAdminGrants(src.adminGrants),
+    security: sanitizeSecurity(src.security),
     tutorChats: sanitizeTutorChats(src.tutorChats),
     tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
     classroom: src.classroom && typeof src.classroom === 'object' ? src.classroom : undefined,
@@ -3309,6 +3334,101 @@ app.post('/api/billing/webhook',async(req,res)=>{
   }
 });
 
+/* ============================ ANTI-CHEAT + BANS ============================ */
+const SECURITY_LOG = [];
+function secLog(kind,user,detail){
+  const e={t:Date.now(),kind,user:(user&&(user.username||user.email))||'?',detail:String(detail||'').slice(0,240)};
+  SECURITY_LOG.unshift(e); SECURITY_LOG.length=Math.min(SECURITY_LOG.length,100);
+  console.warn('[security]',JSON.stringify(e));
+}
+function banInfo(user){
+  const b=user&&user.accountData&&user.accountData.security&&user.accountData.security.banned;
+  return b&&!isOwnerUser(user)?b:null;
+}
+async function banUser(user,reason,by,note){
+  if(isOwnerUser(user)) throw new Error('Owner accounts cannot be banned.');
+  user.accountData=user.accountData&&typeof user.accountData==='object'?user.accountData:{};
+  const sec=sanitizeSecurity(user.accountData.security);
+  sec.banned={t:Date.now(),reason:String(reason||'Violation of the Index rules').slice(0,200),by:by||'admin',note:String(note||'').slice(0,200)};
+  user.accountData.security=sec;
+  usersById.set(user.id,user);
+  user.accountData=sanitizeAccountState(user.accountData);
+  if(SUPABASE_ENABLED) await dbSaveUser(user); else saveUsers();
+  for(const [tok,sess] of sessions.entries()) if(sess.userId===user.id) sessions.delete(tok);
+  secLog('ban:'+(by||'admin'),user,reason);
+}
+// Rates a normal student can reach: bucket size (burst), refill per hour, and the "obviously impossible" line.
+const AC_RULES={
+  coins:{cap:25000,perHour:3000,blatant:250000,label:'coins'},
+  tokens:{cap:60,perHour:20,blatant:600,label:'pack tokens'},
+  crates:{cap:40,perHour:10,blatant:300,label:'skin crates'},
+  xp:{cap:30000,perHour:8000,blatant:300000,label:'XP'},
+  items:{cap:15,perHour:6,blatant:120,label:'unlocked items'},
+  ccoins:{cap:50000,perHour:6000,blatant:500000,label:'commander coins'}
+};
+const AC_BASELINE={coins:50,tokens:0,crates:0,xp:0,items:2,ccoins:0};
+function acReadings(p,gp){
+  p=p&&typeof p==='object'?p:{};
+  const cf=gp&&gp.commanderFinal&&typeof gp.commanderFinal==='object'?gp.commanderFinal:{};
+  return {
+    coins:Number(p.coins)||0, tokens:Number(p.freePackTokens)||0, crates:Number(p.skinCrates)||0, xp:Number(p.xp)||0,
+    items:(Array.isArray(p.unlockedCosmetics)?p.unlockedCosmetics.length:0)+(Array.isArray(p.unlockedSkins)?p.unlockedSkins.length:0),
+    ccoins:Number(cf.coins)||0
+  };
+}
+/* Compares what the browser claims against what the server last stored. Returns the (possibly trimmed)
+   progress, an updated security record, and a ban reason if the jump could not come from playing. */
+function antiCheat(user,existingState,incomingProgress){
+  const result={progress:incomingProgress,security:null,ban:null,clamped:false};
+  const exists=existingState&&existingState.progress&&typeof existingState.progress==='object';
+  const ex=exists?existingState.progress:null;
+  const base=exists?acReadings(ex,ex.gameProgress):AC_BASELINE;
+  const inc=acReadings(incomingProgress,incomingProgress.gameProgress);
+  const sec=sanitizeSecurity(existingState&&existingState.security);
+  const now=Date.now(), hours=sec.econ?Math.max(0,(now-sec.econ.t)/3.6e6):0;
+  const econ={t:now}, over=[];
+  for(const k of Object.keys(AC_RULES)){
+    const r=AC_RULES[k];
+    const start=sec.econ?Math.min(r.cap,(sec.econ[k]||0)+hours*r.perHour):r.cap;
+    const bonus=sec.bonus[k]||0;
+    const delta=inc[k]-(base[k]||0);
+    if(delta<=0){ econ[k]=start; continue; }
+    if(delta<=start+bonus){
+      const fromBucket=Math.min(start,delta); econ[k]=start-fromBucket; sec.bonus[k]=Math.max(0,bonus-(delta-fromBucket)); continue;
+    }
+    econ[k]=0; sec.bonus[k]=0;   // whatever was allowed gets used up by the trimmed amount
+    over.push({k,delta,allowed:Math.floor(start+bonus),blatant:delta>r.blatant+bonus});
+  }
+  sec.econ=Object.assign({t:now},econ);
+  if(over.length){
+    const hard=over.find(o=>o.blatant);
+    const why=over.map(o=>'+'+Math.floor(o.delta)+' '+AC_RULES[o.k].label+' (limit '+o.allowed+')').join(', ');
+    if(hard){ result.ban='Impossible progress detected: '+why; }
+    sec.strikes.push({t:now,why}); sec.strikes=sec.strikes.slice(-20);
+    secLog('flag',user,why);
+    if(sec.strikes.filter(z=>now-z.t<24*3600*1000).length>=3) result.ban=result.ban||'Repeated impossible progress: '+why;
+    // Trim to what could legitimately have been earned.
+    const p={...incomingProgress}, gp=p.gameProgress&&typeof p.gameProgress==='object'?{...p.gameProgress}:{};
+    for(const o of over){
+      const cap=(base[o.k]||0)+o.allowed;
+      if(o.k==='coins') p.coins=Math.min(Number(p.coins)||0,cap);
+      else if(o.k==='tokens') p.freePackTokens=Math.min(Number(p.freePackTokens)||0,cap);
+      else if(o.k==='crates') p.skinCrates=Math.min(Number(p.skinCrates)||0,cap);
+      else if(o.k==='xp') p.xp=Math.min(Number(p.xp)||0,cap);
+      else if(o.k==='ccoins'&&gp.commanderFinal) gp.commanderFinal={...gp.commanderFinal,coins:Math.min(Number(gp.commanderFinal.coins)||0,cap)};
+      else if(o.k==='items'){
+        const exC=new Set(ex&&Array.isArray(ex.unlockedCosmetics)?ex.unlockedCosmetics:[]), exS=new Set(ex&&Array.isArray(ex.unlockedSkins)?ex.unlockedSkins:[]);
+        let room=Math.max(0,o.allowed);
+        const trim=(list,had)=>(Array.isArray(list)?list:[]).filter(id=>{ if(had.has(id)) return true; if(room>0){room--;return true;} return false; });
+        p.unlockedCosmetics=trim(p.unlockedCosmetics,exC); p.unlockedSkins=trim(p.unlockedSkins,exS);
+      }
+    }
+    p.gameProgress=gp; result.progress=p; result.clamped=true;
+  }
+  result.security=sec;
+  return result;
+}
+
 /* ============================ ADMIN PANEL (owner only) ============================ */
 const ADMIN_LOG = [];
 function adminOnly(req,res,next){
@@ -3346,7 +3466,9 @@ function adminSummary(user){
     notes:ad&&Array.isArray(ad.notes)?ad.notes.length:0, studySets:ad&&Array.isArray(ad.studySets)?ad.studySets.length:0,
     membership:{tier:m.tier,status:m.status,daysLeft:m.daysLeft,currentPeriodEnd:m.currentPeriodEnd,badge:m.lifetimeBadgeTier},
     creditsBonus:Number(led&&led.bonus)||0,
-    pendingGrants:(ad&&ad.adminGrants||[]).length
+    pendingGrants:(ad&&ad.adminGrants||[]).length,
+    banned:(ad&&ad.security&&ad.security.banned)||null,
+    strikes:((ad&&ad.security&&ad.security.strikes)||[]).filter(z=>Date.now()-z.t<7*86400000).length
   };
 }
 app.post('/api/admin/lookup', adminOnly, async (req,res)=>{
@@ -3372,6 +3494,12 @@ app.post('/api/admin/grant', adminOnly, async (req,res)=>{
       const grants=Array.isArray(user.accountData.adminGrants)?user.accountData.adminGrants.slice():[];
       grants.push({id:genId(),t:Date.now(),coins,tokens,crates,xp,unlockAll,resetDaily,note:String(b.note||'').slice(0,120)});
       user.accountData.adminGrants=grants;
+      // Gifts are allowed to arrive without tripping the anti-cheat.
+      const sec=sanitizeSecurity(user.accountData.security);
+      sec.bonus.coins+=Math.max(0,coins)+(xp>0?30000:0); sec.bonus.tokens+=Math.max(0,tokens)+(xp>0?150:0);
+      sec.bonus.crates+=Math.max(0,crates)+(xp>0?150:0); sec.bonus.xp+=Math.max(0,xp);
+      sec.bonus.items+=unlockAll?3000:0;
+      user.accountData.security=sec;
       if(coins) done.push((coins>0?'+':'')+coins+' coins');
       if(tokens) done.push((tokens>0?'+':'')+tokens+' pack tokens');
       if(crates) done.push((crates>0?'+':'')+crates+' skin crates');
@@ -3401,7 +3529,7 @@ app.post('/api/admin/grant', adminOnly, async (req,res)=>{
         done.push(tier+' membership ('+(mem.lifetime===true?'lifetime':days+' days')+')');
       }
       const fresh=SUPABASE_ENABLED?dbRowToUser(await dbFindUserById(user.id)):(usersById.get(user.id)||user);
-      if(fresh){ fresh.accountData={...fresh.accountData,adminGrants:user.accountData.adminGrants,credits:user.accountData.credits||fresh.accountData.credits}; user.accountData=fresh.accountData; user.id=fresh.id; }
+      if(fresh){ fresh.accountData={...fresh.accountData,adminGrants:user.accountData.adminGrants,security:user.accountData.security||fresh.accountData.security,credits:user.accountData.credits||fresh.accountData.credits}; user.accountData=fresh.accountData; user.id=fresh.id; }
     }
     if(b.badge==='remove'||['gold','platinum','diamond'].includes(String(b.badge||''))){
       const bt=String(b.badge);
@@ -3416,6 +3544,29 @@ app.post('/api/admin/grant', adminOnly, async (req,res)=>{
     res.json({ok:true,done,user:adminSummary(user)});
   }catch(e){ console.error('admin grant',e.message); res.status(503).json({error:'Grant failed: '+e.message}); }
 });
+app.post('/api/admin/ban', adminOnly, async (req,res)=>{
+  try{
+    const user=await adminFindUser(req.body&&req.body.q);
+    if(!user) return res.status(404).json({error:'No account matches that email or username.'});
+    await banUser(user,String(req.body.reason||'Banned by the Index owner'),'admin',String(req.body.note||''));
+    ADMIN_LOG.unshift({t:Date.now(),by:req.user.username||'owner',to:user.username||user.email,did:'BANNED',note:String(req.body.reason||'').slice(0,120)});
+    res.json({ok:true,user:adminSummary(user)});
+  }catch(e){ res.status(400).json({error:e.message||'Could not ban.'}); }
+});
+app.post('/api/admin/unban', adminOnly, async (req,res)=>{
+  try{
+    const user=await adminFindUser(req.body&&req.body.q);
+    if(!user) return res.status(404).json({error:'No account matches that email or username.'});
+    const sec=sanitizeSecurity(user.accountData&&user.accountData.security);
+    sec.banned=null; sec.strikes=[]; sec.econ=null;
+    user.accountData={...(user.accountData||{}),security:sec};
+    await adminSaveUser(user);
+    ADMIN_LOG.unshift({t:Date.now(),by:req.user.username||'owner',to:user.username||user.email,did:'UNBANNED (strikes cleared)',note:''});
+    secLog('unban',user,'by owner');
+    res.json({ok:true,user:adminSummary(user)});
+  }catch(e){ res.status(503).json({error:'Could not unban.'}); }
+});
+app.get('/api/admin/security-log', adminOnly, (req,res)=>res.json({ok:true,log:SECURITY_LOG}));
 app.get('/api/admin/log', adminOnly, (req,res)=>res.json({ok:true,log:ADMIN_LOG}));
 
 /* Players pick up queued grants here. */
@@ -3544,6 +3695,18 @@ app.put('/api/account/state', async (req,res)=>{
       claimedSkinCrateLevels:unionList(existingProgress.claimedSkinCrateLevels,incomingProgress.claimedSkinCrateLevels,50),
       gameProgress:mergedGameProgress
     };
+    // Anti-cheat: the browser may only report progress a student could really have earned.
+    if(!isOwnerUser(req.user)){
+      if(banInfo(req.user)) return res.status(403).json({error:'This account is suspended.',banned:true,reason:banInfo(req.user).reason});
+      const ac=antiCheat(req.user,existingAccountState,mergedAccountState.progress);
+      mergedAccountState.progress=ac.progress;
+      req.user.accountData=sanitizeAccountState({...existingAccountState,security:ac.security});
+      if(ac.ban){
+        await banUser(req.user,ac.ban,'anticheat');
+        return res.status(403).json({error:'This account has been suspended for cheating.',banned:true,reason:ac.ban});
+      }
+      mergedAccountState.security=ac.security;
+    } else { mergedAccountState.security=existingAccountState.security; }
     // Membership is server-owned and only changes after verified Stripe events.
     if(existingAccountState.membership) mergedAccountState.membership=existingAccountState.membership;
     // Credits are server-owned: a browser snapshot can never raise or reset them.

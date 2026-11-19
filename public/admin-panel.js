@@ -69,6 +69,7 @@ var target=null;
 function ensure(){
   var main=document.querySelector('.main'), nav=document.getElementById('nav');
   if(!main||!nav) return false;
+  var ex=$('#view-admin'); if(ex&&!$('.ad-wrap',ex)){ ex.remove(); }
   if(!$('#view-admin')){
     var sec=document.createElement('section'); sec.className='view'; sec.id='view-admin'; var foot=main.querySelector('.app-footer'); if(foot) main.insertBefore(sec,foot); else main.appendChild(sec);
     sec.innerHTML='<div class="ad-wrap"><h2 style="font-size:24px;font-weight:600;margin:0">Admin panel</h2>'+
@@ -76,6 +77,7 @@ function ensure(){
       '<div class="ad-grid"><div>'+
       '<div class="ad-card"><h3>1. Find a player</h3><div class="ad-find"><input type="text" id="ad-q" placeholder="email or username" autocomplete="off"><button class="btn btn-primary" id="ad-find" type="button">Find</button></div><div id="ad-user"></div><div class="ad-msg" id="ad-findmsg"></div></div>'+
       '<div class="ad-card" style="margin-top:16px"><h3>Recent actions</h3><div class="ad-log" id="ad-log">Nothing yet this session.</div></div>'+
+      '<div class="ad-card" style="margin-top:16px"><h3>Anti-cheat alerts</h3><div class="ad-log" id="ad-sec">Loading…</div></div>'+
       '</div><div class="ad-card"><h3>2. Give or take</h3>'+
       '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 4px">Use a negative number to take items away. They arrive the next time the player is online.</p>'+
       '<div class="ad-row"><div><label>Coins</label><input type="number" id="ad-coins" placeholder="0"></div><div><label>Free pack tokens</label><input type="number" id="ad-tokens" placeholder="0"></div></div>'+
@@ -95,7 +97,7 @@ function ensure(){
     var b=document.createElement('button'); b.className='nav-btn'; b.dataset.view='admin'; b.type='button';
     b.innerHTML='<span></span><span>Admin</span>';
     var last=nav.querySelector('[data-view="rewards"]'); nav.insertBefore(b,last?last.nextSibling:null);
-    b.addEventListener('click',function(){ setTimeout(function(){ refreshLog(); $('#ad-q')&&$('#ad-q').focus(); },60); });
+    b.addEventListener('click',function(){ setTimeout(function(){ try{ ensure(); var v=$('#view-admin'); if(v&&!v.classList.contains('active')){ document.querySelectorAll('.view').forEach(function(x){x.classList.remove('active');}); v.classList.add('active'); } }catch(err){ var vv=$('#view-admin'); if(vv) vv.innerHTML='<p style="padding:20px">Admin panel error: '+esc(err.message)+'</p>'; } refreshLog(); $('#ad-q')&&$('#ad-q').focus(); },60); });
     try{ if(window.IX&&IX.icon){ b.firstElementChild.className='ix-nav'; b.firstElementChild.innerHTML=IX.icon('shield-check',19); } }catch(e){}
   }
   return true;
@@ -109,6 +111,9 @@ function renderUser(u){
     '<div style="font-size:13px;color:var(--ink-soft)">'+esc(u.email)+' · '+esc(u.role)+(u.hasData?'':' · has not opened the app yet')+'</div>'+
     '<div style="font-size:13px;margin-top:6px">Plan: <b>'+esc(m.tier)+'</b>'+(m.daysLeft?' · '+m.daysLeft+' days left':'')+(m.badge?' · '+esc(m.badge)+' badge':'')+'</div>'+
     '<div class="ad-stats">'+stat('Coins',u.coins.toLocaleString())+stat('Pack tokens',u.tokens)+stat('Skin crates',u.crates)+stat('XP',u.xp.toLocaleString())+stat('Packs opened',u.openedPacks)+stat('Notes / sets',u.notes+' / '+u.studySets)+'</div>'+
+    (u.banned?'<div class="ad-msg bad" style="font-weight:600">BANNED ('+esc(u.banned.by||'')+'): '+esc(u.banned.reason||'')+'</div>':'')+
+    (u.strikes?'<div style="font-size:12px;color:#ffb36b;margin-top:6px">'+u.strikes+' anti-cheat flag(s) in the last 7 days</div>':'')+
+    '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="ad-banreason" placeholder="Ban reason" style="flex:1;min-width:150px">'+(u.banned?'<button class="btn btn-primary" id="ad-unban" type="button">Unban</button>':'<button class="btn btn-ghost" id="ad-ban" type="button" style="color:#ff8a7a;border-color:#ff8a7a">Ban player</button>')+'</div>'+
     (u.pendingGrants?'<div style="font-size:12px;color:var(--ink-soft);margin-top:8px">'+u.pendingGrants+' gift(s) waiting for them to come online.</div>':'')+'</div>';
 }
 function say(id,txt,cls){ var e=$(id); if(e){ e.textContent=txt||''; e.className='ad-msg'+(cls?' '+cls:''); } }
@@ -139,12 +144,29 @@ function send(){
   }).catch(function(){ $('#ad-send').disabled=false; say('#ad-msg','Network problem. Try again.','bad'); });
 }
 function refreshLog(){
+  refreshSec();
   api('/api/admin/log').then(function(d){
     var el=$('#ad-log'); if(!el||!d.ok) return;
     el.innerHTML=d.log.length?d.log.map(function(x){ return '<div><b>'+esc(x.to)+'</b>: '+esc(x.did)+(x.note?' — '+esc(x.note):'')+'<br><span style="color:var(--ink-soft);font-size:12px">'+new Date(x.t).toLocaleTimeString()+'</span></div>'; }).join(''):'Nothing yet since the last server restart.';
   });
 }
+function banAction(kind){
+  if(!target) return;
+  var reason=($('#ad-banreason')&&$('#ad-banreason').value||'').trim();
+  if(kind==='ban'&&!confirm('Ban '+(target.username||target.email)+'? They are signed out immediately.')) return;
+  api('/api/admin/'+kind,{q:target.email||target.username,reason:reason||'Banned by the Index owner'}).then(function(d){
+    if(!d.ok){ say('#ad-findmsg',d.error||'Failed.','bad'); return; }
+    say('#ad-findmsg',kind==='ban'?'Banned.':'Unbanned.','good'); renderUser(d.user); refreshLog();
+  });
+}
+function refreshSec(){
+  api('/api/admin/security-log').then(function(d){
+    var el=$('#ad-sec'); if(!el||!d.ok) return;
+    el.innerHTML=d.log.length?d.log.slice(0,15).map(function(x){ return '<div><b>'+esc(x.user)+'</b> · '+esc(x.kind)+'<br><span style="color:var(--ink-soft);font-size:12px">'+esc(x.detail)+' · '+new Date(x.t).toLocaleTimeString()+'</span></div>'; }).join(''):'No flags since the last server restart.';
+  });
+}
 function wire(sec){
+  sec.addEventListener('click',function(e){ if(e.target.id==='ad-ban') banAction('ban'); if(e.target.id==='ad-unban') banAction('unban'); });
   $('#ad-find',sec).addEventListener('click',find);
   $('#ad-q',sec).addEventListener('keydown',function(e){ if(e.key==='Enter') find(); });
   $('#ad-send',sec).addEventListener('click',send);
