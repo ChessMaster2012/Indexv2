@@ -36,7 +36,7 @@
 .lp-ri:disabled{opacity:.5;cursor:not-allowed;}
 .lp-ri.active{border-color:var(--purple);background:color-mix(in srgb,var(--purple) 15%,transparent);}
 .lp-rn{flex:0 0 28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;font-weight:800;background:var(--line);color:var(--ink);}
-.lp-ri.done .lp-rn{background:#2FD48B;color:#06281a;}
+.lp-ri.done .lp-rn{background:#2FD48B;color:#221c17;}
 .lp-ri.cur .lp-rn{background:var(--purple);color:#fff;}
 .lp-rt{display:flex;flex-direction:column;min-width:0;}
 .lp-rt b{font-size:13px;line-height:1.25;}

@@ -1,4 +1,4 @@
-.sp-banner{display:flex;align-items:center;gap:16px;padding:16px 20px;margin-bottom:14px;border-radius:20px;background:linear-gradient(120deg,color-mix(in srgb,var(--t1) 38%,#14103a),color-mix(in srgb,var(--t2) 70%,#14103a));border:1px solid color-mix(in srgb,var(--t1) 55%,transparent);box-shadow:0 8px 30px color-mix(in srgb,var(--t2) 35%,transparent);position:relative;overflow:hidden}
+.sp-banner{display:flex;align-items:center;gap:16px;padding:16px 20px;margin-bottom:14px;border-radius:20px;background:linear-gradient(120deg,color-mix(in srgb,var(--t1) 38%,#15120e),color-mix(in srgb,var(--t2) 70%,#15120e));border:1px solid color-mix(in srgb,var(--t1) 55%,transparent);box-shadow:0 8px 30px color-mix(in srgb,var(--t2) 35%,transparent);position:relative;overflow:hidden}
 .sp-banner::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 14px,transparent 14px 28px);pointer-events:none}
 .sp-banner>*{position:relative;z-index:1}
 .sp-banner-ic{font-size:44px;line-height:1;filter:drop-shadow(0 4px 10px rgba(0,0,0,.4));animation:spFloat 3.2s ease-in-out infinite}

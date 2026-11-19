@@ -29,7 +29,7 @@ function navIcon(b){
 }
 function refresh(){
   document.querySelectorAll('.nav-btn').forEach(navIcon);
-  var be=document.querySelector('.brand-emoji'); if(be&&!be.getAttribute('data-ix')){ be.setAttribute('data-ix','1'); be.innerHTML=mark(26); be.style.display='inline-flex'; }
+  var be=document.querySelector('.brand-emoji'); if(be&&!be.getAttribute('data-ix')){ be.setAttribute('data-ix','1'); be.style.display='inline-flex'; }
   document.querySelectorAll('.ix-slot').forEach(function(el){ var h=brand(el.getAttribute('data-brand'),+el.getAttribute('data-size')||18); if(el.getAttribute('data-h')!==String(h.length)){ el.setAttribute('data-h',String(h.length)); el.innerHTML=h; } });
   var gb=document.getElementById('google-signin-btn'); if(gb&&found.google&&!gb.querySelector('.ix-brand')&&/Continue with Google/.test(gb.textContent)){ gb.style.display='flex'; gb.style.alignItems='center'; gb.style.justifyContent='center'; gb.style.gap='10px'; gb.insertAdjacentHTML('afterbegin',brand('google',18)); }
 }

@@ -21,37 +21,43 @@
    1. Design tokens
    ------------------------------------------------------------------------- */
 :root {
-  /* surfaces (deep navy → charcoal) */
-  --rd-bg: #0a0f1e;
-  --rd-bg-2: #0d1426;
-  --rd-surface: #111a30;
-  --rd-surface-2: #16213b;
-  --rd-surface-3: #1d2a49;
-  --rd-sidebar-a: #0e1529;
-  --rd-sidebar-b: #090e1d;
+  /* surfaces: warm charcoal, like a dark desk lamp, not navy */
+  --rd-bg: #15120e;
+  --rd-bg-2: #1a1611;
+  --rd-surface: #211c16;
+  --rd-surface-2: #2a241c;
+  --rd-surface-3: #352d23;
+  --rd-sidebar-a: #1b1712;
+  --rd-sidebar-b: #1b1712;
 
-  /* text */
-  --rd-text: #f3f6ff;
-  --rd-text-2: #b4bfdb;
-  --rd-text-3: #8794b6;
+  /* text: cream / stone */
+  --rd-text: #f5efe3;
+  --rd-text-2: #cdc3b1;
+  --rd-text-3: #9a907d;
 
-  /* accents: violet / blue / teal */
-  --rd-violet: #7c6cff;
-  --rd-violet-2: #9b8dff;
-  --rd-blue: #4da3ff;
-  --rd-teal: #2dd4bf;
-  --rd-grad: linear-gradient(135deg, #7c6cff 0%, #5b7dff 55%, #3fb6ff 100%);
-  --rd-grad-soft: linear-gradient(135deg, rgba(124,108,255,.22), rgba(63,182,255,.14));
+  /* accents: vermilion, mustard, sage, slate blue (names kept for old rules) */
+  --rd-violet: #ff7a4d;
+  --rd-violet-2: #ffa27f;
+  --rd-blue: #7aa7d9;
+  --rd-teal: #8fcfae;
+  --rd-gold: #e9b949;
+  --rd-grad: #ff7a4d;
+  --rd-grad-soft: rgba(255,122,77,.14);
+  --rd-ink: #1a1208;
 
-  /* lines, radii, shadows */
-  --rd-line: rgba(150, 168, 255, .15);
-  --rd-line-2: rgba(150, 168, 255, .28);
-  --rd-r-sm: 10px;
-  --rd-r: 14px;
-  --rd-r-lg: 20px;
-  --rd-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 10px 30px rgba(2, 6, 20, .35);
-  --rd-shadow-lg: 0 24px 70px rgba(2, 6, 20, .55);
-  --rd-ring: 0 0 0 3px rgba(124, 108, 255, .38);
+  /* lines, radii, shadows: hard borders, almost no blur */
+  --rd-line: rgba(245,239,227,.13);
+  --rd-line-2: rgba(245,239,227,.24);
+  --rd-r-sm: 6px;
+  --rd-r: 10px;
+  --rd-r-lg: 14px;
+  --rd-shadow: 0 1px 0 rgba(245,239,227,.04) inset;
+  --rd-shadow-lg: 0 18px 50px rgba(0, 0, 0, .5);
+  --rd-ring: 0 0 0 2px var(--rd-bg), 0 0 0 4px #ff7a4d;
+
+  --rd-font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --rd-font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --rd-font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
 
   /* map onto the variables the existing app already reads */
   --bg: var(--rd-bg) !important;
@@ -62,10 +68,17 @@
   --purple: var(--rd-violet) !important;
   --purple-deep: var(--rd-violet-2) !important;
   --blue: var(--rd-blue) !important;
-  --radius: 14px !important;
+  --radius: 10px !important;
+  --font-display: var(--rd-font-display) !important;
+  --font-ui: var(--rd-font-body) !important;
 
   color-scheme: dark;
 }
+
+@font-face{font-family:"Fraunces";src:url(/fonts/fraunces-latin-wght-normal.woff2) format("woff2");font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:"Fraunces";src:url(/fonts/fraunces-latin-wght-italic.woff2) format("woff2");font-weight:100 900;font-style:italic;font-display:swap}
+@font-face{font-family:"Instrument Sans";src:url(/fonts/instrument-sans-latin-wght-normal.woff2) format("woff2");font-weight:400 700;font-style:normal;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(/fonts/jetbrains-mono-latin-500-normal.woff2) format("woff2");font-weight:500;font-style:normal;font-display:swap}
 
 /* -------------------------------------------------------------------------
    2. Page + typography
@@ -75,21 +88,20 @@ html, body {
 }
 body {
   color: var(--rd-text) !important;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  font-family: var(--rd-font-body) !important;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  background-image:
-    radial-gradient(900px 520px at 92% -6%, rgba(124,108,255,.16), transparent 60%),
-    radial-gradient(760px 460px at 4% 12%, rgba(45,212,191,.07), transparent 60%) !important;
-  background-attachment: fixed !important;
+  background-image: none !important;
 }
 .main {
   background: transparent !important;
 }
 .main :is(h1, h2, .hero-title, .rewards-title):not([class*="commander"] *) {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif !important;
+  font-family: var(--rd-font-display) !important;
+  font-weight: 600 !important;
+  font-variation-settings: "SOFT" 40, "WONK" 0;
   color: var(--rd-text) !important;
-  letter-spacing: -.03em !important;
+  letter-spacing: -.02em !important;
 }
 .main h3:not([class*="commander"] *) {
   color: var(--rd-text) !important;
@@ -99,39 +111,38 @@ body {
   color: inherit;
 }
 a:not([class*="commander"] *) { color: var(--rd-violet-2); }
-::selection { background: rgba(124,108,255,.45); color: #fff; }
+::selection { background: #ff7a4d; color: #1a1208; }
 
 /* scrollbars */
-html, .sidebar, .main, .modal { scrollbar-width: thin; scrollbar-color: rgba(150,168,255,.28) transparent; }
+html, .sidebar, .main, .modal { scrollbar-width: thin; scrollbar-color: rgba(245,239,227,.28) transparent; }
 html::-webkit-scrollbar, .sidebar::-webkit-scrollbar, .main *::-webkit-scrollbar { width: 10px; height: 10px; }
-html::-webkit-scrollbar-thumb, .sidebar::-webkit-scrollbar-thumb, .main *::-webkit-scrollbar-thumb { background: rgba(150,168,255,.25); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+html::-webkit-scrollbar-thumb, .sidebar::-webkit-scrollbar-thumb, .main *::-webkit-scrollbar-thumb { background: rgba(245,239,227,.25); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
 
 /* -------------------------------------------------------------------------
    3. Sidebar + navigation
    ------------------------------------------------------------------------- */
 .sidebar {
-  background: linear-gradient(180deg, var(--rd-sidebar-a), var(--rd-sidebar-b)) !important;
-  border-right: 1px solid var(--rd-line) !important;
-  box-shadow: 1px 0 0 rgba(255,255,255,.02), 12px 0 40px rgba(2,6,20,.35) !important;
+  background: var(--rd-sidebar-a) !important;
+  border-right: 1px solid var(--rd-line-2) !important;
+  box-shadow: none !important;
 }
 .nav-btn {
   color: var(--rd-text-2) !important;
   background: transparent !important;
-  border-radius: 12px !important;
-  font-weight: 600 !important;
-  letter-spacing: .005em;
+  border-radius: 6px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0;
   box-shadow: none !important;
   transition: background .16s ease, color .16s ease, transform .16s ease !important;
 }
 .nav-btn:hover {
-  background: rgba(150,168,255,.1) !important;
+  background: rgba(245,239,227,.07) !important;
   color: var(--rd-text) !important;
-  transform: translateX(2px);
 }
 .nav-btn.active {
-  background: var(--rd-grad-soft) !important;
-  color: #fff !important;
-  box-shadow: inset 3px 0 0 var(--rd-violet), 0 0 0 1px rgba(124,108,255,.28) !important;
+  background: var(--rd-text) !important;
+  color: var(--rd-ink) !important;
+  box-shadow: none !important;
 }
 .nav-btn:focus-visible, :is(.btn, button, a, input, select, textarea):focus-visible:not([class*="commander"] *) {
   outline: none !important;
@@ -142,32 +153,33 @@ html::-webkit-scrollbar-thumb, .sidebar::-webkit-scrollbar-thumb, .main *::-webk
    4. Buttons
    ------------------------------------------------------------------------- */
 .btn:not([class*="commander"] *) {
-  border-radius: 12px !important;
-  font-weight: 700 !important;
-  letter-spacing: .005em;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0;
   transition: transform .14s ease, box-shadow .14s ease, filter .14s ease, background .14s ease, border-color .14s ease !important;
 }
 .btn-primary:not([class*="commander"] *) {
-  background: var(--rd-grad) !important;
-  color: #fff !important;
-  border: 1px solid rgba(255,255,255,.14) !important;
-  box-shadow: 0 8px 22px rgba(91,125,255,.32), inset 0 1px 0 rgba(255,255,255,.22) !important;
+  background: #ff7a4d !important;
+  color: var(--rd-ink) !important;
+  border: 1.5px solid #ff7a4d !important;
+  box-shadow: 3px 3px 0 rgba(0,0,0,.45) !important;
 }
 .btn-primary:hover:not(:disabled):not([class*="commander"] *) {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
-  box-shadow: 0 12px 28px rgba(91,125,255,.42), inset 0 1px 0 rgba(255,255,255,.26) !important;
+  transform: translate(-1px,-1px);
+  filter: none;
+  background: #ff8c64 !important;
+  box-shadow: 4px 4px 0 rgba(0,0,0,.5) !important;
 }
 .btn-primary:active:not(:disabled):not([class*="commander"] *) { transform: translateY(0); filter: brightness(.97); }
 .btn-ghost:not([class*="commander"] *) {
-  background: rgba(150,168,255,.08) !important;
+  background: rgba(245,239,227,.08) !important;
   color: var(--rd-text) !important;
   border: 1px solid var(--rd-line-2) !important;
   box-shadow: none !important;
 }
 .btn-ghost:hover:not(:disabled):not([class*="commander"] *) {
-  background: rgba(150,168,255,.16) !important;
-  border-color: rgba(150,168,255,.42) !important;
+  background: rgba(245,239,227,.16) !important;
+  border-color: rgba(245,239,227,.42) !important;
   transform: translateY(-1px);
 }
 .btn:is(:disabled, [disabled]):not([class*="commander"] *) {
@@ -191,35 +203,33 @@ html body :is(
   .account-step-panel, .account-progress, .account-link-card, .study-path-card-v9,
   .topic-row, .mini-feature, .host-toolbar, .skin-panel, .crate-banner, .skin-crate-card
 ) {
-  background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0) 60%), var(--rd-surface) !important;
-  border: 1px solid var(--rd-line) !important;
+  background: var(--rd-surface) !important;
+  border: 1px solid var(--rd-line-2) !important;
   border-radius: var(--rd-r) !important;
   box-shadow: var(--rd-shadow) !important;
   color: var(--rd-text);
 }
 html body :is(.course-card, .game-mode-card, .pack-card, .cosmetic-card, .quest-card, .inventory-item, .mini-feature, .command-card, .study-path-card-v9, .pack-option):hover {
-  border-color: rgba(124,108,255,.5) !important;
-  box-shadow: 0 14px 36px rgba(2,6,20,.5), 0 0 0 1px rgba(124,108,255,.18) !important;
+  border-color: rgba(255,122,77,.5) !important;
+  box-shadow: 0 14px 36px rgba(10,6,5,.5), 0 0 0 1px rgba(255,122,77,.18) !important;
   transform: translateY(-2px);
 }
 html body :is(.dashboard-top-grid > .hero) {
   background:
-    radial-gradient(520px 260px at 100% 0%, rgba(124,108,255,.18), transparent 70%),
-    linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,0) 60%), var(--rd-surface) !important;
+    var(--rd-surface-2) !important;
   border: 1px solid var(--rd-line) !important;
   border-radius: var(--rd-r-lg) !important;
   box-shadow: var(--rd-shadow) !important;
 }
 html body .personal-banner {
   background:
-    radial-gradient(420px 160px at 90% 0%, rgba(124,108,255,.22), transparent 70%),
     var(--rd-surface-2) !important;
   border: 1px solid var(--rd-line) !important;
   border-radius: var(--rd-r) !important;
 }
 html body .quest-card.done, html body .bp-level.unlocked, html body .skin-inventory-card.active {
-  border-color: rgba(45,212,191,.45) !important;
-  background: linear-gradient(180deg, rgba(45,212,191,.10), rgba(45,212,191,0) 70%), var(--rd-surface) !important;
+  border-color: rgba(143,207,174,.45) !important;
+  background: rgba(143,207,174,.10) !important;
 }
 
 /* modals + first-run gates */
@@ -231,7 +241,7 @@ html body :is(.modal, .site-gate-card, .county-gate-card, .quest-popup-card) {
   color: var(--rd-text) !important;
 }
 html body :is(.modal-bg, .modal-overlay, .site-gate, .county-gate) {
-  background: rgba(5, 8, 20, .72) !important;
+  background: rgba(12,8,7, .72) !important;
   backdrop-filter: blur(10px) !important;
 }
 
@@ -250,11 +260,11 @@ html body :is(
   color: var(--rd-text) !important;
   border-radius: var(--rd-r-sm);
 }
-html body :is(.topic-head:hover, .note-pick-row:hover) { background: rgba(150,168,255,.08) !important; }
-html body .topic-num { background: rgba(150,168,255,.14) !important; color: var(--rd-text-2) !important; }
+html body :is(.topic-head:hover, .note-pick-row:hover) { background: rgba(245,239,227,.08) !important; }
+html body .topic-num { background: rgba(245,239,227,.14) !important; color: var(--rd-text-2) !important; }
 html body :is(.district-chip, .quest-icon, .profile-member-badge) {
-  background: rgba(124,108,255,.16) !important;
-  border: 1px solid rgba(124,108,255,.38) !important;
+  background: rgba(255,122,77,.16) !important;
+  border: 1px solid rgba(255,122,77,.38) !important;
   color: #cfc8ff !important;
 }
 html body :is(.coin-pill, .quest-reward, .set-card-due) {
@@ -265,16 +275,16 @@ html body :is(.coin-pill, .quest-reward, .set-card-due) {
 html body :is(.mode-card, .county-option, .district-option, .reward-tab, .arcade-opt, .live-switch):hover,
 html body :is(.county-option, .district-option, .mode-card, .set-pick-item, .match-item).selected,
 html body :is(.reward-tab).active {
-  background: rgba(124,108,255,.18) !important;
-  border-color: rgba(124,108,255,.6) !important;
+  background: rgba(255,122,77,.18) !important;
+  border-color: rgba(255,122,77,.6) !important;
   color: #fff !important;
 }
-html body .live-leaderboard-row.you { background: rgba(124,108,255,.16) !important; }
+html body .live-leaderboard-row.you { background: rgba(255,122,77,.16) !important; }
 
 /* state colours: success / error / warning */
 html body :is(.quiz-opt.correct, .lesson-result.good, .match-item.matched, .recall-feedback.correct, .arcade-opt.good, .set-card-due.done, .td-cell.tower, .arena-grid5 button.move) {
-  background: rgba(45,212,191,.14) !important;
-  border-color: rgba(45,212,191,.55) !important;
+  background: rgba(143,207,174,.14) !important;
+  border-color: rgba(143,207,174,.55) !important;
   color: #c8fff4 !important;
 }
 html body :is(.quiz-opt.incorrect, .lesson-result.retry, .match-item.wrong, .recall-feedback.incorrect, .arcade-opt.bad, .error-note, .set-card-due.overdue, .set-card-delete:hover) {
@@ -283,24 +293,24 @@ html body :is(.quiz-opt.incorrect, .lesson-result.retry, .match-item.wrong, .rec
   color: #ffd0d7 !important;
 }
 html body :is(.lesson-example, .recall-prompt, .match-item.selected) {
-  background: linear-gradient(120deg, rgba(124,108,255,.16), rgba(63,182,255,.10)) !important;
+  background: rgba(255,122,77,.12) !important;
   border: 1px solid var(--rd-line-2) !important;
   color: var(--rd-text) !important;
 }
 
 /* progress tracks (fills keep their own colours) */
 html body :is(.daily-cap-track, .account-progress-track, .path-progress, .study-path-card-v9 .path-progress, .td-hp) {
-  background: rgba(150,168,255,.16) !important;
+  background: rgba(245,239,227,.16) !important;
   border-radius: 999px;
 }
-html body .account-step b { background: rgba(150,168,255,.16) !important; color: var(--rd-text) !important; }
+html body .account-step b { background: rgba(245,239,227,.16) !important; color: var(--rd-text) !important; }
 
 /* arenas (these are small learning-mini-game boards, not the Commander battlefield) */
 html body :is(.action-arena, .trial-arena) {
-  background: radial-gradient(circle at 50% 30%, rgba(124,108,255,.16), rgba(10,15,30,.9)) , var(--rd-bg-2) !important;
+  background: var(--rd-bg-2) !important;
   border: 1px solid var(--rd-line-2) !important;
 }
-html body .td-cell.path { background: rgba(124,108,255,.18) !important; }
+html body .td-cell.path { background: rgba(255,122,77,.18) !important; }
 
 /* -------------------------------------------------------------------------
    7. Form fields
@@ -313,7 +323,7 @@ html body :is(input:not([type=checkbox]):not([type=radio]):not([type=range]):not
   transition: border-color .14s ease, box-shadow .14s ease, background .14s ease;
 }
 html body :is(input, textarea):not([class*="commander"] *)::placeholder { color: var(--rd-text-3) !important; opacity: 1; }
-html body :is(input:not([type=checkbox]):not([type=radio]), select, textarea):hover:not([class*="commander"] *) { border-color: rgba(150,168,255,.42) !important; }
+html body :is(input:not([type=checkbox]):not([type=radio]), select, textarea):hover:not([class*="commander"] *) { border-color: rgba(245,239,227,.42) !important; }
 html body :is(input:not([type=checkbox]):not([type=radio]), select, textarea):focus:not([class*="commander"] *) {
   border-color: var(--rd-violet) !important;
   box-shadow: var(--rd-ring) !important;
@@ -334,17 +344,17 @@ html body .field input[type=password] {
 
 /* ghost buttons (legacy rule is `html body .btn-ghost{#fff !important}`) */
 html body .btn-ghost:not([class*="commander"] *) {
-  background: rgba(150,168,255,.08) !important;
+  background: rgba(245,239,227,.08) !important;
   color: var(--rd-text) !important;
   border: 1px solid var(--rd-line-2) !important;
 }
-html body .btn-ghost:hover:not(:disabled):not([class*="commander"] *) { background: rgba(150,168,255,.16) !important; }
+html body .btn-ghost:hover:not(:disabled):not([class*="commander"] *) { background: rgba(245,239,227,.16) !important; }
 
 /* -------------------------------------------------------------------------
    8. Membership page (cards are injected at runtime by the page script)
    ------------------------------------------------------------------------- */
 html body .membership-card {
-  background: linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,0) 55%), var(--rd-surface) !important;
+  background: var(--rd-surface) !important;
   border: 1px solid var(--rd-line-2) !important;
   border-radius: var(--rd-r-lg) !important;
   box-shadow: var(--rd-shadow) !important;
@@ -357,8 +367,8 @@ html body .membership-card.diamond {
   box-shadow: 0 18px 44px rgba(91,75,213,.35) !important;
 }
 html body .membership-card.active {
-  border-color: rgba(45,212,191,.7) !important;
-  box-shadow: 0 0 0 3px rgba(45,212,191,.16), var(--rd-shadow) !important;
+  border-color: rgba(143,207,174,.7) !important;
+  box-shadow: 0 0 0 3px rgba(143,207,174,.16), var(--rd-shadow) !important;
 }
 html body .membership-card h3, html body .membership-card .membership-price { color: var(--rd-text) !important; }
 html body :is(.membership-current-banner, .membership-trust) {
@@ -368,8 +378,8 @@ html body :is(.membership-current-banner, .membership-trust) {
   border-radius: var(--rd-r) !important;
 }
 html body .membership-tag {
-  background: rgba(124,108,255,.16) !important;
-  border: 1px solid rgba(124,108,255,.36) !important;
+  background: rgba(255,122,77,.16) !important;
+  border: 1px solid rgba(255,122,77,.36) !important;
   color: #cfc8ff !important;
 }
 
@@ -377,11 +387,11 @@ html body .membership-tag {
    9. Toggles / segmented controls
    ------------------------------------------------------------------------- */
 html body .toggle-btn {
-  background: rgba(150,168,255,.08) !important;
+  background: rgba(245,239,227,.08) !important;
   border: 1px solid var(--rd-line-2) !important;
   color: var(--rd-text-2) !important;
 }
-html body .toggle-btn:hover { background: rgba(150,168,255,.16) !important; color: var(--rd-text) !important; }
+html body .toggle-btn:hover { background: rgba(245,239,227,.16) !important; color: var(--rd-text) !important; }
 html body .toggle-btn.active {
   background: var(--rd-grad) !important;
   border-color: transparent !important;
@@ -395,11 +405,11 @@ html body .membership-card :is(ul, li) { color: var(--rd-text-2) !important; }
    ------------------------------------------------------------------------- */
 /* course header: keep each course's own accent colours, but on a deep base so white text stays readable */
 html body .course-hero {
-  background: linear-gradient(120deg, #1b2a52, #241d4d) !important;               /* fallback */
+  background: #2a241c !important;               /* fallback */
   background:
     linear-gradient(120deg,
-      color-mix(in srgb, var(--hero-a, var(--rd-violet)) 42%, #0d1426),
-      color-mix(in srgb, var(--hero-b, var(--rd-blue)) 26%, #0d1426)) !important;
+      color-mix(in srgb, var(--hero-a, var(--rd-violet)) 42%, #1a1611),
+      color-mix(in srgb, var(--hero-b, var(--rd-blue)) 26%, #1a1611)) !important;
   border: 1px solid var(--rd-line-2);
   box-shadow: var(--rd-shadow);
 }
@@ -448,13 +458,40 @@ html body .pack-option .pack-name, html body .pack-card .pack-name { color: var(
 body > [class*="commander"] {
   --bg: #f4f6f9 !important;
   --card: #ffffff !important;
-  --ink: #192536 !important;
-  --ink-soft: #68778a !important;
+  --ink: #2a231c !important;
+  --ink-soft: #83755d !important;
   --line: #e1e6ee !important;
   --purple: #565bc8 !important;
-  --purple-deep: #4146a5 !important;
+  --purple-deep: #5a4f3f !important;
   --blue: #3d76b8 !important;
   --radius: 12px !important;
-  color: #192536;
+  color: #2a231c;
   color-scheme: light;
 }
+
+/* -------------------------------------------------------------------------
+   13. Studio layer: real artwork, flatter dashboard
+   ------------------------------------------------------------------------- */
+html body .game-mode-card { padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; align-items: stretch; }
+html body .game-mode-card .mode-cover { display: block; aspect-ratio: 2 / 1; overflow: hidden; border-bottom: 1px solid var(--rd-line); }
+html body .game-mode-card .mode-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+html body .game-mode-card:hover .mode-cover img { transform: scale(1.04); }
+html body .game-mode-card > :not(.mode-cover) { margin-left: 16px; margin-right: 16px; }
+html body .game-mode-card > .mode-tag:first-of-type { margin-top: 14px; align-self: flex-start; }
+html body .game-mode-card > :last-child { margin-bottom: 16px; }
+
+html body .creator-spotlight {
+  background: var(--card) !important; background-image: none !important;
+  border: 1px solid var(--rd-line) !important; box-shadow: none !important;
+}
+html body .creator-spotlight::before, html body .creator-spotlight::after { display: none !important; }
+html body .creator-spotlight .creator-tag, html body .creator-spotlight .creator-kicker {
+  background: transparent !important; border: 1px solid var(--rd-line) !important; color: var(--ink-soft) !important;
+}
+html body .creator-spotlight h2 { color: var(--ink) !important; }
+html body .creator-spotlight p, html body .creator-spotlight .creator-school { color: var(--ink-soft) !important; }
+html body .creator-photo-ring { background: none !important; padding: 0 !important; border: 1px solid var(--rd-line); border-radius: 18px; overflow: hidden; box-shadow: none !important; }
+html body .creator-photo { border-radius: 0 !important; border: 0 !important; }
+html body .btn-pink { background: var(--card-2, #3a3026) !important; color: var(--ink) !important; border: 1px solid var(--rd-line) !important; box-shadow: none !important; }
+
+html body .creator-photo-label{display:none !important}

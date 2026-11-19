@@ -30,8 +30,8 @@ body.tp-full .ai-work-status{margin:0;border-radius:0;border-width:1px 0;padding
 body.tp-full .chat-log{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scroll-behavior:smooth;
   padding:22px max(16px,calc((100% - 940px) / 2)) 28px;display:flex;flex-direction:column;gap:16px}
 body.tp-full .msg{font-size:15.5px;line-height:1.65;white-space:normal;max-width:min(100%,760px)}
-body.tp-full .msg-user{max-width:min(78%,640px);border-radius:20px 20px 6px 20px;padding:11px 17px;box-shadow:0 1px 2px rgba(23,32,51,.08)}
-body.tp-full .msg-ai{align-self:stretch;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:6px 20px 20px 20px;padding:15px 20px 12px;box-shadow:0 1px 3px rgba(23,32,51,.06)}
+body.tp-full .msg-user{max-width:min(78%,640px);border-radius:20px 20px 6px 20px;padding:11px 17px;box-shadow:0 1px 2px rgba(38,31,25,.08)}
+body.tp-full .msg-ai{align-self:stretch;max-width:100%;background:var(--card);border:1px solid var(--line);border-radius:6px 20px 20px 20px;padding:15px 20px 12px;box-shadow:0 1px 3px rgba(38,31,25,.06)}
 body.tp-full .msg-ai .msg-role,body.tp-full .msg-user .msg-role{margin-bottom:6px}
 .msg-content{overflow-wrap:anywhere}
 .msg-content sub,.msg-content sup{font-size:.72em;line-height:0}

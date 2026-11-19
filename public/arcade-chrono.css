@@ -39,7 +39,7 @@
 .cx-lv{display:flex;align-items:center;gap:14px}.cx-lv b{display:block;font-size:34px;line-height:1}.cx-lv small{font-size:11px;opacity:.7;font-weight:800;text-transform:uppercase}
 .cx-facts,.cx-how,.cx-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}.cx-facts span{background:rgba(124,92,252,.16);color:var(--purple);font-weight:800;font-size:12.5px;border-radius:999px;padding:5px 12px}.cx-how span{background:var(--card);border:2px solid var(--line);border-radius:8px;padding:3px 9px;font-weight:800;font-size:11px;opacity:.85}
 @media(max-width:760px){.cx-body{grid-template-columns:1fr}.cx-side{flex-direction:row;flex-wrap:wrap;justify-content:center}.cx-ling{width:72px}.cx-say{width:auto;flex:1;min-width:150px}.cx-charge{width:100%}}
-#games-stage:fullscreen,#games-stage:-webkit-full-screen{background:var(--bg,#14102a);overflow:auto}
+#games-stage:fullscreen,#games-stage:-webkit-full-screen{background:var(--bg,#191410);overflow:auto}
 #games-stage:fullscreen .arcade-head,#games-stage:fullscreen .arcade-char,#games-stage:-webkit-full-screen .arcade-head,#games-stage:-webkit-full-screen .arcade-char{display:none}
 #games-stage:fullscreen .arcade-shell{min-height:100vh;display:flex;flex-direction:column}
 #games-stage:fullscreen .cx-root,#games-stage:-webkit-full-screen .cx-root{flex:1;margin:0;border-radius:0;border:0;min-height:100vh}
