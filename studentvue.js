@@ -82,6 +82,76 @@ function parseGradebook(xml) {
   return { periods, period: cur, courses };
 }
 
+/* ---------- owner-only diagnostic: walks the StudentVUE *website* login and reports what it sees ---------- */
+function httpReq(base, method, path, headers, body, jar) {
+  return new Promise((resolve, reject) => {
+    const mod = base.protocol === 'http:' ? require('http') : https;
+    const h = Object.assign({ 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36', Accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8', 'Accept-Language': 'en-US,en;q=0.9' }, headers || {});
+    if (jar && Object.keys(jar).length) h.Cookie = Object.entries(jar).map(([k, v]) => k + '=' + v).join('; ');
+    if (body) h['Content-Length'] = Buffer.byteLength(body);
+    const req = mod.request({ host: base.host.split(':')[0], port: base.host.includes(':') ? Number(base.host.split(':')[1]) : undefined, path, method, headers: h, timeout: 20000 }, res => {
+      (res.headers['set-cookie'] || []).forEach(c => { const m = /^([^=]+)=([^;]*)/.exec(c); if (m && jar) jar[m[1]] = m[2]; });
+      let data = ''; res.setEncoding('utf8'); res.on('data', c => { if (data.length < 1.5e6) data += c; });
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout'))); req.on('error', reject);
+    if (body) req.write(body); req.end();
+  });
+}
+function formOf(html) {
+  const inputs = []; let m; const rx = /<input\b([^>]*)>/gi;
+  while ((m = rx.exec(html))) {
+    const a = m[1], g = n => { const r = new RegExp('\\b' + n + '\\s*=\\s*("([^"]*)"|\'([^\']*)\')', 'i').exec(a); return r ? (r[2] != null ? r[2] : r[3]) : ''; };
+    if (g('name')) inputs.push({ name: g('name'), type: (g('type') || 'text').toLowerCase(), value: g('value') });
+  }
+  const act = /<form\b[^>]*action\s*=\s*("([^"]*)"|'([^']*)')/i.exec(html);
+  return { inputs, action: act ? (act[2] != null ? act[2] : act[3]) : '' };
+}
+const textOf = h => String(h).replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+function describe(label, r) {
+  const b = r.body || '', t = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(b);
+  const scripts = [...b.matchAll(/<script[^>]+src\s*=\s*["']([^"']+)["']/gi)].map(x => x[1]).slice(0, 25);
+  const apis = [...new Set([...b.matchAll(/["'(]((?:\/)?(?:api|Service|service)\/[A-Za-z0-9_\/\.\-?=&]{3,90})/g)].map(x => x[1]))].slice(0, 30);
+  const actions = [...new Set([...b.matchAll(/action\s*[:=]\s*["']([A-Za-z0-9_.\-]+)["']/g)].map(x => x[1]))].slice(0, 20);
+  return ['## ' + label, 'status ' + r.status + (r.headers.location ? ' -> ' + r.headers.location : '') + ' · ' + (r.headers['content-type'] || '') + ' · ' + b.length + ' bytes', 'title: ' + (t ? textOf(t[1]).slice(0, 120) : '-'),
+    scripts.length ? 'scripts: ' + scripts.join(' , ') : '', apis.length ? 'api-like paths: ' + apis.join(' , ') : '', actions.length ? 'action names: ' + actions.join(' , ') : '', 'text: ' + textOf(b).slice(0, 700)].filter(Boolean).join('\n');
+}
+async function probe(base, user, pass) {
+  const out = [], jar = {};
+  const follow = async (method, path, body, ct) => {
+    let r, hops = 0;
+    for (; hops < 6; hops++) {
+      r = await httpReq(base, method, path, ct ? { 'Content-Type': ct, Referer: base.protocol + '//' + base.host + '/' } : {}, body, jar);
+      if (r.status >= 300 && r.status < 400 && r.headers.location) { out.push('   redirect ' + r.status + ' -> ' + r.headers.location); let loc = r.headers.location; try { const u = new URL(loc, base.protocol + '//' + base.host); path = u.pathname + u.search; } catch (e) { break; } method = 'GET'; body = null; ct = null; continue; }
+      break;
+    }
+    return { r, path };
+  };
+  let login;
+  for (const lp of ['/PXP2_Login_Student.aspx?regenerateSessionId=True', '/PXP2_Login.aspx']) {
+    const g = await follow('GET', lp); out.push(describe('GET ' + lp, g.r)); if (g.r.status === 200 && /<form/i.test(g.r.body)) { login = { page: g.path, html: g.r.body }; break; }
+  }
+  if (!login) { out.push('Could not find a login form.'); return out.join('\n\n'); }
+  const f = formOf(login.html);
+  out.push('login form action: ' + (f.action || '(none)') + '\ninputs: ' + f.inputs.map(i => i.name + '[' + i.type + (i.type === 'hidden' ? ',' + (i.value || '').length + 'ch' : '') + ']').join(' , '));
+  const fields = new URLSearchParams();
+  f.inputs.forEach(i => {
+    if (/user|login(?!.*btn)|studentid/i.test(i.name) && /text/.test(i.type)) fields.set(i.name, user);
+    else if (/pass/i.test(i.name) || i.type === 'password') fields.set(i.name, pass);
+    else if (i.type === 'hidden') fields.set(i.name, i.value);
+    else if (i.type === 'submit' && !fields.has('__sub')) { fields.set(i.name, i.value || 'Login'); fields.set('__sub', '1'); }
+  });
+  fields.delete('__sub');
+  out.push('posting fields: ' + [...fields.keys()].join(' , '));
+  const act = f.action && !/^https?:/i.test(f.action) ? new URL(f.action, base.protocol + '//' + base.host + login.page.split('?')[0]).pathname : login.page;
+  const p = await follow('POST', act, fields.toString(), 'application/x-www-form-urlencoded');
+  out.push(describe('after login POST (' + act + ')', p.r)); out.push('cookies: ' + Object.keys(jar).join(' , '));
+  for (const gp of ['/PXP2_Gradebook.aspx?AGU=0', '/Home_PXP2.aspx']) {
+    try { const g = await follow('GET', gp); out.push(describe('GET ' + gp, g.r)); } catch (e) { out.push('GET ' + gp + ' failed: ' + e.message); }
+  }
+  return out.join('\n\n').replace(new RegExp(pass.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '***');
+}
+
 function mount(app, opts) {
   const need = opts.requireUser;
   const hits = new Map();   // per-account throttle so a wrong password can never lock someone out by hammering
@@ -125,4 +195,4 @@ function mount(app, opts) {
     } catch (e) { fail(res, e); }
   });
 }
-module.exports = { mount, parseGradebook, normalizeBase };
+module.exports = { mount, parseGradebook, normalizeBase, probe };

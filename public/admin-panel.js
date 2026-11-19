@@ -77,6 +77,7 @@ function ensure(){
       '<div class="ad-grid"><div>'+
       '<div class="ad-card"><h3>1. Find a player</h3><div class="ad-find"><input type="text" id="ad-q" placeholder="email or username" autocomplete="off"><button class="btn btn-primary" id="ad-find" type="button">Find</button></div><div id="ad-user"></div><div class="ad-msg" id="ad-findmsg"></div></div>'+
       '<div class="ad-card" style="margin-top:16px"><h3>Recent actions</h3><div class="ad-log" id="ad-log">Nothing yet this session.</div></div>'+
+      '<div class="ad-card" style="margin-top:16px"><h3>StudentVUE check</h3><p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 6px">Runs a test login from the server and shows what StudentVUE sends back. Nothing is saved. Use your own account.</p><input type="text" id="ad-svu" placeholder="https://md-mcps-psv.edupoint.com" value="https://md-mcps-psv.edupoint.com"><div class="ad-row"><input type="text" id="ad-svi" placeholder="Student ID" autocomplete="off"><input type="password" id="ad-svp" placeholder="Password" autocomplete="off"></div><div style="margin-top:10px"><button class="btn btn-ghost" id="ad-svgo" type="button">Run check</button></div><textarea id="ad-svout" readonly style="display:none;width:100%;height:220px;margin-top:10px;background:rgba(255,255,255,.04);color:var(--ink);border:1px solid var(--line);border-radius:8px;font:12px/1.4 monospace;padding:8px"></textarea></div>'+
       '<div class="ad-card" style="margin-top:16px"><h3>Anti-cheat alerts</h3><div class="ad-log" id="ad-sec">Loading…</div></div>'+
       '</div><div class="ad-card"><h3>2. Give or take</h3>'+
       '<p style="font-size:12.5px;color:var(--ink-soft);margin:0 0 4px">Use a negative number to take items away. They arrive the next time the player is online.</p>'+
@@ -166,7 +167,8 @@ function refreshSec(){
   });
 }
 function wire(sec){
-  sec.addEventListener('click',function(e){ if(e.target.id==='ad-ban') banAction('ban'); if(e.target.id==='ad-unban') banAction('unban'); });
+  sec.addEventListener('click',function(e){ if(e.target.id==='ad-svgo'){ var o=$('#ad-svout'); o.style.display='block'; o.value='Running…'; api('/api/admin/sv-probe',{url:$('#ad-svu').value,username:$('#ad-svi').value,password:$('#ad-svp').value}).then(function(d){ o.value=d.ok?d.report:(d.error||'Failed'); $('#ad-svp').value=''; o.select(); }); }
+    if(e.target.id==='ad-ban') banAction('ban'); if(e.target.id==='ad-unban') banAction('unban'); });
   $('#ad-find',sec).addEventListener('click',find);
   $('#ad-q',sec).addEventListener('keydown',function(e){ if(e.key==='Enter') find(); });
   $('#ad-send',sec).addEventListener('click',send);

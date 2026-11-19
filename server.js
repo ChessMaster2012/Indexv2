@@ -3568,6 +3568,17 @@ app.post('/api/admin/unban', adminOnly, async (req,res)=>{
     res.json({ok:true,user:adminSummary(user)});
   }catch(e){ res.status(503).json({error:'Could not unban.'}); }
 });
+app.post('/api/admin/sv-probe', adminOnly, async (req,res)=>{
+  try{
+    const SV=require('./studentvue');
+    const base=SV.normalizeBase(String(req.body&&req.body.url||''));
+    if(!base) return res.status(400).json({error:'Use your StudentVUE address (ends in .edupoint.com).'});
+    const user=String(req.body.username||'').slice(0,80), pass=String(req.body.password||'').slice(0,200);
+    if(!user||!pass) return res.status(400).json({error:'Enter the Student ID and password.'});
+    const report=await SV.probe(base,user,pass);
+    res.set('Cache-Control','no-store'); res.json({ok:true,report});
+  }catch(e){ res.status(502).json({error:'Probe failed: '+(e&&e.message||'unknown')}); }
+});
 app.get('/api/admin/security-log', adminOnly, (req,res)=>res.json({ok:true,log:SECURITY_LOG}));
 app.get('/api/admin/log', adminOnly, (req,res)=>res.json({ok:true,log:ADMIN_LOG}));
 
