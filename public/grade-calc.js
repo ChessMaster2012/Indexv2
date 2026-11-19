@@ -13,7 +13,7 @@ function save(){ try{ localStorage.setItem(KEY(),JSON.stringify({data:S.data,url
 function forget(){ S.data=null; S.edits={}; S.added={}; S.open=-1; try{ localStorage.removeItem(KEY()); }catch(e){} }
 
 /* ---------- the math ---------- */
-function ckey(ci){ return S.data.period&&S.data.period.name?S.data.period.name+'|'+ci:String(ci); }
+function ckey(ci){ return S.data.manual?'m|'+ci:S.data.period&&S.data.period.name?S.data.period.name+'|'+ci:String(ci); }
 function itemsFor(ci,useEdits){
   var c=S.data.courses[ci], ed=(S.edits[ckey(ci)]||{}), out=c.assignments.map(function(a){
     var e=useEdits?ed[a.id]:null; if(!e) return a;
@@ -76,7 +76,7 @@ function connectView(){
     '<label>StudentVUE address</label><input id="gc-url" type="text" placeholder="https://md-mcps-psv.edupoint.com" value="'+esc(S.url||'')+'" autocomplete="off">'+
     '<div class="gc-row"><div><label>Student ID</label><input id="gc-user" type="text" value="'+esc(S.user||'')+'" autocomplete="username"></div><div><label>StudentVUE password</label><input id="gc-pass" type="password" autocomplete="current-password"></div></div>'+
     (S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'')+
-    '<div class="gc-actions"><button class="btn btn-primary" id="gc-go" type="button"'+(S.busy?' disabled':'')+'>'+(S.busy?'Signing in…':'Import my grades')+'</button></div>'+privacy()+'</div>';
+    '<div class="gc-actions"><button class="btn btn-primary" id="gc-go" type="button"'+(S.busy?' disabled':'')+'>'+(S.busy?'Signing in…':'Import my grades')+'</button> <button class="btn btn-ghost" id="gc-manual" type="button">Enter my grades by hand</button></div>'+privacy()+'</div>';
 }
 function classCard(c,i){
   var p=projected(i), ch=changed(i), orig=c.percent;
@@ -89,11 +89,17 @@ function listView(){
   var opts=(d.periods||[]).map(function(p){ return '<option value="'+p.index+'"'+(p.name===per?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('');
   var gpa=d.courses.map(function(c,i){return projected(i);}).filter(function(x){return x!=null;});
   var avg=gpa.length?gpa.reduce(function(a,b){return a+b;},0)/gpa.length:null;
-  return '<div class="gc-bar"><div><b>'+esc(per||'Current grading period')+'</b><span class="gc-muted"> · updated '+new Date(d.fetchedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span></div>'+
-    '<div class="gc-bar-r">'+(opts?'<select id="gc-period" aria-label="Grading period">'+opts+'</select>':'')+'<button class="btn btn-ghost btn-sm" id="gc-refresh" type="button">'+ic('refresh-cw',14)+' Refresh</button><button class="btn btn-ghost btn-sm" id="gc-out" type="button">Disconnect</button></div></div>'+
+  var head=d.manual?'<div class="gc-bar"><div><b>My classes</b><span class="gc-muted"> · entered by hand, saved in this browser</span></div><div class="gc-bar-r"><button class="btn btn-primary btn-sm" id="gc-addclass" type="button">'+ic('plus',14)+' Add a class</button><button class="btn btn-ghost btn-sm" id="gc-out" type="button">Clear all</button></div></div>'+(S.addingClass?classForm():''):
+    '<div class="gc-bar"><div><b>'+esc(per||'Current grading period')+'</b><span class="gc-muted"> · updated '+new Date(d.fetchedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span></div>'+
+    '<div class="gc-bar-r">'+(opts?'<select id="gc-period" aria-label="Grading period">'+opts+'</select>':'')+'<button class="btn btn-ghost btn-sm" id="gc-refresh" type="button">'+ic('refresh-cw',14)+' Refresh</button><button class="btn btn-ghost btn-sm" id="gc-out" type="button">Disconnect</button></div></div>';
+  return head+
     (S.needPass?passForm():'')+
     '<div class="gc-sum"><div><span>Classes</span><b>'+d.courses.length+'</b></div><div><span>Average (projected)</span><b>'+fmt(avg)+'</b></div></div>'+
-    '<div class="gc-grid">'+d.courses.map(classCard).join('')+'</div>'+(S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'');
+    (d.courses.length?'':'<div class="gc-card"><b>No classes yet.</b><p class="gc-sub">Press "Add a class" to start. Add each assignment with the score you got, then change scores to see what happens.</p></div>')+'<div class="gc-grid">'+d.courses.map(classCard).join('')+'</div>'+(S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'');
+}
+function classForm(){
+  return '<div class="gc-card"><h4>New class</h4><div class="gc-row"><div><label>Class name</label><input id="gc-cn" type="text" maxlength="40" placeholder="e.g. English 9"></div><div><label>Categories and weights (optional)</label><input id="gc-cc" type="text" maxlength="120" placeholder="Homework 30, Tests 70"></div></div>'+
+    '<p class="gc-hint">Leave categories empty if your class is graded on total points. Weights are percentages, for example "Homework 20, Quizzes 30, Tests 50".</p><div class="gc-actions"><button class="btn btn-primary" id="gc-cs" type="button">Create class</button> <button class="btn btn-ghost" id="gc-cx" type="button">Cancel</button></div></div>';
 }
 function passForm(){
   return '<div class="gc-card gc-pass"><b>'+(S.needPass.label||'Sign in again')+'</b><p class="gc-sub">Your password is not saved, so StudentVUE needs it each time you refresh.</p>'+
@@ -107,7 +113,7 @@ function detailView(ci){
     var dirty=!!ed[a.id];
     return '<div class="gc-as'+(ex?' off':'')+(dirty?' dirty':'')+(a.earned==null?' ungraded':'')+'" data-id="'+esc(a.id)+'"><div class="gc-as-n"><b>'+esc(a.name)+'</b><span>'+esc(a.category)+(a.due?' · due '+esc(a.due):'')+(a.earned==null?' · not graded yet':'')+'</span></div>'+
       '<div class="gc-as-s">'+numIn('gc-e','e:'+a.id,earned,'–')+'<span>/</span>'+numIn('gc-p','p:'+a.id,poss,'pts')+'</div>'+
-      '<div class="gc-as-b"><button type="button" class="gc-ic" data-tog="'+esc(a.id)+'" title="'+(ex?'Count this assignment':'Do not count this assignment')+'">'+ic(ex?'eye-off':'eye',16)+'</button>'+(dirty?'<button type="button" class="gc-ic" data-rev="'+esc(a.id)+'" title="Undo changes">'+ic('rotate-ccw',15)+'</button>':'')+'</div></div>';
+      '<div class="gc-as-b"><button type="button" class="gc-ic" data-tog="'+esc(a.id)+'" title="'+(ex?'Count this assignment':'Do not count this assignment')+'">'+ic(ex?'eye-off':'eye',16)+'</button>'+(c.manual?'<button type="button" class="gc-ic" data-delreal="'+esc(a.id)+'" title="Delete assignment">'+ic('trash-2',15)+'</button>':'')+(dirty?'<button type="button" class="gc-ic" data-rev="'+esc(a.id)+'" title="Undo changes">'+ic('rotate-ccw',15)+'</button>':'')+'</div></div>';
   }).join('');
   var addRows=add.map(function(a,i){
     return '<div class="gc-as dirty added" data-add="'+i+'"><div class="gc-as-n"><b>'+esc(a.name)+'</b><span>'+esc(a.category||'New assignment')+' · what-if</span></div><div class="gc-as-s">'+numIn('gc-e','ae:'+i,a.earned,'–')+'<span>/</span>'+numIn('gc-p','ap:'+i,a.possible,'pts')+'</div><div class="gc-as-b"><button type="button" class="gc-ic" data-del="'+i+'" title="Remove">'+ic('trash-2',15)+'</button></div></div>';
@@ -115,15 +121,15 @@ function detailView(ci){
   var catOpts=c.categories.map(function(x){return '<option>'+esc(x.name)+'</option>';}).join('')||'<option value="">All assignments</option>';
   return '<button type="button" class="gc-back" id="gc-back">'+ic('chevron-left',16)+' All classes</button>'+
    '<div class="gc-head"><div><span class="gc-per">P'+esc(c.period)+' · '+esc(c.teacher)+'</span><h3>'+esc(c.title)+'</h3></div><div class="gc-big" id="gc-big"></div></div>'+
-   '<div class="gc-cols"><div><div class="gc-card"><div class="gc-card-h"><h4>Assignments</h4><button class="btn btn-ghost btn-sm" id="gc-reset" type="button">'+ic('rotate-ccw',14)+' Reset all</button></div><p class="gc-hint">Change a score, or fill in an empty one, to see what it does. The eye icon leaves an assignment out.</p><div class="gc-list">'+(addRows+rows||'<p class="gc-hint">No assignments in this grading period yet.</p>')+'</div>'+
-   '<div class="gc-addbox"><b>Add a what-if assignment</b><div class="gc-addrow"><input id="gc-an" type="text" placeholder="Name (e.g. Final exam)" maxlength="40"><select id="gc-ac">'+catOpts+'</select><input id="gc-ae" type="number" step="any" min="0" placeholder="Score"><input id="gc-ap" type="number" step="any" min="0" placeholder="Out of"><button class="btn btn-primary" id="gc-add" type="button">'+ic('plus',15)+' Add</button></div></div></div></div>'+
+   '<div class="gc-cols"><div><div class="gc-card"><div class="gc-card-h"><h4>Assignments</h4><div>'+(c.manual?'<button class="btn btn-ghost btn-sm" id="gc-delclass" type="button">'+ic('trash-2',14)+' Delete class</button> ':'')+'<button class="btn btn-ghost btn-sm" id="gc-reset" type="button">'+ic('rotate-ccw',14)+' Reset changes</button></div></div><p class="gc-hint">Change a score, or fill in an empty one, to see what it does. The eye icon leaves an assignment out.</p><div class="gc-list">'+(addRows+rows||'<p class="gc-hint">No assignments in this grading period yet.</p>')+'</div>'+
+   '<div class="gc-addbox"><b>'+(c.manual?'Add an assignment':'Add a what-if assignment')+'</b><div class="gc-addrow"><input id="gc-an" type="text" placeholder="Name (e.g. Final exam)" maxlength="40"><select id="gc-ac">'+catOpts+'</select><input id="gc-ae" type="number" step="any" min="0" placeholder="Score"><input id="gc-ap" type="number" step="any" min="0" placeholder="Out of"><button class="btn btn-primary" id="gc-add" type="button">'+ic('plus',15)+' Add</button></div></div></div></div>'+
    '<div><div class="gc-card"><h4>Categories</h4><div id="gc-cats"></div></div>'+
    '<div class="gc-card"><h4>What do I need?</h4><p class="gc-hint">Find the score you need on an upcoming assignment to reach a goal.</p><div class="gc-need"><div><label>Goal grade</label><input id="gc-goal" type="number" step="any" value="90" min="0" max="200"></div><div><label>Category</label><select id="gc-nc">'+catOpts+'</select></div><div><label>Worth (points)</label><input id="gc-np" type="number" step="any" value="50" min="1"></div></div><div id="gc-needout" class="gc-needout"></div></div></div></div>';
 }
 function updateDetail(ci){
   var c=S.data.courses[ci], p=projected(ci), orig=c.percent, big=$('#gc-big'); if(!big) return;
   var ch=changed(ci);
-  big.innerHTML='<div class="gc-now"><b>'+fmt(p)+'</b><span class="gc-letter">'+letter(p)+'</span></div>'+(ch&&orig!=null&&p!=null?'<div class="gc-delta '+(p>=orig?'up':'down')+'">'+(p>=orig?'▲ +':'▼ ')+(Math.round((p-orig)*100)/100)+' vs '+fmt(orig)+' ('+(c.letter||letter(orig))+')</div>':'<div class="gc-delta">StudentVUE: '+fmt(orig)+(c.letter?' ('+esc(c.letter)+')':'')+'</div>');
+  big.innerHTML='<div class="gc-now"><b>'+fmt(p)+'</b><span class="gc-letter">'+letter(p)+'</span></div>'+(ch&&orig!=null&&p!=null?'<div class="gc-delta '+(p>=orig?'up':'down')+'">'+(p>=orig?'▲ +':'▼ ')+(Math.round((p-orig)*100)/100)+' vs '+fmt(orig)+' ('+(c.letter||letter(orig))+')</div>':(c.manual?'<div class="gc-delta">Worked out from the assignments you entered</div>':'<div class="gc-delta">StudentVUE: '+fmt(orig)+(c.letter?' ('+esc(c.letter)+')':'')+'</div>'));
   var cs=$('#gc-cats'); if(cs){
     var st=catStats(c,itemsFor(ci,true));
     cs.innerHTML=c.weighted?st.map(function(x){ return '<div class="gc-cat"><div><b>'+esc(x.name)+'</b><span>'+x.weight+'% of grade</span></div><div class="gc-cat-v">'+fmt(x.pct)+'<span>'+(Math.round(x.earned*100)/100)+' / '+(Math.round(x.possible*100)/100)+'</span></div><i style="width:'+Math.max(0,Math.min(100,x.pct||0))+'%"></i></div>'; }).join(''):'<p class="gc-hint">This class is graded on total points.</p>';
@@ -174,7 +180,16 @@ function wire(){
     if(t.closest('#gc-find')){ var z=$('#gc-zip').value; post('/api/studentvue/districts',{zip:z}).then(function(d){ S.districts=d.districts||[]; S.err=''; }).catch(function(e){ S.err=e.message; S.districts=null; }).then(function(){ var u=$('#gc-user')&&$('#gc-user').value; render(); if(u&&$('#gc-user')) $('#gc-user').value=u; }); return; }
     if((b=t.closest('[data-d]'))){ var d=S.districts[+b.dataset.d]; S.url=d.url; var u2=$('#gc-user')&&$('#gc-user').value; render(); if($('#gc-user')) $('#gc-user').value=u2||''; return; }
     if(t.closest('#gc-go')){ var url=$('#gc-url').value.trim(), us=$('#gc-user').value.trim(), pw=$('#gc-pass').value; if(!url||!us||!pw){ S.err='Fill in the address, Student ID and password.'; S.url=url; S.user=us; render(); return; } connect(url,us,pw); return; }
-    if(t.closest('#gc-out')){ if(confirm('Disconnect StudentVUE and remove the imported grades from this browser?')){ forget(); render(); } return; }
+    if(t.closest('#gc-manual')){ S.data={manual:true,fetchedAt:Date.now(),periods:[],period:{name:'My classes'},courses:[]}; S.err=''; S.open=-1; save(); render(); return; }
+    if(t.closest('#gc-addclass')){ S.addingClass=true; render(); var n=$('#gc-cn'); if(n) n.focus(); return; }
+    if(t.closest('#gc-cx')){ S.addingClass=false; render(); return; }
+    if(t.closest('#gc-cs')){
+      var nm=$('#gc-cn').value.trim(); if(!nm){ $('#gc-cn').focus(); return; }
+      var cats=($('#gc-cc').value||'').split(',').map(function(x){ var m=/^\s*(.+?)\s+(\d+(?:\.\d+)?)\s*%?\s*$/.exec(x); return m?{name:m[1],weight:parseFloat(m[2])}:null; }).filter(Boolean).slice(0,8);
+      S.data.courses.push({title:nm,rawTitle:nm,period:'',room:'',teacher:'',mark:'',letter:'',percent:null,categories:cats,weighted:cats.length>1,assignments:[],totalPoints:null,manual:true});
+      S.addingClass=false; S.open=S.data.courses.length-1; save(); render(); return;
+    }
+    if(t.closest('#gc-out')){ if(confirm(S.data&&S.data.manual?'Remove all the classes you entered from this browser?':'Disconnect StudentVUE and remove the imported grades from this browser?')){ forget(); render(); } return; }
     if(t.closest('#gc-refresh')){ S.needPass={label:'Refresh your grades'}; S.needPass.period=null; render(); return; }
     if(t.closest('#gc-pass-x')){ S.needPass=null; render(); return; }
     if(t.closest('#gc-pass-go')){ var p2=$('#gc-pass2').value; if(p2) connect(S.url,S.user,p2,S.needPass.period); return; }
@@ -185,11 +200,15 @@ function wire(){
     if((b=t.closest('[data-tog]'))){ var a=S.data.courses[ci].assignments.filter(function(x){return x.id===b.dataset.tog;})[0], cur=(S.edits[k]&&S.edits[k][a.id]&&S.edits[k][a.id].excluded!==undefined)?S.edits[k][a.id].excluded:a.excluded; setEdit(ci,a.id,'excluded',!cur); render(); return; }
     if((b=t.closest('[data-rev]'))){ if(S.edits[k]) delete S.edits[k][b.dataset.rev]; save(); render(); return; }
     if((b=t.closest('[data-del]'))){ (S.added[k]||[]).splice(+b.dataset.del,1); save(); render(); return; }
+    if((b=t.closest('[data-delreal]'))){ var cc=S.data.courses[ci]; cc.assignments=cc.assignments.filter(function(x){return x.id!==b.dataset.delreal;}); if(S.edits[k]) delete S.edits[k][b.dataset.delreal]; save(); render(); return; }
+    if(t.closest('#gc-delclass')){ if(confirm('Delete this class?')){ S.data.courses.splice(ci,1); S.edits={}; S.added={}; S.open=-1; save(); render(); } return; }
     if(t.closest('#gc-reset')){ delete S.edits[k]; delete S.added[k]; save(); render(); return; }
     if(t.closest('#gc-add')){
       var e=parseFloat($('#gc-ae').value), p=parseFloat($('#gc-ap').value);
       if(!isFinite(e)||!isFinite(p)||p<0||e<0){ $('#gc-ae').focus(); return; }
-      (S.added[k]=S.added[k]||[]).push({id:'x'+Date.now(),name:$('#gc-an').value.trim()||'What-if assignment',category:$('#gc-ac').value,earned:e,possible:p,excluded:false}); save(); render();
+      var item={id:(S.data.courses[ci].manual?'m':'x')+Date.now(),name:$('#gc-an').value.trim()||(S.data.courses[ci].manual?'Assignment':'What-if assignment'),category:$('#gc-ac').value,earned:e,possible:p,excluded:false,date:'',due:''};
+      if(S.data.courses[ci].manual) S.data.courses[ci].assignments.push(item); else (S.added[k]=S.added[k]||[]).push(item);
+      save(); render();
     }
   });
   r.addEventListener('change',function(ev){

@@ -52,7 +52,7 @@ function soap(base, path, handle, method, params, creds, timeoutMs) {
 function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : null; }
 function parseGradebook(xml) {
   const doc = parser.parse(xml);
-  if (doc.RT_ERROR) { const e = new Error(doc.RT_ERROR['@_ERROR_MESSAGE'] || 'StudentVUE rejected the request.'); e.code = /invalid user|password|credential/i.test(e.message) ? 'BAD_LOGIN' : 'SV_ERROR'; throw e; }
+  if (doc.RT_ERROR) { const e = new Error(doc.RT_ERROR['@_ERROR_MESSAGE'] || 'StudentVUE rejected the request.'); e.code = /deprecated|download studentvue/i.test(e.message) ? 'DEPRECATED' : /invalid user|password|credential/i.test(e.message) ? 'BAD_LOGIN' : 'SV_ERROR'; throw e; }
   const gb = doc.Gradebook; if (!gb) { const e = new Error('No gradebook came back from StudentVUE.'); e.code = 'BAD_RESPONSE'; throw e; }
   const periods = ((gb.ReportingPeriods && gb.ReportingPeriods.ReportPeriod) || []).map(p => ({ index: Number(p['@_Index']), name: p['@_GradePeriod'] || '', start: p['@_StartDate'] || '', end: p['@_EndDate'] || '' }));
   const cur = gb.ReportingPeriod ? { name: gb.ReportingPeriod['@_GradePeriod'] || '', start: gb.ReportingPeriod['@_StartDate'] || '', end: gb.ReportingPeriod['@_EndDate'] || '' } : null;
@@ -91,7 +91,7 @@ function mount(app, opts) {
     list.push(now); hits.set(key, list); return true;
   }
   const fail = (res, e) => {
-    const map = { BAD_LOGIN: [401, 'StudentVUE did not accept that Student ID or password.'], TIMEOUT: [504, 'StudentVUE took too long to answer. Try again.'], NETWORK: [502, 'Could not reach that StudentVUE site. Check the address.'], BAD_RESPONSE: [502, e && e.message || 'Unexpected answer from StudentVUE.'], SV_ERROR: [502, e && e.message || 'StudentVUE refused the request.'] };
+    const map = { DEPRECATED: [503, 'StudentVUE has switched off the connection that tools like this use (error D5518), so importing is not possible right now. You can still build your classes by hand below.'], BAD_LOGIN: [401, 'StudentVUE did not accept that Student ID or password.'], TIMEOUT: [504, 'StudentVUE took too long to answer. Try again.'], NETWORK: [502, 'Could not reach that StudentVUE site. Check the address.'], BAD_RESPONSE: [502, e && e.message || 'Unexpected answer from StudentVUE.'], SV_ERROR: [502, e && e.message || 'StudentVUE refused the request.'] };
     const [status, msg] = map[e && e.code] || [502, 'Could not read your StudentVUE grades.'];
     res.status(status).json({ error: msg, code: e && e.code || 'ERR' });
   };
