@@ -2741,6 +2741,19 @@ function sanitizeGameProgressValue(value, depth=0){
   }
   return null;
 }
+function sanitizeAdminGrants(list){
+  return (Array.isArray(list)?list:[]).slice(-50).map(g=>{
+    if(!g||typeof g!=='object') return null;
+    const n=(v,max)=>Math.max(-max,Math.min(max,Math.trunc(Number(v)||0)));
+    return {
+      id:String(g.id||'').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40),
+      t:Math.max(0,Number(g.t)||0),
+      coins:n(g.coins,100000000), tokens:n(g.tokens,100000), crates:n(g.crates,1000000), xp:n(g.xp,100000000),
+      unlockAll:g.unlockAll===true, resetDaily:g.resetDaily===true,
+      note:String(g.note||'').replace(/[<>]/g,'').slice(0,120)
+    };
+  }).filter(g=>g&&g.id);
+}
 function sanitizeAccountState(input){
   const src = input && typeof input === 'object' ? input : {};
   const p = src.progress && typeof src.progress === 'object' ? src.progress : {};
@@ -2829,6 +2842,7 @@ function sanitizeAccountState(input){
     },
     membershipOnboardingCompleted: src.membershipOnboardingCompleted === true,
     credits: sanitizeCredits(src.credits),
+    adminGrants: sanitizeAdminGrants(src.adminGrants),
     tutorChats: sanitizeTutorChats(src.tutorChats),
     tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
     classroom: src.classroom && typeof src.classroom === 'object' ? src.classroom : undefined,
@@ -3295,6 +3309,138 @@ app.post('/api/billing/webhook',async(req,res)=>{
   }
 });
 
+/* ============================ ADMIN PANEL (owner only) ============================ */
+const ADMIN_LOG = [];
+function adminOnly(req,res,next){
+  if(!req.user || !isOwnerUser(req.user)) return res.status(404).json({error:'Not found.'});
+  next();
+}
+async function adminFindUser(q){
+  q=String(q||'').trim().slice(0,120);
+  if(!q) return null;
+  let user=null;
+  if(SUPABASE_ENABLED){
+    let row=q.includes('@')?await dbFindUserByEmail(q):await dbFindUserByUsername(q);
+    if(!row) row=q.includes('@')?await dbFindUserByUsername(q):await dbFindUserByEmail(q);
+    if(row){ const full=await dbFindUserById(row.id); user=dbRowToUser(full||row); }
+  }
+  if(!user) user=users.get('email:'+normalizeEmail(q))||usersByUsername.get(normalizeUsername(q))||null;
+  return user;
+}
+async function adminSaveUser(user){
+  user.accountData=sanitizeAccountState(user.accountData||{});
+  usersById.set(user.id,user);
+  if(SUPABASE_ENABLED) await dbSaveUser(user); else saveUsers();
+}
+function adminSummary(user){
+  const ad=user.accountData&&typeof user.accountData==='object'?user.accountData:null;
+  const p=(ad&&ad.progress)||{};
+  const m=membershipForUser(user);
+  const led=creditLedger.get('u:'+user.id)||sanitizeCredits(ad&&ad.credits);
+  return {
+    id:user.id, username:user.username||'', email:user.email||user.identifier||'', method:user.method||'',
+    created:user.createdAt||user.created_at||null, owner:isOwnerUser(user), hasData:!!ad,
+    role:(ad&&ad.role)||'student',
+    coins:Number(p.coins)||0, tokens:Number(p.freePackTokens)||0, crates:Number(p.skinCrates)||0, xp:Number(p.xp)||0,
+    openedPacks:Number(p.openedPacks)||0, cosmetics:(p.unlockedCosmetics||[]).length, skins:(p.unlockedSkins||[]).length,
+    notes:ad&&Array.isArray(ad.notes)?ad.notes.length:0, studySets:ad&&Array.isArray(ad.studySets)?ad.studySets.length:0,
+    membership:{tier:m.tier,status:m.status,daysLeft:m.daysLeft,currentPeriodEnd:m.currentPeriodEnd,badge:m.lifetimeBadgeTier},
+    creditsBonus:Number(led&&led.bonus)||0,
+    pendingGrants:(ad&&ad.adminGrants||[]).length
+  };
+}
+app.post('/api/admin/lookup', adminOnly, async (req,res)=>{
+  try{
+    const user=await adminFindUser(req.body&&req.body.q);
+    if(!user) return res.status(404).json({error:'No account matches that email or username.'});
+    res.json({ok:true,user:adminSummary(user)});
+  }catch(e){ console.error('admin lookup',e.message); res.status(503).json({error:'Lookup failed. Try again.'}); }
+});
+app.post('/api/admin/grant', adminOnly, async (req,res)=>{
+  try{
+    const b=req.body||{};
+    const user=await adminFindUser(b.q);
+    if(!user) return res.status(404).json({error:'No account matches that email or username.'});
+    const n=(v,max)=>Math.max(-max,Math.min(max,Math.trunc(Number(v)||0)));
+    const coins=n(b.coins,100000000), tokens=n(b.tokens,100000), crates=n(b.crates,1000000), xp=n(b.xp,100000000), credits=n(b.credits,100000);
+    const unlockAll=b.unlockAll===true, resetDaily=b.resetDaily===true;
+    const done=[];
+    user.accountData=user.accountData&&typeof user.accountData==='object'?user.accountData:{};
+    // Items live in the player's progress, which their browser syncs back. Queue them as a
+    // server-owned grant that the browser applies once, so a stale tab cannot overwrite it.
+    if(coins||tokens||crates||xp||unlockAll||resetDaily){
+      const grants=Array.isArray(user.accountData.adminGrants)?user.accountData.adminGrants.slice():[];
+      grants.push({id:genId(),t:Date.now(),coins,tokens,crates,xp,unlockAll,resetDaily,note:String(b.note||'').slice(0,120)});
+      user.accountData.adminGrants=grants;
+      if(coins) done.push((coins>0?'+':'')+coins+' coins');
+      if(tokens) done.push((tokens>0?'+':'')+tokens+' pack tokens');
+      if(crates) done.push((crates>0?'+':'')+crates+' skin crates');
+      if(xp) done.push((xp>0?'+':'')+xp+' XP');
+      if(unlockAll) done.push('all cosmetics & skins');
+      if(resetDaily) done.push('daily coin cap reset');
+    }
+    if(credits){
+      const key='u:'+user.id;
+      let led=creditLedger.get(key);
+      if(!led){ led=sanitizeCredits(user.accountData.credits); led.touched=Date.now(); creditLedger.set(key,led); }
+      led.bonus=Math.max(0,(Number(led.bonus)||0)+credits);
+      user.accountData.credits=creditsForStorage(user);
+      done.push((credits>0?'+':'')+credits+' AI credits');
+    }
+    const mem=b.membership;
+    if(mem&&typeof mem==='object'){
+      const tier=String(mem.tier||'').toLowerCase();
+      if(tier==='free'){
+        await adminSaveUser(user);
+        await saveMembershipForUser(user.id,{tier:'free',status:'active',currentPeriodEnd:0,cancelAtPeriodEnd:false});
+        done.push('membership removed');
+      } else if(['gold','platinum','diamond'].includes(tier)){
+        const days=mem.lifetime===true?3650:Math.max(1,Math.min(3650,Math.trunc(Number(mem.days)||30)));
+        await adminSaveUser(user);
+        await saveMembershipForUser(user.id,{tier,status:'active',currentPeriodEnd:Math.floor(Date.now()/1000)+days*86400,cancelAtPeriodEnd:true});
+        done.push(tier+' membership ('+(mem.lifetime===true?'lifetime':days+' days')+')');
+      }
+      const fresh=SUPABASE_ENABLED?dbRowToUser(await dbFindUserById(user.id)):(usersById.get(user.id)||user);
+      if(fresh){ fresh.accountData={...fresh.accountData,adminGrants:user.accountData.adminGrants,credits:user.accountData.credits||fresh.accountData.credits}; user.accountData=fresh.accountData; user.id=fresh.id; }
+    }
+    if(b.badge==='remove'||['gold','platinum','diamond'].includes(String(b.badge||''))){
+      const bt=String(b.badge);
+      user.accountData.membership={...(user.accountData.membership||{}),lifetimeBadgeTier:bt==='remove'?'':bt};
+      done.push(bt==='remove'?'badge removed':bt+' badge');
+    }
+    if(!done.length) return res.status(400).json({error:'Nothing to grant. Enter at least one amount or option.'});
+    await adminSaveUser(user);
+    const entry={t:Date.now(),by:req.user.username||'owner',to:user.username||user.email||user.id,did:done.join(', '),note:String(b.note||'').slice(0,120)};
+    ADMIN_LOG.unshift(entry); ADMIN_LOG.length=Math.min(ADMIN_LOG.length,60);
+    console.log('[admin]',JSON.stringify(entry));
+    res.json({ok:true,done,user:adminSummary(user)});
+  }catch(e){ console.error('admin grant',e.message); res.status(503).json({error:'Grant failed: '+e.message}); }
+});
+app.get('/api/admin/log', adminOnly, (req,res)=>res.json({ok:true,log:ADMIN_LOG}));
+
+/* Players pick up queued grants here. */
+app.get('/api/account/grants', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    res.set('Cache-Control','no-store');
+    res.json({ok:true,grants:(req.user.accountData&&req.user.accountData.adminGrants)||[]});
+  }catch(e){ res.status(503).json({error:'Unavailable.'}); }
+});
+app.post('/api/account/grants/ack', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{
+    await refreshAccountUserWithState(req);
+    const ids=new Set((Array.isArray(req.body&&req.body.ids)?req.body.ids:[]).map(String));
+    const ad=req.user.accountData;
+    if(ad&&Array.isArray(ad.adminGrants)&&ids.size){
+      ad.adminGrants=ad.adminGrants.filter(g=>!ids.has(String(g.id)));
+      await adminSaveUser(req.user);
+    }
+    res.json({ok:true});
+  }catch(e){ res.status(503).json({error:'Unavailable.'}); }
+});
+
 app.get('/api/account/state', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try {
@@ -3413,6 +3559,8 @@ app.put('/api/account/state', async (req,res)=>{
     mergedAccountState.achievements=existingAccountState.achievements||{claimed:{}};
     const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
     if(mergedQuests) mergedAccountState.quests=mergedQuests;
+    // Admin grants are server-owned: a browser snapshot cannot add or erase them.
+    mergedAccountState.adminGrants = existingAccountState.adminGrants;
     // Classrooms are server-owned: a browser snapshot can never add, edit or erase them.
     mergedAccountState.classroom = existingAccountState.classroom;
     req.user.accountData = sanitizeAccountState(mergedAccountState);
