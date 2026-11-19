@@ -3818,13 +3818,15 @@ function renderDashboardMembershipCard(){
   if(!root)return;
   if(!state.account){root.innerHTML='';return;}
   const m=state.membership||{};
-  const active=m.tier&&m.tier!=='free'&&Number(m.currentPeriodEnd)>0;
-  const days=active?membershipDaysLeftLocal():0;
+  const paidTier=!!(m.tier&&m.tier!=='free');
+  const noExpiry=paidTier&&!(Number(m.currentPeriodEnd)>0);   // owner / unlimited plans have no end date
+  const active=paidTier&&(noExpiry||Number(m.currentPeriodEnd)>Math.floor(Date.now()/1000));
+  const days=active&&!noExpiry?membershipDaysLeftLocal():0;
   const badgeTier=m.lifetimeBadgeTier||(active?m.tier:'');
   const hasEndedPeriod=Number(m.currentPeriodEnd)>0&&Number(m.currentPeriodEnd)<=Math.floor(Date.now()/1000);
   const badgeHtml=badgeTier?'<span class="profile-member-badge pmb-'+badgeTier+'">🏅 '+esc(membershipTierName(badgeTier))+' Member</span>':'';
-  if(active&&days>0){
-    root.innerHTML='<div class="membership-status-card active"><div class="membership-status-main"><div class="membership-status-kicker">⭐ Current membership</div><div class="membership-status-title">'+esc(m.plan?.name||membershipTierName(m.tier))+' · '+days+' day'+(days===1?'':'s')+' left</div><div class="membership-status-sub">Ends '+esc(membershipEndDate(m.currentPeriodEnd))+' · No automatic renewal</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">View membership</button></div></div>';
+  if(active&&(days>0||noExpiry)){
+    root.innerHTML='<div class="membership-status-card active"><div class="membership-status-main"><div class="membership-status-kicker">⭐ Current membership</div><div class="membership-status-title">'+esc(m.plan?.name||membershipTierName(m.tier))+(noExpiry?' · no expiry':' · '+days+' day'+(days===1?'':'s')+' left')+'</div><div class="membership-status-sub">'+(noExpiry?'All plan perks are active on this account.':'Ends '+esc(membershipEndDate(m.currentPeriodEnd))+' · No automatic renewal')+'</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">View membership</button></div></div>';
   }else if(badgeTier&&hasEndedPeriod){
     root.innerHTML='<div class="membership-status-card expired"><div class="membership-status-main"><div class="membership-status-kicker">Membership</div><div class="membership-status-title">Free plan</div><div class="membership-status-sub">Your paid period has ended. You keep your '+esc(membershipTierName(badgeTier))+' badge permanently.</div></div><div class="membership-status-side">'+badgeHtml+'<button class="btn btn-ghost btn-sm" data-action="goto" data-view="membership">Membership</button></div></div>';
   }else if(badgeTier){
