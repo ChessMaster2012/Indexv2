@@ -3771,6 +3771,8 @@ function promptAccountForPersistentView(view){
   return false;
 }
 function switchView(view){
+  // Views added by later scripts (Admin, Grades, Quests) may not exist yet when a saved view is restored.
+  if(!document.getElementById('view-'+view)) view='dashboard';
   if(ACCOUNT_REQUIRED_VIEWS.has(view) && !promptAccountForPersistentView(view)) return;
   if(state.view==='games' && view!=='games' && state.games.active){
     clearGameTimers(); state.games = { active:null, setupType:null, selectedSetId:null };
@@ -9395,7 +9397,7 @@ setInterval(function(){
 <script src="/emoji-icons.js?v=2"></script>
 <script src="/ban-guard.js?v=1"></script>
 <script src="/grade-calc.js?v=4"></script>
-<script src="/admin-panel.js?v=6"></script>
+<script src="/owner-tools.js?v=7"></script>
 <script src="/account-extras.js?v=3"></script>
 <script src="/owner-mode.js?v=2"></script>
 <script src="/credits-plus.js?v=2"></script>
