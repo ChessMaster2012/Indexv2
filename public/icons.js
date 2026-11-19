@@ -17,7 +17,7 @@ function brand(key,size){ size=size||18; if(found[key]) return '<img class="ix-b
 function mark(size){ size=size||24; return '<svg class="ix-mark" width="'+size+'" height="'+size+'" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="ixg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cfc"/><stop offset="1" stop-color="#ff5fa2"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#ixg)"/><circle cx="16" cy="9" r="2.6" fill="#fff"/><path d="M12.5 14.5h7M16 14.5v10.5M12.5 25h7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>'; }
 
 /* ---------- sidebar ---------- */
-var NAV={dashboard:'house',courses:'book-open',learn:'graduation-cap',tutor:'message-square-text',notes:'notebook-pen',studysets:'layers',games:'gamepad-2',live:'zap',membership:'crown',rewards:'trophy',quests:'target'};
+var NAV={dashboard:'house',courses:'book-open',learn:'graduation-cap',tutor:'message-square-text',notes:'notebook-pen',studysets:'layers',games:'gamepad-2',live:'zap',membership:'crown',rewards:'trophy',quests:'target',classroom:'school'};
 function navIcon(b){
   var v=b.getAttribute('data-view'), html=null;
   if(v==='canvas') html=brand('canvas',19);

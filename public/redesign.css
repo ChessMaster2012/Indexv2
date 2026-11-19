@@ -495,3 +495,10 @@ html body .creator-photo { border-radius: 0 !important; border: 0 !important; }
 html body .btn-pink { background: var(--card-2, #3a3026) !important; color: var(--ink) !important; border: 1px solid var(--rd-line) !important; box-shadow: none !important; }
 
 html body .creator-photo-label{display:none !important}
+
+/* emoji replaced by line icons (emoji-icons.js) */
+.ix-emo { display: inline-flex; width: 1.08em; height: 1.08em; vertical-align: -0.16em; flex: none; }
+.ix-emo svg { width: 100%; height: 100%; }
+.cc-icon .ix-emo, .mode-icon .ix-emo { width: 24px; height: 24px; color: var(--accent, #f08a4b); }
+.nav-btn[data-view="classroom"] > span:first-child::before { content: none !important; }
+.cr-pill.roll::after { content: none !important; }
