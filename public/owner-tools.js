@@ -16,7 +16,7 @@ function applyGrants(){
   applying=true;
   api('/api/account/grants').then(function(d){
     var list=(d&&d.grants)||[]; if(!list.length) return;
-    var p=state.progress, lines=[];
+    var p=state.progress, lines=[]; if(d.epoch!=null) p.grantEpoch=d.epoch;
     list.forEach(function(g){
       if(g.coins){ p.coins=Math.max(0,(p.coins||0)+g.coins); lines.push((g.coins>0?'+':'')+g.coins+' coins'); }
       if(g.tokens){ p.freePackTokens=Math.max(0,(p.freePackTokens||0)+g.tokens); lines.push((g.tokens>0?'+':'')+g.tokens+' pack tokens'); }

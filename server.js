@@ -2814,6 +2814,7 @@ function sanitizeAccountState(input){
       };
     })(),
     progress: {
+      grantEpoch: Math.max(0, Math.min(1000000000, Math.floor(Number(p.grantEpoch)||0))),
       xp: Math.max(0, Math.min(100000000, Number(p.xp)||0)),
       activeDates: Array.isArray(p.activeDates) ? p.activeDates.slice(0, 500) : [],
       lessonsLearned: Array.isArray(p.lessonsLearned) ? p.lessonsLearned.slice(0, 5000) : [],
@@ -3480,7 +3481,7 @@ app.post('/api/admin/lookup', adminOnly, async (req,res)=>{
     res.json({ok:true,user:adminSummary(user)});
   }catch(e){ console.error('admin lookup',e.message); res.status(503).json({error:'Lookup failed. Try again.'}); }
 });
-app.post('/api/admin/grant', adminOnly, async (req,res)=>{
+const adminGrantHandler=async (req,res)=>{
   try{
     const b=req.body||{};
     const user=await adminFindUser(b.q);
@@ -3545,6 +3546,10 @@ app.post('/api/admin/grant', adminOnly, async (req,res)=>{
     console.log('[admin]',JSON.stringify(entry));
     res.json({ok:true,done,user:adminSummary(user)});
   }catch(e){ console.error('admin grant',e.message); res.status(503).json({error:'Grant failed: '+e.message}); }
+};
+app.post('/api/admin/grant', adminOnly, async (req,res)=>{
+  let u=null; try{ u=await adminFindUser(req.body&&req.body.q); }catch(e){}
+  return withGrantLock(u?u.id:'none',()=>adminGrantHandler(req,res));
 });
 app.post('/api/admin/ban', adminOnly, async (req,res)=>{
   try{
@@ -3583,12 +3588,30 @@ app.get('/api/admin/security-log', adminOnly, (req,res)=>res.json({ok:true,log:S
 app.get('/api/admin/log', adminOnly, (req,res)=>res.json({ok:true,log:ADMIN_LOG}));
 
 /* Players pick up queued grants here. */
+/* Picking up grants CLAIMS them: the first device or tab to ask gets them and they are removed in the same step,
+   so several devices on one account can never each apply the same gift. Requests for one account are queued. */
+const grantLocks=new Map();
+function withGrantLock(id,fn){
+  const prev=grantLocks.get(id)||Promise.resolve();
+  const run=prev.then(fn,fn);
+  const tail=run.catch(()=>{});
+  grantLocks.set(id,tail);
+  tail.then(()=>{ if(grantLocks.get(id)===tail) grantLocks.delete(id); });
+  return run;
+}
 app.get('/api/account/grants', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
-    await refreshAccountUserWithState(req);
+    const grants=await withGrantLock(req.user.id,async()=>{
+      await refreshAccountUserWithState(req);
+      const ad=req.user.accountData;
+      const list=(ad&&Array.isArray(ad.adminGrants))?ad.adminGrants.slice():[];
+      let epoch=ad&&ad.progress?Number(ad.progress.grantEpoch)||0:0;
+      if(list.length){ ad.adminGrants=[]; if(ad.progress){ epoch+=1; ad.progress.grantEpoch=epoch; } await adminSaveUser(req.user); }
+      return {list,epoch};
+    });
     res.set('Cache-Control','no-store');
-    res.json({ok:true,grants:(req.user.accountData&&req.user.accountData.adminGrants)||[]});
+    res.json({ok:true,grants:grants.list,epoch:grants.epoch});
   }catch(e){ res.status(503).json({error:'Unavailable.'}); }
 });
 app.post('/api/account/grants/ack', async (req,res)=>{
@@ -3708,6 +3731,16 @@ app.put('/api/account/state', async (req,res)=>{
       claimedSkinCrateLevels:unionList(existingProgress.claimedSkinCrateLevels,incomingProgress.claimedSkinCrateLevels,50),
       gameProgress:mergedGameProgress
     };
+    // A device that has not yet seen an owner gift is out of date: it must not overwrite the balances the gift changed.
+    let staleSync=false;
+    {
+      const exEp=Number(existingProgress.grantEpoch)||0, inEp=Number(incomingProgress.grantEpoch)||0;
+      if(inEp<exEp){
+        staleSync=true;
+        for(const k of ['coins','freePackTokens','skinCrates','xp']) if(existingProgress[k]!==undefined) mergedAccountState.progress[k]=existingProgress[k];
+        mergedAccountState.progress.grantEpoch=exEp;
+      }
+    }
     // Anti-cheat: the browser may only report progress a student could really have earned.
     if(!isOwnerUser(req.user)){
       if(banInfo(req.user)) return res.status(403).json({error:'This account is suspended.',banned:true,reason:banInfo(req.user).reason});
@@ -3748,6 +3781,7 @@ app.put('/api/account/state', async (req,res)=>{
       storage:SUPABASE_ENABLED?'supabase':'server-file',
       durableAcrossDeploys:SUPABASE_ENABLED,
       compressed:true,
+      stale:staleSync,
       savedAt:req.user.accountData.savedAt
     });
   } catch(e) {

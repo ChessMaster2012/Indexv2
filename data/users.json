@@ -738,5 +738,639 @@
       "learnAt": 0,
       "savedAt": 1795175951443
     }
+  },
+  {
+    "id": "3d81ad4f2d8e088a625e678a",
+    "method": "email",
+    "identifier": "mt26461@example.com",
+    "email": "mt26461@example.com",
+    "username": "mt26461",
+    "passwordHash": "6dc07f08e9cfc40c7252a87854db6f0459e4aafbf4c024f28441f47585875931acc1a4098bf405977805242c1efa1afd7241b0ee76c6aaf37e418952323e512b",
+    "salt": "25846548e195a8a49533a8748c794304",
+    "firstName": "",
+    "lastName": "",
+    "createdAt": 1795176429161,
+    "accountData": {
+      "version": 2,
+      "notes": [],
+      "studySets": [],
+      "customSets": [],
+      "customTopics": {},
+      "membership": {
+        "tier": "free",
+        "status": "active",
+        "lifetimeBadgeTier": "",
+        "customerId": "",
+        "subscriptionId": "",
+        "currentPeriodEnd": 0,
+        "cancelAtPeriodEnd": false,
+        "updatedAt": 0
+      },
+      "progress": {
+        "xp": 0,
+        "activeDates": [],
+        "lessonsLearned": [],
+        "coins": 648,
+        "freePackTokens": 0,
+        "unlockedCosmetics": [
+          "ling-sugarbug"
+        ],
+        "claimedBPLevels": [
+          1
+        ],
+        "season": {
+          "id": "2026-11",
+          "base": 0,
+          "claimed": [
+            1
+          ]
+        },
+        "skinCrates": 0,
+        "unlockedSkins": [],
+        "claimedSkinCrateLevels": [],
+        "equipped": {
+          "indexling": "ling-sugarbug",
+          "indexlingSkin": "",
+          "skinByIndexling": {},
+          "frame": "default"
+        },
+        "openedPacks": 0,
+        "liveGames": 0,
+        "gameProgress": {
+          "shadow": {
+            "floor": 1,
+            "wins": 0
+          },
+          "gold": {
+            "vault": 0,
+            "workers": 6,
+            "assign": {
+              "ore": 2,
+              "crystal": 2,
+              "relic": 2
+            },
+            "lastSave": 1000000000
+          },
+          "rogue": {
+            "floor": 1,
+            "wins": 0,
+            "deck": [
+              "strike",
+              "strike",
+              "guard",
+              "spark",
+              "heal",
+              "strike"
+            ],
+            "hp": 30,
+            "run": null
+          },
+          "chrono": {
+            "best": 0,
+            "spells": 0
+          },
+          "rhythm": {
+            "best": 0
+          },
+          "gauntlet": {
+            "best": 0
+          },
+          "commanderFinal": {
+            "coins": 0,
+            "owned": {
+              "ling-sugarbug": true
+            },
+            "levels": {
+              "ling-sugarbug": 1
+            }
+          }
+        },
+        "dailyCoinDate": "",
+        "dailyCoinEarned": 0,
+        "dailyWheelDate": "",
+        "dailyWheelLastSpinAt": 0,
+        "dailyWheelReward": 0
+      },
+      "quests": {
+        "day": "2026-11-20",
+        "baseline": {
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0
+        },
+        "progress": {
+          "login": 1,
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0,
+          "quizzes": 0,
+          "perfect": 0,
+          "coins": 0,
+          "wheel": 0,
+          "streak": 0,
+          "cards": 0,
+          "games": 0,
+          "waves": 0,
+          "crates": 0
+        },
+        "claimed": {},
+        "announced": {
+          "login": 1795176431670
+        },
+        "crateRewardsClaimed": {},
+        "chestClaimed": {}
+      },
+      "achievements": {
+        "claimed": {}
+      },
+      "profile": {
+        "name": "",
+        "district": "Talbot County Public Schools (TCPS)",
+        "county": "talbot-md",
+        "countyName": "Talbot County, Maryland",
+        "bio": "",
+        "favoriteSubject": "",
+        "studyGoal": "",
+        "profileAccent": "purple",
+        "showProgress": true,
+        "reducedMotion": false
+      },
+      "membershipOnboardingCompleted": false,
+      "credits": {
+        "windowKey": "2026-11-20#1",
+        "used": 0,
+        "bonus": 20,
+        "rollDate": "",
+        "lastRoll": 0,
+        "starter": true
+      },
+      "adminGrants": [],
+      "security": {
+        "banned": null,
+        "strikes": [],
+        "econ": {
+          "t": 1795176442033,
+          "coins": 24207.43833333333,
+          "tokens": 60,
+          "crates": 40,
+          "xp": 30000,
+          "items": 15,
+          "ccoins": 50000
+        },
+        "bonus": {
+          "coins": 777,
+          "tokens": 0,
+          "crates": 0,
+          "xp": 0,
+          "items": 0,
+          "ccoins": 0
+        }
+      },
+      "tutorChats": [],
+      "tutorChatsAt": 0,
+      "learnStore": null,
+      "learnAt": 0,
+      "savedAt": 1795176451117
+    }
+  },
+  {
+    "id": "9ba3e00b88a703e895650aac",
+    "method": "email",
+    "identifier": "boss@example.com",
+    "email": "boss@example.com",
+    "username": "boss7617",
+    "passwordHash": "6f80fe70b534fc4a8371d4f9b72dc9c5725725f283b1621768239f597e883377de668e7afb863f668618bdd2c6c63a69191e1e0f4176b42ec7e40f9c0d581dea",
+    "salt": "cc5962fdb5d303894e1527ebcf04126a",
+    "firstName": "",
+    "lastName": "",
+    "createdAt": 1795176430868,
+    "accountData": null
+  },
+  {
+    "id": "3fd7578bafdb46fa8a03843b",
+    "method": "email",
+    "identifier": "mt96945@example.com",
+    "email": "mt96945@example.com",
+    "username": "mt96945",
+    "passwordHash": "15001c4b08e2d21b04972d107d6d95fdaed96d976894b04dc211dd6215198187edca6cd4040cccc5826dfee29c477727b2503e752882a2a184df376ab7711560",
+    "salt": "dd451eb05dc8c4cef150026bc0edb067",
+    "firstName": "",
+    "lastName": "",
+    "createdAt": 1795176498894,
+    "accountData": {
+      "version": 2,
+      "notes": [],
+      "studySets": [],
+      "customSets": [],
+      "customTopics": {},
+      "membership": {
+        "tier": "free",
+        "status": "active",
+        "lifetimeBadgeTier": "",
+        "customerId": "",
+        "subscriptionId": "",
+        "currentPeriodEnd": 0,
+        "cancelAtPeriodEnd": false,
+        "updatedAt": 0
+      },
+      "progress": {
+        "grantEpoch": 0,
+        "xp": 0,
+        "activeDates": [],
+        "lessonsLearned": [],
+        "coins": 76,
+        "freePackTokens": 0,
+        "unlockedCosmetics": [
+          "ling-sugarbug"
+        ],
+        "claimedBPLevels": [
+          1
+        ],
+        "season": {
+          "id": "2026-11",
+          "base": 0,
+          "claimed": [
+            1
+          ]
+        },
+        "skinCrates": 0,
+        "unlockedSkins": [],
+        "claimedSkinCrateLevels": [],
+        "equipped": {
+          "indexling": "ling-sugarbug",
+          "indexlingSkin": "",
+          "skinByIndexling": {},
+          "frame": "default"
+        },
+        "openedPacks": 0,
+        "liveGames": 0,
+        "gameProgress": {
+          "shadow": {
+            "floor": 1,
+            "wins": 0
+          },
+          "gold": {
+            "vault": 0,
+            "workers": 6,
+            "assign": {
+              "ore": 2,
+              "crystal": 2,
+              "relic": 2
+            },
+            "lastSave": 1000000000
+          },
+          "rogue": {
+            "floor": 1,
+            "wins": 0,
+            "deck": [
+              "strike",
+              "strike",
+              "guard",
+              "spark",
+              "heal",
+              "strike"
+            ],
+            "hp": 30,
+            "run": null
+          },
+          "chrono": {
+            "best": 0,
+            "spells": 0
+          },
+          "rhythm": {
+            "best": 0
+          },
+          "gauntlet": {
+            "best": 0
+          },
+          "commanderFinal": {
+            "coins": 0,
+            "owned": {
+              "ling-sugarbug": true
+            },
+            "levels": {
+              "ling-sugarbug": 1
+            }
+          }
+        },
+        "dailyCoinDate": "",
+        "dailyCoinEarned": 0,
+        "dailyWheelDate": "",
+        "dailyWheelLastSpinAt": 0,
+        "dailyWheelReward": 0
+      },
+      "quests": {
+        "day": "2026-11-20",
+        "baseline": {
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0
+        },
+        "progress": {
+          "login": 1,
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0,
+          "quizzes": 0,
+          "perfect": 0,
+          "coins": 0,
+          "wheel": 0,
+          "streak": 0,
+          "cards": 0,
+          "games": 0,
+          "waves": 0,
+          "crates": 0
+        },
+        "claimed": {},
+        "announced": {
+          "login": 1795176500993
+        },
+        "crateRewardsClaimed": {},
+        "chestClaimed": {}
+      },
+      "achievements": {
+        "claimed": {}
+      },
+      "profile": {
+        "name": "",
+        "district": "Talbot County Public Schools (TCPS)",
+        "county": "talbot-md",
+        "countyName": "Talbot County, Maryland",
+        "bio": "",
+        "favoriteSubject": "",
+        "studyGoal": "",
+        "profileAccent": "purple",
+        "showProgress": true,
+        "reducedMotion": false
+      },
+      "membershipOnboardingCompleted": false,
+      "credits": {
+        "windowKey": "2026-11-20#1",
+        "used": 0,
+        "bonus": 20,
+        "rollDate": "",
+        "lastRoll": 0,
+        "starter": true
+      },
+      "adminGrants": [],
+      "security": {
+        "banned": null,
+        "strikes": [],
+        "econ": {
+          "t": 1795176513230,
+          "coins": 24980.711666666666,
+          "tokens": 60,
+          "crates": 40,
+          "xp": 30000,
+          "items": 15,
+          "ccoins": 50000
+        },
+        "bonus": {
+          "coins": 0,
+          "tokens": 0,
+          "crates": 0,
+          "xp": 0,
+          "items": 0,
+          "ccoins": 0
+        }
+      },
+      "tutorChats": [],
+      "tutorChatsAt": 0,
+      "learnStore": null,
+      "learnAt": 0,
+      "savedAt": 1795176520946
+    }
+  },
+  {
+    "id": "1df2813fc570d78ba21475bd",
+    "method": "email",
+    "identifier": "mt26723@example.com",
+    "email": "mt26723@example.com",
+    "username": "mt26723",
+    "passwordHash": "0a0a963693ca0059a300daf52938c3b3134658424ce61b3fddc20c39af932e8e3d29d0f73dfaf5b5fdf74b678fc3a29591e19afe7794c416b62485a3220bb12e",
+    "salt": "4e81362fabf677875e8b69c194afc422",
+    "firstName": "",
+    "lastName": "",
+    "createdAt": 1795176528792,
+    "accountData": {
+      "version": 2,
+      "notes": [],
+      "studySets": [],
+      "customSets": [],
+      "customTopics": {},
+      "membership": {
+        "tier": "free",
+        "status": "active",
+        "lifetimeBadgeTier": "",
+        "customerId": "",
+        "subscriptionId": "",
+        "currentPeriodEnd": 0,
+        "cancelAtPeriodEnd": false,
+        "updatedAt": 0
+      },
+      "progress": {
+        "grantEpoch": 2,
+        "xp": 0,
+        "activeDates": [],
+        "lessonsLearned": [],
+        "coins": 648,
+        "freePackTokens": 0,
+        "unlockedCosmetics": [
+          "ling-sugarbug"
+        ],
+        "claimedBPLevels": [
+          1
+        ],
+        "season": {
+          "id": "2026-11",
+          "base": 0,
+          "claimed": [
+            1
+          ]
+        },
+        "skinCrates": 0,
+        "unlockedSkins": [],
+        "claimedSkinCrateLevels": [],
+        "equipped": {
+          "indexling": "ling-sugarbug",
+          "indexlingSkin": "",
+          "skinByIndexling": {},
+          "frame": "default"
+        },
+        "openedPacks": 0,
+        "liveGames": 0,
+        "gameProgress": {
+          "shadow": {
+            "floor": 1,
+            "wins": 0
+          },
+          "gold": {
+            "vault": 0,
+            "workers": 6,
+            "assign": {
+              "ore": 2,
+              "crystal": 2,
+              "relic": 2
+            },
+            "lastSave": 1000000000
+          },
+          "rogue": {
+            "floor": 1,
+            "wins": 0,
+            "deck": [
+              "strike",
+              "strike",
+              "guard",
+              "spark",
+              "heal",
+              "strike"
+            ],
+            "hp": 30,
+            "run": null
+          },
+          "chrono": {
+            "best": 0,
+            "spells": 0
+          },
+          "rhythm": {
+            "best": 0
+          },
+          "gauntlet": {
+            "best": 0
+          },
+          "commanderFinal": {
+            "coins": 0,
+            "owned": {
+              "ling-sugarbug": true
+            },
+            "levels": {
+              "ling-sugarbug": 1
+            }
+          }
+        },
+        "dailyCoinDate": "",
+        "dailyCoinEarned": 0,
+        "dailyWheelDate": "",
+        "dailyWheelLastSpinAt": 0,
+        "dailyWheelReward": 0
+      },
+      "quests": {
+        "day": "2026-11-20",
+        "baseline": {
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0
+        },
+        "progress": {
+          "login": 1,
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0,
+          "quizzes": 0,
+          "perfect": 0,
+          "coins": 0,
+          "wheel": 0,
+          "streak": 0,
+          "cards": 0,
+          "games": 0,
+          "waves": 0,
+          "crates": 0
+        },
+        "claimed": {},
+        "announced": {
+          "login": 1795176531111
+        },
+        "crateRewardsClaimed": {},
+        "chestClaimed": {}
+      },
+      "achievements": {
+        "claimed": {}
+      },
+      "profile": {
+        "name": "",
+        "district": "Talbot County Public Schools (TCPS)",
+        "county": "talbot-md",
+        "countyName": "Talbot County, Maryland",
+        "bio": "",
+        "favoriteSubject": "",
+        "studyGoal": "",
+        "profileAccent": "purple",
+        "showProgress": true,
+        "reducedMotion": false
+      },
+      "membershipOnboardingCompleted": false,
+      "credits": {
+        "windowKey": "2026-11-20#1",
+        "used": 0,
+        "bonus": 20,
+        "rollDate": "",
+        "lastRoll": 0,
+        "starter": true
+      },
+      "adminGrants": [],
+      "security": {
+        "banned": null,
+        "strikes": [],
+        "econ": {
+          "t": 1795176543619,
+          "coins": 24208.744166666667,
+          "tokens": 60,
+          "crates": 40,
+          "xp": 30000,
+          "items": 15,
+          "ccoins": 50000
+        },
+        "bonus": {
+          "coins": 777,
+          "tokens": 0,
+          "crates": 0,
+          "xp": 0,
+          "items": 0,
+          "ccoins": 0
+        }
+      },
+      "tutorChats": [],
+      "tutorChatsAt": 0,
+      "learnStore": null,
+      "learnAt": 0,
+      "savedAt": 1795176551043
+    }
+  },
+  {
+    "id": "cbbd16101e601ab068cd915f",
+    "method": "email",
+    "identifier": "boss7565@example.com",
+    "email": "boss7565@example.com",
+    "username": "bs52374",
+    "passwordHash": "cc3c3eb0e5f120efe586143f048ca1c81f0e2bf11f32895b65521d017a987a9a9209883a69ca2a3bf8e509839e8b98573e932aa9b23be6d85f3e0c1a612e02ed",
+    "salt": "a3d953208e09a71a2aff3002e64388cf",
+    "firstName": "",
+    "lastName": "",
+    "createdAt": 1795176530626,
+    "accountData": null
   }
 ]

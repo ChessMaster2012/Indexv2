@@ -2379,7 +2379,7 @@ function accountStatePayload(){
     studySets: Array.isArray(state.studySets) ? state.studySets : [],
     customSets: Array.isArray(state.customSets) ? state.customSets : [],
     customTopics: state.customTopics && typeof state.customTopics==='object' ? state.customTopics : {},
-    progress:{xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],season:state.progress.season||null,skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,gameProgress:state.progress.gameProgress&&typeof state.progress.gameProgress==='object'?state.progress.gameProgress:{},dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
+    progress:{grantEpoch:state.progress.grantEpoch||0,xp:state.progress.xp,activeDates:state.progress.activeDates,lessonsLearned:state.progress.lessonsLearned,coins:state.progress.coins||0,freePackTokens:state.progress.freePackTokens||0,unlockedCosmetics:state.progress.unlockedCosmetics||[],claimedBPLevels:state.progress.claimedBPLevels||[],season:state.progress.season||null,skinCrates:state.progress.skinCrates||0,unlockedSkins:state.progress.unlockedSkins||[],claimedSkinCrateLevels:state.progress.claimedSkinCrateLevels||[],equipped:state.progress.equipped||{},openedPacks:state.progress.openedPacks||0,liveGames:state.progress.liveGames||0,gameProgress:state.progress.gameProgress&&typeof state.progress.gameProgress==='object'?state.progress.gameProgress:{},dailyCoinDate:state.progress.dailyCoinDate||'',dailyCoinEarned:state.progress.dailyCoinEarned||0,dailyWheelDate:state.progress.dailyWheelDate||'',dailyWheelLastSpinAt:state.progress.dailyWheelLastSpinAt||0,dailyWheelReward:state.progress.dailyWheelReward||0},
     profile:{name:state.profile.name||'',district:state.profile.district||'',county:state.profile.county||'',countyName:state.profile.countyName||'',bio:state.profile.bio||'',favoriteSubject:state.profile.favoriteSubject||'',studyGoal:state.profile.studyGoal||'',profileAccent:state.profile.profileAccent||'purple',showProgress:state.profile.showProgress!==false,reducedMotion:state.profile.reducedMotion===true},
     quests:(typeof questPayload==='function'?questPayload():undefined),
     membershipOnboardingCompleted: membershipOnboardingCompleted(),
@@ -2403,6 +2403,7 @@ async function syncAccountStateNow(){
     if(r.status===401){ state.account=null; renderProfileSlot(); }
     else if(!r.ok) showAccountSyncNotice(d.error||'Your account changes could not be saved. Please try again.');
     else if(d.storage==='server-file') showAccountSyncNotice('Account saved on this server. Cross-deploy persistence needs persistent storage.');
+    if(r.ok&&d.stale){ accountSyncInFlight=false; try{ await loadAccountState(); }catch(e){} }
   }catch(e){
     showAccountSyncNotice('Could not reach account storage. Your latest changes may not be saved.');
   }
@@ -9397,7 +9398,7 @@ setInterval(function(){
 <script src="/emoji-icons.js?v=2"></script>
 <script src="/ban-guard.js?v=1"></script>
 <script src="/grade-calc.js?v=7"></script>
-<script src="/owner-tools.js?v=11"></script>
+<script src="/owner-tools.js?v=12"></script>
 <script src="/account-extras.js?v=3"></script>
 <script src="/owner-mode.js?v=2"></script>
 <script src="/credits-plus.js?v=2"></script>
