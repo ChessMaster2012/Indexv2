@@ -74,13 +74,13 @@ function buildGradebook(gb) {
     const total = cats.find(c2 => /^total$/i.test(c2.name));
     const real = cats.filter(c2 => !/^total$/i.test(c2.name));
     const assignments = listOf(pick(mark, 'Assignments'), 'Assignment').map((a, i) => {
-      const pts = S(a, 'Points'), score = S(a, 'Score'), notes = S(a, 'Notes');
+      const pts = S(a, 'Points'), score = S(a, 'DisplayScore') || S(a, 'Score'), notes = S(a, 'Notes');
       let earned = null, possible = null, m;
       if ((m = /^\s*([\d.]+)\s*\/\s*([\d.]+)/.exec(pts))) { earned = parseFloat(m[1]); possible = parseFloat(m[2]); }
       else if ((m = /([\d.]+)\s*Points Possible/i.exec(pts))) { possible = parseFloat(m[1]); }
       else if ((m = /^\s*([\d.]+)\s*out of\s*([\d.]+)/i.exec(score))) { earned = parseFloat(m[1]); possible = parseFloat(m[2]); }
       const notCounted = /not for grading/i.test(score + ' ' + notes);
-      return { id: S(a, 'GradebookID') || 'a' + i, name: S(a, 'Measure') || 'Assignment', category: S(a, 'Type'), date: S(a, 'Date'), due: S(a, 'DueDate'),
+      return { id: S(a, 'GradebookID') || 'a' + i, name: S(a, 'Measure').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim() || 'Assignment', category: S(a, 'Type'), date: S(a, 'Date'), due: S(a, 'DueDate'),
         earned, possible, status: score.slice(0, 40), excluded: notCounted, notes: notes.slice(0, 160) };
     });
     const rawTitle = S(c, 'Title');
@@ -101,18 +101,40 @@ function parseGradebook(text) {
   if (t[0] === '{' || t[0] === '[') { try { doc = JSON.parse(t); } catch (e) { const x = new Error('StudentVUE sent a response Index could not read.'); x.code = 'BAD_RESPONSE'; throw x; } }
   else doc = parser.parse(t);
   const rt = pick(doc, 'RT_ERROR'); if (rt) throw errOf(S(rt, 'ERROR_MESSAGE') || (typeof rt === 'string' ? rt : ''));
-  const gb = pick(doc, 'Gradebook') || doc;
+  const ae = (typeof apiError === 'function') && apiError(doc); if (ae) throw ae;
+  const dat = pick(doc, 'data'), gb = pick(doc, 'Gradebook') || pick(dat, 'traditionalGradebook') || pick(dat, 'Gradebook') || doc;
   if (!listOf(pick(gb, 'Courses'), 'Course').length && !pick(gb, 'Courses')) { const e = new Error('No gradebook came back from StudentVUE.'); e.code = 'BAD_RESPONSE'; throw e; }
   return buildGradebook(gb);
 }
 
-/* ---------- StudentVUE's newer "mobile" API (what the phone app and Grade Melon use) ---------- */
-function mobileCall(base, method, body, auth, timeoutMs) {
-  const payload = JSON.stringify(body || {});
+/* ---------- StudentVUE's newer "mobile" API (what the phone app and Grade Melon use) ----------
+   POST /api/v1/mobile/PXPWebServices/<Method>; Basic auth at AttemptLogin -> Bearer token afterwards.
+   Every call must carry the app's public `edupointkeyversion` value, or Edupoint answers "update the app". */
+const APP_HEADER = 'StudentVUE|Android|2.0.16';
+const LAST_KNOWN_KEY = 'Fws7lq+y7btySqYP52MXIZEjQbNo1EUhdAdwCvic8Ptlsf65icaE//ZYiHvvw8hh';
+let keyCache = { value: '', at: 0 };
+function fetchKey() {
+  return new Promise(resolve => {
+    const req = https.get('https://axum-svue.fly.dev/akey', { timeout: 8000, headers: { 'User-Agent': 'IndexGradeCalc/1.0' } }, res => {
+      let d = ''; res.setEncoding('utf8'); res.on('data', c => { if (d.length < 500) d += c; });
+      res.on('end', () => { const t = d.trim(); resolve(res.statusCode === 200 && /^[A-Za-z0-9+\/=]{40,64}$/.test(t) ? t : ''); });
+    });
+    req.on('timeout', () => req.destroy()); req.on('error', () => resolve(''));
+  });
+}
+async function getKey(force) {
+  if (process.env.EDUPOINT_KEY_VERSION) return process.env.EDUPOINT_KEY_VERSION.trim();
+  if (!force && keyCache.value && Date.now() - keyCache.at < 6 * 3600e3) return keyCache.value;
+  const k = await fetchKey();
+  if (k) { keyCache = { value: k, at: Date.now() }; return k; }
+  return keyCache.value || LAST_KNOWN_KEY;
+}
+function mobileCall(base, method, request, auth, key, timeoutMs) {
+  const payload = method === 'RefreshToken' ? '{}' : JSON.stringify({ arguments: { request: JSON.stringify(request || {}) } });
   return new Promise((resolve, reject) => {
     const mod = base.protocol === 'http:' ? require('http') : https;
     const req = mod.request({ host: base.host.split(':')[0], port: base.host.includes(':') ? Number(base.host.split(':')[1]) : undefined, path: '/api/v1/mobile/PXPWebServices/' + method, method: 'POST', timeout: timeoutMs || 25000,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/plain, */*', Authorization: auth, 'Content-Length': Buffer.byteLength(payload), 'User-Agent': 'Mozilla/5.0 (compatible; IndexGradeCalc/1.0)' } }, res => {
+      headers: { 'Content-Type': 'application/json', Accept: '*/*', Authorization: auth, edupointkeyversion: key, AppNameOSAndVersion: APP_HEADER, 'User-Agent': 'ksoap', 'Content-Length': Buffer.byteLength(payload) } }, res => {
       let data = ''; res.setEncoding('utf8'); res.on('data', c => { data += c; if (data.length > 6e6) req.destroy(new Error('Response too large')); });
       res.on('end', () => resolve({ status: res.statusCode, text: data, type: res.headers['content-type'] || '' }));
     });
@@ -121,34 +143,35 @@ function mobileCall(base, method, body, auth, timeoutMs) {
     req.end(payload);
   });
 }
-function findToken(node, depth) {
-  if (node == null || (depth || 0) > 6) return '';
-  if (typeof node === 'object') {
-    for (const k of Object.keys(node)) { const v = node[k]; if (/token/i.test(k) && typeof v === 'string' && v.length > 16) return v; }
-    for (const k of Object.keys(node)) { const r = findToken(node[k], (depth || 0) + 1); if (r) return r; }
-  }
-  return '';
-}
 function readBody(r) {
   const t = String(r.text || '').trim();
   if (t[0] === '{' || t[0] === '[') { try { return JSON.parse(t); } catch (e) { } }
   if (t[0] === '<') { try { return parser.parse(t); } catch (e) { } }
   return null;
 }
-async function mobileLogin(base, user, pass) {
-  const r = await mobileCall(base, 'AttemptLogin', { userType: 'Student' }, 'Basic ' + Buffer.from(user + ':' + pass, 'utf8').toString('base64'));
-  const doc = readBody(r);
-  if (doc) { const rt = pick(doc, 'RT_ERROR'); if (rt) throw errOf(S(rt, 'ERROR_MESSAGE')); }
-  const token = doc ? findToken(doc) : '';
-  if (token) return { token, raw: r };
+function apiError(doc) {   // Edupoint answers errors with HTTP 200 and {error:{code,message}}
+  const er = doc && pick(doc, 'error'); if (!er || typeof er !== 'object') return null;
+  const msg = S(er, 'message') || 'StudentVUE refused the request.', code = S(er, 'code');
+  const e = errOf(msg); if (/upd5304|update (the )?app|upgraded our server/i.test(msg)) { e.code = 'KEY'; }
+  e.apiCode = code; return e;
+}
+const LOGIN_REQ = { userID: null, password: null, userType: 'Student' };
+async function mobileLogin(base, user, pass, key) {
+  const basic = 'Basic ' + Buffer.from(user + ':' + pass, 'utf8').toString('base64');
+  let r = await mobileCall(base, 'AttemptLogin', LOGIN_REQ, basic, key), doc = readBody(r), err = apiError(doc);
+  if (err && err.code === 'KEY') {   // the access key changed: fetch a fresh one once
+    key = await getKey(true); r = await mobileCall(base, 'AttemptLogin', LOGIN_REQ, basic, key); doc = readBody(r); err = apiError(doc);
+  }
+  if (err) { if (err.apiCode === '401' || /invalid user|password/i.test(err.message)) err.code = 'BAD_LOGIN'; throw err; }
+  const token = doc && (pick(doc, 'access_token') || pick(pick(doc, 'data'), 'access_token'));
+  if (typeof token === 'string' && token.length > 16) return { token, key, raw: r };
   if (r.status === 401 || r.status === 403) throw Object.assign(new Error('StudentVUE did not accept that Student ID or password.'), { code: 'BAD_LOGIN' });
-  const msg = doc && (S(doc, 'message') || S(doc, 'error') || S(doc, 'errorMessage'));
-  throw Object.assign(new Error(msg || 'StudentVUE did not return a sign-in token (status ' + r.status + ').'), { code: /password|credential|invalid|incorrect|unauthori/i.test(msg || '') ? 'BAD_LOGIN' : 'BAD_RESPONSE', raw: r });
+  throw Object.assign(new Error('StudentVUE did not return a sign-in token (status ' + r.status + ').'), { code: 'BAD_RESPONSE', raw: r });
 }
 async function mobileGradebook(base, user, pass, period) {
-  const { token } = await mobileLogin(base, user, pass);
-  const body = { childIntId: 0 }; if (period != null) body.ReportPeriod = period;
-  const r = await mobileCall(base, 'Gradebook', body, 'Bearer ' + token);
+  const key0 = await getKey(), { token, key } = await mobileLogin(base, user, pass, key0);
+  const r = await mobileCall(base, 'Gradebook', { reportPeriod: period != null ? String(period) : '', concurrentSchOrgYearGU: '', childIntID: 0, languageCode: 'en' }, 'Bearer ' + token, key);
+  const doc = readBody(r), err = apiError(doc); if (err) throw err;
   if (r.status === 401 || r.status === 403) throw Object.assign(new Error('StudentVUE ended the session. Try again.'), { code: 'BAD_LOGIN' });
   return parseGradebook(r.text);
 }
@@ -163,19 +186,17 @@ async function mobileProbe(base, user, pass) {
   const out = [], redact = s => String(s).split(pass).join('***');
   const clip = (s, n) => redact(s).replace(/[A-Za-z0-9+\/=]{60,}/g, m => '<' + m.length + ' chars>').slice(0, n);
   try {
-    const l = await mobileCall(base, 'AttemptLogin', { userType: 'Student' }, 'Basic ' + Buffer.from(user + ':' + pass, 'utf8').toString('base64'));
-    const d = readBody(l);
+    const key = await getKey(); out.push('access key: ' + (process.env.EDUPOINT_KEY_VERSION ? 'from server setting' : key === LAST_KNOWN_KEY ? 'built-in fallback (live fetch failed)' : 'fetched live') + ' (' + key.length + ' chars)');
+    const basic = 'Basic ' + Buffer.from(user + ':' + pass, 'utf8').toString('base64');
+    const l = await mobileCall(base, 'AttemptLogin', LOGIN_REQ, basic, key), d = readBody(l);
     out.push('## AttemptLogin -> status ' + l.status + ' · ' + l.type + ' · ' + l.text.length + ' bytes', 'shape: ' + (d ? outline(d) : '(not JSON/XML)'), 'start: ' + clip(l.text, 600));
-    const token = d ? findToken(d) : '';
-    out.push('token found: ' + (token ? 'yes (' + token.length + ' chars)' : 'NO'));
+    const token = d && (pick(d, 'access_token') || pick(pick(d, 'data'), 'access_token'));
+    out.push('token found: ' + (token ? 'yes (' + String(token).length + ' chars)' : 'NO'));
     if (!token) return out.join('\n\n');
-    for (const body of [{ childIntId: 0 }]) {
-      const g = await mobileCall(base, 'Gradebook', body, 'Bearer ' + token);
-      const gd = readBody(g);
-      out.push('## Gradebook ' + JSON.stringify(body) + ' -> status ' + g.status + ' · ' + g.type + ' · ' + g.text.length + ' bytes', 'shape: ' + (gd ? outline(gd) : '(not JSON/XML)'), 'start: ' + clip(g.text, 2500));
-      try { const p = parseGradebook(g.text); out.push('Index parsed: ' + p.courses.length + ' classes, ' + p.courses.map(c => c.title + ' (' + c.assignments.length + ' assignments, ' + (c.percent == null ? '?' : c.percent) + '%)').join(' | ')); }
-      catch (e) { out.push('Index could not parse this yet: ' + e.message); }
-    }
+    const g = await mobileCall(base, 'Gradebook', { reportPeriod: '', concurrentSchOrgYearGU: '', childIntID: 0, languageCode: 'en' }, 'Bearer ' + token, key), gd = readBody(g);
+    out.push('## Gradebook -> status ' + g.status + ' · ' + g.type + ' · ' + g.text.length + ' bytes', 'shape: ' + (gd ? outline(gd) : '(not JSON/XML)'), 'start: ' + clip(g.text, 1500));
+    try { const p = parseGradebook(g.text); out.push('Index parsed: ' + p.courses.length + ' classes, ' + p.courses.map(c => c.title + ' (' + c.assignments.length + ' assignments, ' + (c.percent == null ? '?' : c.percent) + '%)').join(' | ')); }
+    catch (e) { out.push('Index could not parse this yet: ' + e.message); }
   } catch (e) { out.push('Request failed: ' + redact(e.message || e)); }
   return out.join('\n\n');
 }
@@ -285,7 +306,7 @@ function mount(app, opts) {
     list.push(now); hits.set(key, list); return true;
   }
   const fail = (res, e) => {
-    const map = { DEPRECATED: [503, 'StudentVUE has switched off the connection that tools like this use (error D5518), so importing is not possible right now. You can still build your classes by hand below.'], BAD_LOGIN: [401, 'StudentVUE did not accept that Student ID or password.'], TIMEOUT: [504, 'StudentVUE took too long to answer. Try again.'], NETWORK: [502, 'Could not reach that StudentVUE site. Check the address.'], BAD_RESPONSE: [502, e && e.message || 'Unexpected answer from StudentVUE.'], SV_ERROR: [502, e && e.message || 'StudentVUE refused the request.'] };
+    const map = { DEPRECATED: [503, 'StudentVUE has switched off the connection that tools like this use (error D5518), so importing is not possible right now. You can still build your classes by hand below.'], BAD_LOGIN: [401, 'StudentVUE did not accept that Student ID or password.'], TIMEOUT: [504, 'StudentVUE took too long to answer. Try again.'], NETWORK: [502, 'Could not reach that StudentVUE site. Check the address.'], KEY: [502, 'StudentVUE changed its app access key. Try again in a minute.'], BAD_RESPONSE: [502, e && e.message || 'Unexpected answer from StudentVUE.'], SV_ERROR: [502, e && e.message || 'StudentVUE refused the request.'] };
     const [status, msg] = map[e && e.code] || [502, 'Could not read your StudentVUE grades.'];
     res.status(status).json({ error: msg, code: e && e.code || 'ERR' });
   };
