@@ -50,36 +50,134 @@ function soap(base, path, handle, method, params, creds, timeoutMs) {
 }
 
 function num(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.\-]/g, '')); return Number.isFinite(n) ? n : null; }
-function parseGradebook(xml) {
-  const doc = parser.parse(xml);
-  if (doc.RT_ERROR) { const e = new Error(doc.RT_ERROR['@_ERROR_MESSAGE'] || 'StudentVUE rejected the request.'); e.code = /deprecated|download studentvue/i.test(e.message) ? 'DEPRECATED' : /invalid user|password|credential/i.test(e.message) ? 'BAD_LOGIN' : 'SV_ERROR'; throw e; }
-  const gb = doc.Gradebook; if (!gb) { const e = new Error('No gradebook came back from StudentVUE.'); e.code = 'BAD_RESPONSE'; throw e; }
-  const periods = ((gb.ReportingPeriods && gb.ReportingPeriods.ReportPeriod) || []).map(p => ({ index: Number(p['@_Index']), name: p['@_GradePeriod'] || '', start: p['@_StartDate'] || '', end: p['@_EndDate'] || '' }));
-  const cur = gb.ReportingPeriod ? { name: gb.ReportingPeriod['@_GradePeriod'] || '', start: gb.ReportingPeriod['@_StartDate'] || '', end: gb.ReportingPeriod['@_EndDate'] || '' } : null;
-  const courses = ((gb.Courses && gb.Courses.Course) || []).map(c => {
-    const mark = (c.Marks && c.Marks.Mark && c.Marks.Mark[0]) || {};
-    const cats = ((mark.GradeCalculationSummary && mark.GradeCalculationSummary.AssignmentGradeCalc) || []).map(a => ({
-      name: a['@_Type'] || '', weight: num(a['@_Weight']) || 0, points: num(a['@_Points']), possible: num(a['@_PointsPossible'])
-    })).filter(a => a.name);
+/* Reads one field whether the data came from XML attributes ("@_Title") or from JSON ("Title"/"title"). */
+const norm = k => String(k).replace(/^@_?/, '').toLowerCase();
+function pick(o, name) {
+  if (o == null || typeof o !== 'object') return undefined;
+  const want = name.toLowerCase();
+  for (const k of Object.keys(o)) if (norm(k) === want) return o[k];
+  return undefined;
+}
+const asArr = v => v == null ? [] : Array.isArray(v) ? v : [v];
+const S = (o, n) => { const v = pick(o, n); return v == null || typeof v === 'object' ? '' : String(v); };
+function listOf(node, itemName) {   // <Courses><Course/></Courses>, {Courses:[..]} or a bare array
+  if (Array.isArray(node)) return node;
+  const inner = pick(node, itemName); return asArr(inner);
+}
+function buildGradebook(gb) {
+  const rps = pick(pick(gb, 'ReportingPeriods'), 'ReportPeriod') || pick(gb, 'ReportingPeriods');
+  const periods = asArr(rps).filter(p => p && typeof p === 'object').map(p => ({ index: Number(S(p, 'Index')), name: S(p, 'GradePeriod'), start: S(p, 'StartDate'), end: S(p, 'EndDate') }));
+  const cp = pick(gb, 'ReportingPeriod'); const cur = cp && typeof cp === 'object' && !Array.isArray(cp) ? { name: S(cp, 'GradePeriod'), start: S(cp, 'StartDate'), end: S(cp, 'EndDate') } : null;
+  const courses = listOf(pick(gb, 'Courses'), 'Course').map(c => {
+    const mark = listOf(pick(c, 'Marks'), 'Mark')[0] || {};
+    const cats = listOf(pick(mark, 'GradeCalculationSummary'), 'AssignmentGradeCalc').map(a => ({ name: S(a, 'Type'), weight: num(S(a, 'Weight')) || 0, points: num(S(a, 'Points')), possible: num(S(a, 'PointsPossible')) })).filter(a => a.name);
     const total = cats.find(c2 => /^total$/i.test(c2.name));
     const real = cats.filter(c2 => !/^total$/i.test(c2.name));
-    const assignments = ((mark.Assignments && mark.Assignments.Assignment) || []).map((a, i) => {
-      const pts = String(a['@_Points'] || ''), score = String(a['@_Score'] || ''), notes = String(a['@_Notes'] || '');
+    const assignments = listOf(pick(mark, 'Assignments'), 'Assignment').map((a, i) => {
+      const pts = S(a, 'Points'), score = S(a, 'Score'), notes = S(a, 'Notes');
       let earned = null, possible = null, m;
       if ((m = /^\s*([\d.]+)\s*\/\s*([\d.]+)/.exec(pts))) { earned = parseFloat(m[1]); possible = parseFloat(m[2]); }
       else if ((m = /([\d.]+)\s*Points Possible/i.exec(pts))) { possible = parseFloat(m[1]); }
       else if ((m = /^\s*([\d.]+)\s*out of\s*([\d.]+)/i.exec(score))) { earned = parseFloat(m[1]); possible = parseFloat(m[2]); }
       const notCounted = /not for grading/i.test(score + ' ' + notes);
-      return { id: String(a['@_GradebookID'] || 'a' + i), name: a['@_Measure'] || 'Assignment', category: a['@_Type'] || '', date: a['@_Date'] || '', due: a['@_DueDate'] || '',
+      return { id: S(a, 'GradebookID') || 'a' + i, name: S(a, 'Measure') || 'Assignment', category: S(a, 'Type'), date: S(a, 'Date'), due: S(a, 'DueDate'),
         earned, possible, status: score.slice(0, 40), excluded: notCounted, notes: notes.slice(0, 160) };
     });
+    const rawTitle = S(c, 'Title');
     return {
-      title: String(c['@_Title'] || 'Class').replace(/\s*\([A-Z0-9 ]{1,6}\)\s*$/, '').trim() || 'Class', rawTitle: c['@_Title'] || '', period: c['@_Period'] || '', room: c['@_Room'] || '',
-      teacher: c['@_Staff'] || '', mark: mark['@_MarkName'] || '', letter: mark['@_CalculatedScoreString'] || '', percent: num(mark['@_CalculatedScoreRaw']),
+      title: rawTitle.replace(/\s*\([A-Z0-9 ]{1,6}\)\s*$/, '').trim() || 'Class', rawTitle, period: S(c, 'Period'), room: S(c, 'Room'),
+      teacher: S(c, 'Staff'), mark: S(mark, 'MarkName'), letter: S(mark, 'CalculatedScoreString'), percent: num(S(mark, 'CalculatedScoreRaw')),
       categories: real, weighted: real.length > 1 && real.some(r => r.weight > 0 && r.weight < 100), assignments, totalPoints: total ? { earned: total.points, possible: total.possible } : null
     };
   });
   return { periods, period: cur, courses };
+}
+function errOf(msg) {
+  const e = new Error(msg || 'StudentVUE rejected the request.');
+  e.code = /deprecated|download studentvue/i.test(e.message) ? 'DEPRECATED' : /invalid user|password|credential|unauthori[sz]ed|incorrect/i.test(e.message) ? 'BAD_LOGIN' : 'SV_ERROR'; return e;
+}
+function parseGradebook(text) {
+  const t = String(text || '').trim(); let doc;
+  if (t[0] === '{' || t[0] === '[') { try { doc = JSON.parse(t); } catch (e) { const x = new Error('StudentVUE sent a response Index could not read.'); x.code = 'BAD_RESPONSE'; throw x; } }
+  else doc = parser.parse(t);
+  const rt = pick(doc, 'RT_ERROR'); if (rt) throw errOf(S(rt, 'ERROR_MESSAGE') || (typeof rt === 'string' ? rt : ''));
+  const gb = pick(doc, 'Gradebook') || doc;
+  if (!listOf(pick(gb, 'Courses'), 'Course').length && !pick(gb, 'Courses')) { const e = new Error('No gradebook came back from StudentVUE.'); e.code = 'BAD_RESPONSE'; throw e; }
+  return buildGradebook(gb);
+}
+
+/* ---------- StudentVUE's newer "mobile" API (what the phone app and Grade Melon use) ---------- */
+function mobileCall(base, method, body, auth, timeoutMs) {
+  const payload = JSON.stringify(body || {});
+  return new Promise((resolve, reject) => {
+    const mod = base.protocol === 'http:' ? require('http') : https;
+    const req = mod.request({ host: base.host.split(':')[0], port: base.host.includes(':') ? Number(base.host.split(':')[1]) : undefined, path: '/api/v1/mobile/PXPWebServices/' + method, method: 'POST', timeout: timeoutMs || 25000,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/plain, */*', Authorization: auth, 'Content-Length': Buffer.byteLength(payload), 'User-Agent': 'Mozilla/5.0 (compatible; IndexGradeCalc/1.0)' } }, res => {
+      let data = ''; res.setEncoding('utf8'); res.on('data', c => { data += c; if (data.length > 6e6) req.destroy(new Error('Response too large')); });
+      res.on('end', () => resolve({ status: res.statusCode, text: data, type: res.headers['content-type'] || '' }));
+    });
+    req.on('timeout', () => req.destroy(Object.assign(new Error('StudentVUE took too long to answer.'), { code: 'TIMEOUT' })));
+    req.on('error', e => reject(e.code ? e : Object.assign(e, { code: 'NETWORK' })));
+    req.end(payload);
+  });
+}
+function findToken(node, depth) {
+  if (node == null || (depth || 0) > 6) return '';
+  if (typeof node === 'object') {
+    for (const k of Object.keys(node)) { const v = node[k]; if (/token/i.test(k) && typeof v === 'string' && v.length > 16) return v; }
+    for (const k of Object.keys(node)) { const r = findToken(node[k], (depth || 0) + 1); if (r) return r; }
+  }
+  return '';
+}
+function readBody(r) {
+  const t = String(r.text || '').trim();
+  if (t[0] === '{' || t[0] === '[') { try { return JSON.parse(t); } catch (e) { } }
+  if (t[0] === '<') { try { return parser.parse(t); } catch (e) { } }
+  return null;
+}
+async function mobileLogin(base, user, pass) {
+  const r = await mobileCall(base, 'AttemptLogin', { userType: 'Student' }, 'Basic ' + Buffer.from(user + ':' + pass, 'utf8').toString('base64'));
+  const doc = readBody(r);
+  if (doc) { const rt = pick(doc, 'RT_ERROR'); if (rt) throw errOf(S(rt, 'ERROR_MESSAGE')); }
+  const token = doc ? findToken(doc) : '';
+  if (token) return { token, raw: r };
+  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('StudentVUE did not accept that Student ID or password.'), { code: 'BAD_LOGIN' });
+  const msg = doc && (S(doc, 'message') || S(doc, 'error') || S(doc, 'errorMessage'));
+  throw Object.assign(new Error(msg || 'StudentVUE did not return a sign-in token (status ' + r.status + ').'), { code: /password|credential|invalid|incorrect|unauthori/i.test(msg || '') ? 'BAD_LOGIN' : 'BAD_RESPONSE', raw: r });
+}
+async function mobileGradebook(base, user, pass, period) {
+  const { token } = await mobileLogin(base, user, pass);
+  const body = { childIntId: 0 }; if (period != null) body.ReportPeriod = period;
+  const r = await mobileCall(base, 'Gradebook', body, 'Bearer ' + token);
+  if (r.status === 401 || r.status === 403) throw Object.assign(new Error('StudentVUE ended the session. Try again.'), { code: 'BAD_LOGIN' });
+  return parseGradebook(r.text);
+}
+function outline(v, depth) {   // structure only: keys and value kinds, no values
+  depth = depth || 0;
+  if (v == null) return 'null';
+  if (Array.isArray(v)) return '[' + v.length + ' × ' + (v.length ? outline(v[0], depth + 1) : '') + ']';
+  if (typeof v === 'object') { if (depth > 5) return '{…}'; return '{' + Object.keys(v).slice(0, 40).map(k => k + ':' + outline(v[k], depth + 1)).join(', ') + '}'; }
+  return typeof v === 'string' ? 'str(' + v.length + ')' : typeof v;
+}
+async function mobileProbe(base, user, pass) {
+  const out = [], redact = s => String(s).split(pass).join('***');
+  const clip = (s, n) => redact(s).replace(/[A-Za-z0-9+\/=]{60,}/g, m => '<' + m.length + ' chars>').slice(0, n);
+  try {
+    const l = await mobileCall(base, 'AttemptLogin', { userType: 'Student' }, 'Basic ' + Buffer.from(user + ':' + pass, 'utf8').toString('base64'));
+    const d = readBody(l);
+    out.push('## AttemptLogin -> status ' + l.status + ' · ' + l.type + ' · ' + l.text.length + ' bytes', 'shape: ' + (d ? outline(d) : '(not JSON/XML)'), 'start: ' + clip(l.text, 600));
+    const token = d ? findToken(d) : '';
+    out.push('token found: ' + (token ? 'yes (' + token.length + ' chars)' : 'NO'));
+    if (!token) return out.join('\n\n');
+    for (const body of [{ childIntId: 0 }]) {
+      const g = await mobileCall(base, 'Gradebook', body, 'Bearer ' + token);
+      const gd = readBody(g);
+      out.push('## Gradebook ' + JSON.stringify(body) + ' -> status ' + g.status + ' · ' + g.type + ' · ' + g.text.length + ' bytes', 'shape: ' + (gd ? outline(gd) : '(not JSON/XML)'), 'start: ' + clip(g.text, 2500));
+      try { const p = parseGradebook(g.text); out.push('Index parsed: ' + p.courses.length + ' classes, ' + p.courses.map(c => c.title + ' (' + c.assignments.length + ' assignments, ' + (c.percent == null ? '?' : c.percent) + '%)').join(' | ')); }
+      catch (e) { out.push('Index could not parse this yet: ' + e.message); }
+    }
+  } catch (e) { out.push('Request failed: ' + redact(e.message || e)); }
+  return out.join('\n\n');
 }
 
 /* ---------- owner-only diagnostic: walks the StudentVUE *website* login and reports what it sees ---------- */
@@ -214,11 +312,12 @@ function mount(app, opts) {
     if (!user || !pass) return res.status(400).json({ error: 'Enter your Student ID and StudentVUE password.' });
     const period = Number.isInteger(Number(b.period)) && b.period !== '' && b.period != null ? Math.max(0, Math.min(20, Number(b.period))) : null;
     try {
-      const xml = await soap(base, '/Service/PXPCommunication.asmx', 'PXPWebServices', 'Gradebook', '<Parms>' + (period != null ? '<ReportPeriod>' + period + '</ReportPeriod>' : '') + '</Parms>', { user, pass });
-      const data = parseGradebook(xml);
+      const data = TEST_HOSTS.has(base.host) && !process.env.SV_TEST_MOBILE
+        ? parseGradebook(await soap(base, '/Service/PXPCommunication.asmx', 'PXPWebServices', 'Gradebook', '<Parms>' + (period != null ? '<ReportPeriod>' + period + '</ReportPeriod>' : '') + '</Parms>', { user, pass }))
+        : await mobileGradebook(base, user, pass, period);
       res.set('Cache-Control', 'no-store');
       res.json({ ok: true, fetchedAt: Date.now(), district: base.host, ...data });
     } catch (e) { fail(res, e); }
   });
 }
-module.exports = { mount, parseGradebook, normalizeBase, probe };
+module.exports = { mount, parseGradebook, normalizeBase, probe, mobileProbe };

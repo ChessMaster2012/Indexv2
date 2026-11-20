@@ -3575,7 +3575,7 @@ app.post('/api/admin/sv-probe', adminOnly, async (req,res)=>{
     if(!base) return res.status(400).json({error:'Use your StudentVUE address (ends in .edupoint.com).'});
     const user=String(req.body.username||'').slice(0,80), pass=String(req.body.password||'').slice(0,200);
     if(!user||!pass) return res.status(400).json({error:'Enter the Student ID and password.'});
-    const report=await SV.probe(base,user,pass);
+    const report=await SV.mobileProbe(base,user,pass);
     res.set('Cache-Control','no-store'); res.json({ok:true,report});
   }catch(e){ res.status(502).json({error:'Probe failed: '+(e&&e.message||'unknown')}); }
 });
