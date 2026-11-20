@@ -116,7 +116,8 @@ function renderUser(u){
     (u.banned?'<div class="ad-msg bad" style="font-weight:600">BANNED ('+esc(u.banned.by||'')+'): '+esc(u.banned.reason||'')+'</div>':'')+
     (u.strikes?'<div style="font-size:12px;color:#ffb36b;margin-top:6px">'+u.strikes+' anti-cheat flag(s) in the last 7 days</div>':'')+
     '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><input type="text" id="ad-banreason" placeholder="Ban reason" style="flex:1;min-width:150px">'+(u.banned?'<button class="btn btn-primary" id="ad-unban" type="button">Unban</button>':'<button class="btn btn-ghost" id="ad-ban" type="button" style="color:#ff8a7a;border-color:#ff8a7a">Ban player</button>')+'</div>'+
-    (u.pendingGrants?'<div style="font-size:12px;color:var(--ink-soft);margin-top:8px">'+u.pendingGrants+' gift(s) waiting for them to come online.</div>':'')+'</div>';
+    (u.owner?'<div class="ad-msg bad" style="margin-top:10px">This is an owner account. Owner accounts always have unlimited coins, tokens and crates, so gifts to it will not show an exact amount. To test the amounts, send them to a normal player account.</div>':'')+
+    '<div style="font-size:12px;color:var(--ink-soft);margin-top:8px">The numbers above are the last saved copy. A gift reaches a player when their browser next checks (within about a minute, or when they open Index) and then shows exactly.'+(u.pendingGrants?' <b>'+u.pendingGrants+' gift(s) waiting.</b>':'')+'</div></div>';
 }
 function say(id,txt,cls){ var e=$(id); if(e){ e.textContent=txt||''; e.className='ad-msg'+(cls?' '+cls:''); } }
 function find(){
