@@ -138,6 +138,9 @@ async function probe(base, user, pass) {
     const inl = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1].trim()).filter(x => x.length > 20);
     inl.slice(0, 6).forEach((x, i) => out.push('inline script ' + (i + 1) + ' (' + x.length + ' chars): ' + x.replace(/\s+/g, ' ').slice(0, 900)));
     out.push('links/data attrs: ' + [...new Set([...html.matchAll(/(?:href|data-[a-z-]+)\s*=\s*["']([^"']{3,120})["']/gi)].map(m => m[1]))].filter(x => /login|google|sso|auth|api/i.test(x)).slice(0, 20).join(' , '));
+    const bodyAt = html.search(/<body/i), raw = html.slice(bodyAt < 0 ? 0 : bodyAt).replace(/<script[\s\S]*?<\/script>/gi, '<script/>').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/\s+/g, ' ');
+    out.push('## page markup (scripts removed), ' + raw.length + ' chars:\n' + raw.slice(0, 7000));
+    out.push('response cookies: ' + Object.keys(jar).join(' , ') + ' · server: ' + (g.r.headers.server || '-') + ' · noscript/iframes: ' + ([...html.matchAll(/<(noscript|iframe)\b[^>]*>/gi)].map(m => m[0].slice(0, 120)).join(' ') || 'none'));
     for (const sp of ['/js/PXP/PXP2_Login.js', '/js/PXP/PXP2_Login.js?x=' + Date.now()].slice(0, 1)) {
       try {
         const sr = await follow('GET', sp); const js = sr.r.body || ''; out.push('## ' + sp + ' status ' + sr.r.status + ' · ' + js.length + ' bytes');
