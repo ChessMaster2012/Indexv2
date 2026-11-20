@@ -85,7 +85,7 @@ function buildGradebook(gb) {
     });
     const rawTitle = S(c, 'Title');
     return {
-      title: rawTitle.replace(/\s*\([A-Z0-9 ]{1,6}\)\s*$/, '').trim() || 'Class', rawTitle, period: S(c, 'Period'), room: S(c, 'Room'),
+      title: rawTitle.replace(/\s*\([A-Z0-9 ]{1,12}\)\s*$/, '').trim() || 'Class', rawTitle, period: S(c, 'Period'), room: S(c, 'Room'),
       teacher: S(c, 'Staff'), mark: S(mark, 'MarkName'), letter: S(mark, 'CalculatedScoreString'), percent: num(S(mark, 'CalculatedScoreRaw')),
       categories: real, weighted: real.length > 1 && real.some(r => r.weight > 0 && r.weight < 100), assignments, totalPoints: total ? { earned: total.points, possible: total.possible } : null
     };
