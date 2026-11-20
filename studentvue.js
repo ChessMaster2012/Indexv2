@@ -330,18 +330,41 @@ function mount(app, opts) {
     'frederick-md': ['21701', 'frederick'], 'carroll-md': ['21157', 'carroll'], 'harford-md': ['21014', 'harford'], 'washington-md': ['21740', 'washington'], 'allegany-md': ['21502', 'allegany'], 'garrett-md': ['21550', 'garrett'], 'kent-md': ['21620', 'kent'],
     'queen-annes-md': ['21617', "queen anne"], 'talbot-md': ['21601', 'talbot'], 'caroline-md': ['21629', 'caroline'], 'dorchester-md': ['21613', 'dorchester'], 'somerset-md': ['21853', 'somerset'], 'wicomico-md': ['21801', 'wicomico'], 'worcester-md': ['21863', 'worcester'],
     'cecil-md': ['21921', 'cecil'], 'calvert-md': ['20678', 'calvert'], 'charles-md': ['20646', 'charles'], 'st-marys-md': ['20650', "st. mary"] };
+  const ABBR = { 'montgomery-md': ['mcps'], 'prince-georges-md': ['pgcps'], 'howard-md': ['hcpss'], 'anne-arundel-md': ['aacps'], 'baltimore-county-md': ['bcps'], 'baltimore-city-md': ['bcpss', 'bcps'], 'frederick-md': ['fcps'], 'carroll-md': ['ccps', 'carroll'], 'harford-md': ['hcps', 'harford'],
+    'washington-md': ['wcps', 'washington'], 'allegany-md': ['acps', 'allegany'], 'garrett-md': ['gcps', 'garrett'], 'kent-md': ['kcps', 'kent'], 'queen-annes-md': ['qacps', 'queenannes'], 'talbot-md': ['tcps', 'talbot'], 'caroline-md': ['ccps', 'caroline', 'cacps'],
+    'dorchester-md': ['dcps', 'dorchester'], 'somerset-md': ['scps', 'somerset'], 'wicomico-md': ['wcps', 'wicomico', 'wicomicops'], 'worcester-md': ['wcps', 'worcester'], 'cecil-md': ['ccps', 'cecil'], 'calvert-md': ['cps', 'calvert', 'cpsmd'], 'charles-md': ['ccps', 'charles'], 'st-marys-md': ['smcps', 'stmarys'] };
+  const NAMES = { 'montgomery-md': 'Montgomery County Public Schools' };
   const countyCache = new Map();
+  const probeHost = (host, kw) => new Promise(resolve => {
+    const t = setTimeout(() => resolve(null), 7000);
+    httpReq({ host, protocol: 'https:' }, 'GET', '/PXP2_Login_Student.aspx?regenerateSessionId=True', {}, null, {}).then(r => {
+      clearTimeout(t); const b = String(r.body || '');
+      const dn = /id="DistrictName"[^>]*>([^<]{3,80})</i.exec(b);
+      if (r.status === 200 && /StudentVUE|ParentVUE/i.test(b) && dn && dn[1].toLowerCase().replace(/’/g, "'").includes(kw)) resolve({ name: dn[1].trim(), url: 'https://' + host }); else resolve(null);
+    }).catch(() => { clearTimeout(t); resolve(null); });
+  });
+  async function findCounty(id) {
+    const row = COUNTY[id]; if (!row) return null;
+    if (id === 'montgomery-md') return { name: NAMES[id], url: 'https://md-mcps-psv.edupoint.com' };
+    const slug = id.replace(/-md$/, '').replace(/-/g, '');
+    const hosts = [...new Set((ABBR[id] || []).concat([slug]).flatMap(a => ['md-' + a + '-psv.edupoint.com', a + '-psv.edupoint.com', 'md-' + a + '.edupoint.com']))].slice(0, 12);
+    const kw = row[1].replace('st. mary', 'st. mary').replace('queen anne', 'queen anne');
+    const found = (await Promise.all(hosts.map(h => probeHost(h, kw)))).find(Boolean); if (found) return found;
+    try {   // last resort: Edupoint's own district search (may be switched off)
+      const list = await lookupZip(row[0]), norm = x => x.toLowerCase().replace(/saint/g, 'st.').replace(/’/g, "'");
+      const m = list.find(x => norm(x.name).includes(kw)); if (m) return m;
+    } catch (e) { }
+    return null;
+  }
   app.post('/api/studentvue/county', need, async (req, res) => {
-    const id = String((req.body && req.body.county) || ''), row = COUNTY[id];
-    if (!row) return res.json({ ok: true, found: false });
+    const id = String((req.body && req.body.county) || '');
+    if (!COUNTY[id]) return res.json({ ok: true, found: false });
     const hit = countyCache.get(id); if (hit && hit.exp > Date.now()) return res.json(hit.val);
     if (!throttle(req, res)) return;
     try {
-      const list = await lookupZip(row[0]), kw = row[1];
-      const norm = x => x.toLowerCase().replace(/saint/g, 'st.').replace(/’/g, "'");
-      const match = list.find(x => norm(x.name).includes(kw)) || null;
-      const val = { ok: true, found: !!match, district: match, alternatives: match ? [] : list };
-      countyCache.set(id, { exp: Date.now() + 24 * 3600e3, val }); res.json(val);
+      const m = await findCounty(id), val = { ok: true, found: !!m, district: m || null };
+      if (m) { try { KNOWN_HOSTS.set(new URL(m.url).hostname.toLowerCase(), Date.now() + 3600e3); } catch (e) { } }
+      countyCache.set(id, { exp: Date.now() + (m ? 24 * 3600e3 : 10 * 60e3), val }); res.json(val);
     } catch (e) { fail(res, e); }
   });
 

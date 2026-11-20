@@ -590,5 +590,153 @@
       "learnAt": 0,
       "savedAt": 1795175243090
     }
+  },
+  {
+    "id": "408df9770f74d16fc1ad1b69",
+    "method": "email",
+    "identifier": "g1795175943627@example.com",
+    "email": "g1795175943627@example.com",
+    "username": "g1795175943627",
+    "passwordHash": "6eb7463580f1973d84a678b04df2186fa51c9813e5a39382b45cf1b6657eb2586c724ca99f15b9600eefbe45a62084279a9a4ebbb1bee127ecdbafc9e1ff527c",
+    "salt": "837e45293a23f5fc93b35ecdb0f75f52",
+    "firstName": "",
+    "lastName": "",
+    "createdAt": 1795175943686,
+    "accountData": {
+      "version": 2,
+      "notes": [],
+      "studySets": [],
+      "customSets": [],
+      "customTopics": {},
+      "membership": {
+        "tier": "free",
+        "status": "active",
+        "lifetimeBadgeTier": "",
+        "customerId": "",
+        "subscriptionId": "",
+        "currentPeriodEnd": 0,
+        "cancelAtPeriodEnd": false,
+        "updatedAt": 0
+      },
+      "progress": {
+        "xp": 0,
+        "activeDates": [],
+        "lessonsLearned": [],
+        "coins": 50,
+        "freePackTokens": 0,
+        "unlockedCosmetics": [
+          "ling-sugarbug"
+        ],
+        "claimedBPLevels": [
+          1
+        ],
+        "season": null,
+        "skinCrates": 0,
+        "unlockedSkins": [],
+        "claimedSkinCrateLevels": [],
+        "equipped": {
+          "indexling": "ling-sugarbug",
+          "indexlingSkin": "",
+          "skinByIndexling": {},
+          "frame": "default"
+        },
+        "openedPacks": 0,
+        "liveGames": 0,
+        "gameProgress": {},
+        "dailyCoinDate": "",
+        "dailyCoinEarned": 0,
+        "dailyWheelDate": "",
+        "dailyWheelLastSpinAt": 0,
+        "dailyWheelReward": 0
+      },
+      "quests": {
+        "day": "2026-11-20",
+        "baseline": {
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0
+        },
+        "progress": {
+          "login": 1,
+          "ai": 0,
+          "sets": 0,
+          "notes": 0,
+          "lessons": 0,
+          "xp": 0,
+          "packs": 0,
+          "liveGames": 0,
+          "quizzes": 0,
+          "perfect": 0,
+          "coins": 0,
+          "wheel": 0,
+          "streak": 0,
+          "cards": 0,
+          "games": 0,
+          "waves": 0,
+          "crates": 0
+        },
+        "claimed": {},
+        "announced": {
+          "login": 1795175943974
+        },
+        "crateRewardsClaimed": {},
+        "chestClaimed": {}
+      },
+      "achievements": {
+        "claimed": {}
+      },
+      "profile": {
+        "name": "",
+        "district": "",
+        "county": "montgomery-md",
+        "countyName": "",
+        "bio": "",
+        "favoriteSubject": "",
+        "studyGoal": "",
+        "profileAccent": "purple",
+        "showProgress": true,
+        "reducedMotion": false
+      },
+      "membershipOnboardingCompleted": false,
+      "credits": {
+        "windowKey": "",
+        "used": 0,
+        "bonus": 0,
+        "rollDate": "",
+        "lastRoll": 0,
+        "starter": false
+      },
+      "adminGrants": [],
+      "security": {
+        "banned": null,
+        "strikes": [],
+        "econ": {
+          "t": 1795175943881,
+          "coins": 25000,
+          "tokens": 60,
+          "crates": 40,
+          "xp": 30000,
+          "items": 15,
+          "ccoins": 50000
+        },
+        "bonus": {
+          "coins": 0,
+          "tokens": 0,
+          "crates": 0,
+          "xp": 0,
+          "items": 0,
+          "ccoins": 0
+        }
+      },
+      "tutorChats": [],
+      "tutorChatsAt": 0,
+      "learnStore": null,
+      "learnAt": 0,
+      "savedAt": 1795175951443
+    }
   }
 ]

@@ -81,7 +81,7 @@ function connectView(){
     '<div class="gc-row"><div><label>Find your school district by ZIP</label><div class="gc-inline"><input id="gc-zip" inputmode="numeric" maxlength="5" placeholder="ZIP code"><button class="btn btn-ghost" id="gc-find" type="button">Find</button></div></div></div>'+ds+
     '<label>StudentVUE address</label><input id="gc-url" type="text" placeholder="https://md-mcps-psv.edupoint.com" value="'+esc(S.url||'')+'" autocomplete="off">';
   return '<div class="gc-card gc-connect"><h3>Connect StudentVUE</h3><p class="gc-sub">Sign in once to pull in your classes and assignments. Then change any score to see what would happen to your grade.</p>'+where+
-    '<div class="gc-row"><div><label>Student ID</label><input id="gc-user" type="text" value="'+esc(S.user||'')+'" autocomplete="username"></div><div><label>StudentVUE password</label><input id="gc-pass" type="password" autocomplete="current-password"></div></div>'+
+    '<div class="gc-row"><div><label>Student ID</label><input id="gc-user" type="text" value="'+esc(S.user||'')+'" autocomplete="off" inputmode="numeric" placeholder="6 or 8 digit ID"></div><div><label>StudentVUE password</label><input id="gc-pass" type="password" autocomplete="current-password"></div></div>'+
     (S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'')+
     '<div class="gc-actions"><button class="btn btn-primary" id="gc-go" type="button"'+(S.busy?' disabled':'')+'>'+(S.busy?'Signing in…':'Import my grades')+'</button> <button class="btn btn-ghost" id="gc-manual" type="button">Enter my grades by hand</button></div>'+privacy()+'</div>';
 }
