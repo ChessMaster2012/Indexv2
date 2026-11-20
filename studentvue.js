@@ -311,16 +311,37 @@ function mount(app, opts) {
     res.status(status).json({ error: msg, code: e && e.code || 'ERR' });
   };
 
+  async function lookupZip(zip) {
+    const xml = await soap({ host: 'support.edupoint.com', protocol: 'https:' }, '/Service/HDInfoCommunication.asmx', 'HDInfoServices', 'GetMatchingDistrictList',
+      '<Parms><Key>' + LOOKUP_KEY + '</Key><MatchToDistrictZipCode>' + zip + '</MatchToDistrictZipCode></Parms>', null, 15000);
+    const d = parser.parse(xml), list = ((d.DistrictLists && d.DistrictLists.DistrictInfo) || []).map(x => ({ name: x['@_Name'], url: String(x['@_PvueURL'] || '').replace(/\/+$/, '') })).filter(x => x.name && /^https:\/\//.test(x.url));
+    list.forEach(x => { try { KNOWN_HOSTS.set(new URL(x.url).hostname.toLowerCase(), Date.now() + 3600e3); } catch (e) { } });
+    return list.slice(0, 12);
+  }
   app.post('/api/studentvue/districts', need, async (req, res) => {
     if (!throttle(req, res)) return;
     const zip = String((req.body && req.body.zip) || '').replace(/[^0-9]/g, '').slice(0, 5);
     if (zip.length !== 5) return res.status(400).json({ error: 'Enter a 5-digit ZIP code.' });
+    try { res.json({ ok: true, districts: await lookupZip(zip) }); } catch (e) { fail(res, e); }
+  });
+
+  /* Maryland county (picked at sign-up) -> that county's StudentVUE address, found through Edupoint's own district search. */
+  const COUNTY = { 'montgomery-md': ['20850', 'montgomery'], 'prince-georges-md': ['20772', "prince george"], 'howard-md': ['21043', 'howard'], 'anne-arundel-md': ['21401', 'anne arundel'], 'baltimore-county-md': ['21204', 'baltimore county'], 'baltimore-city-md': ['21201', 'baltimore city'],
+    'frederick-md': ['21701', 'frederick'], 'carroll-md': ['21157', 'carroll'], 'harford-md': ['21014', 'harford'], 'washington-md': ['21740', 'washington'], 'allegany-md': ['21502', 'allegany'], 'garrett-md': ['21550', 'garrett'], 'kent-md': ['21620', 'kent'],
+    'queen-annes-md': ['21617', "queen anne"], 'talbot-md': ['21601', 'talbot'], 'caroline-md': ['21629', 'caroline'], 'dorchester-md': ['21613', 'dorchester'], 'somerset-md': ['21853', 'somerset'], 'wicomico-md': ['21801', 'wicomico'], 'worcester-md': ['21863', 'worcester'],
+    'cecil-md': ['21921', 'cecil'], 'calvert-md': ['20678', 'calvert'], 'charles-md': ['20646', 'charles'], 'st-marys-md': ['20650', "st. mary"] };
+  const countyCache = new Map();
+  app.post('/api/studentvue/county', need, async (req, res) => {
+    const id = String((req.body && req.body.county) || ''), row = COUNTY[id];
+    if (!row) return res.json({ ok: true, found: false });
+    const hit = countyCache.get(id); if (hit && hit.exp > Date.now()) return res.json(hit.val);
+    if (!throttle(req, res)) return;
     try {
-      const xml = await soap({ host: 'support.edupoint.com', protocol: 'https:' }, '/Service/HDInfoCommunication.asmx', 'HDInfoServices', 'GetMatchingDistrictList',
-        '<Parms><Key>' + LOOKUP_KEY + '</Key><MatchToDistrictZipCode>' + zip + '</MatchToDistrictZipCode></Parms>', null, 15000);
-      const d = parser.parse(xml), list = ((d.DistrictLists && d.DistrictLists.DistrictInfo) || []).map(x => ({ name: x['@_Name'], url: String(x['@_PvueURL'] || '').replace(/\/+$/, '') })).filter(x => x.name && /^https:\/\//.test(x.url));
-      list.forEach(x => { try { KNOWN_HOSTS.set(new URL(x.url).hostname.toLowerCase(), Date.now() + 3600e3); } catch (e) { } });
-      res.json({ ok: true, districts: list.slice(0, 12) });
+      const list = await lookupZip(row[0]), kw = row[1];
+      const norm = x => x.toLowerCase().replace(/saint/g, 'st.').replace(/’/g, "'");
+      const match = list.find(x => norm(x.name).includes(kw)) || null;
+      const val = { ok: true, found: !!match, district: match, alternatives: match ? [] : list };
+      countyCache.set(id, { exp: Date.now() + 24 * 3600e3, val }); res.json(val);
     } catch (e) { fail(res, e); }
   });
 

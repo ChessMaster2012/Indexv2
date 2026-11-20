@@ -6,7 +6,7 @@ function esc(t){return String(t==null?'':t).replace(/[&<>"]/g,function(c){return
 function ic(n,s){ try{ return IX.icon(n,s||16); }catch(e){ return ''; } }
 function acct(){ try{ return (state.account&&(state.account.id||state.account.username))||'guest'; }catch(e){ return 'guest'; } }
 var KEY=function(){return 'index-grades-v1:'+acct();};
-var S={data:null,url:'',user:'',edits:{},added:{},open:-1,busy:false,err:'',districts:null,needPass:null};
+var S={cstate:'',cdist:null,showAddr:false,data:null,url:'',user:'',edits:{},added:{},open:-1,busy:false,err:'',districts:null,needPass:null};
 
 function load(){ try{ var j=JSON.parse(localStorage.getItem(KEY())||'null'); if(j){ S.data=j.data||null; S.url=j.url||''; S.user=j.user||''; S.edits=j.edits||{}; S.added=j.added||{}; } }catch(e){} }
 function save(){ try{ localStorage.setItem(KEY(),JSON.stringify({data:S.data,url:S.url,user:S.user,edits:S.edits,added:S.added})); }catch(e){} }
@@ -71,10 +71,16 @@ function root(){ return $('#view-grades'); }
 function privacy(){ return '<p class="gc-priv">'+ic('lock',14)+' Your StudentVUE password is sent straight to your school\'s StudentVUE site and is never saved. Your grades stay in this browser, not on Index\'s servers.</p>'; }
 function connectView(){
   if(/switched off/.test(S.err||'')) return '<div class="gc-card gc-connect"><h3>StudentVUE import is unavailable</h3><p class="gc-sub">StudentVUE has turned off the connection that outside tools use, so Index cannot pull your grades in right now. You can still use the calculator by entering your classes and scores yourself.</p><div class="gc-actions"><button class="btn btn-primary" id="gc-manual" type="button">Enter my grades by hand</button></div></div>';
+  var cid=''; try{ cid=(typeof state!=='undefined'&&state&&state.county)||''; }catch(e){}
+  if(cid&&cid!=='other'&&!S.cstate){ S.cstate='loading'; post('/api/studentvue/county',{county:cid}).then(function(d){ if(d.found&&d.district){ S.cdist=d.district; S.url=d.district.url; S.cstate='found'; } else S.cstate='none'; }).catch(function(){ S.cstate='none'; }).then(function(){ if(!S.data) { var u=$('#gc-user')&&$('#gc-user').value; render(); if(u&&$('#gc-user')) $('#gc-user').value=u; } }); }
+  var auto=S.cstate==='found'&&S.cdist&&!S.showAddr;
   var ds=S.districts?(S.districts.length?'<div class="gc-dlist">'+S.districts.map(function(d,i){ return '<button type="button" class="gc-d" data-d="'+i+'">'+esc(d.name)+'</button>'; }).join('')+'</div>':'<p class="gc-hint">No districts found for that ZIP. Paste your StudentVUE address below.</p>'):'';
-  return '<div class="gc-card gc-connect"><h3>Connect StudentVUE</h3><p class="gc-sub">Sign in once to pull in your classes and assignments. Then change any score to see what would happen to your grade.</p>'+
+  var where=auto?'<div class="gc-where"><div><span>Your school district</span><b>'+esc(S.cdist.name)+'</b></div><button type="button" class="btn btn-ghost btn-sm" id="gc-chg">Not right?</button></div>':
+    S.cstate==='loading'?'<p class="gc-hint">Finding your school district…</p>':
+    (S.cstate==='none'&&!S.showAddr?'<p class="gc-hint">We could not find your county\'s StudentVUE automatically, so look it up by ZIP below.</p>':'')+
     '<div class="gc-row"><div><label>Find your school district by ZIP</label><div class="gc-inline"><input id="gc-zip" inputmode="numeric" maxlength="5" placeholder="ZIP code"><button class="btn btn-ghost" id="gc-find" type="button">Find</button></div></div></div>'+ds+
-    '<label>StudentVUE address</label><input id="gc-url" type="text" placeholder="https://md-mcps-psv.edupoint.com" value="'+esc(S.url||'')+'" autocomplete="off">'+
+    '<label>StudentVUE address</label><input id="gc-url" type="text" placeholder="https://md-mcps-psv.edupoint.com" value="'+esc(S.url||'')+'" autocomplete="off">';
+  return '<div class="gc-card gc-connect"><h3>Connect StudentVUE</h3><p class="gc-sub">Sign in once to pull in your classes and assignments. Then change any score to see what would happen to your grade.</p>'+where+
     '<div class="gc-row"><div><label>Student ID</label><input id="gc-user" type="text" value="'+esc(S.user||'')+'" autocomplete="username"></div><div><label>StudentVUE password</label><input id="gc-pass" type="password" autocomplete="current-password"></div></div>'+
     (S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'')+
     '<div class="gc-actions"><button class="btn btn-primary" id="gc-go" type="button"'+(S.busy?' disabled':'')+'>'+(S.busy?'Signing in…':'Import my grades')+'</button> <button class="btn btn-ghost" id="gc-manual" type="button">Enter my grades by hand</button></div>'+privacy()+'</div>';
@@ -192,7 +198,8 @@ function wire(){
     if(t.closest('#gc-signin')){ try{ openSignin(); }catch(e){} return; }
     if(t.closest('#gc-find')){ var z=$('#gc-zip').value; post('/api/studentvue/districts',{zip:z}).then(function(d){ S.districts=d.districts||[]; S.err=''; }).catch(function(e){ S.err=e.message; S.districts=null; }).then(function(){ var u=$('#gc-user')&&$('#gc-user').value; render(); if(u&&$('#gc-user')) $('#gc-user').value=u; }); return; }
     if((b=t.closest('[data-d]'))){ var d=S.districts[+b.dataset.d]; S.url=d.url; var u2=$('#gc-user')&&$('#gc-user').value; render(); if($('#gc-user')) $('#gc-user').value=u2||''; return; }
-    if(t.closest('#gc-go')){ var url=$('#gc-url').value.trim(), us=$('#gc-user').value.trim(), pw=$('#gc-pass').value; if(!url||!us||!pw){ S.err='Fill in the address, Student ID and password.'; S.url=url; S.user=us; render(); return; } connect(url,us,pw); return; }
+    if(t.closest('#gc-go')){ var url=($('#gc-url')?$('#gc-url').value.trim():S.url), us=$('#gc-user').value.trim(), pw=$('#gc-pass').value; if(!url||!us||!pw){ S.err='Fill in the address, Student ID and password.'; S.url=url; S.user=us; render(); return; } connect(url,us,pw); return; }
+    if(t.closest('#gc-chg')){ S.showAddr=true; var u3=$('#gc-user')&&$('#gc-user').value; render(); if(u3&&$('#gc-user')) $('#gc-user').value=u3; return; }
     if(t.closest('#gc-manual')){ S.data={manual:true,fetchedAt:Date.now(),periods:[],period:{name:'My classes'},courses:[]}; S.err=''; S.open=-1; save(); render(); return; }
     if(t.closest('#gc-addclass')){ S.addingClass=true; render(); var n=$('#gc-cn'); if(n) n.focus(); return; }
     if(t.closest('#gc-cx')){ S.addingClass=false; render(); return; }
@@ -248,7 +255,7 @@ function wire(){
   });
 }
 /* ---------- boot ---------- */
-var css=document.createElement('link'); css.rel='stylesheet'; css.href='/grade-calc.css?v=4'; document.head.appendChild(css);
+var css=document.createElement('link'); css.rel='stylesheet'; css.href='/grade-calc.css?v=5'; document.head.appendChild(css);
 function ensure(){
   var main=document.querySelector('.main'), nav=document.getElementById('nav'); if(!main||!nav) return false;
   if(!$('#view-grades')){ var sec=document.createElement('section'); sec.className='view'; sec.id='view-grades'; var foot=main.querySelector('.app-footer'); if(foot&&foot.parentNode) foot.parentNode.insertBefore(sec,foot); else main.appendChild(sec); }
