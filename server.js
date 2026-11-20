@@ -3534,6 +3534,7 @@ const adminGrantHandler=async (req,res)=>{
       const fresh=SUPABASE_ENABLED?dbRowToUser(await dbFindUserById(user.id)):(usersById.get(user.id)||user);
       if(fresh){ fresh.accountData={...fresh.accountData,adminGrants:user.accountData.adminGrants,security:user.accountData.security||fresh.accountData.security,credits:user.accountData.credits||fresh.accountData.credits}; user.accountData=fresh.accountData; user.id=fresh.id; }
     }
+    if(b.role==='student'||b.role==='teacher'){ user.accountData.role=b.role; done.push('account type: '+b.role); }
     if(b.badge==='remove'||['gold','platinum','diamond'].includes(String(b.badge||''))){
       const bt=String(b.badge);
       user.accountData.membership={...(user.accountData.membership||{}),lifetimeBadgeTier:bt==='remove'?'':bt};
@@ -3768,6 +3769,13 @@ app.put('/api/account/state', async (req,res)=>{
     mergedAccountState.achievements=existingAccountState.achievements||{claimed:{}};
     const mergedQuests=mergeQuestState(existingAccountState.quests,incomingAccountState.quests);
     if(mergedQuests) mergedAccountState.quests=mergedQuests;
+    // Student/teacher is server-owned. Once an account has a role, a browser cannot change it. Only the owner
+    // (for their own account) and the admin panel can. A brand-new account may start as a teacher; nobody else can.
+    if(!isOwnerUser(req.user)){
+      const exRole=(existingAccountState.role==='teacher'||existingAccountState.role==='student')?existingAccountState.role:'';
+      if(exRole) mergedAccountState.role=exRole;
+      else mergedAccountState.role=(incomingAccountState.role==='teacher'&&Date.now()-(Number(req.user.createdAt)||0)<30*60*1000)?'teacher':'student';
+    }
     // Admin grants are server-owned: a browser snapshot cannot add or erase them.
     mergedAccountState.adminGrants = existingAccountState.adminGrants;
     // Classrooms are server-owned: a browser snapshot can never add, edit or erase them.

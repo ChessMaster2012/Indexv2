@@ -6,6 +6,7 @@
   function E(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); }
   function role() { try { return localStorage.getItem('index-role') === 'teacher' ? 'teacher' : 'student'; } catch (e) { return 'student'; } }
   function isT() { return role() === 'teacher'; }
+  function ownerOn() { try { return !!(window.OwnerMode && OwnerMode.active()); } catch (e) { return false; } }
   function api(path, method, body) {
     return fetch('/api' + path, { method: method || 'GET', credentials: 'same-origin', headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) { var e = new Error(d.error || 'Something went wrong.'); e.status = r.status; throw e; } return d; }); });
@@ -60,6 +61,7 @@
       }).join('');
       return '<header class="cr-hero cr-hero-t"><div><div class="cr-eyebrow">TEACHER HUB</div><h2>Your classrooms</h2><p>Create a class, share the code, post assignments and quizzes that grade themselves, and use the Tutor on the side to plan and give feedback.</p></div>' +
         '<form class="cr-newclass" data-cr="newclass"><input name="name" placeholder="Class name (e.g. Period 3 Biology)" maxlength="80" required><div class="cr-crow"><input name="subject" placeholder="Subject" maxlength="60"><input name="section" placeholder="Period / section" maxlength="40"></div><button class="btn btn-primary" type="submit">＋ Create class</button></form></header>' +
+        (ownerOn() ? '<div class="cr-note">Owner: <button class="cr-link" data-cr="be-student">Switch back to Student</button></div>' : '') +
         (cards ? '<div class="cr-grid">' + cards + '</div>' : '<div class="cr-empty"><div>🍎</div><h3>No classes yet</h3><p>Create your first class above. You will get a join code to give your students.</p></div>') +
         '<div class="cr-feat"><h4>What you can do here</h4><ul><li>📣 Post announcements to the class stream</li><li>📝 Assign written work with links, due dates and points</li><li>⚡ Make auto-graded quizzes, with AI to write the questions, or reuse your study sets</li><li>📊 Gradebook, class insights and CSV export</li><li>🤖 Tutor on the side for lesson ideas, rubrics and feedback drafts</li><li>🎮 Run a Live Game from the Live Game tab for a fun class review</li></ul></div>';
     }
@@ -71,7 +73,7 @@
     return '<header class="cr-hero"><div><div class="cr-eyebrow">MY CLASSES</div><h2>Your classes</h2><p>Join your teacher\'s class with the code they gave you. Your assignments, grades and a Tutor that coaches (without just giving answers) all live here.</p></div>' +
       '<form class="cr-join" data-cr="join"><label>Class code</label><div class="cr-crow"><input name="code" placeholder="A1B2C3-K7P" maxlength="12" autocomplete="off" required><button class="btn btn-primary" type="submit">Join class</button></div></form></header>' +
       (j ? '<div class="cr-grid">' + j + '</div>' : '<div class="cr-empty"><div>🎒</div><h3>You haven\'t joined a class yet</h3><p>Ask your teacher for the class code, then enter it above.</p></div>') +
-      '<div class="cr-note">Are you a teacher? <button class="cr-link" data-cr="be-teacher">Switch this account to Teacher</button></div>';
+      (ownerOn() ? '<div class="cr-note">Owner: <button class="cr-link" data-cr="be-teacher">Switch this account to Teacher</button></div>' : '');
   }
   function tabsHtml() {
     var t = isT() ? [['stream', '📣 Stream'], ['work', '📝 Classwork'], ['calendar', '🗓️ Calendar'], ['resources', '📚 Resources'], ['people', '👥 People'], ['attendance', '✅ Attendance'], ['grades', '📊 Grades'], ['insights', '💡 Insights']] : [['stream', '📣 Stream'], ['todo', '✅ To-do'], ['work', '📝 Classwork'], ['calendar', '🗓️ Calendar'], ['resources', '📚 Resources'], ['grades', '📊 My grades']];
@@ -454,7 +456,8 @@
       case 'open-a': CR.aid = aid; CR.tab = 'work'; CR.gradeSel = null; render(); break;
       case 'back-work': CR.aid = null; CR.tab = 'work'; render(); break;
       case 'copy': try { navigator.clipboard.writeText(el.getAttribute('data-v')); toast('Copied ' + el.getAttribute('data-v')); } catch (x) { } break;
-      case 'be-teacher': try { localStorage.setItem('index-role', 'teacher'); } catch (x) { } if (window.AccountExtras && AccountExtras.touchRole) AccountExtras.touchRole(); applyRole(); toast('Teacher tools turned on.'); break;
+      case 'be-student': if (!ownerOn()) break; try { localStorage.setItem('index-role', 'student'); } catch (x) { } if (window.AccountExtras && AccountExtras.touchRole) AccountExtras.touchRole(); applyRole(); toast('Back to the student view.'); break;
+      case 'be-teacher': if (!ownerOn()) break; try { localStorage.setItem('index-role', 'teacher'); } catch (x) { } if (window.AccountExtras && AccountExtras.touchRole) AccountExtras.touchRole(); applyRole(); toast('Teacher tools turned on.'); break;
       case 'tutor-toggle': CR.tutor.open = !CR.tutor.open; render(); break;
       case 'chip': { var v = el.getAttribute('data-v'); var ta = $('.cr-chat-in textarea'); if (/: $/.test(v) && ta) { ta.value = v; ta.focus(); } else sendTutor(v); break; }
       case 'new-a': CR.aiBrief = ''; CR.editing = { type: 'task', title: '', instructions: '', due: 0, points: 100, links: [], questions: [] }; render(); break;

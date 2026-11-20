@@ -88,6 +88,7 @@ function ensure(){
       '<label>Membership</label><div class="ad-row"><select id="ad-tier"><option value="">No change</option><option value="gold">Gold</option><option value="platinum">Platinum</option><option value="diamond">Diamond</option><option value="free">Remove membership</option></select>'+
       '<select id="ad-days"><option value="30">30 days</option><option value="90">90 days</option><option value="365">1 year</option><option value="life">Lifetime</option></select></div>'+
       '<label>Badge</label><select id="ad-badge"><option value="">No change</option><option value="gold">Give Gold badge</option><option value="platinum">Give Platinum badge</option><option value="diamond">Give Diamond badge</option><option value="remove">Remove badge</option></select>'+
+      '<label>Account type</label><select id="ad-role"><option value="">No change</option><option value="student">Student</option><option value="teacher">Teacher</option></select>'+
       '<label class="ad-check"><input type="checkbox" id="ad-unlock"> Unlock every cosmetic and Indexling skin</label>'+
       '<label class="ad-check"><input type="checkbox" id="ad-reset"> Reset their daily coin cap</label>'+
       '<div style="margin-top:14px;display:flex;gap:8px"><button class="btn btn-primary" id="ad-send" type="button">Send to player</button><button class="btn btn-ghost" id="ad-clear" type="button">Clear</button></div>'+
@@ -127,7 +128,7 @@ function find(){
   });
 }
 function num(id){ var v=$(id).value; return v===''?0:Math.trunc(Number(v)||0); }
-function clearForm(){ ['#ad-coins','#ad-tokens','#ad-crates','#ad-xp','#ad-credits','#ad-note'].forEach(function(s){$(s).value='';}); $('#ad-tier').value=''; $('#ad-badge').value=''; $('#ad-unlock').checked=false; $('#ad-reset').checked=false; }
+function clearForm(){ ['#ad-coins','#ad-tokens','#ad-crates','#ad-xp','#ad-credits','#ad-note'].forEach(function(s){$(s).value='';}); $('#ad-tier').value=''; $('#ad-badge').value=''; $('#ad-role').value=''; $('#ad-unlock').checked=false; $('#ad-reset').checked=false; }
 function send(){
   if(!target){ say('#ad-msg','Find a player first.','bad'); return; }
   var tier=$('#ad-tier').value, days=$('#ad-days').value;
@@ -135,6 +136,7 @@ function send(){
     note:$('#ad-note').value,unlockAll:$('#ad-unlock').checked,resetDaily:$('#ad-reset').checked};
   if(tier) body.membership=tier==='free'?{tier:'free'}:{tier:tier,days:days==='life'?30:Number(days),lifetime:days==='life'};
   if($('#ad-badge').value) body.badge=$('#ad-badge').value;
+  if($('#ad-role').value) body.role=$('#ad-role').value;
   var big=Math.abs(body.coins)>=1000000||Math.abs(body.crates)>=1000;
   if(big&&!confirm('That is a large amount. Send it to '+(target.username||target.email)+'?')) return;
   say('#ad-msg','Sending…'); $('#ad-send').disabled=true;
