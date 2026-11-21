@@ -14,6 +14,7 @@ function S(){try{return state.live||{};}catch(e){return {};}}
 /* ---------- my profile card data (sent when joining) ---------- */
 L.myProfile=function(){
   try{
+    if(window.IXSettings&&IXSettings.get('shareStats')===false) return {lv:1,xp:0,st:0,own:0,packs:0,games:0,fr:''};
     var p=state.progress||{}, xp=p.xp||0;
     return {lv:Math.floor(xp/100)+1,xp:xp,st:(typeof computeStreak==='function'?computeStreak():0),own:(p.unlockedCosmetics||[]).length,packs:p.openedPacks||0,games:p.liveGames||0,fr:(p.equipped&&p.equipped.frame)||''};
   }catch(e){return {lv:1,xp:0,st:0,own:1,packs:0,games:0,fr:''};}
