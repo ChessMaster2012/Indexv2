@@ -281,9 +281,44 @@ function injectSignInButton(){
 }
 function signInEntry(){
   if(safe(function(){ return state.account; },null)){ try{ closeSignin(); }catch(e){} switchView('canvas'); return; }
-  safe(function(){ sessionStorage.setItem('index-canvas-pending','1'); },0);
-  toast('Create or sign in to your Index account first — Canvas connects right after.');
-  var f=$('signin-identifier')||document.querySelector('#auth-panel input'); if(f&&f.focus) f.focus();
+  openCanvasSignIn();
+}
+function openCanvasSignIn(){
+  if($('cv-si')) return;
+  var host=safe(function(){ return localStorage.getItem('index-canvas-host'); },'')||'mcpsmd.instructure.com';
+  var o=document.createElement('div'); o.id='cv-si';
+  o.style.cssText='position:fixed;inset:0;z-index:100001;display:grid;place-items:center;padding:16px;background:rgba(10,7,5,.78);overflow:auto';
+  o.innerHTML='<div class="cv-card" style="width:min(520px,100%);padding:24px;background:#241d17;color:#fff;border-radius:20px;border:1px solid rgba(255,255,255,.14)" role="dialog" aria-modal="true" aria-labelledby="cv-si-t">'+
+   '<h3 id="cv-si-t" style="margin:0 0 6px;font-size:22px">'+BRAND(22)+' Sign in with Canvas</h3>'+
+   '<p style="margin:0 0 14px;color:#cdc3b1;font-size:14px">No new password needed. Make a Canvas key once, paste it here, and you are in. Your Canvas password is never shared with Index.</p>'+
+   '<ol class="cv-steps" style="margin:0 0 14px;padding-left:20px;font-size:14px;line-height:1.6">'+
+     '<li><a id="cv-si-open" href="https://'+esc(host)+'/profile/settings" target="_blank" rel="noopener" style="color:#ff9a72;font-weight:700">Open your Canvas settings</a> (log in with your school account if it asks).</li>'+
+     '<li>Scroll to <b>Approved Integrations</b> and click <b>+ New Access Token</b>.</li>'+
+     '<li>Type <b>Index</b> as the purpose, leave the date empty, click <b>Generate Token</b>.</li>'+
+     '<li>Copy the long code and paste it below.</li></ol>'+
+   '<label class="cv-lab" for="cv-si-host">Canvas address</label><input id="cv-si-host" class="cv-in" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" value="'+esc(host)+'">'+
+   '<label class="cv-lab" for="cv-si-tok" style="margin-top:10px;display:block">Access token</label><input id="cv-si-tok" class="cv-in" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the token here">'+
+   '<div id="cv-si-msg" class="cv-msg" role="status" style="min-height:20px;margin:8px 0;color:#ff9a9a"></div>'+
+   '<div style="display:flex;gap:10px;justify-content:flex-end"><button type="button" class="btn btn-ghost" id="cv-si-x">Cancel</button><button type="button" class="btn btn-primary" id="cv-si-go">Sign in</button></div>'+
+   '<p class="cv-hint" style="margin:12px 0 0;font-size:12px">If Canvas will not let you make a token, your school has turned that off. Use the regular Index sign in instead.</p></div>';
+  document.body.appendChild(o);
+  var hostIn=$('cv-si-host'), tok=$('cv-si-tok'), msg=$('cv-si-msg'), go=$('cv-si-go');
+  hostIn.addEventListener('input',function(){ var h=hostIn.value.trim().replace(/^https?:\/\//,'').split('/')[0]; $('cv-si-open').href='https://'+(h||host)+'/profile/settings'; });
+  function close(){ if(o.parentNode) o.parentNode.removeChild(o); }
+  $('cv-si-x').onclick=close; o.addEventListener('mousedown',function(e){ if(e.target===o) close(); });
+  function submit(){
+    msg.textContent=''; go.disabled=true; go.textContent='Signing in…';
+    fetch('/api/auth/canvas',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({host:hostIn.value,token:tok.value})})
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(j){ return {ok:r.ok,j:j}; }); })
+      .then(function(x){
+        if(!x.ok||!x.j.ok){ msg.textContent=(x.j&&x.j.error)||'Could not sign in.'; go.disabled=false; go.textContent='Sign in'; return; }
+        safe(function(){ localStorage.setItem('index-canvas-host',hostIn.value.trim().toLowerCase()); },0);
+        safe(function(){ sessionStorage.setItem('index-canvas-pending','1'); },0);
+        go.textContent='Welcome!'; location.reload();
+      }).catch(function(){ msg.textContent='Could not reach Index. Try again.'; go.disabled=false; go.textContent='Sign in'; });
+  }
+  go.onclick=submit; tok.addEventListener('keydown',function(e){ if(e.key==='Enter') submit(); });
+  tok.focus();
 }
 var _sw=window.switchView;
 window.switchView=function(view){ var r=_sw.apply(this,arguments); if(view==='canvas'&&state.view==='canvas') open(); return r; };

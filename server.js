@@ -2728,6 +2728,40 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.post('/api/auth/canvas', async (req, res) => {
+  try {
+    const host = CANVAS.cleanHost(req.body && req.body.host);
+    const token = String((req.body && req.body.token) || '').trim();
+    if (!host) return res.status(400).json({ error: 'Enter your school\'s Canvas address, like mcpsmd.instructure.com.' });
+    if (!/^[A-Za-z0-9~_.\-]{16,300}$/.test(token)) return res.status(400).json({ error: 'That does not look like a Canvas access token.' });
+    let me; try { me = await CANVAS.whoIs(host, token); } catch (e) { return res.status(e.status || 400).json({ error: e.status ? e.message : 'Could not reach that Canvas site.' }); }
+    const ident = ('canvas-' + me.id + '-' + host.replace(/[^a-z0-9]/g, '')).slice(0, 80) + '@canvas.invalid';
+    let user = null;
+    if (SUPABASE_ENABLED) { const row = await dbFindUserByEmail(ident); if (row) user = dbRowToUser(row); }
+    if (!user) user = users.get('email:' + ident) || null;
+    let isNew = false;
+    if (!user) {
+      isNew = true;
+      const parts = me.name.split(/\s+/).filter(Boolean);
+      const username = makeUniqueUsername((parts[0] || 'student') + '.' + (parts[1] || '').slice(0, 1) + '@x', 'c' + me.id);
+      user = { id: crypto.randomBytes(12).toString('hex'), method: 'email', identifier: ident, email: ident, username, passwordHash: '', salt: '', firstName: (parts[0] || '').slice(0, 30), lastName: parts.slice(1).join(' ').slice(0, 40), createdAt: Date.now(), accountData: null, canvasSignIn: true };
+      if (SUPABASE_ENABLED) await dbSaveUser(user);
+      users.set('email:' + ident, user); usersById.set(user.id, user); usersByUsername.set(normalizeUsername(username), user);
+      if (!SUPABASE_ENABLED) saveUsers();
+    }
+    if (banInfo(user)) return res.status(403).json({ error: 'This account has been suspended. Reason: ' + (banInfo(user).reason || 'rule violation'), banned: true });
+    users.set('email:' + ident, user); usersById.set(user.id, user);
+    if (user.username) usersByUsername.set(normalizeUsername(user.username), user);
+    try { await CANVAS.connectToken(user.id, host, token); } catch (e) { console.error('Canvas connect after sign-in:', e.message); }
+    const sess = createSession(user.id);
+    setSessionCookie(res, sess);
+    res.json({ ok: true, user: publicUser(user), isNew });
+  } catch (e) {
+    console.error('Canvas sign-in error:', e.message);
+    res.status(500).json({ error: 'Could not sign in with Canvas right now.' });
+  }
+});
+
 app.post('/api/auth/logout', (req, res) => {
   if (req.sessionToken) sessions.delete(req.sessionToken);
   clearSessionCookie(res);

@@ -478,6 +478,14 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
     } catch (e) { if (e.canvasAuth) await delRec(req.user.id); console.error('Canvas assignment error:', e.message); fail(res, e); }
   });
 
-  return { forgetUser(id) { delRec(id).catch(() => {}); delRec(id, 'gdrive').catch(() => {}); } };
+  /* Sign-in helpers: the token proves who the student is on their school's Canvas. */
+  async function whoIs(host, token) {
+    const r = await cfetch(host, '/api/v1/users/self/profile', { token });
+    if (r.status === 401) throw httpErr(401, 'Canvas did not accept that token. Make sure you copied all of it.');
+    if (!r.ok) throw httpErr(400, 'That does not look like a Canvas site (HTTP ' + r.status + ').');
+    const me = await r.json(); if (!me || !me.id) throw httpErr(400, 'Canvas did not return a profile.');
+    return { id: String(me.id), name: String(me.name || me.short_name || '').slice(0, 80) };
+  }
+  return { cleanHost, whoIs, connectToken: (uid, host, token) => connect(uid, host, 'token', { access: token }), forgetUser(id) { delRec(id).catch(() => {}); delRec(id, 'gdrive').catch(() => {}); } };
 }
 module.exports = { init };
