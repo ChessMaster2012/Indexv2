@@ -2765,7 +2765,7 @@ function sanitizeSecurity(x){
     bonus:Object.fromEntries(K.map(k=>[k,num(bonus[k],1e9)]))
   };
 }
-const POTION_IDS=['common','uncommon','rare','epic','legendary'];
+const POTION_IDS=['clover','charm','pebble','dew','lucky','packrat','crusher','fortune','moonlit','prospector','golden','stormglass','fourleaf','dragon','starlight'];
 function sanitizePotions(v){
   const out={inv:{},active:null}; if(!v||typeof v!=='object') return out;
   for(const id of POTION_IDS){ const n=Math.floor(Number(v.inv&&v.inv[id])||0); if(n>0) out.inv[id]=Math.min(999,n); }
@@ -3626,27 +3626,42 @@ app.get('/api/account/grants', async (req,res)=>{
 
 /* ---------- Potion Market: one shared market for every player, stock resets each hour, first come first served ---------- */
 const POTIONS=[
-  {id:'common',name:'Minor Luck Potion',rarity:'Common',price:150,stock:40,luck:1.25,mins:30,cap:4},
-  {id:'uncommon',name:'Lucky Draught',rarity:'Uncommon',price:400,stock:24,luck:1.5,mins:30,cap:3},
-  {id:'rare',name:'Fortune Elixir',rarity:'Rare',price:1200,stock:12,luck:2,mins:30,cap:2},
-  {id:'epic',name:'Golden Tonic',rarity:'Epic',price:3500,stock:5,luck:3,mins:30,cap:1},
-  {id:'legendary',name:'Four-Leaf Brew',rarity:'Legendary',price:10000,stock:2,luck:5,mins:30,cap:1}
+  // rarity, price (coins), luck on pack / crate openings, minutes, base stock when stocked, chance it is stocked in a given hour, per-player limit per hour
+  {id:'clover',name:'Clover Sip',rarity:'Common',price:80,pack:1.15,crate:1.15,mins:15,stock:40,chance:1,cap:5},
+  {id:'charm',name:'Pocket Charm Tonic',rarity:'Common',price:120,pack:1.2,crate:1.2,mins:20,stock:36,chance:1,cap:4},
+  {id:'pebble',name:'Pebble Pop',rarity:'Common',price:150,pack:1.3,crate:1,mins:30,stock:30,chance:1,cap:4},
+  {id:'dew',name:'Dewdrop Draught',rarity:'Common',price:150,pack:1,crate:1.3,mins:30,stock:30,chance:1,cap:4},
+  {id:'lucky',name:'Lucky Draught',rarity:'Uncommon',price:400,pack:1.5,crate:1.5,mins:30,stock:20,chance:.9,cap:3},
+  {id:'packrat',name:'Pack Rat Potion',rarity:'Uncommon',price:450,pack:1.9,crate:1,mins:30,stock:16,chance:.85,cap:3},
+  {id:'crusher',name:'Crate Crusher Brew',rarity:'Uncommon',price:450,pack:1,crate:1.9,mins:30,stock:16,chance:.85,cap:3},
+  {id:'fortune',name:'Fortune Elixir',rarity:'Rare',price:1200,pack:2,crate:2,mins:30,stock:8,chance:.65,cap:2},
+  {id:'moonlit',name:'Moonlit Philter',rarity:'Rare',price:1600,pack:2.6,crate:1,mins:45,stock:6,chance:.55,cap:2},
+  {id:'prospector',name:"Prospector's Tonic",rarity:'Rare',price:1600,pack:1,crate:2.6,mins:45,stock:6,chance:.55,cap:2},
+  {id:'golden',name:'Golden Tonic',rarity:'Epic',price:3500,pack:3,crate:3,mins:45,stock:4,chance:.35,cap:1},
+  {id:'stormglass',name:'Stormglass Serum',rarity:'Epic',price:4200,pack:4,crate:1.5,mins:30,stock:3,chance:.28,cap:1},
+  {id:'fourleaf',name:'Four-Leaf Brew',rarity:'Legendary',price:10000,pack:5,crate:5,mins:45,stock:2,chance:.15,cap:1},
+  {id:'dragon',name:"Dragon's Fortune",rarity:'Legendary',price:12000,pack:4,crate:4,mins:90,stock:2,chance:.12,cap:1},
+  {id:'starlight',name:'Starlight Nectar',rarity:'Mythic',price:30000,pack:8,crate:8,mins:60,stock:1,chance:.04,cap:1}
 ];
+if(POTIONS.map(x=>x.id).join()!==POTION_IDS.join()) throw new Error('POTIONS and POTION_IDS differ');
 const MARKET_HOUR=3600e3, MARKET_FILE=path.join(__dirname,'data','potion-market.json');
 let market={hour:-1,sold:{},buyers:{}};
 try{ const m=JSON.parse(fs.readFileSync(MARKET_FILE,'utf8')); if(m&&m.hour===Math.floor(Date.now()/MARKET_HOUR)) market=m; }catch(e){}
 function marketNow(){ const h=Math.floor(Date.now()/MARKET_HOUR); if(market.hour!==h) market={hour:h,sold:{},buyers:{}}; return market; }
 function marketSave(){ try{ fs.mkdirSync(path.dirname(MARKET_FILE),{recursive:true}); fs.writeFileSync(MARKET_FILE,JSON.stringify(market)); }catch(e){} }
-function hourStock(h,i,base){   // same stock for everyone, different each hour, identical after a restart
-  let t=(h*2654435761+i*40503)>>>0; t=(t^(t>>>15))*(1|t)>>>0; const r=((t^(t>>>7))>>>0)/4294967296;
-  return Math.max(1,Math.round(base*(0.75+0.5*r)));
+function seeded(h,i,salt){ let t=(h*2654435761+i*40503+salt*97)>>>0; t=(t^(t>>>15))*(1|t)>>>0; t=(t^(t>>>7))*(61|t)>>>0; return ((t^(t>>>14))>>>0)/4294967296; }
+/* the same for every player and every restart: whether a potion is stocked this hour, and how many bottles */
+function stockFor(h,i,p){
+  if(seeded(h,i,1)>=p.chance) return 0;
+  return Math.max(1,Math.round(p.stock*(0.75+0.5*seeded(h,i,2))));
 }
+function activeView(a){ if(!a) return null; const p=POTIONS.find(x=>x.id===a.id); return p?{id:a.id,until:a.until,pack:p.pack,crate:p.crate,name:p.name,rarity:p.rarity}:null; }
 function marketView(user){
   const m=marketNow(), ad=user.accountData||{}, pot=sanitizePotions(ad.potions), mine=m.buyers[user.id]||{};
   return {ok:true,now:Date.now(),nextRestock:(m.hour+1)*MARKET_HOUR,coins:Number(ad.progress&&ad.progress.coins)||0,
-    potions:POTIONS.map((p,i)=>{ const total=hourStock(m.hour,i,p.stock), left=Math.max(0,total-(m.sold[p.id]||0));
-      return {id:p.id,name:p.name,rarity:p.rarity,price:p.price,luck:p.luck,mins:p.mins,total,left,cap:p.cap,bought:mine[p.id]||0}; }),
-    inventory:pot.inv,active:pot.active};
+    potions:POTIONS.map((p,i)=>{ const total=stockFor(m.hour,i,p), left=Math.max(0,total-(m.sold[p.id]||0));
+      return {id:p.id,name:p.name,rarity:p.rarity,price:p.price,pack:p.pack,crate:p.crate,mins:p.mins,chance:p.chance,total,left,stocked:total>0,cap:p.cap,bought:mine[p.id]||0}; }),
+    inventory:pot.inv,active:activeView(pot.active)};
 }
 app.get('/api/potions/market', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
@@ -3664,7 +3679,8 @@ app.post('/api/potions/buy', async (req,res)=>{
       if(!ad||!ad.progress) return {code:409,error:'Open Index once while signed in so your coins can be checked.'};
       const owner=isOwnerUser(user), p=POTIONS[idx], m=marketNow();
       // everything from here to the commit is synchronous, so two buyers can never take the same last bottle
-      const left=hourStock(m.hour,idx,p.stock)-(m.sold[p.id]||0);
+      const total=stockFor(m.hour,idx,p), left=total-(m.sold[p.id]||0);
+      if(total<=0) return {code:409,error:'That potion is not in the market this hour.',view:marketView(user)};
       if(left<=0) return {code:409,error:'Sold out. New stock arrives at the top of the hour.',view:marketView(user)};
       const mine=m.buyers[user.id]||(m.buyers[user.id]={});
       if((mine[p.id]||0)>=p.cap) return {code:409,error:'You have reached your limit for this potion this hour.',view:marketView(user)};
