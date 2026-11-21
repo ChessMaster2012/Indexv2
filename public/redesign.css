@@ -502,3 +502,8 @@ html body .creator-photo-label{display:none !important}
 .cc-icon .ix-emo, .mode-icon .ix-emo { width: 24px; height: 24px; color: var(--accent, #f08a4b); }
 .nav-btn[data-view="classroom"] > span:first-child::before { content: none !important; }
 .cr-pill.roll::after { content: none !important; }
+
+/* Creator photo: show the whole portrait (3:4), no cropping to a square, no pixelation */
+html body .creator-photo-ring{width:168px !important;height:224px !important;}
+html body .creator-photo{width:100% !important;height:100% !important;object-fit:cover !important;object-position:center 30% !important;image-rendering:auto !important;filter:none !important;}
+@media(max-width:700px){html body .creator-photo-ring{width:138px !important;height:184px !important;}}
