@@ -337,6 +337,15 @@
   }, 3000);
   setInterval(function () { if (started && !document.hidden) load(true); }, 180000);
 
+  /* the Index logo (top left) goes back to the dashboard */
+  function goHome(e) {
+    var b = e.target.closest && e.target.closest('.brand'); if (!b || !b.closest('.sidebar,#nav,aside,.side,body')) return;
+    if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault(); if (typeof switchView === 'function') switchView('dashboard');
+  }
+  document.addEventListener('click', goHome); document.addEventListener('keydown', goHome);
+  var bs = document.createElement('style'); bs.textContent = '.brand{cursor:pointer}.brand:focus-visible{outline:2px solid #ff7a4d;outline-offset:4px;border-radius:8px}'; document.head.appendChild(bs);
+
   ensurePotionView();
   setInterval(tickStrip, 300);
 })();
