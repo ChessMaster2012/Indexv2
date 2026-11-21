@@ -35,7 +35,7 @@ function step(o,n){
        '<button type="button" class="wg-choice wg-teacher" data-role="teacher"><span class="wg-ic">'+wi('apple')+'</span><b>'+(up?'Sign up':'Sign in')+' as a teacher</b><span>Host Live Games and run quick class reviews.</span></button>'+
      '</div><button type="button" class="wg-back" data-back="1">← Back</button>';
   }
-  var f=c.querySelector('.wg-student'); if(f&&n===1) f.focus();
+  try{c.setAttribute('tabindex','-1');c.focus({preventScroll:true});}catch(e){}
 }
 function close(o){ o.classList.add('wg-out'); setTimeout(function(){ if(o.parentNode) o.parentNode.removeChild(o); document.body.style.overflow=''; },220); }
 function pick(o,r){
@@ -55,11 +55,11 @@ function note(r){
 function show(startStep){
   if(document.getElementById('welcome-gate')) return;
   var o=build(startStep); document.body.appendChild(o); document.body.style.overflow='hidden';
-  o.addEventListener('click',function(e){ var t=e.target.closest&&e.target.closest('[data-mode],[data-role],[data-back]'); if(!t) return;
-    if(t.hasAttribute('data-mode')){ MODE=t.getAttribute('data-mode'); step(o,2); var f=o.querySelector('.wg-student'); if(f) f.focus(); }
+  o.addEventListener('click',function(e){ var t=e.target.closest&&e.target.closest('[data-mode],[data-role],[data-back]'); if(!t||!o.contains(t)||t===o) return;
+    if(t.hasAttribute('data-mode')){ MODE=t.getAttribute('data-mode'); step(o,2); try{o.querySelector('#wg-card').focus({preventScroll:true});}catch(e){} }
     else if(t.hasAttribute('data-back')) step(o,1);
     else pick(o,t.getAttribute('data-role')||''); });
-  var f=o.querySelector('.wg-student'); if(f) f.focus();
+  try{o.querySelector('#wg-card').focus({preventScroll:true});}catch(e){}
 }
 /* Back button on the full-screen account form: one step back, every time. */
 function visible(id){ var e=document.getElementById(id); return !!e&&!e.classList.contains('hidden'); }
