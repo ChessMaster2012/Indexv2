@@ -2765,6 +2765,13 @@ function sanitizeSecurity(x){
     bonus:Object.fromEntries(K.map(k=>[k,num(bonus[k],1e9)]))
   };
 }
+const POTION_IDS=['common','uncommon','rare','epic','legendary'];
+function sanitizePotions(v){
+  const out={inv:{},active:null}; if(!v||typeof v!=='object') return out;
+  for(const id of POTION_IDS){ const n=Math.floor(Number(v.inv&&v.inv[id])||0); if(n>0) out.inv[id]=Math.min(999,n); }
+  const a=v.active; if(a&&POTION_IDS.includes(a.id)&&Number(a.until)>Date.now()) out.active={id:a.id,until:Math.min(Number(a.until),Date.now()+6*3600e3)};
+  return out;
+}
 function sanitizeAdminGrants(list){
   return (Array.isArray(list)?list:[]).slice(-50).map(g=>{
     if(!g||typeof g!=='object') return null;
@@ -2868,6 +2875,7 @@ function sanitizeAccountState(input){
     membershipOnboardingCompleted: src.membershipOnboardingCompleted === true,
     credits: sanitizeCredits(src.credits),
     adminGrants: sanitizeAdminGrants(src.adminGrants),
+    potions: sanitizePotions(src.potions),
     security: sanitizeSecurity(src.security),
     tutorChats: sanitizeTutorChats(src.tutorChats),
     tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
@@ -3615,6 +3623,85 @@ app.get('/api/account/grants', async (req,res)=>{
     res.json({ok:true,grants:grants.list,epoch:grants.epoch});
   }catch(e){ res.status(503).json({error:'Unavailable.'}); }
 });
+
+/* ---------- Potion Market: one shared market for every player, stock resets each hour, first come first served ---------- */
+const POTIONS=[
+  {id:'common',name:'Minor Luck Potion',rarity:'Common',price:150,stock:40,luck:1.25,mins:30,cap:4},
+  {id:'uncommon',name:'Lucky Draught',rarity:'Uncommon',price:400,stock:24,luck:1.5,mins:30,cap:3},
+  {id:'rare',name:'Fortune Elixir',rarity:'Rare',price:1200,stock:12,luck:2,mins:30,cap:2},
+  {id:'epic',name:'Golden Tonic',rarity:'Epic',price:3500,stock:5,luck:3,mins:30,cap:1},
+  {id:'legendary',name:'Four-Leaf Brew',rarity:'Legendary',price:10000,stock:2,luck:5,mins:30,cap:1}
+];
+const MARKET_HOUR=3600e3, MARKET_FILE=path.join(__dirname,'data','potion-market.json');
+let market={hour:-1,sold:{},buyers:{}};
+try{ const m=JSON.parse(fs.readFileSync(MARKET_FILE,'utf8')); if(m&&m.hour===Math.floor(Date.now()/MARKET_HOUR)) market=m; }catch(e){}
+function marketNow(){ const h=Math.floor(Date.now()/MARKET_HOUR); if(market.hour!==h) market={hour:h,sold:{},buyers:{}}; return market; }
+function marketSave(){ try{ fs.mkdirSync(path.dirname(MARKET_FILE),{recursive:true}); fs.writeFileSync(MARKET_FILE,JSON.stringify(market)); }catch(e){} }
+function hourStock(h,i,base){   // same stock for everyone, different each hour, identical after a restart
+  let t=(h*2654435761+i*40503)>>>0; t=(t^(t>>>15))*(1|t)>>>0; const r=((t^(t>>>7))>>>0)/4294967296;
+  return Math.max(1,Math.round(base*(0.75+0.5*r)));
+}
+function marketView(user){
+  const m=marketNow(), ad=user.accountData||{}, pot=sanitizePotions(ad.potions), mine=m.buyers[user.id]||{};
+  return {ok:true,now:Date.now(),nextRestock:(m.hour+1)*MARKET_HOUR,coins:Number(ad.progress&&ad.progress.coins)||0,
+    potions:POTIONS.map((p,i)=>{ const total=hourStock(m.hour,i,p.stock), left=Math.max(0,total-(m.sold[p.id]||0));
+      return {id:p.id,name:p.name,rarity:p.rarity,price:p.price,luck:p.luck,mins:p.mins,total,left,cap:p.cap,bought:mine[p.id]||0}; }),
+    inventory:pot.inv,active:pot.active};
+}
+app.get('/api/potions/market', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  try{ await refreshAccountUserWithState(req); res.set('Cache-Control','no-store'); res.json(marketView(req.user)); }
+  catch(e){ res.status(503).json({error:'Unavailable.'}); }
+});
+app.post('/api/potions/buy', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  const id=String((req.body&&req.body.id)||''), idx=POTIONS.findIndex(p=>p.id===id);
+  if(idx<0) return res.status(400).json({error:'Unknown potion.'});
+  try{
+    const out=await withGrantLock(req.user.id,async()=>{
+      await refreshAccountUserWithState(req);
+      const user=req.user, ad=user.accountData;
+      if(!ad||!ad.progress) return {code:409,error:'Open Index once while signed in so your coins can be checked.'};
+      const owner=isOwnerUser(user), p=POTIONS[idx], m=marketNow();
+      // everything from here to the commit is synchronous, so two buyers can never take the same last bottle
+      const left=hourStock(m.hour,idx,p.stock)-(m.sold[p.id]||0);
+      if(left<=0) return {code:409,error:'Sold out. New stock arrives at the top of the hour.',view:marketView(user)};
+      const mine=m.buyers[user.id]||(m.buyers[user.id]={});
+      if((mine[p.id]||0)>=p.cap) return {code:409,error:'You have reached your limit for this potion this hour.',view:marketView(user)};
+      if(!owner&&(Number(ad.progress.coins)||0)<p.price) return {code:409,error:'Not enough coins.',view:marketView(user)};
+      const pot=ad.potions=sanitizePotions(ad.potions), before={coins:ad.progress.coins,epoch:ad.progress.grantEpoch};
+      m.sold[p.id]=(m.sold[p.id]||0)+1; mine[p.id]=(mine[p.id]||0)+1;
+      if(!owner){ ad.progress.coins=(Number(ad.progress.coins)||0)-p.price; ad.progress.grantEpoch=(Number(ad.progress.grantEpoch)||0)+1; }
+      pot.inv[p.id]=Math.min(999,(pot.inv[p.id]||0)+1);
+      try{ await adminSaveUser(user); }
+      catch(e){ m.sold[p.id]--; mine[p.id]--; pot.inv[p.id]--; ad.progress.coins=before.coins; ad.progress.grantEpoch=before.epoch; return {code:503,error:'Could not complete the purchase. Nothing was charged.'}; }
+      marketSave();
+      return {code:200,body:Object.assign(marketView(user),{bought:p.id,epoch:Number(ad.progress.grantEpoch)||0,spent:owner?0:p.price})};
+    });
+    if(out.code===200) return res.json(out.body);
+    res.status(out.code).json(Object.assign({ok:false,error:out.error},out.view?{market:out.view}:{}));
+  }catch(e){ res.status(503).json({error:'Unavailable.'}); }
+});
+app.post('/api/potions/use', async (req,res)=>{
+  if(!req.user) return res.status(401).json({error:'Not signed in.'});
+  const id=String((req.body&&req.body.id)||''), p=POTIONS.find(x=>x.id===id);
+  if(!p) return res.status(400).json({error:'Unknown potion.'});
+  try{
+    const out=await withGrantLock(req.user.id,async()=>{
+      await refreshAccountUserWithState(req);
+      const user=req.user, ad=user.accountData; if(!ad) return {code:409,error:'Open Index once while signed in first.'};
+      const pot=ad.potions=sanitizePotions(ad.potions);
+      if(!pot.inv[id]) return {code:409,error:'You do not have that potion.'};
+      if(pot.active&&pot.active.id!==id) return {code:409,error:'Another potion is still working. Wait for it to wear off.'};
+      pot.inv[id]--; if(!pot.inv[id]) delete pot.inv[id];
+      pot.active={id,until:Math.min(Date.now()+6*3600e3,(pot.active?pot.active.until:Date.now())+p.mins*60e3)};
+      await adminSaveUser(user);
+      return {code:200,body:marketView(user)};
+    });
+    if(out.code===200) return res.json(out.body);
+    res.status(out.code).json({ok:false,error:out.error});
+  }catch(e){ res.status(503).json({error:'Unavailable.'}); }
+});
 app.post('/api/account/grants/ack', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
@@ -3778,6 +3865,7 @@ app.put('/api/account/state', async (req,res)=>{
     }
     // Admin grants are server-owned: a browser snapshot cannot add or erase them.
     mergedAccountState.adminGrants = existingAccountState.adminGrants;
+    mergedAccountState.potions = existingAccountState.potions;
     // Classrooms are server-owned: a browser snapshot can never add, edit or erase them.
     mergedAccountState.classroom = existingAccountState.classroom;
     req.user.accountData = sanitizeAccountState(mergedAccountState);
