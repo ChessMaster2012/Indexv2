@@ -2729,6 +2729,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 app.post('/api/auth/canvas', async (req, res) => {
+  if (process.env.CANVAS_SIGNIN !== '1') return res.status(503).json({ error: 'Sign in with Canvas is unavailable for now.' });
   try {
     const host = CANVAS.cleanHost(req.body && req.body.host);
     const token = String((req.body && req.body.token) || '').trim();
