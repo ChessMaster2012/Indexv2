@@ -4,3 +4,6 @@
   data/
 data/canvas.key
 node_modules
+
+/data/*
+!/data/.gitkeep
