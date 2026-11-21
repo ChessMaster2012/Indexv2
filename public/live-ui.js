@@ -203,6 +203,7 @@ function summaryChips(c){
   return a.filter(Boolean).map(function(t){return '<span class="lv-chip">'+t+'</span>';}).join('');
 }
 function lvLobby(){
+  if(window.LVL) return window.LVL.shell('host');
   var c = cfg(), players = state.live.players, m = GAME_MODES[state.live.mode];
   return '<div class="lv-lobby"><div class="lv-lobby-main"><p class="lv-eyebrow">'+m.icon+' '+esc(m.label).toUpperCase()+'</p><h3 class="lv-lobby-title">'+esc(c.title||'Live Game')+'</h3>'+
     '<div class="lv-code-wrap"><span class="lv-code-lab">Room code</span><div class="lv-code" id="lv-code" aria-live="polite">'+esc(state.live.code)+'</div>'+
@@ -216,6 +217,7 @@ function lvLobby(){
 }
 
 /* ---------- game clock (shared by host + players) ---------- */
+window.lvSummaryChips = summaryChips;
 function fmtClock(ms){ var t=Math.max(0,Math.ceil(ms/1000)); return Math.floor(t/60)+':'+('0'+(t%60)).slice(-2); }
 function setClock(remMs, durMs){ LV.endsAt = Date.now()+remMs; if(durMs) LV.durMs = durMs; if(!LV.clockTimer) LV.clockTimer = setInterval(clockTick, 200); clockTick(); }
 function stopClock(){ if(LV.clockTimer){ clearInterval(LV.clockTimer); LV.clockTimer=null; } }
@@ -303,7 +305,7 @@ window.liveJoinSubmit = function(){
   status.innerHTML='<div class="loading-line"><span class="spinner"></span> Joining…</div>';
   ensureSocket(); bindReconnect();
   var playerId = getPlayerId();
-  socket.emit('player:join', { code:code, name:name, playerId:playerId, ling:myLing(), skin:mySkin() }, function(res){
+  socket.emit('player:join', { code:code, name:name, playerId:playerId, ling:myLing(), skin:mySkin(), profile:(window.LVL?window.LVL.myProfile():null) }, function(res){
     if(!res || !res.ok){ status.innerHTML='<div class="error-note">'+esc((res&&res.error)||"Couldn't join that room.")+'</div>'; return; }
     if(res.status==='ended'){ status.innerHTML='<div class="error-note">That game has already ended.</div>'; return; }
     state.profile.name = name; persistProfile(); renderProfileSlot();
@@ -322,6 +324,7 @@ window.liveJoinSubmit = function(){
 function myLing(){ try{ return (state.progress.equipped&&state.progress.equipped.indexling)||'ling-sugarbug'; }catch(e){ return ''; } }
 function mySkin(){ try{ return (typeof getEquippedSkinId==='function'&&getEquippedSkinId(myLing()))||''; }catch(e){ return ''; } }
 function lvWait(){
+  if(window.LVL) return window.LVL.shell('player');
   var c = cfg(), m = GAME_MODES[state.live.mode]||GAME_MODES.trivia, players = state.live.players;
   return '<div class="lv-wait"><div class="lv-wait-card"><p class="lv-eyebrow">'+m.icon+' '+esc(m.label).toUpperCase()+'</p><h3>'+esc(state.live.title||'Live Game')+'</h3>'+
     '<div class="lv-code lv-code-sm">'+esc(state.live.code)+'</div>'+

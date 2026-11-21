@@ -8,6 +8,12 @@ const ARENA = require('./arena');
 const LIBRARY = require('./library');
 const ROOM_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 const MODE_LIST = ['trivia', 'rocket', 'tower', 'zombie', 'gems', 'elimination'];
+const clampInt = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.floor(Number(v) || 0)));
+/** Self-reported profile card shown in the lobby (cosmetic only: never used for rewards or scoring). */
+const cleanProfile = raw => {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  return { lv: clampInt(r.lv, 1, 999), xp: clampInt(r.xp, 0, 9999999), st: clampInt(r.st, 0, 9999), own: clampInt(r.own, 0, 999), packs: clampInt(r.packs, 0, 99999), games: clampInt(r.games, 0, 99999), fr: cleanId(r.fr), lings: clampInt(r.lings, 0, 999), done: clampInt(r.done, 0, 99999) };
+};
 const cleanId = v => /^[a-z0-9-]{1,40}$/i.test(String(v || '')) ? String(v) : '';
 
 function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTitle, cappedDailyCoins }) {
@@ -30,7 +36,7 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
     return { id: p.id, name: p.name, score: p.score, correctCount: p.correctCount || 0, answered: p.answered || 0, gold: p.gold || 0, online: p.online, alive: p.alive !== false,
       streak: p.streak || 0, lives: p.lives, dist: p.dist || 0, floors: p.floors || 0, shield: p.shield || 0, best: p.best || 0, chests: p.chestsAvailable || 0,
       finish: p.finishOrder || 0, finished: !!p.finished, last: p.last || null,
-      n: p.n, ling: p.ling || '', skin: p.skin || '', kills: p.kills || 0, banked: p.banked || 0, carry: p.carry || 0, hp: p.hp, ammo: p.ammo || 0, dc: p.dc || 0, down: !!p.down };
+      prof: p.prof || null, n: p.n, ling: p.ling || '', skin: p.skin || '', kills: p.kills || 0, banked: p.banked || 0, carry: p.carry || 0, hp: p.hp, ammo: p.ammo || 0, dc: p.dc || 0, down: !!p.down };
   }
   const publicPlayers = room => Array.from(room.players.values()).sort(MODES.compare(room)).map(p => pub(room, p));
   const remainingMs = room => room.status === 'running' ? Math.max(0, room.endsAt - Date.now()) : (room.status === 'ended' ? 0 : room.durationMs);
@@ -125,6 +131,14 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
   const requireHost = (room, tok) => room && room.hostToken === tok;
   setInterval(() => { const now = Date.now(); for (const [code, room] of rooms.entries()) if (now - room.createdAt > ROOM_MAX_AGE_MS) { clearInterval(room.tickTimer); rooms.delete(code); } }, 30 * 60 * 1000);
 
+  const lobbyTimer = setInterval(() => {
+    for (const room of rooms.values()) {
+      if (room.status !== 'lobby' || !room.lobbyDirty) continue;
+      room.lobbyDirty = false;
+      io.to(room.code).emit('lobby:snap', Array.from(room.players.values()).filter(p => p.lx != null).map(p => [p.id, p.lx, p.ly, p.lf || 1]));
+    }
+  }, 100);
+  if (lobbyTimer.unref) lobbyTimer.unref();
   io.on('connection', socket => {
     let joined = null;
     socket.on('host:create', (payload, cb) => {
@@ -171,14 +185,17 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
       if (!existingId && room.players.size >= room.config.maxPlayers) return cb && cb({ ok: false, error: 'This game is full.' });
       const id = existingId || genId();
       let p = room.players.get(id);
-      if (p) { p.online = true; p.socketId = socket.id; p.name = safeName; if (payload.ling) { p.ling = cleanId(payload.ling); p.skin = cleanId(payload.skin); } }
+      if (p) { p.online = true; p.socketId = socket.id; p.name = safeName; if (payload.ling) { p.ling = cleanId(payload.ling); p.skin = cleanId(payload.skin); } p.prof = cleanProfile(payload.profile); }
       else {
         p = { id, name: safeName, score: 0, correctCount: 0, gold: 0, chestsAvailable: 0, alive: true, lives: room.config.lives || 1, streak: 0, online: true, socketId: socket.id };
-        p.n = room.nextN = (room.nextN || 0) + 1; p.ling = cleanId(payload.ling); p.skin = cleanId(payload.skin);
+        p.n = room.nextN = (room.nextN || 0) + 1; p.ling = cleanId(payload.ling); p.skin = cleanId(payload.skin); p.prof = cleanProfile(payload.profile);
+        p.lx = 600 + Math.round((Math.random() - 0.5) * 360); p.ly = 520 + Math.round(Math.random() * 90); p.lf = 1; p.lmt = 0;
         MODES.initPlayer(room, p); room.players.set(id, p);
       }
       socket.join(room.code);
       joined = { code: room.code, playerId: id, role: 'player' };
+      if (p.lx == null) { p.lx = 600; p.ly = 540; p.lf = 1; p.lmt = 0; }
+      room.lobbyDirty = true;
       room.dirty = true; if (room.status === 'running') sendArenaRoster(room);
       io.to(room.code).emit('room:roster', { players: publicPlayers(room), title: room.title, mode: room.mode, hostName: room.hostName, config: room.config });
       cb && cb({ ok: true, code: room.code, playerId: id, title: room.title, mode: room.mode, hostName: room.hostName, config: room.config, status: room.status, remainingMs: remainingMs(room), meta: meta(room), me: pub(room, p) });
@@ -194,7 +211,7 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
       const room = rooms.get((code || '').toUpperCase());
       if (!requireHost(room, hostToken)) return cb && cb({ ok: false, error: 'Not authorized for that room.' });
       socket.join(room.code); socket.join(hostRoom(room.code));
-      joined = { code: room.code, playerId: null, role: 'host' };
+      joined = { code: room.code, playerId: null, role: 'host' }; room.lobbyDirty = true;
       cb && cb({ ok: true, code: room.code, title: room.title, mode: room.mode, config: room.config, status: room.status, players: publicPlayers(room), remainingMs: remainingMs(room), meta: meta(room) });
     });
 
@@ -266,6 +283,33 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
       const p = room.players.get(playerId); if (!p || !p.in) return;
       const f = v => Math.max(-1, Math.min(1, Number(v) || 0));
       p.in = { mx: f(mx), my: f(my), act: !!act, ab: !!ab, at: Date.now() };
+    });
+
+    /* ---- lobby map: players walk around while waiting ---- */
+    socket.on('lobby:move', ({ code, playerId, x, y, f } = {}) => {
+      const room = rooms.get((code || '').toUpperCase());
+      if (!room || room.status !== 'lobby') return;
+      const p = room.players.get(playerId); if (!p || p.socketId !== socket.id) return;
+      const now = Date.now(), dt = Math.max(0, now - (p.lmt || 0));
+      if (dt < 40) return;
+      let nx = Math.max(40, Math.min(1160, Number(x) || 0)), ny = Math.max(90, Math.min(660, Number(y) || 0));
+      const maxD = 460 * Math.min(dt, 400) / 1000 + 24, dx = nx - p.lx, dy = ny - p.ly, d = Math.hypot(dx, dy);
+      if (d > maxD) { nx = p.lx + dx / d * maxD; ny = p.ly + dy / d * maxD; }
+      p.lx = Math.round(nx); p.ly = Math.round(ny); p.lf = f < 0 ? -1 : 1; p.lmt = now; room.lobbyDirty = true;
+    });
+    socket.on('lobby:emote', ({ code, playerId, e } = {}) => {
+      const room = rooms.get((code || '').toUpperCase());
+      if (!room || room.status !== 'lobby') return;
+      const p = room.players.get(playerId); if (!p || p.socketId !== socket.id) return;
+      const now = Date.now(); if (now - (p.lem || 0) < 1200) return; p.lem = now;
+      io.to(room.code).emit('lobby:emote', { id: p.id, e: clampInt(e, 0, 5) });
+    });
+    socket.on('lobby:profile', ({ code, playerId, profile, ling, skin } = {}) => {
+      const room = rooms.get((code || '').toUpperCase());
+      if (!room || room.status !== 'lobby') return;
+      const p = room.players.get(playerId); if (!p || p.socketId !== socket.id) return;
+      p.prof = cleanProfile(profile); if (ling) { p.ling = cleanId(ling); p.skin = cleanId(skin); }
+      io.to(room.code).emit('room:roster', { players: publicPlayers(room), config: room.config });
     });
 
     socket.on('disconnect', () => {
