@@ -18,7 +18,17 @@ function run(root){
     t.parentNode.replaceChild(s,t);
   });
 }
-var timer=null;function soon(){clearTimeout(timer);timer=setTimeout(function(){run(document.body);},40);}
-function start(){run(document.body);new MutationObserver(soon).observe(document.body,{childList:true,subtree:true,characterData:true});}
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+var pend=[],sched=false;
+function flush(){sched=false;var l=pend;pend=[];for(var i=0;i<l.length;i++){if(l[i].isConnected)run(l[i]);}}
+function handle(ms){
+  for(var i=0;i<ms.length;i++){var m=ms[i];
+    if(m.type==='characterData'){if(m.target.parentElement)pend.push(m.target.parentElement);continue;}
+    for(var j=0;j<m.addedNodes.length;j++){var a=m.addedNodes[j];
+      if(a.nodeType===1)pend.push(a);else if(a.nodeType===3&&a.parentElement)pend.push(a.parentElement);}
+  }
+  if(pend.length&&!sched){sched=true;requestAnimationFrame(flush);}
+}
+var mo=new MutationObserver(handle);
+mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+document.addEventListener('DOMContentLoaded',function(){run(document.body);});
 })();

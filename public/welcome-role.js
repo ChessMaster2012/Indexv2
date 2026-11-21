@@ -6,6 +6,7 @@
 var SEEN='index-welcome-v1', ROLE='index-role', PEND='index-role-pending';
 function ls(k,v){ try{ if(v===undefined) return localStorage.getItem(k); if(v===null) localStorage.removeItem(k); else localStorage.setItem(k,v); }catch(e){} return null; }
 function gateOpen(){ var g=document.getElementById('site-gate'); return !!g&&!g.classList.contains('hidden'); }
+function wi(n){ try{ return IX.icon(n,56); }catch(e){ return ''; } }
 function role(){ var r=ls(ROLE); return r==='teacher'||r==='student'?r:''; }
 function tag(){ document.body.setAttribute('data-role',role()||''); }
 
@@ -22,16 +23,16 @@ function step(o,n){
     c.innerHTML='<div class="wg-logo">Index</div><h2 id="wg-title">Welcome to Index</h2>'+
      '<p class="wg-sub">Your notes, progress, chats and lessons are saved to your account, so sign in or create one to get started.</p>'+
      '<div class="wg-choices">'+
-       '<button type="button" class="wg-choice wg-student" data-mode="login"><span class="wg-ic">🔑</span><b>Sign in</b><span>I already have an Index account.</span></button>'+
-       '<button type="button" class="wg-choice wg-teacher" data-mode="signup"><span class="wg-ic">✨</span><b>Sign up</b><span>Create a new account. It only takes a minute.</span></button>'+
+       '<button type="button" class="wg-choice wg-student" data-mode="login"><span class="wg-ic">'+wi('key-round')+'</span><b>Sign in</b><span>I already have an Index account.</span></button>'+
+       '<button type="button" class="wg-choice wg-teacher" data-mode="signup"><span class="wg-ic">'+wi('sparkles')+'</span><b>Sign up</b><span>Create a new account. It only takes a minute.</span></button>'+
      '</div><button type="button" class="wg-skip" data-role="">Continue without an account</button>'+
      '<p class="wg-fine">Without an account nothing is saved when you close or reload the page.</p>';
   } else {
     c.innerHTML='<div class="wg-logo">Index</div><h2 id="wg-title">'+(up?'Sign up':'Sign in')+' as a student or a teacher?</h2>'+
      '<p class="wg-sub">Pick the one that fits you.</p>'+
      '<div class="wg-choices">'+
-       '<button type="button" class="wg-choice wg-student" data-role="student"><span class="wg-ic">🎒</span><b>'+(up?'Sign up':'Sign in')+' as a student</b><span>Study, play games, level up and use the AI Tutor.</span></button>'+
-       '<button type="button" class="wg-choice wg-teacher" data-role="teacher"><span class="wg-ic">🍎</span><b>'+(up?'Sign up':'Sign in')+' as a teacher</b><span>Host Live Games and run quick class reviews.</span></button>'+
+       '<button type="button" class="wg-choice wg-student" data-role="student"><span class="wg-ic">'+wi('backpack')+'</span><b>'+(up?'Sign up':'Sign in')+' as a student</b><span>Study, play games, level up and use the AI Tutor.</span></button>'+
+       '<button type="button" class="wg-choice wg-teacher" data-role="teacher"><span class="wg-ic">'+wi('apple')+'</span><b>'+(up?'Sign up':'Sign in')+' as a teacher</b><span>Host Live Games and run quick class reviews.</span></button>'+
      '</div><button type="button" class="wg-back" data-back="1">← Back</button>';
   }
   var f=c.querySelector('.wg-student'); if(f&&n===1) f.focus();
@@ -49,7 +50,7 @@ function note(r){
   var p=document.getElementById('auth-panel'); if(!p) return;
   var n=document.getElementById('auth-role-note');
   if(!n){ n=document.createElement('div'); n.id='auth-role-note'; n.className='lesson-result good'; n.style.cssText='margin-bottom:12px;font-weight:800;'; p.insertBefore(n,p.firstChild); }
-  n.textContent=(MODE==='signup'?'Signing up as a ':'Signing in as a ')+(r==='teacher'?'🍎 teacher':'🎒 student');
+  n.textContent=(MODE==='signup'?'Signing up as a ':'Signing in as a ')+(r==='teacher'?'teacher':'student');
 }
 function show(startStep){
   if(document.getElementById('welcome-gate')) return;
@@ -73,7 +74,7 @@ function addBack(){
   b.addEventListener('click',goBack); m.appendChild(b);
 }
 var _sam=window.setAuthMode;
-if(typeof _sam==='function'){ window.setAuthMode=function(mode){ var r=_sam.apply(this,arguments); MODE=mode==='signup'?'signup':'login'; var n=document.getElementById('auth-role-note'); if(n){ var t=role(); n.textContent=(MODE==='signup'?'Signing up as a ':'Signing in as a ')+(t==='teacher'?'🍎 teacher':'🎒 student'); } return r; }; }
+if(typeof _sam==='function'){ window.setAuthMode=function(mode){ var r=_sam.apply(this,arguments); MODE=mode==='signup'?'signup':'login'; var n=document.getElementById('auth-role-note'); if(n){ var t=role(); n.textContent=(MODE==='signup'?'Signing up as a ':'Signing in as a ')+(t==='teacher'?'teacher':'student'); } return r; }; }
 document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&visible('auth-panel')===true){ var m=document.getElementById('signin-modal'); if(m&&!m.classList.contains('hidden')&&!visible('account-panel')) goBack(); } });
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',addBack); else addBack();
 function init(){
