@@ -276,7 +276,7 @@ document.addEventListener('change',function(e){ var s=e.target.closest&&e.target
 /* ---------- sign-in modal button + view hooks ---------- */
 function injectSignInButton(){
   var g=$('google-signin-btn'); if(!g||document.querySelector('[data-action="canvas-signin"]')) return;
-  var b=document.createElement('button'); b.type='button'; b.className='cv-signin cv-signin-modal'; b.setAttribute('data-action','canvas-signin'); b.disabled=true; b.title='Canvas sign-in is unavailable for now'; b.style.opacity='.55'; b.style.cursor='not-allowed'; b.innerHTML=BRAND(20)+'<span>Sign in with Canvas</span><small style="margin-left:8px;font-weight:700;opacity:.9">Unavailable for now</small>';
+  var b=document.createElement('button'); b.type='button'; b.className='cv-signin cv-signin-modal'; b.setAttribute('data-action','canvas-signin'); b.disabled=true; b.title='Canvas sign-in is unavailable for now'; b.style.opacity='.6'; b.style.cursor='not-allowed'; b.style.background='rgba(255,255,255,.06)'; b.style.border='1px solid rgba(255,255,255,.14)'; b.style.color='#cdc3b1'; b.innerHTML=BRAND(20)+'<span>Sign in with Canvas</span><small style="margin-left:8px;font-weight:700;opacity:.9">Unavailable for now</small>';
   var after=$('google-signin-divider')||g; g.parentNode.insertBefore(b,g.nextSibling);
 }
 function signInEntry(){

@@ -105,33 +105,66 @@
   function blockKeys(on) {
     if (on) { if (!blockKeys.h) { blockKeys.h = function (e) { if (!open && !$('gs-picker')) return; var t = e.target; if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) { e.stopPropagation(); return; } if (keyHandler && e.type === 'keydown') keyHandler(e); e.stopImmediatePropagation(); }; window.addEventListener('keydown', blockKeys.h, true); window.addEventListener('keyup', blockKeys.h, true); } }
   }
+  /* opts.need = strict mode: the player must get `need` questions RIGHT to continue. A wrong answer locks the
+     card for opts.cooldown ms (default 3000), then a fresh question replaces it. No XP in strict mode. */
   function gate(opts) {
     opts = opts || {}; css(); blockKeys(true);
-    var count = Math.max(1, Math.min(8, opts.count || 3));
+    var need = Math.max(0, Math.min(8, opts.need || 0)), strict = need > 0;
+    var cool = Math.max(0, opts.cooldown == null ? 3000 : opts.cooldown);
+    var count = strict ? 1 : Math.max(1, Math.min(8, opts.count || 3));
     return new Promise(function (resolve) {
       var qs = take(count);
       if (!qs.length) { resolve({ correct: 0, total: 0, perfect: false, streak: 0, skipped: true }); return; }
-      var i = 0, right = 0, streak = 0, answered = false;
+      var i = 0, right = 0, wrong = 0, streak = 0, answered = false, locked = false, coolTimer = null;
       open++;
       var o = document.createElement('div'); o.id = 'gs-gate'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true');
       host().appendChild(o); follow(o);
       function finish() {
+        clearInterval(coolTimer);
         open = Math.max(0, open - 1);
         o.classList.add('gs-out'); setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 180);
         if (keyHandler === onKey) keyHandler = null;
-        if (session) { session.asked += qs.length; session.correct += right; }
-        resolve({ correct: right, total: qs.length, perfect: right === qs.length, streak: streak });
+        if (session && !strict) { session.asked += qs.length; session.correct += right; }
+        resolve({ correct: right, total: strict ? right + wrong : qs.length, perfect: strict ? wrong === 0 : right === qs.length, streak: streak });
       }
       function render() {
-        var q = qs[i]; answered = false;
-        o.innerHTML = '<div class="gs-card"><div class="gs-top"><span class="gs-tag">' + E(opts.label || 'STUDY CHECKPOINT') + '</span><span class="gs-count">Question ' + (i + 1) + ' of ' + qs.length + '</span></div>' +
+        var q = qs[i]; answered = false; locked = false;
+        var top = strict ? 'Correct answers: ' + right + ' of ' + need : 'Question ' + (i + 1) + ' of ' + qs.length;
+        var prog = strict ? right / need * 100 : i / qs.length * 100;
+        var last = strict ? right >= need : i === qs.length - 1;
+        o.innerHTML = '<div class="gs-card"><div class="gs-top"><span class="gs-tag">' + E(opts.label || 'STUDY CHECKPOINT') + '</span><span class="gs-count">' + top + '</span></div>' +
           '<h3 class="gs-title">' + E(opts.title || 'Answer to continue') + '</h3>' + (opts.sub ? '<p class="gs-sub">' + E(opts.sub) + '</p>' : '') +
-          '<div class="gs-prog"><i style="width:' + (i / qs.length * 100) + '%"></i></div>' +
+          '<div class="gs-prog"><i style="width:' + prog + '%"></i></div>' +
           '<div class="gs-q">' + E(q.q) + '</div><div class="gs-opts">' + q.options.map(function (t, k) { return '<button type="button" class="gs-opt" data-k="' + k + '"><kbd>' + (k + 1) + '</kbd><span>' + E(t) + '</span></button>'; }).join('') + '</div>' +
-          '<div class="gs-fb" aria-live="polite"></div><div class="gs-foot"><span class="gs-topic">' + E(session ? session.title : '') + '</span><button type="button" class="gs-next" disabled>' + (i === qs.length - 1 ? 'Finish' : 'Next') + '</button></div></div>';
+          '<div class="gs-fb" aria-live="polite"></div><div class="gs-foot"><span class="gs-topic">' + E(session ? session.title : '') + '</span><button type="button" class="gs-next" disabled>' + (last ? 'Finish' : (strict ? 'Next question' : 'Next')) + '</button></div></div>';
         var first = o.querySelector('.gs-opt'); if (first) first.focus();
       }
+      function nextStrict() { var more = take(1); if (!more.length) { finish(); return; } qs.push(more[0]); i = qs.length - 1; render(); }
+      function chooseStrict(k) {
+        if (answered || locked) return; var q = qs[i]; if (!(k >= 0 && k < q.options.length)) return;
+        var ok = k === q.correct; if (session) { session.asked++; if (ok) session.correct++; }
+        var fb = o.querySelector('.gs-fb'), btns = o.querySelectorAll('.gs-opt');
+        btns.forEach(function (b) { b.disabled = true; });
+        if (ok) {
+          answered = true; right++; streak++;
+          btns[k].classList.add('ok'); fb.className = 'gs-fb good';
+          fb.innerHTML = '<b>✓ Correct!</b> ' + E(q.explanation || '');
+          var nx = o.querySelector('.gs-next'); nx.disabled = false; nx.textContent = right >= need ? 'Deploy' : 'Next question'; nx.focus();
+          var bar = o.querySelector('.gs-prog i'); if (bar) bar.style.width = (right / need * 100) + '%';
+        } else {
+          locked = true; wrong++; streak = 0; btns[k].classList.add('bad'); fb.className = 'gs-fb miss';
+          var left = Math.ceil(cool / 1000), t0 = Date.now();
+          function paint() { fb.innerHTML = '<b>✗ Not quite.</b> Take a breath. A new question unlocks in <b>' + Math.max(1, left) + '</b>…'; }
+          paint();
+          coolTimer = setInterval(function () {
+            var rem = cool - (Date.now() - t0);
+            if (rem <= 0) { clearInterval(coolTimer); nextStrict(); return; }
+            var nl = Math.ceil(rem / 1000); if (nl !== left) { left = nl; paint(); }
+          }, 100);
+        }
+      }
       function choose(k) {
+        if (strict) { chooseStrict(k); return; }
         if (answered) return; var q = qs[i]; if (!(k >= 0 && k < q.options.length)) return; answered = true;
         var ok = k === q.correct; if (ok) { right++; streak++; } else streak = 0;
         o.querySelectorAll('.gs-opt').forEach(function (b, n) { b.disabled = true; if (n === q.correct) b.classList.add('ok'); else if (n === k) b.classList.add('bad'); });
@@ -140,7 +173,11 @@
         try { if (ok && typeof addXP === 'function') addXP(2); } catch (e) { }
         var nx = o.querySelector('.gs-next'); nx.disabled = false; nx.focus();
       }
-      function advance() { if (!answered) return; if (i >= qs.length - 1) finish(); else { i++; render(); } }
+      function advance() {
+        if (!answered) return;
+        if (strict) { if (right >= need) finish(); else nextStrict(); return; }
+        if (i >= qs.length - 1) finish(); else { i++; render(); }
+      }
       function onKey(e) {
         if (!o.isConnected) return;
         if (e.key >= '1' && e.key <= '9') { choose(Number(e.key) - 1); e.preventDefault(); }
@@ -234,7 +271,7 @@
 
   /* every game goes through arcadeStart: ask for the topic first (Troop Commander already has its own picker) */
   /* games that already ask study questions every level (the picker only runs for these) */
-  var GATED = { expedition: 1, shadow: 1, rogue: 1, gauntlet: 1, trial: 1, rhythm: 1, chrono: 1, gold: 1, study: 1 };
+  var GATED = { commander: 1, expedition: 1, shadow: 1, rogue: 1, gauntlet: 1, trial: 1, rhythm: 1, chrono: 1, gold: 1, study: 1 };
   function install() {
     if (typeof window.arcadeStart !== 'function' || window.arcadeStart.__gs) return false;
     var orig = window.arcadeStart;
