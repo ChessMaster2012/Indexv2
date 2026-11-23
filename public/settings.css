@@ -92,3 +92,23 @@ html::-webkit-scrollbar,.main::-webkit-scrollbar{width:12px;height:12px}
 .st-themes,.st-seg{max-width:100%}
 .st-themes{overflow-x:auto;padding-bottom:6px}
 @media(max-width:700px){.st-card{padding:10px 18px 14px}.st-row{padding:20px 0;gap:14px}.st-range{width:100%;min-width:140px}}
+
+/* ---------- tidy pass: comfortable inner padding, calmer type sizes ---------- */
+.st-card{padding:12px 20px 20px}
+.st-card h3{font-size:19px;margin:16px 4px 12px}
+.st-row{padding:20px 24px;gap:24px;border-radius:14px}
+.st-t b{font-size:15px;line-height:1.3}
+.st-t small{font-size:12.5px;line-height:1.5}
+.st-val{font-size:14px;min-width:48px}
+.st-range{width:220px;height:8px}
+.st-range::-webkit-slider-thumb{width:22px;height:22px}
+.st-theme{padding:6px 8px;font-size:13px}
+.st-theme i{width:62px;height:40px}
+.st-sw-c{width:30px;height:30px}
+.st-seg button{padding:9px 14px;font-size:13px}
+.st-sw input,.st-knob{width:60px;height:32px}
+.st-knob:after{width:24px!important;height:24px!important;top:4px!important;left:4px!important}
+.st-sw input:checked~.st-knob:after{left:32px!important}
+.st-knob:before{font-size:9px;right:9px}
+.st-sw input:checked~.st-knob:before{left:10px;right:auto}
+@media(max-width:700px){.st-row{padding:16px 16px}}
