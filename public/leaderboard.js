@@ -35,7 +35,7 @@ function load(g){
     var b2=body(); if(!b2||cur!==g) return; if(!x.ok){ b2.innerHTML='<div class="lb-note">'+esc(x.d.error||'Could not load the leaderboard.')+'</div>'; return; }
     var d=x.d, h='';
     if(!d.top.length) h='<div class="lb-note">No scores yet. Play '+esc(d.name)+' and be the first on the board!</div>';
-    else h='<ol class="lb-list">'+d.top.map(function(r){ var m=r.rank===1?'🥇':r.rank===2?'🥈':r.rank===3?'🥉':r.rank; return '<li class="'+(r.me?'me':'')+'"><span class="lb-rk">'+m+'</span><span class="lb-nm">'+esc(r.name)+(r.me?' <em>(you)</em>':'')+'</span><b>'+fmt(r.score)+'</b></li>'; }).join('')+'</ol>';
+    else h='<ol class="lb-list">'+d.top.map(function(r){ var m=r.rank===1?'🥇':r.rank===2?'🥈':r.rank===3?'🥉':r.rank; return '<li class="'+(r.me?'me':'')+'"><span class="lb-rk">'+m+'</span><span class="lb-nm">'+(r.badge?esc(r.badge)+' ':'')+esc(r.name)+(r.me?' <em>(you)</em>':'')+'</span><b>'+fmt(r.score)+'</b></li>'; }).join('')+'</ol>';
     var mine=d.mine;
     h+='<div class="lb-me">'+(mine?(mine.hidden?'Your best is '+fmt(mine.score)+' (hidden from the board).':'You are '+(mine.rank?'<b>#'+mine.rank+'</b> of '+d.total+' with ':'on the board with ')+'<b>'+fmt(mine.score)+'</b> '+esc(d.label)+'.'):'You have no score here yet.')+'</div>';
     b2.innerHTML=h;

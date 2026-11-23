@@ -53,7 +53,9 @@ function fmt(p){ return p==null?'–':(Math.round(p*100)/100).toFixed(p%1===0?0:
 function changed(ci){ var k=ckey(ci); return Object.keys(S.edits[k]||{}).length>0||(S.added[k]||[]).length>0; }
 
 /* ---------- network ---------- */
-function keepOn(){ try{ var el=$('#gc-keep'); if(el) return !!el.checked; }catch(e){} return localStorage.getItem('index-grades-keep')!=='0'; }
+function canAuto(){ try{ var t=(state.membership&&state.membership.tier)||'free'; return !!(window.MembershipCore&&MembershipCore.get(t).auto); }catch(e){ return false; } }
+function keepBox(){ if(canAuto()) return '<label class="gc-keep"><input type="checkbox" id="gc-keep" '+(localStorage.getItem('index-grades-keep')!=='0'?'checked':'')+'> Keep me connected so my grades load fresh every time I open this tab <span class="gc-muted">(your login is stored encrypted on the Index server; you can turn this off anytime with Disconnect)</span></label>'; return '<div class="gc-upsell"><b>🥇 Want your grades to load automatically?</b><span>Gold, Platinum and Diamond members skip the password every time. Free accounts enter it when they open this tab.</span><button class="btn btn-primary btn-sm" type="button" data-action="open-membership">See memberships</button></div>'; }
+function keepOn(){ if(!canAuto()) return false; try{ var el=$('#gc-keep'); if(el) return !!el.checked; }catch(e){} return localStorage.getItem('index-grades-keep')!=='0'; }
 function post(path,body){
   return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)}).then(function(r){
     return r.json().catch(function(){return {};}).then(function(d){ if(!r.ok) throw new Error(d.error||'Something went wrong.'); return d; });
@@ -84,7 +86,7 @@ function connectView(){
     '<label>StudentVUE address</label><input id="gc-url" type="text" placeholder="https://md-mcps-psv.edupoint.com" value="'+esc(S.url||'')+'" autocomplete="off">';
   return '<div class="gc-card gc-connect"><h3>Connect StudentVUE</h3><p class="gc-sub">Sign in once to pull in your classes and assignments. Then change any score to see what would happen to your grade.</p>'+where+
     '<div class="gc-row"><div><label>Student ID</label><input id="gc-user" type="text" value="'+esc(S.user||'')+'" autocomplete="off" inputmode="numeric" placeholder="6 or 8 digit ID"></div><div><label>StudentVUE password</label><input id="gc-pass" type="password" autocomplete="current-password"></div></div>'+
-    '<label class="gc-keep"><input type="checkbox" id="gc-keep" '+(localStorage.getItem('index-grades-keep')!=='0'?'checked':'')+'> Keep me connected so my grades load fresh every time I open this tab <span class="gc-muted">(your login is stored encrypted on the Index server; you can turn this off anytime with Disconnect)</span></label>'+
+    keepBox()+
     (S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'')+
     '<div class="gc-actions"><button class="btn btn-primary" id="gc-go" type="button"'+(S.busy?' disabled':'')+'>'+(S.busy?'Signing in…':'Import my grades')+'</button> <button class="btn btn-ghost" id="gc-manual" type="button">Enter my grades by hand</button></div>'+privacy()+'</div>';
 }
@@ -113,10 +115,10 @@ function classForm(){
 }
 function passForm(){
   var n=S.needPass||{}, when=S.data&&S.data.fetchedAt?new Date(S.data.fetchedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
-  var sub=n.fresh?'Sign in once to load the latest from StudentVUE'+(when?' (saved grades from '+esc(when)+' are shown below)':'')+'. Tick "Keep me connected" and this tab will load fresh grades by itself from now on.':'Your password is not saved, so StudentVUE needs it each time you refresh.';
+  var sub=n.fresh?'Sign in once to load the latest from StudentVUE'+(when?' (saved grades from '+esc(when)+' are shown below)':'')+'. '+(canAuto()?'Tick "Keep me connected" and this tab will load fresh grades by itself from now on.':'Upgrade to Gold or higher to skip this step every time.'):'Your password is not saved, so StudentVUE needs it each time you refresh.';
   return '<form class="gc-card gc-pass" id="gc-passform" onsubmit="return false"><b>'+(n.label||'Sign in again')+'</b><p class="gc-sub">'+sub+'</p>'+
     '<input type="text" name="username" value="'+esc(S.user||'')+'" autocomplete="username" readonly hidden>'+
-    '<div class="gc-inline"><input id="gc-pass2" type="password" placeholder="StudentVUE password" autocomplete="current-password"><button class="btn btn-primary" id="gc-pass-go" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?'Loading…':(n.fresh?'Load fresh grades':'Continue'))+'</button><button class="btn btn-ghost" id="gc-pass-x" type="button">'+(n.fresh?'Keep saved':'Cancel')+'</button></div>'+'<label class="gc-keep"><input type="checkbox" id="gc-keep" '+(localStorage.getItem('index-grades-keep')!=='0'?'checked':'')+'> Keep me connected so my grades load fresh every time I open this tab <span class="gc-muted">(your login is stored encrypted on the Index server; you can turn this off anytime with Disconnect)</span></label>'+'</form>';
+    '<div class="gc-inline"><input id="gc-pass2" type="password" placeholder="StudentVUE password" autocomplete="current-password"><button class="btn btn-primary" id="gc-pass-go" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?'Loading…':(n.fresh?'Load fresh grades':'Continue'))+'</button><button class="btn btn-ghost" id="gc-pass-x" type="button">'+(n.fresh?'Keep saved':'Cancel')+'</button></div>'+keepBox()+'</form>';
 }
 function render(){
   var r=root(); if(!r) return;

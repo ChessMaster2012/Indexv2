@@ -15,7 +15,7 @@ const GAMES = {
   chrono:     { name: 'Chrono Hex Puzzle',     label: 'best score',    cap: 5e7 },
   rhythm:     { name: 'Rhythm Reflector',      label: 'best score',    cap: 5e7 }
 };
-function init({ app, dataDir, supabase, isBanned, nameOf }) {
+function init({ app, dataDir, supabase, isBanned, nameOf, badgeOf }) {
   const FILE = path.join(dataDir, 'leaderboard.json'), TABLE = 'index_library';
   const board = {}; Object.keys(GAMES).forEach(g => board[g] = {});
   const lastSubmit = new Map(); let dirty = new Set(), timer = null;
@@ -38,7 +38,7 @@ function init({ app, dataDir, supabase, isBanned, nameOf }) {
   })();
   const entriesFor = g => Object.keys(board[g]).map(uid => ({ uid, e: board[g][uid] })).filter(x => !x.e.hide && !(isBanned && isBanned(x.uid))).sort((a, b) => b.e.s - a.e.s || a.e.t - b.e.t);
   function view(g, me) {
-    const all = entriesFor(g), top = all.slice(0, 25).map((x, i) => ({ rank: i + 1, name: x.e.n, score: x.e.s, me: me && x.uid === me.id }));
+    const all = entriesFor(g), top = all.slice(0, 25).map((x, i) => ({ rank: i + 1, name: x.e.n, badge: x.e.b || '', score: x.e.s, me: me && x.uid === me.id }));
     let mine = null; if (me) { const i = all.findIndex(x => x.uid === me.id); const own = board[g][me.id]; mine = own ? { rank: i >= 0 ? i + 1 : null, score: own.s, hidden: !!own.hide } : null; }
     return { game: g, name: GAMES[g].name, label: GAMES[g].label, total: all.length, top, mine };
   }
@@ -57,14 +57,14 @@ function init({ app, dataDir, supabase, isBanned, nameOf }) {
     const u = req.user; if (!u) return res.status(401).json({ error: 'Sign in first.' });
     if (isBanned && isBanned(u.id)) return res.status(403).json({ error: 'Suspended.' });
     const now = Date.now(); if (now - (lastSubmit.get(u.id) || 0) < 3000) return res.status(429).json({ error: 'Slow down.' }); lastSubmit.set(u.id, now);
-    const sc = req.body && req.body.scores && typeof req.body.scores === 'object' ? req.body.scores : {}, show = req.body ? req.body.show !== false : true, name = String(nameOf(u) || 'Student').slice(0, 24);
+    const sc = req.body && req.body.scores && typeof req.body.scores === 'object' ? req.body.scores : {}, show = req.body ? req.body.show !== false : true, name = String(nameOf(u) || 'Student').slice(0, 24), badge = String((badgeOf && badgeOf(u)) || '');
     let changed = 0;
     Object.keys(GAMES).forEach(g => {
       const own = board[g][u.id]; let s = Math.floor(Number(sc[g]));
-      if (own && (own.hide === !show) && own.n === name && !(Number.isFinite(s) && s > own.s && s <= GAMES[g].cap)) return;
-      if (!Number.isFinite(s) || s <= 0 || s > GAMES[g].cap) { if (own && (own.hide !== !show || own.n !== name)) { own.hide = !show; own.n = name; mark(g); changed++; } return; }
-      if (own && s <= own.s) { if (own.hide !== !show || own.n !== name) { own.hide = !show; own.n = name; mark(g); changed++; } return; }
-      board[g][u.id] = { n: name, s, t: now, hide: !show }; mark(g); changed++;
+      if (own && (own.hide === !show) && own.n === name && (own.b || '') === badge && !(Number.isFinite(s) && s > own.s && s <= GAMES[g].cap)) return;
+      if (!Number.isFinite(s) || s <= 0 || s > GAMES[g].cap) { if (own && (own.hide !== !show || own.n !== name || (own.b || '') !== badge)) { own.hide = !show; own.n = name; own.b = badge; mark(g); changed++; } return; }
+      if (own && s <= own.s) { if (own.hide !== !show || own.n !== name || (own.b || '') !== badge) { own.hide = !show; own.n = name; own.b = badge; mark(g); changed++; } return; }
+      board[g][u.id] = { n: name, s, t: now, hide: !show, b: badge }; mark(g); changed++;
     });
     res.json({ ok: true, changed });
   });

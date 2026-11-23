@@ -3378,6 +3378,7 @@ const GRADES_KEY=(()=>{ const e=String(process.env.GRADES_KEY||''); if(e.length>
 const svEnc=o=>{ const iv=crypto.randomBytes(12), c=crypto.createCipheriv('aes-256-gcm',GRADES_KEY,iv), ct=Buffer.concat([c.update(JSON.stringify(o),'utf8'),c.final()]); return {v:1,iv:iv.toString('base64'),tag:c.getAuthTag().toString('base64'),ct:ct.toString('base64')}; };
 const svDec=r=>{ try{ const d=crypto.createDecipheriv('aes-256-gcm',GRADES_KEY,Buffer.from(r.iv,'base64')); d.setAuthTag(Buffer.from(r.tag,'base64')); return JSON.parse(Buffer.concat([d.update(Buffer.from(r.ct,'base64')),d.final()]).toString('utf8')); }catch(e){ return null; } };
 const svCreds={
+  allowed(req){ return !!MembershipCore.get(membershipTierForUser(req.user)).auto; },
   async save(req,o){ if(!GRADES_KEY) throw new Error('nokey'); await withGrantLock(req.user.id,async()=>{ await refreshAccountUserWithState(req); const u=req.user; if(!u.accountData) u.accountData={}; u.accountData.svCred=svEnc(o); await adminSaveUser(u); }); },
   async clear(req){ await withGrantLock(req.user.id,async()=>{ await refreshAccountUserWithState(req); const u=req.user; if(u.accountData&&u.accountData.svCred){ delete u.accountData.svCred; await adminSaveUser(u); } }); },
   async load(req){ if(!GRADES_KEY) return null; await refreshAccountUserWithState(req); const r=req.user.accountData&&req.user.accountData.svCred; return r?svDec(r):null; }
@@ -3666,7 +3667,8 @@ app.get('/api/account/grants', async (req,res)=>{
 /* ---------- Lucky Spins: server-owned tokens. Using one boosts the odds of a single pack opening. ----------
    Earned from: Battle Pass (every 5th level), a study streak (every 7 active days), hosting/joining live games (every 5),
    and a weekly bundle for paid memberships. Everything is computed here from saved account data, so a browser cannot mint spins. */
-const SPIN_WEEKLY={gold:1,platinum:2,diamond:4};
+const MCORE=require('./public/membership-core.js');
+const SPIN_WEEKLY={gold:MCORE.get('gold').spins,platinum:MCORE.get('platinum').spins,diamond:MCORE.get('diamond').spins};
 function sanitizeSpins(v){
   const o={n:0,bp:0,days:0,live:0,memberWeek:0,used:0}; if(!v||typeof v!=='object') return o;
   for(const k of Object.keys(o)) o[k]=Math.max(0,Math.min(100000,Math.floor(Number(v[k])||0)));
@@ -3677,25 +3679,25 @@ function spinSources(user,ad){
   const bpN=new Set(bp).size, days=new Set(Array.isArray(p.activeDates)?p.activeDates:[]).size;
   return {bp:bpN, days:Math.min(52,Math.floor(days/7)), live:Math.min(100,Math.floor((Number(p.liveGames)||0)/5))};
 }
-function spinView(sp){ return {ok:true,n:sp.n,used:sp.used,earn:[
+function spinView(sp,tier){ return {ok:true,n:sp.n,used:sp.used,boost:MCORE.get(tier||'free').boost,tier:tier||'free',earn:[
   {id:'bp',label:'Battle Pass',desc:'1 Lucky Spin every 5th level you claim (levels 5, 10 ... 50)'},
   {id:'days',label:'Study streak',desc:'1 Lucky Spin for every 7 days you are active in Index'},
   {id:'live',label:'Live games',desc:'1 Lucky Spin for every 5 live games you play or host'},
-  {id:'member',label:'Membership',desc:'Gold: 1 per week, Platinum: 2 per week, Diamond: 4 per week'}],boost:1.5}; }
+  {id:'member',label:'Membership',desc:'Gold: 1 per week, Platinum: 2 per week, Diamond: 4 per week'}]}; }
 async function spinsSync(req,res,mode){
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
     const out=await withGrantLock(req.user.id,async()=>{
       await refreshAccountUserWithState(req);
-      const user=req.user, ad=user.accountData; if(!ad||!ad.progress) return {code:200,body:Object.assign(spinView(sanitizeSpins(null)),{pending:true})};
+      const user=req.user, ad=user.accountData; if(!ad||!ad.progress) return {code:200,body:Object.assign(spinView(sanitizeSpins(null),membershipTierForUser(user)),{pending:true})};
       const sp=ad.spins=sanitizeSpins(ad.spins), src=spinSources(user,ad), before=JSON.stringify(sp);
       let gained=0; for(const k of ['bp','days','live']){ if(src[k]>sp[k]){ gained+=src[k]-sp[k]; sp[k]=src[k]; } }
       const wk=Math.floor(Date.now()/(7*86400e3)), per=SPIN_WEEKLY[membershipTierForUser(user)]||0;
       if(per&&sp.memberWeek!==wk){ gained+=per; sp.memberWeek=wk; }
       sp.n=Math.min(1000,sp.n+gained);
-      if(mode==='use'){ if(sp.n<=0) return {code:409,error:'You have no Lucky Spins. See how to earn them below.',body:spinView(sp)}; sp.n--; sp.used++; }
+      if(mode==='use'){ if(sp.n<=0) return {code:409,error:'You have no Lucky Spins. See how to earn them below.',body:spinView(sp,membershipTierForUser(user))}; sp.n--; sp.used++; }
       if(JSON.stringify(sp)!==before){ try{ await adminSaveUser(user); }catch(e){ return {code:503,error:'Could not save. Try again.'}; } }
-      return {code:200,body:Object.assign(spinView(sp),{gained})};
+      return {code:200,body:Object.assign(spinView(sp,membershipTierForUser(user)),{gained})};
     });
     if(out.code===200) return res.json(out.body);
     res.status(out.code).json(Object.assign({ok:false,error:out.error},out.body||{}));
@@ -4387,7 +4389,8 @@ require('./leaderboard').init({
   app, dataDir: DATA_DIR,
   supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest },
   isBanned: uid => { const u=usersById.get(uid); return !!(u&&banInfo(u)); },
-  nameOf: u => u.username || 'Student'
+  nameOf: u => u.username || 'Student',
+  badgeOf: u => MembershipCore.get(membershipTierForUser(u)).badge || ''
 });
 LIBRARY.init({
   app, express, dataDir: DATA_DIR, containsConductViolation,

@@ -372,6 +372,7 @@ function mount(app, opts) {
   /* Optional "keep me connected": the server keeps the login encrypted (see creds in server.js) so grades load fresh without typing the password. */
   app.post('/api/studentvue/remember', need, async (req, res) => {
     if (!creds) return res.status(503).json({ error: 'Not available.' });
+    if (!creds.allowed(req)) return res.status(403).json({ error: 'Automatic grades are a Gold, Platinum and Diamond perk.', locked: true });
     const b = req.body || {}, base = normalizeBase(String(b.url || '')), user = String(b.username || '').trim().slice(0, 80), pass = String(b.password || '').slice(0, 200);
     if (!base || !user || !pass) return res.status(400).json({ error: 'Missing login.' });
     try { await creds.save(req, { url: String(b.url).slice(0, 200), user, pass }); res.json({ ok: true }); } catch (e) { res.status(503).json({ error: 'Could not save. Try again.' }); }
@@ -379,6 +380,7 @@ function mount(app, opts) {
   app.delete('/api/studentvue/remember', need, async (req, res) => { try { if (creds) await creds.clear(req); } catch (e) { } res.json({ ok: true }); });
   app.post('/api/studentvue/auto', need, async (req, res) => {
     if (!creds) return res.json({ ok: false, none: true });
+    if (!creds.allowed(req)) return res.json({ ok: false, none: true, locked: true });
     if (!throttle(req, res)) return;
     let c; try { c = await creds.load(req); } catch (e) { c = null; }
     if (!c) return res.json({ ok: false, none: true });

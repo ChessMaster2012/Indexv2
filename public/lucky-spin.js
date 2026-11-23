@@ -3,20 +3,20 @@
 (function(){
 'use strict';
 if(window.LuckySpin) return;
-var BOOST=1.5, S={n:0,earn:[],loaded:false}, armed=false, busy=false, lastFetch=0;
+var S={n:0,earn:[],loaded:false,boost:1.5,tier:'free'}, armed=false, busy=false, lastFetch=0;
 function esc(t){ return String(t==null?'':t).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function signed(){ try{ return !!(state.account&&state.account.id); }catch(e){ return false; } }
 function toast(m){ try{ showRewardToast(m); }catch(e){} }
 function api(path,post){ return fetch(path,{method:post?'POST':'GET',credentials:'same-origin',cache:'no-store',headers:post?{'Content-Type':'application/json'}:{},body:post?'{}':undefined}).then(function(r){ return r.json().catch(function(){return {};}).then(function(d){ d._s=r.status; return d; }); }); }
-function apply(d){ if(d&&d.ok!==false&&typeof d.n==='number'){ S.n=d.n; if(d.earn) S.earn=d.earn; S.loaded=true; } decorate(); }
+function apply(d){ if(d&&d.ok!==false&&typeof d.n==='number'){ S.n=d.n; if(d.earn) S.earn=d.earn; if(d.boost) S.boost=d.boost; if(d.tier) S.tier=d.tier; S.loaded=true; } decorate(); }
 function sync(force){ if(!signed()) return Promise.resolve(); if(!force&&Date.now()-lastFetch<20000) return Promise.resolve(); lastFetch=Date.now(); return api('/api/spins').then(function(d){ if(d.gained>0) toast('🍀 You earned '+d.gained+' Lucky Spin'+(d.gained>1?'s':'')+'!'); apply(d); }).catch(function(){}); }
 window.LuckySpin={
-  mult:function(kind){ if(kind==='pack'&&armed){ armed=false; return BOOST; } return 1; },
+  mult:function(kind){ if(kind==='pack'&&armed){ armed=false; return S.boost; } return 1; },
   count:function(){ return S.n; }, sync:sync
 };
 function earnHtml(){
   var rows=(S.earn.length?S.earn:[{label:'Battle Pass',desc:'1 Lucky Spin every 5th level'},{label:'Study streak',desc:'1 for every 7 active days'},{label:'Live games',desc:'1 for every 5 live games'},{label:'Membership',desc:'Gold 1, Platinum 2, Diamond 4 per week'}]);
-  return '<details class="ls-earn"><summary>How do I get Lucky Spins?</summary><ul>'+rows.map(function(r){ return '<li><b>'+esc(r.label)+'</b> — '+esc(r.desc)+'</li>'; }).join('')+'</ul><p>A Lucky Spin makes one pack opening about '+Math.round((BOOST-1)*100)+'% friendlier to Rare, Epic and Legendary Indexlings. It does not replace the pack cost.</p></details>';
+  return '<details class="ls-earn"><summary>How do I get Lucky Spins?</summary><ul>'+rows.map(function(r){ return '<li><b>'+esc(r.label)+'</b> — '+esc(r.desc)+'</li>'; }).join('')+'</ul><p>A Lucky Spin makes one pack opening about '+Math.round((S.boost-1)*100)+'% friendlier to Rare, Epic and Legendary Indexlings. It does not replace the pack cost.'+(S.tier==='diamond'?'':' <a href="#" data-action="open-membership" class="ls-up">Higher memberships earn more spins and stronger boosts.</a>')+'</p></details>';
 }
 function decorate(){
   var head=document.querySelector('.pack-showcase-head');

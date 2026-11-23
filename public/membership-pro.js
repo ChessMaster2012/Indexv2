@@ -18,13 +18,18 @@
       else if (active) btn = paid ? '<button class="btn btn-ghost membership-action" data-action="manage-membership">Manage billing</button>' : '<button class="btn btn-ghost membership-action" disabled>Your current plan</button>';
       else if (paid) btn = '<button class="btn ' + (k === 'diamond' ? 'btn-primary' : 'btn-ghost') + ' membership-action" data-action="start-membership-checkout" data-tier="' + k + '">' + (tier === 'free' ? 'Choose ' : 'Switch to ') + t.name + '</button>';
       else btn = '<button class="btn btn-ghost membership-action" disabled>Included with every account</button>';
-      var feats = ['<b>' + N(t.credits) + '</b> AI credits / 6 hours', '<b>' + N(t.sets) + '</b> saved study sets', '<b>' + N(t.notes) + '</b> saved notes', '<b>' + N(t.chats) + '</b> saved Tutor chats', 'x' + t.rollMult + ' daily credit roll', t.flair];
-      return '<article class="mp-card mp-' + k + (active ? ' mp-active' : '') + '" data-tier="' + k + '" ' + (pick ? 'tabindex="0" role="radio" aria-checked="false"' : '') + '>' +
-        (k === 'diamond' ? '<div class="mp-ribbon">BEST VALUE</div>' : '') +
+      var prev = MC.TIERS[MC.ORDER[MC.ORDER.indexOf(k) - 1]];
+      var feats = ['<b>' + N(t.credits) + '</b> AI credits every 6 hours' + (prev && prev.credits ? ' <em class="mp-x">(' + (t.credits / prev.credits).toFixed(1).replace('.0', '') + 'x ' + prev.name + ')</em>' : ''), '<b>' + N(t.sets) + '</b> saved study sets · <b>' + N(t.notes) + '</b> notes', '<b>' + N(t.chats) + '</b> saved Tutor chats', 'x' + t.rollMult + ' daily credit roll'];
+      var perks = (t.perks || []).map(function (x) { return '<li class="mp-perk"><i>★</i><span>' + x + '</span></li>'; }).join('');
+      var per = t.priceCents ? Math.round(t.priceCents / 30) + '¢ a day' : '';
+      var lead = paid ? '<div class="mp-lead">' + (prev && prev.priceCents ? 'Everything in ' + prev.name + ', plus:' : 'Everything in Basic, plus:') + '</div>' : '';
+      var ribbon = k === 'diamond' ? '<div class="mp-ribbon">BEST VALUE</div>' : k === 'platinum' ? '<div class="mp-ribbon mp-ribbon-pop">MOST POPULAR</div>' : '';
+      return '<article class="mp-card mp-' + k + (active ? ' mp-active' : '') + '" data-tier="' + k + '" ' + (pick ? 'tabindex="0" role="radio" aria-checked="false"' : '') + '>' + ribbon +
         '<div class="mp-top"><span class="mp-tag">' + t.tag + '</span>' + (active ? '<span class="mp-cur">✓ Current</span>' : '') + '</div>' +
         '<div class="mp-head"><div class="mp-ic">' + t.icon + '</div><div><h3>' + t.name + '</h3><p>' + t.copy + '</p></div></div>' +
-        '<div class="mp-price">' + MC.price(t) + '<span>/month</span></div>' +
-        '<ul class="mp-feat">' + feats.map(function (f, i) { return '<li' + (i === 5 && t.flair === 'None' ? ' class="mp-dim"' : '') + '><i>✓</i><span>' + f + '</span></li>'; }).join('') + '</ul>' + btn + '</article>';
+        '<div class="mp-price">' + MC.price(t) + '<span>/month</span></div>' + (per ? '<div class="mp-per">only ' + per + ' · no auto-renew</div>' : '<div class="mp-per">free forever</div>') +
+        (paid ? '<ul class="mp-feat mp-perks">' + perks + '</ul>' : '') + lead +
+        '<ul class="mp-feat">' + feats.map(function (f) { return '<li><i>✓</i><span>' + f + '</span></li>'; }).join('') + (paid ? '' : '<li class="mp-dim"><i>✕</i><span>No free weekly Lucky Spins</span></li><li class="mp-dim"><i>✕</i><span>Grades need your password every time</span></li><li class="mp-dim"><i>✕</i><span>No leaderboard badge</span></li>') + '</ul>' + btn + '</article>';
     }).join('') + '</div>';
   }
   function tableHtml(tier) {
@@ -46,13 +51,13 @@
     var sets = 0, notes = 0; try { sets = (state.studySets || []).length; notes = (state.notes || []).length; } catch (e) { }
     var next = MC.ORDER[MC.ORDER.indexOf(k) + 1], nt = next && MC.TIERS[next];
     root.innerHTML = '<div class="mp-page">' +
-      '<section class="mp-hero mp-h-' + k + '"><div><div class="mp-eyebrow">INDEX MEMBERSHIP</div><h2>' + (paid ? 'You\'re on ' + t.name + ' ' + t.icon : 'Pick the plan that fits your studying') + '</h2>' +
-      '<p>' + (paid ? 'Thanks for supporting Index. Here is what your plan includes and how much of it you are using.' : 'Every account starts on Basic. Paid plans add AI credits, a bigger library, and bigger daily boosts.') + '</p></div>' +
+      '<section class="mp-hero mp-h-' + k + '"><div><div class="mp-eyebrow">INDEX MEMBERSHIP</div><h2>' + (paid ? 'You\'re on ' + t.name + ' ' + t.icon : 'Study smarter. Unlock the good stuff.') + '</h2>' +
+      '<p>' + (paid ? 'Thanks for supporting Index. Here is what your plan includes and how much of it you are using.' : 'Basic is great for getting started. Members get automatic grades, free Lucky Spins every week, up to 6x the AI power, a library 20x bigger, and a badge that shows up on every leaderboard. From about 17¢ a day, and it never renews on its own.') + '</p></div>' +
       '<div class="mp-now"><div class="mp-now-k">Current plan</div><div class="mp-now-n">' + t.icon + ' ' + t.name + '</div>' + (ends ? '<div class="mp-now-s">' + ends + '</div>' : '') +
       '<div class="mp-now-b"><button class="btn btn-ghost btn-sm" data-action="' + (paid ? 'manage-membership' : 'refresh-membership') + '">' + (paid ? 'Billing' : 'Refresh status') + '</button></div></div></section>' +
       '<section class="mp-usage"><h3>Your plan at a glance</h3><div class="mp-usegrid">' + use('Saved study sets', sets, t.sets) + use('Saved notes', notes, t.notes) + use('Saved Tutor chats', chatCount(), t.chats) +
       '<div class="mp-use"><div class="mp-use-l"><span>AI credits</span><b>' + N(t.credits) + ' every 6 hours</b></div><div class="mp-sub">Daily roll boost x' + t.rollMult + ' · bank up to ' + N(t.bonusCap) + ' bonus credits</div></div></div>' +
-      (nt ? '<div class="mp-upsell">Upgrade to <b>' + nt.name + '</b> for <b>' + N(nt.credits) + '</b> credits per window, <b>' + N(nt.sets) + '</b> study sets and <b>' + N(nt.chats) + '</b> Tutor chats.</div>' : '<div class="mp-upsell">You have the highest plan. Thank you!</div>') + '</section>' +
+      (nt ? '<div class="mp-upsell"><div><b>Next up: ' + nt.icon + ' ' + nt.name + '</b> for ' + MC.price(nt) + '/month. You would get <b>' + N(nt.credits) + '</b> AI credits per window, <b>' + N(nt.sets) + '</b> study sets, <b>' + N(nt.chats) + '</b> Tutor chats, plus:</div><ul>' + (nt.perks || []).map(function (x) { return '<li>★ ' + x + '</li>'; }).join('') + '</ul>' + (k === 'free' ? '' : '') + '<button class="btn btn-primary btn-sm" data-action="start-membership-checkout" data-tier="' + next + '">Get ' + nt.name + '</button></div>' : '<div class="mp-upsell">You have the highest plan. Thank you!</div>') + '</section>' +
       '<h3 class="mp-h3">Choose a plan</h3>' + cardsHtml(c, 'page') +
       '<h3 class="mp-h3">Compare every benefit</h3>' + tableHtml(k) +
       '<section class="mp-faq"><h3>Good to know</h3>' +
