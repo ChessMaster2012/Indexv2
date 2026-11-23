@@ -2903,7 +2903,7 @@ function rollPack(kind='study'){
   const cfg=packConfig(kind), contents=packContents(kind), by={};
   Object.keys(cfg.weights).forEach(r=>by[r]=contents.filter(c=>c.rarity===r));
   const total=10000;
-  const L=Math.max(1,Number(window.PotionLuck&&window.PotionLuck.mult&&window.PotionLuck.mult('pack'))||1);
+  const L=Math.max(1,Number(window.LuckySpin&&window.LuckySpin.mult&&window.LuckySpin.mult('pack'))||1);
   const scaled={Common:6650,Rare:2400*(1+(L-1)*.5),Epic:900*L,Legendary:50*L};
   if(L>1){ const up=scaled.Rare+scaled.Epic+scaled.Legendary, room=9500; if(up>room){ const k=room/up; scaled.Rare*=k; scaled.Epic*=k; scaled.Legendary*=k; } scaled.Common=Math.max(500,total-(scaled.Rare+scaled.Epic+scaled.Legendary)); }
   let n=Math.floor(randomUnit()*total), rarity='Common';
@@ -2960,7 +2960,7 @@ const SKIN_CRATE_WEIGHTS=[
   {id:'skin-ice',weight:4}
 ];
 function weightedSkinRoll(){
-  const L=Math.max(1,Number(window.PotionLuck&&window.PotionLuck.mult&&window.PotionLuck.mult('crate'))||1);
+  const L=Math.max(1,Number(window.LuckySpin&&window.LuckySpin.mult&&window.LuckySpin.mult('crate'))||1);
   const W=SKIN_CRATE_WEIGHTS.map(x=>({id:x.id,weight:x.weight*(x.weight<=11?(x.weight<=4?L:1+(L-1)*.6):1)}));
   let n=randomUnit()*W.reduce((a,x)=>a+x.weight,0);
   for(const item of W){ n-=item.weight;if(n<0)return skinById(item.id); }
@@ -9359,7 +9359,7 @@ setInterval(function(){
 <script src="/membership-pro.js?v=2"></script>
 <script src="/sfx.js?v=1"></script>
 <script src="/classroom.js?v=8"></script>
-<script src="/shop-hub.js?v=3"></script>
+<script src="/shop-hub.js?v=4"></script>
 <script src="/season-pass.js?v=1"></script>
 <script src="/welcome-role.js?v=7"></script>
 <script src="/game-study.js?v=8"></script>
@@ -9387,6 +9387,7 @@ setInterval(function(){
 <link rel="stylesheet" href="/arcade-gold.css?v=1">
 <link rel="stylesheet" href="/skin-crate-auto.css?v=1">
 <script src="/arcade-gauntlet.js?v=6"></script>
+<script src="/lucky-spin.js?v=1" defer></script>
 <script src="/leaderboard.js?v=1" defer></script>
 <script src="/arcade-trial.js?v=4"></script>
 <script src="/arcade-shadow.js?v=4"></script>

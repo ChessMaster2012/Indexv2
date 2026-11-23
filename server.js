@@ -2800,13 +2800,6 @@ function sanitizeSecurity(x){
     bonus:Object.fromEntries(K.map(k=>[k,num(bonus[k],1e9)]))
   };
 }
-const POTION_IDS=['clover','charm','pebble','dew','lucky','packrat','crusher','fortune','moonlit','prospector','golden','stormglass','fourleaf','dragon','starlight'];
-function sanitizePotions(v){
-  const out={inv:{},active:null}; if(!v||typeof v!=='object') return out;
-  for(const id of POTION_IDS){ const n=Math.floor(Number(v.inv&&v.inv[id])||0); if(n>0) out.inv[id]=Math.min(999,n); }
-  const a=v.active; if(a&&POTION_IDS.includes(a.id)&&Number(a.until)>Date.now()) out.active={id:a.id,until:Math.min(Number(a.until),Date.now()+6*3600e3)};
-  return out;
-}
 function sanitizeAdminGrants(list){
   return (Array.isArray(list)?list:[]).slice(-50).map(g=>{
     if(!g||typeof g!=='object') return null;
@@ -2910,7 +2903,7 @@ function sanitizeAccountState(input){
     membershipOnboardingCompleted: src.membershipOnboardingCompleted === true,
     credits: sanitizeCredits(src.credits),
     adminGrants: sanitizeAdminGrants(src.adminGrants),
-    potions: sanitizePotions(src.potions),
+    spins: sanitizeSpins(src.spins),
     security: sanitizeSecurity(src.security),
     tutorChats: sanitizeTutorChats(src.tutorChats),
     tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
@@ -3659,100 +3652,46 @@ app.get('/api/account/grants', async (req,res)=>{
   }catch(e){ res.status(503).json({error:'Unavailable.'}); }
 });
 
-/* ---------- Potion Market: one shared market for every player, stock resets each hour, first come first served ---------- */
-const POTIONS=[
-  // rarity, price (coins), luck on pack / crate openings, minutes, base stock when stocked, chance it is stocked in a given hour, per-player limit per hour
-  {id:'clover',name:'Clover Sip',rarity:'Common',price:80,pack:1.15,crate:1.15,mins:15,stock:40,chance:1,cap:5},
-  {id:'charm',name:'Pocket Charm Tonic',rarity:'Common',price:120,pack:1.2,crate:1.2,mins:20,stock:36,chance:1,cap:4},
-  {id:'pebble',name:'Pebble Pop',rarity:'Common',price:150,pack:1.3,crate:1,mins:30,stock:30,chance:1,cap:4},
-  {id:'dew',name:'Dewdrop Draught',rarity:'Common',price:150,pack:1,crate:1.3,mins:30,stock:30,chance:1,cap:4},
-  {id:'lucky',name:'Lucky Draught',rarity:'Uncommon',price:400,pack:1.5,crate:1.5,mins:30,stock:20,chance:.9,cap:3},
-  {id:'packrat',name:'Pack Rat Potion',rarity:'Uncommon',price:450,pack:1.9,crate:1,mins:30,stock:16,chance:.85,cap:3},
-  {id:'crusher',name:'Crate Crusher Brew',rarity:'Uncommon',price:450,pack:1,crate:1.9,mins:30,stock:16,chance:.85,cap:3},
-  {id:'fortune',name:'Fortune Elixir',rarity:'Rare',price:1200,pack:2,crate:2,mins:30,stock:8,chance:.65,cap:2},
-  {id:'moonlit',name:'Moonlit Philter',rarity:'Rare',price:1600,pack:2.6,crate:1,mins:45,stock:6,chance:.55,cap:2},
-  {id:'prospector',name:"Prospector's Tonic",rarity:'Rare',price:1600,pack:1,crate:2.6,mins:45,stock:6,chance:.55,cap:2},
-  {id:'golden',name:'Golden Tonic',rarity:'Epic',price:3500,pack:3,crate:3,mins:45,stock:4,chance:.35,cap:1},
-  {id:'stormglass',name:'Stormglass Serum',rarity:'Epic',price:4200,pack:4,crate:1.5,mins:30,stock:3,chance:.28,cap:1},
-  {id:'fourleaf',name:'Four-Leaf Brew',rarity:'Legendary',price:10000,pack:5,crate:5,mins:45,stock:2,chance:.15,cap:1},
-  {id:'dragon',name:"Dragon's Fortune",rarity:'Legendary',price:12000,pack:4,crate:4,mins:90,stock:2,chance:.12,cap:1},
-  {id:'starlight',name:'Starlight Nectar',rarity:'Mythic',price:30000,pack:8,crate:8,mins:60,stock:1,chance:.04,cap:1}
-];
-if(POTIONS.map(x=>x.id).join()!==POTION_IDS.join()) throw new Error('POTIONS and POTION_IDS differ');
-const MARKET_HOUR=3600e3, MARKET_FILE=path.join(__dirname,'data','potion-market.json');
-let market={hour:-1,sold:{},buyers:{}};
-try{ const m=JSON.parse(fs.readFileSync(MARKET_FILE,'utf8')); if(m&&m.hour===Math.floor(Date.now()/MARKET_HOUR)) market=m; }catch(e){}
-function marketNow(){ const h=Math.floor(Date.now()/MARKET_HOUR); if(market.hour!==h) market={hour:h,sold:{},buyers:{}}; return market; }
-function marketSave(){ try{ fs.mkdirSync(path.dirname(MARKET_FILE),{recursive:true}); fs.writeFileSync(MARKET_FILE,JSON.stringify(market)); }catch(e){} }
-function seeded(h,i,salt){ let t=(h*2654435761+i*40503+salt*97)>>>0; t=(t^(t>>>15))*(1|t)>>>0; t=(t^(t>>>7))*(61|t)>>>0; return ((t^(t>>>14))>>>0)/4294967296; }
-/* the same for every player and every restart: whether a potion is stocked this hour, and how many bottles */
-function stockFor(h,i,p){
-  if(seeded(h,i,1)>=p.chance) return 0;
-  return Math.max(1,Math.round(p.stock*(0.75+0.5*seeded(h,i,2))));
+/* ---------- Lucky Spins: server-owned tokens. Using one boosts the odds of a single pack opening. ----------
+   Earned from: Battle Pass (every 5th level), a study streak (every 7 active days), hosting/joining live games (every 5),
+   and a weekly bundle for paid memberships. Everything is computed here from saved account data, so a browser cannot mint spins. */
+const SPIN_WEEKLY={gold:1,platinum:2,diamond:4};
+function sanitizeSpins(v){
+  const o={n:0,bp:0,days:0,live:0,memberWeek:0,used:0}; if(!v||typeof v!=='object') return o;
+  for(const k of Object.keys(o)) o[k]=Math.max(0,Math.min(100000,Math.floor(Number(v[k])||0)));
+  return o;
 }
-function activeView(a){ if(!a) return null; const p=POTIONS.find(x=>x.id===a.id); return p?{id:a.id,until:a.until,pack:p.pack,crate:p.crate,name:p.name,rarity:p.rarity}:null; }
-function marketView(user){
-  const m=marketNow(), ad=user.accountData||{}, pot=sanitizePotions(ad.potions), mine=m.buyers[user.id]||{};
-  return {ok:true,now:Date.now(),nextRestock:(m.hour+1)*MARKET_HOUR,coins:Number(ad.progress&&ad.progress.coins)||0,
-    potions:POTIONS.map((p,i)=>{ const total=stockFor(m.hour,i,p), left=Math.max(0,total-(m.sold[p.id]||0));
-      return {id:p.id,name:p.name,rarity:p.rarity,price:p.price,pack:p.pack,crate:p.crate,mins:p.mins,chance:p.chance,total,left,stocked:total>0,cap:p.cap,bought:mine[p.id]||0}; }),
-    inventory:pot.inv,active:activeView(pot.active)};
+function spinSources(user,ad){
+  const p=ad.progress||{}, bp=(Array.isArray(p.claimedBPLevels)?p.claimedBPLevels:[]).filter(l=>Number.isInteger(l)&&l>=5&&l<=50&&l%5===0);
+  const bpN=new Set(bp).size, days=new Set(Array.isArray(p.activeDates)?p.activeDates:[]).size;
+  return {bp:bpN, days:Math.min(52,Math.floor(days/7)), live:Math.min(100,Math.floor((Number(p.liveGames)||0)/5))};
 }
-app.get('/api/potions/market', async (req,res)=>{
+function spinView(sp){ return {ok:true,n:sp.n,used:sp.used,earn:[
+  {id:'bp',label:'Battle Pass',desc:'1 Lucky Spin every 5th level you claim (levels 5, 10 ... 50)'},
+  {id:'days',label:'Study streak',desc:'1 Lucky Spin for every 7 days you are active in Index'},
+  {id:'live',label:'Live games',desc:'1 Lucky Spin for every 5 live games you play or host'},
+  {id:'member',label:'Membership',desc:'Gold: 1 per week, Platinum: 2 per week, Diamond: 4 per week'}],boost:1.5}; }
+async function spinsSync(req,res,mode){
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
-  try{ await refreshAccountUserWithState(req); res.set('Cache-Control','no-store'); res.json(marketView(req.user)); }
-  catch(e){ res.status(503).json({error:'Unavailable.'}); }
-});
-app.post('/api/potions/buy', async (req,res)=>{
-  if(!req.user) return res.status(401).json({error:'Not signed in.'});
-  const id=String((req.body&&req.body.id)||''), idx=POTIONS.findIndex(p=>p.id===id);
-  if(idx<0) return res.status(400).json({error:'Unknown potion.'});
   try{
     const out=await withGrantLock(req.user.id,async()=>{
       await refreshAccountUserWithState(req);
-      const user=req.user, ad=user.accountData;
-      if(!ad||!ad.progress) return {code:409,error:'Open Index once while signed in so your coins can be checked.'};
-      const owner=isOwnerUser(user), p=POTIONS[idx], m=marketNow();
-      // everything from here to the commit is synchronous, so two buyers can never take the same last bottle
-      const total=stockFor(m.hour,idx,p), left=total-(m.sold[p.id]||0);
-      if(total<=0) return {code:409,error:'That potion is not in the market this hour.',view:marketView(user)};
-      if(left<=0) return {code:409,error:'Sold out. New stock arrives at the top of the hour.',view:marketView(user)};
-      const mine=m.buyers[user.id]||(m.buyers[user.id]={});
-      if((mine[p.id]||0)>=p.cap) return {code:409,error:'You have reached your limit for this potion this hour.',view:marketView(user)};
-      if(!owner&&(Number(ad.progress.coins)||0)<p.price) return {code:409,error:'Not enough coins.',view:marketView(user)};
-      const pot=ad.potions=sanitizePotions(ad.potions), before={coins:ad.progress.coins,epoch:ad.progress.grantEpoch};
-      m.sold[p.id]=(m.sold[p.id]||0)+1; mine[p.id]=(mine[p.id]||0)+1;
-      if(!owner){ ad.progress.coins=(Number(ad.progress.coins)||0)-p.price; ad.progress.grantEpoch=(Number(ad.progress.grantEpoch)||0)+1; }
-      pot.inv[p.id]=Math.min(999,(pot.inv[p.id]||0)+1);
-      try{ await adminSaveUser(user); }
-      catch(e){ m.sold[p.id]--; mine[p.id]--; pot.inv[p.id]--; ad.progress.coins=before.coins; ad.progress.grantEpoch=before.epoch; return {code:503,error:'Could not complete the purchase. Nothing was charged.'}; }
-      marketSave();
-      return {code:200,body:Object.assign(marketView(user),{bought:p.id,epoch:Number(ad.progress.grantEpoch)||0,spent:owner?0:p.price})};
+      const user=req.user, ad=user.accountData; if(!ad||!ad.progress) return {code:200,body:Object.assign(spinView(sanitizeSpins(null)),{pending:true})};
+      const sp=ad.spins=sanitizeSpins(ad.spins), src=spinSources(user,ad), before=JSON.stringify(sp);
+      let gained=0; for(const k of ['bp','days','live']){ if(src[k]>sp[k]){ gained+=src[k]-sp[k]; sp[k]=src[k]; } }
+      const wk=Math.floor(Date.now()/(7*86400e3)), per=SPIN_WEEKLY[membershipTierForUser(user)]||0;
+      if(per&&sp.memberWeek!==wk){ gained+=per; sp.memberWeek=wk; }
+      sp.n=Math.min(1000,sp.n+gained);
+      if(mode==='use'){ if(sp.n<=0) return {code:409,error:'You have no Lucky Spins. See how to earn them below.',body:spinView(sp)}; sp.n--; sp.used++; }
+      if(JSON.stringify(sp)!==before){ try{ await adminSaveUser(user); }catch(e){ return {code:503,error:'Could not save. Try again.'}; } }
+      return {code:200,body:Object.assign(spinView(sp),{gained})};
     });
     if(out.code===200) return res.json(out.body);
-    res.status(out.code).json(Object.assign({ok:false,error:out.error},out.view?{market:out.view}:{}));
+    res.status(out.code).json(Object.assign({ok:false,error:out.error},out.body||{}));
   }catch(e){ res.status(503).json({error:'Unavailable.'}); }
-});
-app.post('/api/potions/use', async (req,res)=>{
-  if(!req.user) return res.status(401).json({error:'Not signed in.'});
-  const id=String((req.body&&req.body.id)||''), p=POTIONS.find(x=>x.id===id);
-  if(!p) return res.status(400).json({error:'Unknown potion.'});
-  try{
-    const out=await withGrantLock(req.user.id,async()=>{
-      await refreshAccountUserWithState(req);
-      const user=req.user, ad=user.accountData; if(!ad) return {code:409,error:'Open Index once while signed in first.'};
-      const pot=ad.potions=sanitizePotions(ad.potions);
-      if(!pot.inv[id]) return {code:409,error:'You do not have that potion.'};
-      if(pot.active&&pot.active.id!==id) return {code:409,error:'Another potion is still working. Wait for it to wear off.'};
-      pot.inv[id]--; if(!pot.inv[id]) delete pot.inv[id];
-      pot.active={id,until:Math.min(Date.now()+6*3600e3,(pot.active?pot.active.until:Date.now())+p.mins*60e3)};
-      await adminSaveUser(user);
-      return {code:200,body:marketView(user)};
-    });
-    if(out.code===200) return res.json(out.body);
-    res.status(out.code).json({ok:false,error:out.error});
-  }catch(e){ res.status(503).json({error:'Unavailable.'}); }
-});
+}
+app.get('/api/spins',(req,res)=>spinsSync(req,res,'sync'));
+app.post('/api/spins/use',(req,res)=>spinsSync(req,res,'use'));
 app.post('/api/account/grants/ack', async (req,res)=>{
   if(!req.user) return res.status(401).json({error:'Not signed in.'});
   try{
@@ -3916,7 +3855,7 @@ app.put('/api/account/state', async (req,res)=>{
     }
     // Admin grants are server-owned: a browser snapshot cannot add or erase them.
     mergedAccountState.adminGrants = existingAccountState.adminGrants;
-    mergedAccountState.potions = existingAccountState.potions;
+    mergedAccountState.spins = existingAccountState.spins;
     // Classrooms are server-owned: a browser snapshot can never add, edit or erase them.
     mergedAccountState.classroom = existingAccountState.classroom;
     req.user.accountData = sanitizeAccountState(mergedAccountState);
