@@ -53,3 +53,42 @@ html.ix-hide-creator .creator-spotlight{display:none !important}
 html.ix-calm *,html.ix-calm *::before,html.ix-calm *::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;scroll-behavior:auto !important}
 
 html:not([data-ix-theme="warm"]) .sidebar{background:var(--rd-sidebar-a) !important}
+
+/* ---------- roomier layout, bigger toggles, slider bars, scroll bars ---------- */
+#view-settings{max-width:940px;padding-bottom:80px}
+.st-head{margin-bottom:26px}
+.st-head .lede{margin-top:6px}
+.st-tabs{gap:12px;margin-bottom:28px;padding:14px 0;overflow-x:auto;flex-wrap:nowrap !important;scrollbar-width:thin}
+.st-tabs a{flex:none;white-space:nowrap;padding:10px 18px}
+.st-card{margin-bottom:34px;padding:14px 34px 18px;border-radius:22px;scroll-margin-top:84px}
+.st-card h3{margin:20px 0 10px;font-size:21px}
+.st-row{padding:24px 0;gap:30px}
+.st-t{gap:6px}.st-t b{font-size:16px}.st-t small{font-size:13px;line-height:1.55}
+.st-c{gap:16px}
+.st-seg button{padding:11px 18px}
+.st-themes{gap:16px}.st-swatches{gap:14px}
+.st-sw-c{width:36px;height:36px}
+/* toggle bars */
+.st-sw{padding-right:2px}
+.st-sw input{width:64px;height:36px}
+.st-knob{width:64px;height:36px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.st-knob:after{width:28px!important;height:28px!important;top:4px!important;left:4px!important;border-radius:50%}
+.st-sw input:checked~.st-knob:after{left:32px!important}
+.st-knob:before{content:"OFF";position:absolute;right:11px;top:50%;transform:translateY(-50%);font:800 10px/1 inherit;letter-spacing:.06em;color:rgba(255,255,255,.55)}
+.st-sw input:checked~.st-knob:before{content:"ON";right:auto;left:12px;color:rgba(0,0,0,.65)}
+/* slider bars */
+.st-range{-webkit-appearance:none;appearance:none;width:260px;height:10px;border-radius:999px;outline:0;cursor:pointer;background:linear-gradient(90deg,var(--rd-violet,#ff7a4d) var(--p,50%),rgba(128,128,128,.35) var(--p,50%))}
+.st-range::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid var(--rd-violet,#ff7a4d);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.st-range::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid var(--rd-violet,#ff7a4d)}
+.st-val{min-width:56px;font-size:15px}
+/* scroll bars */
+html{scrollbar-width:thin;scrollbar-color:var(--rd-violet,#ff7a4d) rgba(128,128,128,.18)}
+*{scrollbar-width:thin;scrollbar-color:rgba(160,150,135,.55) transparent}
+html::-webkit-scrollbar,.main::-webkit-scrollbar{width:12px;height:12px}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:rgba(128,128,128,.12);border-radius:999px}
+::-webkit-scrollbar-thumb{background:rgba(160,150,135,.55);border-radius:999px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:var(--rd-violet,#ff7a4d);background-clip:padding-box}
+.st-themes,.st-seg{max-width:100%}
+.st-themes{overflow-x:auto;padding-bottom:6px}
+@media(max-width:700px){.st-card{padding:10px 18px 14px}.st-row{padding:20px 0;gap:14px}.st-range{width:100%;min-width:140px}}

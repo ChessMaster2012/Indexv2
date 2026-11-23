@@ -34,6 +34,8 @@ function $(id){return document.getElementById(id);}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
 function seg(key,opts){return '<div class="st-seg" role="group">'+opts.map(function(o){return '<button type="button" data-set="'+key+'" data-val="'+esc(o[0])+'" class="'+(String(S[key])===String(o[0])?'on':'')+'" aria-pressed="'+(String(S[key])===String(o[0]))+'">'+esc(o[1])+'</button>';}).join('')+'</div>';}
 function sw(key,label,desc){return '<label class="st-row st-sw"><span class="st-t"><b>'+esc(label)+'</b><small>'+esc(desc||'')+'</small></span><input type="checkbox" data-tog="'+key+'"'+(S[key]?' checked':'')+'><span class="st-knob"></span></label>';}
+function tog2(key,on,off,label,desc){return '<label class="st-row st-sw"><span class="st-t"><b>'+esc(label)+'</b><small>'+esc(desc||'')+'</small></span><input type="checkbox" data-togv="'+key+'" data-on="'+on+'" data-off="'+off+'"'+(S[key]===on?' checked':'')+'><span class="st-knob"></span></label>';}
+function slide(id,min,max,step,val,suffix,label){return '<input type="range" class="st-range" id="'+id+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'" aria-label="'+label+'" style="--p:'+Math.round((val-min)/(max-min)*100)+'%"><span class="st-val" id="'+id+'v">'+val+suffix+'</span>';}
 function row(label,desc,ctl){return '<div class="st-row"><span class="st-t"><b>'+esc(label)+'</b><small>'+esc(desc||'')+'</small></span><div class="st-c">'+ctl+'</div></div>';}
 var ACC=[['coral','#ff7a4d'],['amber','#f0b429'],['mint','#4fd1a5'],['sky','#5aa9ff'],['violet','#a78bfa'],['rose','#ff6b9a']];
 var THEMES=[['warm','Warm','#15120e','#2a241c'],['midnight','Midnight','#0d1220','#1c2740'],['forest','Forest','#0e1712','#1d2f25'],['plum','Plum','#17101c','#2c1e36']];
@@ -48,21 +50,21 @@ function render(){
   '<section class="st-card" id="st-appearance"><h3>Appearance</h3>'+
    row('Theme','Pick the mood of the app.','<div class="st-themes">'+THEMES.map(function(t){return '<button type="button" class="st-theme'+(S.theme===t[0]?' on':'')+'" data-set="theme" data-val="'+t[0]+'" style="--a:'+t[2]+';--b:'+t[3]+'" aria-pressed="'+(S.theme===t[0])+'"><i></i><span>'+t[1]+'</span></button>';}).join('')+'</div>')+
    row('Accent colour','Buttons, highlights and the selected tab.','<div class="st-swatches">'+ACC.map(function(a){return '<button type="button" class="st-sw-c'+(S.accent===a[0]?' on':'')+'" data-set="accent" data-val="'+a[0]+'" style="--c:'+a[1]+'" aria-label="'+a[0]+'" aria-pressed="'+(S.accent===a[0])+'"></button>';}).join('')+'</div>')+
-   row('Interface size','Make everything larger or smaller.',seg('size',[[90,'Small'],[100,'Normal'],[112,'Large'],[125,'Extra large']]))+
-   row('Layout density','Compact fits more on screen.',seg('density',[['comfortable','Comfortable'],['compact','Compact']]))+
+   row('Interface size','Drag to make everything larger or smaller.',slide('st-size',85,130,5,Number(S.size)||100,'%','Interface size'))+
+   tog2('density','compact','comfortable','Compact layout','Fits more on screen with tighter spacing.')+
    sw('creator','Show the creator card','The "Built by a student" card on the dashboard.')+
   '</section>'+
   '<section class="st-card" id="st-access"><h3>Reading &amp; accessibility</h3>'+
    row('Font','Dyslexia-friendly uses a wide, plain font with extra spacing.',seg('font',[['default','Default'],['sans','Clean sans'],['readable','Dyslexia-friendly'],['serif','Serif']]))+
    row('Line spacing','Space between lines of text.',seg('spacing',[['normal','Normal'],['relaxed','Relaxed'],['loose','Loose']]))+
-   row('Contrast','Brighter text and stronger borders.',seg('contrast',[['normal','Normal'],['high','High']]))+
+   tog2('contrast','high','normal','High contrast','Brighter text and stronger borders.')+
    row('Motion','Turn off animations if they distract or make you dizzy.',seg('motion',[['full','Full'],['system','Match my device'],['reduced','Reduced']]))+
    sw('links','Underline links','Makes links easier to spot.')+
    sw('focus','Bold focus outline','A thick outline around whatever you tab to.')+
   '</section>'+
   '<section class="st-card" id="st-sound"><h3>Sound</h3>'+
    sw('__sfx','App sounds','Clicks, rewards and game effects.')+
-   row('Volume','How loud sounds are.','<input type="range" class="st-range" id="st-vol" min="0" max="100" value="'+v+'" aria-label="Volume"><span class="st-val" id="st-volv">'+v+'%</span><button type="button" class="btn btn-ghost btn-sm" data-st-test>Test</button>')+
+   row('Volume','Drag to set how loud sounds are.',slide('st-vol',0,100,1,v,'%','Volume')+'<button type="button" class="btn btn-ghost btn-sm" data-st-test>Test</button>')+
   '</section>'+
   '<section class="st-card" id="st-play"><h3>Games &amp; effects</h3>'+
    sw('celebrate','Confetti and celebrations','The burst when you finish something.')+
@@ -92,11 +94,15 @@ function onClick(e){
 }
 function onChange(e){
   var t=e.target; if(!t||!t.matches) return;
+  if(t.id==='st-size'){ S.size=Number(t.value); save(); apply(); return; }
+  if(t.matches('[data-togv]')){ S[t.getAttribute('data-togv')]=t.checked?t.getAttribute('data-on'):t.getAttribute('data-off'); save(); apply(); return; }
   if(t.matches('[data-tog]')){ var k=t.getAttribute('data-tog'); if(k==='__sfx'){ if(sfx()) SFX.setMuted(!t.checked); return; } S[k]=t.checked; save(); apply(); }
 }
 function onInput(e){
   var t=e.target; if(!t) return;
-  if(t.id==='st-vol'){ var v=Number(t.value); if(sfx()) SFX.volume(v/100); var o=$('st-volv'); if(o) o.textContent=v+'%'; }
+  if(t.type==='range'){ var mn=Number(t.min),mx=Number(t.max); t.style.setProperty('--p',Math.round((Number(t.value)-mn)/(mx-mn)*100)+'%'); }
+  if(t.id==='st-size'){ var z=$('st-sizev'); if(z) z.textContent=Number(t.value)+'%'; }
+  else if(t.id==='st-vol'){ var v=Number(t.value); if(sfx()) SFX.volume(v/100); var o=$('st-volv'); if(o) o.textContent=v+'%'; }
   else if(t.id==='st-nick'){ S.nick=t.value.replace(/[<>]/g,'').slice(0,20); save(); }
 }
 function exportData(){
