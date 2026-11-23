@@ -71,6 +71,7 @@ async function setupStep(g){
 function tick(){
   var g=G();
   if(g&&!picking&&g.active==='commander'&&g.commanderScreen==='setup'&&!(window.GameStudy&&GameStudy.isOpen())&&!document.getElementById('gs-picker')){ setupStep(g); return; }
+  if(g&&g.active==='commander'&&Number(g.wave)>1){ try{ var gpc=arcadeGameProgress(), cw=Math.min(TOTAL,Number(g.wave)-(g.running?1:0)); if(cw>(Number(gpc.commanderBest)||0)){ gpc.commanderBest=cw; persistProgress(); } }catch(e){} }
   if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen&&!g.running&&!g.finished&&Number(g.wave)>=TOTAL){ victory(g); return; }
   if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen&&!g.running&&!g.finished&&g.wave>0&&g.wave%CHECK===0&&g.__cmdCp!==g.wave){
     g.__cmdCp=g.wave; try{ if(window.v6Save) window.v6Save(g); }catch(e){} toast('Checkpoint saved: wave '+g.wave+' / '+TOTAL+'. Continue from the save slot any time.');

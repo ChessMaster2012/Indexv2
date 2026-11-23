@@ -4432,6 +4432,12 @@ function cappedDailyCoins(playerId, requested){
 }
 
 function genId(){ return Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
+require('./leaderboard').init({
+  app, dataDir: DATA_DIR,
+  supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest },
+  isBanned: uid => { const u=usersById.get(uid); return !!(u&&banInfo(u)); },
+  nameOf: u => u.username || 'Student'
+});
 LIBRARY.init({
   app, express, dataDir: DATA_DIR, containsConductViolation,
   supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest }
