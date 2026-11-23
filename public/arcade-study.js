@@ -1,4 +1,5 @@
-/* Study Mode v3 — a 40-round, 5-stage study run on ANY material: AI topic, saved study set or note.
+/* Study Mode v4 — a 240-round run (6 chapters x 5 stages x 8 rounds; 6x the old single 40-round run) with a rising per-question clock, a saved checkpoint at every chapter end,
+   progress shown overall/chapter/stage. Older description: a study run on ANY material: AI topic, saved study set or note.
    The shared GameStudy picker runs first (study is in GATED); rounds are built from GameStudy.session.bank via GameStudy.take(1),
    so AI sources keep refilling. Flashcard sets keep the full mix (choice, typed recall, true/false, pair-matching); AI/note/quiz
    questions become multiple choice, typed recall (short answers) and true/false. Each stage = 8 rounds with a progress bar and a
@@ -7,7 +8,11 @@
 (function(){
 'use strict';
 var cfg={timed:true};
-var STAGES=5, PER=8, SNAMES=['Warm-up','Building','Deep dive','Challenge','Final boss'];
+var SPC=5, CHAPS=6, STAGES=SPC*CHAPS, PER=8, SNAMES=['Warm-up','Building','Deep dive','Challenge','Final boss'], QT=[20,19,17,16,14,13];
+function chapOf(stage){ return Math.floor(stage/SPC); }
+function sname(stage,g){ if(g&&g.review) return 'Review'; var k=stage%SPC; if(k===SPC-1) return stage>=STAGES-1?'Final boss':'Chapter boss'; return SNAMES[k]; }
+function qmaxFor(stage){ return cfg.timed?QT[Math.min(QT.length-1,chapOf(stage))]:0; }
+function getCk(){ try{ var c=(arcadeGameProgress().study||{}).checkpoint; if(c&&Number.isInteger(c.stage)&&c.stage>=SPC&&c.stage<STAGES&&c.stage%SPC===0&&Array.isArray(c.stDone)&&c.stDone.length===c.stage) return c; }catch(e){} return null; }
 function GS(){ return (window.GameStudy&&GameStudy.session)||null; }
 var $=function(id){ return document.getElementById(id); };
 function esc2(s){ return (typeof esc==='function')?esc(String(s==null?'':s)):String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -22,14 +27,14 @@ function sfx(kind){ if(muted()) return; try{ AC=AC||new (window.AudioContext||wi
 function ling(){ try{ var id=(state.progress.equipped&&state.progress.equipped.indexling)||'ling-sugarbug', sid=(typeof getEquippedSkinId==='function'&&getEquippedSkinId(id))||'', l=cosmeticById(id)||cosmeticById('ling-sugarbug'), sk=sid&&typeof skinById==='function'?skinById(sid):null; if(typeof indexlingArtHtml==='function') return indexlingArtHtml(l,true,sk||{}); }catch(e){} return arcadeCharacterHtml(); }
 /* ------------------------------ setup screen ------------------------------ */
 window.arcadeStudySetup=function(){
-  var sp=(arcadeGameProgress().study)||{}, S=GS();
+  var sp=(arcadeGameProgress().study)||{}, S=GS(), CK=getCk();
   var pills='<span class="arcade-pill">🔥 Best streak <b>'+(sp.bestStreak||0)+'</b></span><span class="arcade-pill">⭐ Best score <b>'+(sp.best||0)+'</b></span><span class="arcade-pill">📚 Sessions <b>'+(sp.sessions||0)+'</b></span>';
-  if(!S) return arcadeFrame('Study Mode','Choose your material, then play '+STAGES*PER+' rounds in '+STAGES+' stages.',pills,'<div class="st-setup"><div class="st-opts"><p>Pick an AI topic, a saved study set or one of your notes to begin.</p></div><button class="btn btn-primary btn-lg" data-st="repick">Choose what to study</button></div>');
-  return arcadeFrame('Study Mode',STAGES*PER+' rounds in '+STAGES+' stages, built from your chosen material.',pills,
+  if(!S) return arcadeFrame('Study Mode','Choose your material, then play '+STAGES*PER+' rounds in '+CHAPS+' chapters.',pills,'<div class="st-setup"><div class="st-opts"><p>Pick an AI topic, a saved study set or one of your notes to begin.</p></div><button class="btn btn-primary btn-lg" data-st="repick">Choose what to study</button></div>');
+  return arcadeFrame('Study Mode',STAGES*PER+' rounds: '+CHAPS+' chapters of '+SPC+' stages, saved at every chapter end. Questions get faster as you go.',pills,
     '<div class="st-setup"><div class="st-opts"><div class="st-optrow"><b>Studying</b><span>'+esc2(S.title)+'</span></div>'+
-    '<div class="st-optrow"><b>Question timer</b><div class="st-pills" id="st-tm">'+[[true,'20 sec each'],[false,'Relaxed']].map(function(o){ return '<button type="button" class="st-pill '+(cfg.timed===o[0]?'on':'')+'" data-st="timed" data-v="'+o[0]+'">'+o[1]+'</button>'; }).join('')+'</div></div></div>'+
+    '<div class="st-optrow"><b>Question timer</b><div class="st-pills" id="st-tm">'+[[true,'20 → 13 sec'],[false,'Relaxed']].map(function(o){ return '<button type="button" class="st-pill '+(cfg.timed===o[0]?'on':'')+'" data-st="timed" data-v="'+o[0]+'">'+o[1]+'</button>'; }).join('')+'</div></div></div>'+
     '<div class="st-how"><span>✅ Multiple choice</span><span>⌨️ Type from memory</span><span>⚖️ True / False</span><span>🧩 Match pairs (flashcard sets)</span><span>🔥 Streak multiplier</span><span>🎁 Earn lifelines</span></div></div>'+
-    '<div class="st-rbtns" style="margin-top:12px;justify-content:flex-start"><button class="btn btn-primary btn-lg" data-st="begin">Start '+STAGES*PER+'-round study</button><button class="btn btn-ghost" data-st="repick">Change topic</button></div>');
+    '<div class="st-rbtns" style="margin-top:12px;justify-content:flex-start">'+(CK?'<button class="btn btn-primary btn-lg" data-st="resume">Continue: chapter '+(chapOf(CK.stage)+1)+' of '+CHAPS+' ('+CK.stage*PER+'/'+STAGES*PER+' rounds)</button>':'')+'<button class="btn '+(CK?'btn-ghost':'btn-primary')+' btn-lg" data-st="begin">'+(CK?'New ':'Start ')+STAGES*PER+'-round study</button><button class="btn btn-ghost" data-st="repick">Change topic</button></div>');
 };
 
 /* ------------------------------ session build ------------------------------ */
@@ -42,11 +47,13 @@ window.arcadeStudyStart=function(id,opts){
   opts=opts||{}; var S=GS(), items=opts.items||null, cardMode=false;
   if(!items&&S&&S.source==='sets'){ var set=(state.studySets||[]).filter(function(x){ return x.type==='flashcards'&&x.title===S.title&&x.cards&&x.cards.length>=4; })[0]; if(set){ items=itemsOf(set); cardMode=true; } }
   if(!items&&!(S&&S.bank&&S.bank.length)) return; clearGameTimers();
-  var stages=opts.review?1:STAGES, per=opts.review?Math.max(5,Math.min(12,items.length)):PER;
+  var stages=opts.review?1:STAGES, per=opts.review?Math.max(5,Math.min(12,items.length)):PER, ck=(!opts.review&&opts.resume)?getCk():null;
   var g={active:'study',st:true,items:items,cardMode:cardMode||!!(items&&items.some(function(x){ return x.card; })),deck:[],n:0,retry:[],cur:null,phase:'q',
     stages:stages,per:per,stage:0,sIdx:0,stPips:[],stStat:{c:0,w:0,pts:0,best:0},stDone:[],
     correct:0,wrong:0,skipped:0,streak:0,bestStreak:0,points:0,coins:0,xp:0,elapsed:0,
-    qMax:cfg.timed?20:0,qLeft:cfg.timed?20:0,life:{fifty:1,skip:1,time:1},missed:{},log:[],review:!!opts.review,paused:false,mood:'ready',say:'Let\'s learn! 💪',times:[],lastTick:Date.now(),fbUntil:0};
+    qMax:qmaxFor(ck?ck.stage:0),qLeft:qmaxFor(ck?ck.stage:0),life:{fifty:1,skip:1,time:1},missed:{},log:[],review:!!opts.review,paused:false,mood:'ready',say:'Let\'s learn! 💪',times:[],lastTick:Date.now(),fbUntil:0};
+  if(ck){ g.stage=ck.stage; g.n=ck.stage*PER; g.stDone=JSON.parse(JSON.stringify(ck.stDone)); ['correct','wrong','skipped','bestStreak','points','coins','xp','elapsed'].forEach(function(k){ g[k]=Number(ck[k])||0; }); if(ck.life) ['fifty','skip','time'].forEach(function(k){ g.life[k]=Math.max(0,Number(ck.life[k])||0); }); g.say='Welcome back! Chapter '+(chapOf(g.stage)+1)+' 💪'; }
+  else if(!opts.review){ try{ delete arcadeGameProgress().study.checkpoint; persistProgress(); }catch(e){} }
   state.games=g; nextRound(g);
   if(!g.cur){ state.games={active:null,setupType:'study'}; return; }
   g.timerId=setInterval(function(){ tick(g); },200);
@@ -66,7 +73,7 @@ function nextRound(g){
   var it=pk.item, n=g.n, r={key:it.key,item:it,retry:pk.retry,hidden:[]};
   if(it.q){
     var q=it.q, ans=q.options[q.correct]; r.expl=q.explanation||q.explain||'';
-    if(!pk.retry&&shortAns(ans)&&n%4===1){ r.kind='recall'; r.prompt=q.q; r.answer=ans; r.label='Type the answer from memory'; }
+    if(!pk.retry&&shortAns(ans)&&(chapOf(g.stage)>=3?n%3===1:n%4===1)){ r.kind='recall'; r.prompt=q.q; r.answer=ans; r.label='Type the answer from memory'; }
     else if(!pk.retry&&n%5===3&&q.options.length>1){ var truth=Math.random()<.5, wr=shuf(q.options.filter(function(o,i){ return i!==q.correct; }))[0]; r.kind='tf'; r.statement=q.q; r.eq='Answer:'; r.truth=truth||!wr; r.shown=r.truth?ans:wr; r.answer=ans; r.prompt=q.q; }
     else { r.kind='choice'; r.prompt=q.q; r.options=q.options.slice(); r.correct=q.correct; r.answer=ans; }
   } else {
@@ -78,7 +85,7 @@ function nextRound(g){
     else if(kind==='tf'){ var truth2=Math.random()<.5, fake=shuf(cards)[0]; r.statement=c.front; r.eq='means'; r.shown=truth2||!fake?c.back:fake.card.back; r.truth=truth2||!fake; r.answer=c.back; r.prompt=c.front; }
     else if(kind==='match'){ var pool=[it].concat(shuf(cards).slice(0,3)); r.pairs=pool.map(function(x){ return {key:x.key,front:x.card.front,back:x.card.back}; }); r.left=shuf(r.pairs); r.right=shuf(r.pairs); r.done={}; r.mist=0; r.selL=null; r.selR=null; r.answer='Match all '+pool.length+' pairs'; r.prompt='Match each term to its definition'; }
   }
-  g.cur=r; g.phase='q'; g.qLeft=g.qMax; g.t0=Date.now(); g.n++;
+  g.qMax=g.review?g.qMax:qmaxFor(g.stage); g.cur=r; g.phase='q'; g.qLeft=g.qMax; g.t0=Date.now(); g.n++;
   paint(g);
 }
 window.arcadeStudyFinish=function(){ var g=state.games; if(!g||!g.st||g.phase==='done') return; finish(g); };
@@ -103,12 +110,18 @@ function advance(g){
   endStage(g);
 }
 function endStage(g){
-  var st=g.stStat, tot=st.c+st.w, acc=tot?Math.round(st.c/tot*100):0, rec={name:SNAMES[g.stage]||('Stage '+(g.stage+1)),c:st.c,w:st.w,pts:st.pts,acc:acc,pips:g.stPips.slice(),best:st.best,bonus:0,reward:''};
+  var st=g.stStat, tot=st.c+st.w, acc=tot?Math.round(st.c/tot*100):0, rec={name:sname(g.stage,g),c:st.c,w:st.w,pts:st.pts,acc:acc,pips:g.stPips.slice(),best:st.best,bonus:0,reward:''};
   if(!g.review&&acc>=60){ try{ addCoins(10,'Study Mode stage clear'); g.coins+=10; rec.bonus=10; }catch(e){} try{ addXP(10); g.xp+=10; }catch(e){} }
   if(!g.review&&tot&&st.w===0){ var k=['fifty','skip','time'][g.stage%3]; g.life[k]++; rec.reward=k; }
   g.stDone.push(rec); sfx(acc>=60?'streak':'life');
+  if(!g.review&&(g.stage+1)%SPC===0){ var cs=g.stDone.slice(-SPC), cc=0, cw=0; cs.forEach(function(d){ cc+=d.c; cw+=d.w; });
+    if(cc+cw>=SPC*g.per*.6){ try{ addCoins(20,'Study Mode chapter complete'); g.coins+=20; rec.chapter=20; }catch(e){} try{ addXP(25); g.xp+=25; }catch(e){} }
+    rec.saved=g.stage<g.stages-1; if(rec.saved) saveCk(g); }
   if(g.stage>=g.stages-1){ finish(g); return; }
   g.phase='stage'; g.mood=acc>=60?'happy':'ready'; g.say=acc>=80?'Stage cleared! 🌟':acc>=60?'On to the next! 💪':'Shake it off — next stage! 💡'; g.lastTick=Date.now(); paint(g);
+}
+function saveCk(g){
+  try{ var gp=arcadeGameProgress(); gp.study=gp.study||{}; gp.study.checkpoint={stage:g.stage+1,correct:g.correct,wrong:g.wrong,skipped:g.skipped,bestStreak:g.bestStreak,points:g.points,coins:g.coins,xp:g.xp,elapsed:Math.round(g.elapsed),life:{fifty:g.life.fifty,skip:g.life.skip,time:g.life.time},stDone:JSON.parse(JSON.stringify(g.stDone)),title:(GS()||{}).title||''}; persistProgress(); }catch(e){}
 }
 function nextStage(g){
   if(g.phase!=='stage') return; g.stage++; g.sIdx=0; g.stPips=[]; g.stStat={c:0,w:0,pts:0,best:0}; g.lastTick=Date.now(); nextRound(g);
@@ -137,7 +150,7 @@ function finish(g){
   if(g.phase==='done') return; g.phase='done'; clearInterval(g.timerId); sfx('done'); var tot=g.correct+g.wrong; g.acc=tot?Math.round(g.correct/tot*100):0;
   var gp=arcadeGameProgress(); gp.study=gp.study||{}; var s=gp.study;
   if(!g.review){ g.newBest=g.points>(Number(s.best)||0); s.best=Math.max(Number(s.best)||0,g.points); s.sessions=(Number(s.sessions)||0)+1; s.correct=(Number(s.correct)||0)+g.correct; s.answered=(Number(s.answered)||0)+tot; s.bestStreak=Math.max(Number(s.bestStreak)||0,g.bestStreak); s.bestAcc=Math.max(Number(s.bestAcc)||0,tot>=5?g.acc:0); s.minutes=(Number(s.minutes)||0)+Math.round(g.elapsed/60);
-    if(tot>=g.stages*g.per*.6){ try{ addCoins(20,'Study Mode session complete'); g.coins+=20; }catch(e){} try{ addXP(25); g.xp+=25; }catch(e){} } }
+    if(g.stDone.length>=g.stages){ delete s.checkpoint; } }
   try{ persistProgress(); }catch(e){} if(g.acc>=80&&tot>=8){ try{ celebrate(); }catch(e){} }
   paint(g);
 }
@@ -149,7 +162,7 @@ function pips(g,arr,cur){
 }
 function topbar(g){
   var m=mult(g), done=g.stage*g.per+Math.min(g.sIdx,g.per), all=g.stages*g.per;
-  return '<div class="st-top"><div class="st-clock"><span class="st-time">'+(g.review?'Review':'Stage '+(g.stage+1)+' <small>/ '+g.stages+' · '+esc2(SNAMES[g.stage]||'')+'</small>')+'</span> <span class="st-fine">Round '+Math.min(g.sIdx+1,g.per)+'/'+g.per+(g.review?'':' · '+done+'/'+all+' overall')+' · <span id="st-elapsed">'+fmt(g.elapsed)+'</span></span>'+pips(g,g.stPips,g.phase!=='stage')+'</div>'+
+  return '<div class="st-top"><div class="st-clock"><span class="st-time">'+(g.review?'Review':'Chapter '+(chapOf(g.stage)+1)+'/'+CHAPS+' <small>· Stage '+(g.stage%SPC+1)+'/'+SPC+' · '+esc2(sname(g.stage,g))+'</small>')+'</span> <span class="st-fine">Round '+Math.min(g.sIdx+1,g.per)+'/'+g.per+(g.review?'':' · '+done+'/'+all+' overall')+' · <span id="st-elapsed">'+fmt(g.elapsed)+'</span></span>'+pips(g,g.stPips,g.phase!=='stage')+(g.review?'':'<div style="height:5px;background:rgba(128,128,128,.25);border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:'+Math.round(done/all*100)+'%;background:#b08cff;border-radius:3px"></i></div>')+'</div>'+
     '<div class="st-stats"><span class="st-chip">✅ <b>'+g.correct+'</b></span><span class="st-chip '+(g.streak>=3?'hot':'')+'">🔥 <b>'+g.streak+'</b>'+(m>1?' <em>×'+m.toFixed(1)+'</em>':'')+'</span><span class="st-chip">⭐ <b>'+g.points+'</b></span></div>'+
     '<div class="st-tools"><button type="button" class="st-tool" data-st="pause" title="Pause (P)">'+(g.paused?'▶':'⏸')+'</button><button type="button" class="st-tool" data-st="fs" title="Focus mode (F)">⛶</button></div></div>';
 }
@@ -186,17 +199,17 @@ function paint(g){
 }
 function stageScreen(g){
   var rec=g.stDone[g.stDone.length-1], nx=g.stage+1;
-  return '<div class="st-stage">'+companion(g)+'<div class="st-card ok"><span class="st-tag">Stage '+(g.stage+1)+' of '+g.stages+' complete</span><h3>'+esc2(rec.name)+'</h3>'+pips(Object.assign({},g,{per:g.per}),rec.pips,false)+
+  return '<div class="st-stage">'+companion(g)+'<div class="st-card ok"><span class="st-tag">Stage '+(g.stage+1)+' of '+g.stages+' complete · chapter '+(chapOf(g.stage)+1)+'/'+CHAPS+'</span><h3>'+esc2(rec.name)+'</h3>'+pips(Object.assign({},g,{per:g.per}),rec.pips,false)+
     '<div class="st-rgrid"><div><b>'+rec.c+'/'+(rec.c+rec.w)+'</b><span>Correct · '+rec.acc+'%</span></div><div><b>'+rec.pts+'</b><span>Stage score</span></div><div><b>🔥 '+rec.best+'</b><span>Best streak</span></div><div><b>'+(rec.bonus?'+'+rec.bonus+' 🪙':'—')+'</b><span>Stage bonus</span></div></div>'+
-    (rec.reward?'<div class="st-reward">🎁 Flawless stage — lifeline earned: '+({fifty:'50/50',skip:'Skip',time:'Timer reset'}[rec.reward])+'</div>':'')+
-    '<p class="st-fine">Up next: stage '+(nx+1)+' · '+esc2(SNAMES[nx]||'')+' · '+(g.stages-nx)+' stage'+(g.stages-nx>1?'s':'')+' to go</p><button type="button" class="btn btn-primary btn-lg" data-st="stagego">Start stage '+(nx+1)+' ▸</button></div></div>';
+    (rec.saved?'<div class="st-reward">💾 Checkpoint saved: chapter '+(chapOf(g.stage)+1)+' complete'+(rec.chapter?' · +'+rec.chapter+' 🪙 chapter bonus':'')+'</div>':'')+(rec.reward?'<div class="st-reward">🎁 Flawless stage — lifeline earned: '+({fifty:'50/50',skip:'Skip',time:'Timer reset'}[rec.reward])+'</div>':'')+
+    '<p class="st-fine">Up next: stage '+(nx+1)+' · '+esc2(sname(nx,g))+' · '+(g.stages-nx)+' stage'+(g.stages-nx>1?'s':'')+' to go</p><button type="button" class="btn btn-primary btn-lg" data-st="stagego">Start stage '+(nx+1)+' ▸</button></div></div>';
 }
 function results(g){
   var tot=g.correct+g.wrong, avg=g.times.length?(g.times.reduce(function(a,b){ return a+b; },0)/g.times.length):0, miss=Object.keys(g.missed).map(function(k){ return g.missed[k]; });
   var grade=g.acc>=90?'🏆 Mastery!':g.acc>=75?'🌟 Great session':g.acc>=50?'👍 Good progress':'💪 Keep practicing';
   return '<div class="st-results"><div class="st-rtop">'+companion(Object.assign({},g,{mood:g.acc>=60?'happy':'sad',say:grade}))+'<div><h2>'+grade+'</h2><p class="st-fine">'+(g.review?'Review session':esc2((GS()||{}).title||'Study run'))+'</p></div></div>'+
     '<div class="st-rgrid"><div><b>'+g.points+'</b><span>Score'+(g.newBest?' ⭐ new best':'')+'</span></div><div><b>'+g.correct+'/'+tot+'</b><span>Correct · '+g.acc+'%</span></div><div><b>🔥 '+g.bestStreak+'</b><span>Best streak</span></div><div><b>'+avg.toFixed(1)+'s</b><span>Avg per answer</span></div></div>'+
-    '<div class="st-stagesum">'+g.stDone.map(function(d,i){ return '<div><b>'+(g.review?'Review':'Stage '+(i+1))+'</b>'+pips(g,d.pips,false)+'<span>'+d.c+'/'+(d.c+d.w)+' · '+d.acc+'%</span></div>'; }).join('')+'</div>'+'<div class="st-ring" style="--p:'+g.acc+'"><span>'+g.acc+'%</span></div>'+
+    '<div class="st-stagesum">'+(g.review?g.stDone.map(function(d){ return '<div><b>Review</b>'+pips(g,d.pips,false)+'<span>'+d.c+'/'+(d.c+d.w)+' · '+d.acc+'%</span></div>'; }):(function(){ var o=[]; for(var ci=0;ci*SPC<g.stDone.length;ci++){ var cs=g.stDone.slice(ci*SPC,ci*SPC+SPC), c1=0, w1=0; cs.forEach(function(d){ c1+=d.c; w1+=d.w; }); o.push('<div><b>Chapter '+(ci+1)+(cs.length<SPC?' (partial)':'')+'</b><span>'+c1+'/'+(c1+w1)+' · '+(c1+w1?Math.round(c1/(c1+w1)*100):0)+'%</span></div>'); } return o; })()).join('')+'</div>'+'<div class="st-ring" style="--p:'+g.acc+'"><span>'+g.acc+'%</span></div>'+
     (g.coins?'<p class="st-fine">🪙 +'+g.coins+' coins'+(g.xp?' · ✨ +'+g.xp+' XP':'')+' earned this session (daily coin cap applies).</p>':'')+((window.GameStudy&&GameStudy.summaryHtml)?GameStudy.summaryHtml():'')+
     (miss.length?'<div class="st-miss"><h4>Needs review ('+miss.length+')</h4>'+miss.slice(0,12).map(function(m){ return '<div class="st-missrow"><span>'+esc2(m.prompt)+'</span><b>'+esc2(m.answer)+'</b></div>'; }).join('')+(miss.length>12?'<div class="st-fine">+'+(miss.length-12)+' more</div>':'')+'</div>':'<p class="st-fine">🎉 Nothing missed — perfect recall!</p>')+
     '<div class="st-rbtns"><button class="btn btn-primary btn-lg" data-st="again">Study again</button><button class="btn btn-ghost btn-lg" data-st="repick">New topic</button>'+(miss.length?'<button class="btn btn-pink btn-lg" data-st="review">Review missed ('+miss.length+')</button>':'')+'<button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
@@ -218,6 +231,7 @@ function onClick(e){
     if(state.view!=='games'||!g||g.setupType!=='study') return;
     if(a==='timed'){ cfg.timed=t.getAttribute('data-v')==='true'; document.querySelectorAll('#st-tm .st-pill').forEach(function(b){ b.classList.toggle('on',b===t); }); }
     else if(a==='begin') window.arcadeStudyStart();
+    else if(a==='resume') window.arcadeStudyStart(null,{resume:true});
     else if(a==='repick') repick();
     return;
   }

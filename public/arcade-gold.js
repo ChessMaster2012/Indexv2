@@ -5,6 +5,8 @@
    Study layer (GameStudy): a "Survey checkpoint" question gate fires each time LIFETIME earnings cross a growing threshold
    (1,200 x 1.8^n); Mother-Lode nuggets and Descend also need answers. Correct answers give a temporary production boost,
    bigger nuggets and bonus Gems; wrong answers give less. Production pauses while a question card is open; offline earnings never wait.
+   A run (Descend cycle) is now 6x longer: the first Gem needs 120,000 earned this run (was 20,000), with a progress bar to the next Gem.
+   Old saves just keep their lifetime/gems; only the Gem formula changed. Progress is saved every 4s.
    Overrides arcadeGoldStart/arcadeGoldHtml/arcadeGoldAdjust. Progress: gameProgress.gold keeps {vault,workers,assign,lastSave}
    and adds {up:{},gems,lifetime,runEarned,clicks,nuggets,runs,ach:{}}. Fullscreen on the persistent games stage. */
 (function(){
@@ -62,7 +64,9 @@ var COST={
   storage:function(g){ return Math.floor(400*Math.pow(2.2,lvl(g,'storage'))); }
 };
 var MAXL={crit:10,storage:10};
-function descGain(g){ return Math.floor(Math.sqrt(Math.max(0,g.runEarned)/20000)); }
+var DESC=120000; /* 6x the old 20,000: one run toward Descend is six times longer */
+function descGain(g){ return Math.floor(Math.sqrt(Math.max(0,g.runEarned)/DESC)); }
+function descPct(g){ var n=descGain(g), a=n*n*DESC, b=(n+1)*(n+1)*DESC; return Math.max(0,Math.min(100,(g.runEarned-a)/(b-a)*100)); }
 function surveyDone(g){ var k=g.survey||0; while(surveyT({survey:k})<=g.lifetime) k++; g.survey=k; }
 function earn(g,n){ g.vault+=n; g.lifetime+=n; g.runEarned+=n; }
 
@@ -150,7 +154,7 @@ function inner(g,m){
     return '<div class="gm-layer" style="--lc:'+L.col+';--lb:'+L.bg+'"><div class="gm-lhead"><span class="gm-li">'+L.icon+'</span><div><b>'+L.name+'</b><small id="gm-lr-'+L.id+'">'+fmt(layerRate(g,L)*gm(g))+'/s</small></div><div class="gm-asg"><button data-gm="adj" data-id="'+L.id+'" data-d="-1" '+(n<=0?'disabled':'')+'>−</button><b>'+n+'</b><button data-gm="adj" data-id="'+L.id+'" data-d="1" '+(free<=0?'disabled':'')+'>+</button></div></div><div class="gm-tunnel" id="gm-layer-'+L.id+'">'+drones+(n>14?'<em class="gm-more">+'+(n-14)+'</em>':'')+'</div><button class="gm-drill'+(g.vault<c?' poor':'')+'" data-gm="buy" data-k="'+L.id+'" data-cost="'+c+'">🔩 Drill Lv '+lvl(g,L.id)+' → +25% · 🪙 '+fmt(c)+'</button></div>'; }).join('');
   var shop=btn(g,'drone','🤖 Drone','+1 worker drone',COST.drone(g))+btn(g,'click','⛏️ Prospector','+60% dig power',COST.click(g))+btn(g,'crit','🍀 Lucky Pick','+2% crit chance (x5)',COST.crit(g),MAXL.crit)+btn(g,'refine','🏭 Refinery','+10% all income',COST.refine(g))+btn(g,'storage','🏚️ Deep Storage','+2h offline cap',COST.storage(g),MAXL.storage);
   var gain=descGain(g);
-  var desc='<div class="gm-desc"><b>⬇ Descend</b><small>Reset vault, drones &amp; upgrades for permanent <b>💠 Gems</b> (+10% income each).</small><div>Gain now: <b id="gm-dg">'+gain+'</b> 💠 · you have '+g.gems+'</div><button class="gm-buy '+(gain<1?'poor':'')+'" data-gm="descend">'+(m.confirm?'Tap again to confirm':gain<1?'Earn '+fmt(Math.max(0,20000-g.runEarned))+' more this run':'Descend for '+gain+' 💠')+'</button></div>';
+  var desc='<div class="gm-desc"><b>⬇ Descend</b><small>Reset vault, drones &amp; upgrades for permanent <b>💠 Gems</b> (+10% income each).</small><div>Gain now: <b id="gm-dg">'+gain+'</b> 💠 · you have '+g.gems+'</div><div class="gm-heat" title="Run progress to the next Gem"><i id="gm-descbar" style="width:'+descPct(g)+'%"></i></div><small id="gm-desctxt">Next Gem at '+fmt((gain+1)*(gain+1)*DESC)+' earned this run · now '+fmt(g.runEarned)+'</small><button class="gm-buy '+(gain<1?'poor':'')+'" data-gm="descend">'+(m.confirm?'Tap again to confirm':gain<1?'Earn '+fmt(Math.max(0,DESC-g.runEarned))+' more this run':'Descend for '+gain+' 💠')+'</button></div>';
   var ach='<div class="gm-ach">'+ACH.map(function(a){ var on=g.ach[a.id]; return '<div class="'+(on?'on':'')+'"><span>'+(on?'🏆':'🔒')+'</span><b>'+a.n+'</b><small>'+a.d+' · +'+a.c+' 🪙</small></div>'; }).join('')+'</div>';
   var sv=surveyT(g), prev=(g.survey>0?surveyT({survey:g.survey-1}):0), pct=Math.max(0,Math.min(100,(g.lifetime-prev)/(sv-prev)*100));
   var panel='<div class="gm-desc gm-survey"><b>📚 Survey checkpoint</b><small>Each time your lifetime earnings pass a milestone, a quick question survey appears. Correct answers boost production.</small><div>Next at <b>'+fmt(sv)+'</b> · now <b id="gm-lt">'+fmt(g.lifetime)+'</b></div><div class="gm-heat"><i id="gm-svbar" style="width:'+pct+'%"></i></div><div id="gm-boostline">'+(m.boost&&m.boost.t>0?'⚡ Boost x'+m.boost.mult+' · '+fmtT(m.boost.t)+' left':'No boost active')+'</div>'+((window.GameStudy&&GameStudy.summaryHtml)?GameStudy.summaryHtml():'')+'</div>';
@@ -162,7 +166,7 @@ function inner(g,m){
 }
 function live(g,m){
   var set=function(id,v){ var e=$(id); if(e) e.textContent=v; };
-  set('gm-vault',fmt(g.vault)); set('gm-lt',fmt(g.lifetime)); var sv=surveyT(g), pv=g.survey>0?surveyT({survey:g.survey-1}):0, sb=$('gm-svbar'); if(sb) sb.style.width=Math.max(0,Math.min(100,(g.lifetime-pv)/(sv-pv)*100))+'%'; set('gm-boostline',m.boost&&m.boost.t>0?'⚡ Boost x'+m.boost.mult+' · '+fmtT(m.boost.t)+' left':'No boost active'); set('gm-rate',fmt(rate(g))+'/s'); set('gm-dg',descGain(g));
+  set('gm-vault',fmt(g.vault)); set('gm-lt',fmt(g.lifetime)); var sv=surveyT(g), pv=g.survey>0?surveyT({survey:g.survey-1}):0, sb=$('gm-svbar'); if(sb) sb.style.width=Math.max(0,Math.min(100,(g.lifetime-pv)/(sv-pv)*100))+'%'; set('gm-boostline',m.boost&&m.boost.t>0?'⚡ Boost x'+m.boost.mult+' · '+fmtT(m.boost.t)+' left':'No boost active'); set('gm-rate',fmt(rate(g))+'/s'); set('gm-dg',descGain(g)); var db=$('gm-descbar'); if(db) db.style.width=descPct(g)+'%'; set('gm-desctxt','Next Gem at '+fmt((descGain(g)+1)*(descGain(g)+1)*DESC)+' earned this run · now '+fmt(g.runEarned));
   var h=$('gm-heat'); if(h) h.style.width=(m.heat/20*100)+'%';
   document.querySelectorAll('#gm-root [data-cost]').forEach(function(b){ var c=b.getAttribute('data-cost'); b.classList.toggle('poor',!c||g.vault<Number(c)); });
   if(m.nug&&!$('gm-nug')||!m.nug&&$('gm-nug')) paint();

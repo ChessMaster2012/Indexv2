@@ -2,7 +2,7 @@
    Overrides the arcade Gauntlet hooks from the main script. Saves best run into gameProgress.gauntlet. */
 (function(){
 'use strict';
-var TOTAL=12, WW=2400, WH=1500, TAU=Math.PI*2, CX=WW/2, CY=WH/2;
+var TOTAL=12, NZONE=6, ZW=TOTAL/NZONE, WW=2400, WH=1500, TAU=Math.PI*2, CX=WW/2, CY=WH/2;
 var rnd=function(a,b){ return a+Math.random()*(b-a); }, clamp=function(n,a,b){ return Math.max(a,Math.min(b,n)); };
 var dist=function(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); };
 function $(id){ return document.getElementById(id); }
@@ -39,6 +39,7 @@ var EN={
   king:{e:'👑',hp:230,sp:72,r:36,col:'#ffd24a',pts:300,boss:true,name:'The Hollow King'},
   titan:{e:'👁️',hp:430,sp:56,r:44,col:'#c07cff',pts:600,boss:true,name:'Void Titan'}
 };
+function zoneOf(n){ return Math.max(1,Math.ceil(n/ZW)); }
 function bossWave(n){ return n%4===0; }
 function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
 function waveDef(n){
@@ -265,14 +266,14 @@ function pips(lv,max){ var s=''; for(var i=0;i<max;i++) s+='<i class="'+(i<lv?'o
 function overlay(g){
   var ov=g.ov; if(!ov) return; var h='';
   if(g.phase==='ready'){
-    h='<div class="gx-card"><h2>🏰 Character Gauntlet</h2><p>Explore the ruined gardens and survive <b>12 waves</b> and three boss fights. Before every wave you answer <b>3 study questions</b> on <i>'+(window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic').replace(/[<>&]/g,''):'your topic')+'</i>: right answers heal you and power up that wave. Collect and level up <b>12 power-ups</b> as you go.</p><ul class="gx-keys"><li><kbd>WASD</kbd> move</li><li><kbd>Click</kbd> / <kbd>Space</kbd> pulse-strike — aim with the mouse</li><li><kbd>Shift</kbd> / right-click dash (invincible)</li><li><kbd>E</kbd> special — charges as you hit</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">Power '+g.s.power+' · Speed '+g.s.speed.toFixed(1)+' · Vitality '+g.s.vitality+' · Luck '+g.s.luck+' · Focus '+g.s.focus+'</p><button class="btn btn-primary btn-lg" data-gx-start>Choose power-up</button> <button class="btn btn-ghost" data-gx-fs type="button">⛶ Fullscreen</button></div>';
+    h='<div class="gx-card"><h2>🏰 Character Gauntlet</h2><p>Explore the ruined gardens and survive <b>one long run of 12 waves in six zones</b> with three boss fights and a checkpoint at every zone border (if you fall, you restart the zone). Before every wave you answer <b>3 study questions</b> on <i>'+(window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic').replace(/[<>&]/g,''):'your topic')+'</i>: right answers heal you and power up that wave. Collect and level up <b>12 power-ups</b> as you go.</p><ul class="gx-keys"><li><kbd>WASD</kbd> move</li><li><kbd>Click</kbd> / <kbd>Space</kbd> pulse-strike — aim with the mouse</li><li><kbd>Shift</kbd> / right-click dash (invincible)</li><li><kbd>E</kbd> special — charges as you hit</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">Power '+g.s.power+' · Speed '+g.s.speed.toFixed(1)+' · Vitality '+g.s.vitality+' · Luck '+g.s.luck+' · Focus '+g.s.focus+'</p><button class="btn btn-primary btn-lg" data-gx-start>Choose power-up</button> <button class="btn btn-ghost" data-gx-fs type="button">⛶ Fullscreen</button></div>';
   } else if(g.phase==='pause'){
     h='<div class="gx-card"><h2>⏸ Paused</h2><button class="btn btn-primary btn-lg" data-gx-resume>Resume</button></div>';
   } else if(g.phase==='upgrade'){
     h='<div class="gx-card wide"><h2>'+(g.starter?'Choose your starting power-up':'Wave '+g.wave+' cleared!')+'</h2><p>'+(g.starter?'You can level it up after every wave.':'Pick a power-up or level one up')+' <span class="gx-fine">(press 1 / 2 / 3)</span></p><div class="gx-perks">'+g.choices.map(function(k,i){ var d=PU[k], lv=g.pu[k].lv; return '<button class="gx-perk" data-gx-perk="'+k+'" type="button" style="--pc:'+d.col+'"><kbd>'+(i+1)+'</kbd><span class="gx-pi">'+d.icon+'</span><b>'+d.name+'</b><em>'+(lv?'Level '+lv+' → '+(lv+1):'NEW')+'</em>'+pips(lv+1,4)+'<span class="gx-pd">'+d.lv[lv]+'</span></button>'; }).join('')+'</div></div>';
   } else if(g.phase==='over'||g.phase==='win'){
     var gp=arcadeGameProgress().gauntlet||{};
-    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Gauntlet conquered!':'💀 Run over')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.wave+'/'+TOTAL+'</b><span>Wave</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>×'+g.maxCombo+'</b><span>Best combo</span></div></div>'+(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(gp.best||0)+'</p>')+'<div class="gx-build">'+PU_KEYS.filter(function(k){return g.pu[k].lv;}).map(function(k){ return '<span title="'+PU[k].name+'">'+PU[k].icon+'<small>'+g.pu[k].lv+'</small></span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-gauntlet-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Gauntlet conquered!':'💀 Run over')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.wave+'/'+TOTAL+'</b><span>Wave (zone '+zoneOf(g.wave)+'/'+NZONE+')</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>×'+g.maxCombo+'</b><span>Best combo</span></div></div>'+(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(gp.best||0)+'</p>')+'<div class="gx-build">'+PU_KEYS.filter(function(k){return g.pu[k].lv;}).map(function(k){ return '<span title="'+PU[k].name+'">'+PU[k].icon+'<small>'+g.pu[k].lv+'</small></span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-gauntlet-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   }
   ov.innerHTML=h; ov.style.display=h?'flex':'none';
 }
@@ -299,9 +300,10 @@ function applyPU(g){
   var s=g.pu.shield.lv; if(s>0&&g.p.shieldCh<1&&!g.p.shieldInit){ g.p.shieldCh=1; g.p.shieldInit=1; }
 }
 function nextWave(g){
-  g.wave++; g.phase='gate'; g.keys={}; g.mouse.on=false; g.btn.atk=false; g.joy.x=g.joy.y=0; overlay(g);
+  g.wave++; if(g.wave%ZW===1&&!g.reviving) saveCP(g); g.reviving=false;
+  g.phase='gate'; g.keys={}; g.mouse.on=false; g.btn.atk=false; g.joy.x=g.joy.y=0; overlay(g);
   var n=g.wave, wv=n;
-  gate({title:'Wave '+n+' of '+TOTAL+(bossWave(n)?' - BOSS':''),sub:'Each correct answer heals you, boosts damage and score this wave',count:3,label:'Wave '+n}).then(function(r){
+  gate({title:(n%ZW===1&&n>1?'Checkpoint saved - ':'')+'Zone '+zoneOf(n)+' of '+NZONE+' - Wave '+n+' of '+TOTAL+(bossWave(n)?' - BOSS':''),sub:'Each correct answer heals you, boosts damage and score this wave'+(g.cp?'. If you fall, you restart this zone from its checkpoint':''),count:3,label:'Wave '+n}).then(function(r){
     if(!state.games||state.games.gx!==g||g.phase!=='gate'||g.wave!==wv) return;
     r=r||{}; var c=r.correct||0, t=r.total||0, p=g.p;
     g.qc=c; g.wrong=Math.max(0,t-c); g.sMul=1+.2*c; g.qTotal+=t; g.qCorrect+=c; g.keys={}; g.last=performance.now();
@@ -311,9 +313,24 @@ function nextWave(g){
     g.phase='play'; overlay(g); startWave(g,msg);
   });
 }
+/* checkpoint at every zone border (every ZW waves): power-ups, score and kills are saved; dying restarts the zone, not the run */
+function saveCP(g){
+  var lv={}; PU_KEYS.forEach(function(k){ lv[k]=g.pu[k].lv; });
+  g.cp={wave:g.wave,score:g.score,kills:g.kills,lv:lv};
+  if(g.wave>1) g.texts.push({x:g.p.x,y:g.p.y-110,t:2.2,max:2.2,s:'✦ CHECKPOINT ✦ Zone '+zoneOf(g.wave),c:'#6ae8ff',big:true});
+}
+function reviveCP(g){
+  var c=g.cp, p=g.p; g.retries=(g.retries||0)+1;
+  PU_KEYS.forEach(function(k){ g.pu[k].lv=c.lv[k]; }); applyPU(g);
+  g.score=c.score; g.kills=c.kills; g.wave=c.wave-1; g.reviving=true;
+  g.enemies=[]; g.queue=[]; g.shots=[]; g.pp=[]; g.zones=[]; g.tele=[]; g.drops=[]; g.boss=null; g.combo=0; g.warpT=0; g.timeScale=1;
+  p.hp=p.maxhp; p.x=CX; p.y=CY+120; p.vx=p.vy=0; p.inv=2; p.rage=0; p.dash=0; p.dashCharges=g.m.dashMax; p.sp=0; p.shieldCh=g.pu.shield.lv>0?1:0;
+  g.texts.push({x:p.x,y:p.y-80,t:2.4,max:2.4,s:'Back to the zone checkpoint',c:'#6ae8ff',big:true});
+  nextWave(g);
+}
 function startWave(g,msg){
   g.queue=waveDef(g.wave); g.spawnT=1.1; g.noHit=true;
-  g.banner=g.wave===TOTAL?'⚠ FINAL BOSSES: King + Titan':g.wave===8?'⚠ BOSS: Void Titan':g.wave===4?'⚠ BOSS: The Hollow King':'Wave '+g.wave; g.bannerT=2.4; sfx('wave');
+  g.banner=g.wave===TOTAL?'⚠ FINAL BOSSES: King + Titan':g.wave===8?'⚠ BOSS: Void Titan':g.wave===4?'⚠ BOSS: The Hollow King':(g.wave%ZW===1?'Zone '+zoneOf(g.wave)+' · ':'')+'Wave '+g.wave; g.bannerT=2.4; g.waveN=Math.max(1,g.queue.length); sfx('wave');
   if(msg) g.texts.push({x:g.p.x,y:g.p.y+70,t:2.6,max:2.6,s:msg,c:'#7cf0a0',big:true});
 }
 function solid(g,x,y,r){ return g.map.obs.some(function(o){ return Math.hypot(o.x-x,o.y-y)<o.r+r; }); }
@@ -379,7 +396,7 @@ function hurtPlayer(g,dmg,fx,fy){
     if(g.pu.shield.lv>=4){ aoe(g,p.x,p.y,190,g.m.dmg*2,{kb:320,col:'#7cf0a0'}); ringFx(g,p.x,p.y,190,'#7cf0a0'); g.shake=.3; } return; }
   p.hp-=dmg; p.inv=1.1; p.hurtFlash=.35; g.shake=.35; g.combo=0; g.noHit=false; sfx('hurt');
   var l=Math.hypot(fx,fy)||1; p.vx+=fx/l*320; p.vy+=fy/l*320; boom(g,p.x,p.y,'#ff4a5a',12);
-  if(p.hp<=0){ p.hp=0; end(g,false); }
+  if(p.hp<=0){ p.hp=0; if(g.cp&&(g.retries||0)<20){ reviveCP(g); } else end(g,false); }
 }
 function dash(g){
   var p=g.p; if(g.phase!=='play'||p.dashCharges<1||p.dash>0) return;
@@ -399,7 +416,7 @@ function end(g,win){
   if(g.phase==='over'||g.phase==='win') return; g.phase=win?'win':'over';
   var gp=arcadeGameProgress(); gp.gauntlet=gp.gauntlet||{best:0};
   g.newBest=g.score>(Number(gp.gauntlet.best)||0);
-  gp.gauntlet.best=Math.max(Number(gp.gauntlet.best)||0,g.score); gp.gauntlet.bestWave=Math.max(Number(gp.gauntlet.bestWave)||0,g.wave);
+  gp.gauntlet.best=Math.max(Number(gp.gauntlet.best)||0,g.score); gp.gauntlet.bestWave=Math.max(Number(gp.gauntlet.bestWave)||0,g.wave); gp.gauntlet.bestZone=Math.max(Number(gp.gauntlet.bestZone)||0,zoneOf(g.wave));
   gp.gauntlet.kills=(Number(gp.gauntlet.kills)||0)+g.kills; gp.gauntlet.studyAsked=(Number(gp.gauntlet.studyAsked)||0)+g.qTotal; gp.gauntlet.studyCorrect=(Number(gp.gauntlet.studyCorrect)||0)+g.qCorrect; gp.gauntlet.wins=(Number(gp.gauntlet.wins)||0)+(win?1:0); gp.gauntlet.runs=(Number(gp.gauntlet.runs)||0)+1;
   try{ persistProgress(); }catch(e){}
   setTimeout(function(){ if(state.games&&state.games.gx===g) overlay(g); },win?900:700);
@@ -708,7 +725,9 @@ function hud(g,c){
   for(var i=0;i<p.maxhp;i++){ c.font=(22*sc)+'px sans-serif'; c.textAlign='left'; c.globalAlpha=i<p.hp?1:.25; c.fillText(i<p.hp?'❤️':'🖤',14+i*26*sc,26); } c.globalAlpha=1;
   c.textAlign='right'; c.font='900 '+(24*sc)+'px Inter,sans-serif'; c.lineWidth=4; c.strokeStyle='rgba(0,0,0,.7)'; c.strokeText(String(g.score),vw-92,26); c.fillStyle='#fff'; c.fillText(String(g.score),vw-92,26);
   if(g.combo>1){ var m=mult(g); c.font='900 '+((20+Math.min(12,g.combo/3))*sc)+'px Inter,sans-serif'; c.fillStyle=m>=3?'#ff6a3a':m>=2?'#ffd24a':'#fff'; c.strokeText(g.combo+' HITS  ×'+m.toFixed(1),vw-92,56); c.fillText(g.combo+' HITS  ×'+m.toFixed(1),vw-92,56); c.fillStyle='rgba(255,255,255,.2)'; c.fillRect(vw-212,70,120,5); c.fillStyle='#ffd24a'; c.fillRect(vw-212,70,120*clamp(g.comboTimer/g.m.comboT,0,1),5); }
-  c.textAlign='center'; c.font='800 '+(15*sc)+'px Inter,sans-serif'; c.fillStyle='#e6e0ff'; c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.6)'; var wt='WAVE '+Math.max(1,g.wave)+' / '+TOTAL+'  ·  '+(g.queue.length+g.enemies.length)+' left'; c.strokeText(wt,vw/2,22); c.fillText(wt,vw/2,22);
+  c.textAlign='center'; c.font='800 '+(15*sc)+'px Inter,sans-serif'; c.fillStyle='#e6e0ff'; c.lineWidth=3; c.strokeStyle='rgba(0,0,0,.6)'; var wt='ZONE '+zoneOf(g.wave)+'/'+NZONE+'  ·  WAVE '+Math.max(1,g.wave)+'/'+TOTAL+'  ·  '+(g.queue.length+g.enemies.length)+' left'; c.strokeText(wt,vw/2,22); c.fillText(wt,vw/2,22);
+  { var pw=Math.min(300,vw*.4), px0=vw/2-pw/2, left=g.queue.length+g.enemies.length, fr=g.wave>0?clamp(1-left/Math.max(left,g.waveN||1),0,1):0, pr=clamp((Math.max(0,g.wave-1)+fr)/TOTAL,0,1); if(g.phase==='win') pr=1;
+    c.fillStyle='rgba(0,0,0,.55)'; c.fillRect(px0,31,pw,5); c.fillStyle='#ffd24a'; c.fillRect(px0,31,pw*pr,5); c.fillStyle='rgba(255,255,255,.7)'; for(var zb=1;zb<NZONE;zb++) c.fillRect(px0+pw*zb/NZONE-1,29,2,9); }
   if(g.boss&&!g.boss.dead){ var b=g.boss, w=Math.min(420,vw*.5); c.fillStyle='rgba(0,0,0,.65)'; c.fillRect(vw/2-w/2,38,w,14); c.fillStyle=EN[b.t].col; c.fillRect(vw/2-w/2,38,w*clamp(b.hp/b.maxhp,0,1),14); c.strokeStyle='#fff'; c.lineWidth=2; c.strokeRect(vw/2-w/2,38,w,14); c.font='900 13px Inter,sans-serif'; c.fillStyle='#fff'; c.fillText(EN[b.t].name,vw/2,66);
     var ang=Math.atan2(b.y-(g.cam.y+vh/2),b.x-(g.cam.x+vw/2)); if(b.x<g.cam.x||b.x>g.cam.x+vw||b.y<g.cam.y||b.y>g.cam.y+vh){ var ax=vw/2+Math.cos(ang)*(vw/2-40), ay=vh/2+Math.sin(ang)*(vh/2-40); ax=clamp(ax,30,vw-30); ay=clamp(ay,30,vh-30); c.save(); c.translate(ax,ay); c.rotate(ang); c.fillStyle=EN[b.t].col; c.beginPath(); c.moveTo(14,0); c.lineTo(-8,-10); c.lineTo(-8,10); c.fill(); c.restore(); } }
   // special + dash
@@ -727,5 +746,5 @@ function hud(g,c){
   act.forEach(function(k,i){ var y=ry+i*(26*sc); c.fillStyle='rgba(10,8,24,.62)'; c.fillRect(vw-98,y-11,86,22); c.strokeStyle=PU[k].col; c.lineWidth=1.5; c.strokeRect(vw-98,y-11,86,22); c.font=(15*sc)+'px sans-serif'; c.textAlign='left'; c.fillStyle='#fff'; c.fillText(PU[k].icon,vw-94,y+1); for(var l=0;l<4;l++){ c.fillStyle=l<g.pu[k].lv?PU[k].col:'rgba(255,255,255,.18)'; c.fillRect(vw-70+l*14,y-4,11,8); } });
   if(g.bannerT>0){ var al=clamp(Math.min(g.bannerT,2.4-g.bannerT)*3,0,1); c.globalAlpha=al; c.textAlign='center'; c.font='900 '+(46*sc)+'px Inter,sans-serif'; c.lineWidth=7; c.strokeStyle='rgba(0,0,0,.75)'; var yy=vh/2-90+(1-al)*-14; c.strokeText(g.banner,vw/2,yy); c.fillStyle=g.banner.indexOf('BOSS')>=0?'#ff6a6a':'#fff'; c.fillText(g.banner,vw/2,yy); c.globalAlpha=1; }
 }
-try{ (ARCADE_MODES.filter(function(m){return m.id==='gauntlet';})[0]||{}).desc='A 12-wave campaign with three boss fights. Pick a study topic, then answer 3 AI questions before every wave: right answers heal you and power up the wave.'; }catch(e){}
+try{ (ARCADE_MODES.filter(function(m){return m.id==='gauntlet';})[0]||{}).desc='One long 12-wave run in six zones with checkpoints and three boss fights. Pick a study topic, then answer 3 AI questions before every wave: right answers heal you and power up the wave.'; }catch(e){}
 })();

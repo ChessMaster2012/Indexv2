@@ -10,7 +10,7 @@ function stop(){if(raf!=null){cancelAnimationFrame(raf);raf=null;}}
 function lock(locked){document.querySelectorAll('#commander-pack-v4-start,#commander-auth-start-wave,.commander-auth-start,[data-commander-start-wave]').forEach(function(b){if(!b)return;b.disabled=!!locked;b.style.pointerEvents=locked?'none':'auto';b.textContent=locked?'▣ Wave In Progress':'▶ Start Wave';});}
 function updateHud(g){
   var hud=document.getElementById('commander-live-hud');
-  if(hud)hud.textContent='ROUND '+Math.max(1,Number(g.wave)||1)+'  •  ENEMIES '+(g.enemies||[]).length+'  •  SPAWNED '+(g.spawnCount||0)+' / '+(g.spawnTotal||0)+'  •  BASE '+Math.max(0,Math.floor(Number(g.base)||0));
+  if(hud)hud.textContent=(window.__cmdWL?window.__cmdWL(g.wave):'ROUND '+Math.max(1,Number(g.wave)||1))+'  •  ENEMIES '+(g.enemies||[]).length+'  •  SPAWNED '+(g.spawnCount||0)+' / '+(g.spawnTotal||0)+'  •  BASE '+Math.max(0,Math.floor(Number(g.base)||0));
   var left=document.querySelector('#games-stage .commander-auth-side-left .commander-auth-wallet');
   if(left){var p=null;try{p=typeof commanderFinalProfile==='function'?commanderFinalProfile():null;}catch(e){}left.innerHTML='<div><b>'+(window.indexCoinIconSvg?window.indexCoinIconSvg(16):'🪙')+' '+Math.floor(Number(p&&p.coins)||0)+'</b><span>Persistent Coins</span></div><div><b>♥ '+Math.max(0,Math.floor(Number(g.base)||0))+'</b><span>Base</span></div>';}
 }
@@ -38,7 +38,7 @@ function draw(g){
   updateHud(g);
 }
 function spawn(g,m){
-  var i=Number(g.spawnCount)||0,defs=Array.isArray(COMMANDER_ENEMIES_FINAL)?COMMANDER_ENEMIES_FINAL:[],cycle=['runner','raider','flier','splitter','caster','elite','warden','brute'],kind=cycle[i%cycle.length],d=defs.find(function(x){return x&&x.id===kind;})||defs[0]||{hp:25,speed:.8,size:18,color:'#d85d70',baseDamage:3},p=m.route[0],n=m.route[1]||p,hp=Math.max(10,Math.round((d.hp||25)*(1+(Number(g.wave)||1)*.11)));
+  var i=Number(g.spawnCount)||0,defs=Array.isArray(COMMANDER_ENEMIES_FINAL)?COMMANDER_ENEMIES_FINAL:[],cycle=['runner','raider','flier','splitter','caster','elite','warden','brute'],kind=cycle[i%cycle.length],d=defs.find(function(x){return x&&x.id===kind;})||defs[0]||{hp:25,speed:.8,size:18,color:'#d85d70',baseDamage:3},p=m.route[0],n=m.route[1]||p,hp=Math.max(10,Math.round((d.hp||25)*(window.__cmdHpScale?window.__cmdHpScale(g.wave):1+(Number(g.wave)||1)*.11)));
   g.enemies.push({id:'v14-'+Date.now()+'-'+i,kind:kind,shape:d.shape||kind,wp:0,x:p[0],y:p[1],hp:hp,maxHp:hp,speed:(d.speed||.8)*m.speed,baseDamage:d.baseDamage||3,size:d.size||18,color:d.color||'#d85d70',rot:Math.atan2(n[1]-p[1],n[0]-p[0]),slow:1,slowUntil:0,hit:0});g.spawnCount=i+1;
 }
 function fallbackProjectile(g,t,target,stats,now){if(!target)return false;g.projectiles.push({type:'v14-basic',x:t.x,y:t.y,prevX:t.x,prevY:t.y,tx:target.id,speed:.75,damage:Math.max(1,Number(stats.damage)||5),color:stats.shot||'#9fe8ff',life:1200});t.cool=Math.max(350,Number(stats.rate)||900);t.recoil=now+100;return true;}
@@ -52,7 +52,7 @@ function launchWave(e){
   if(g.frame){try{cancelAnimationFrame(g.frame);}catch(err){}g.frame=null;}
   g.__commanderStandaloneWave=true;g.__v14WaveOwner=true;g.__commanderWaveStartLock=true;
   if(!g.running)g.wave=Math.max(0,Number(g.wave)||0)+1;
-  g.running=true;g.spawnCount=0;g.spawnTotal=8+Math.min(20,(Number(g.wave)||1)*2);g.enemies=[];g.projectiles=[];g.effects=[];g.__vt=performance.now();g.nextSpawnAt=g.__vt+180;g.lastFrame=performance.now();g.waveBanner='ROUND '+g.wave;g.waveBannerUntil=Date.now()+900;
+  g.running=true;g.spawnCount=0;g.spawnTotal=window.__cmdSpawnTotal?window.__cmdSpawnTotal(g.wave):8+Math.min(20,(Number(g.wave)||1)*2);g.enemies=[];g.projectiles=[];g.effects=[];g.__vt=performance.now();g.nextSpawnAt=g.__vt+180;g.lastFrame=performance.now();g.waveBanner=window.__cmdWL?__cmdWL(g.wave).toUpperCase():'ROUND '+g.wave;g.waveBannerUntil=Date.now()+900;
   try{if(window.v6Save)window.v6Save(g);}catch(err){}lock(true);draw(g);
   function step(now){
     if(game()!==g||!g.__v14WaveOwner||!g.running||g.finished||g.questionGateOpen){stop();if(g)g.__v14WaveOwner=false;lock(false);return;}

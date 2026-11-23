@@ -101,7 +101,8 @@ function begin(g){
 }
 function startStage(g){
   var i=g.stage, n=i+1, tr=g.tr; g.phase='gate'; g.paused=false; try{ if(AC) AC.suspend(); }catch(e){} overlay(g);
-  gate({title:'Stage '+n+' of '+NST+' - '+STAGE_NAMES[i],sub:'Each correct answer heals you and adds +10% score for this stage; all correct also half-fills Overdrive',count:GATEQ,label:tr.name+' · Stage '+n}).then(function(r){
+  var cpMsg=i>0&&g.cpNote?g.cpNote+' ':''; g.cpNote='';
+  gate({title:(i>0?'Checkpoint - ':'')+'Zone '+n+' of '+NST+' - '+STAGE_NAMES[i],sub:cpMsg+(i>0?'Checkpoint saved - if you run out of HP you restart this zone, not the song. ':'')+'Each correct answer heals you and adds +10% score for this zone; all correct also half-fills Overdrive',count:GATEQ,label:tr.name+' · Stage '+n}).then(function(r){
     if(rr()!==g||g.phase!=='gate'||g.stage!==i) return;
     r=r||{}; var c=r.correct||0, t=r.total||0; g.qT+=t; g.qC+=c;
     g.hp=Math.min(g.maxHp,g.hp+Math.round(g.maxHp*.12*c)); playStage(g,c,t,!!r.perfect&&t>0);
@@ -150,7 +151,9 @@ function clearStage(g){
   g.stBonus=(d.miss===0?600:0)+(g.stage+1)*150; g.score+=g.stBonus; g.cleared++; g.hp=Math.min(g.maxHp,g.hp+Math.round(g.maxHp*.2));
   try{ celebrate(); }catch(e){}
   if(g.stage>=NST-1){ endRun(g,true); return; }
-  g.phase='clear'; overlay(g);
+  /* one continuous run: no stage card - the next zone's study gate is the checkpoint */
+  g.cpNote='Zone '+(g.stage+1)+' cleared: rank '+rk.rank+' ('+Math.round(rk.acc*1000)/10+'%), +'+g.stBonus+' bonus, score '+g.score+'.';
+  g.stage++; startStage(g);
 }
 /* HP ran out: the stage does not count. Retry it (new study questions, HP partly restored) or end the run */
 function failStage(g){
@@ -217,13 +220,13 @@ function draw(g){
   // fx text
   (g.fx||[]).forEach(function(f){ var a=1-f.t; c.globalAlpha=Math.max(0,a); c.fillStyle=f.col; c.font='900 '+(f.big?34:22)+'px system-ui,sans-serif'; c.textAlign='center'; c.fillText(f.txt,f.big?LW/2:X(f.lane),(f.big?HITY-150:HITY-52)-f.t*40); c.globalAlpha=1; });
   // HUD
-  c.textAlign='left'; c.fillStyle='#fff'; c.font='900 30px system-ui,sans-serif'; c.fillText(String(g.score||0).padStart(7,'0'),24,50); c.font='700 13px system-ui,sans-serif'; c.fillStyle='#b9b0ee'; c.fillText(tr.name+' · '+(g.bpm||tr.bpm)+' BPM',24,74); if(g.st&&(g.phase==='play')){ c.fillStyle='#fff'; c.font='800 13px system-ui,sans-serif'; c.fillText('STAGE '+(g.stage+1)+' / '+NST+' · '+g.st.name,24,94); }
+  c.textAlign='left'; c.fillStyle='#fff'; c.font='900 30px system-ui,sans-serif'; c.fillText(String(g.score||0).padStart(7,'0'),24,50); c.font='700 13px system-ui,sans-serif'; c.fillStyle='#b9b0ee'; c.fillText(tr.name+' · Zone '+((g.stage||0)+1)+'/'+NST+' · '+(g.bpm||tr.bpm)+' BPM',24,74); if(g.st&&(g.phase==='play')){ c.fillStyle='#fff'; c.font='800 13px system-ui,sans-serif'; c.fillText('ZONE '+(g.stage+1)+' / '+NST+' · '+g.st.name,24,94); }
   if(g.phase==='play'){ var rk=rankOf({cnt:g.cnt,total:Math.max(1,g.cnt.perfect+g.cnt.great+g.cnt.good+g.cnt.miss)}); c.font='900 54px system-ui,sans-serif'; c.fillStyle=rankCol(rk.rank); c.fillText(rk.rank,28,140); c.font='700 13px system-ui,sans-serif'; c.fillStyle='#b9b0ee'; c.fillText(Math.round(rk.acc*100)+'% accuracy',28,162); if((g.buff||1)>1){ c.fillStyle='#9bffb0'; c.fillText('📚 Study buff ×'+(g.buff).toFixed(1),28,182); } }
   if((g.combo||0)>=2){ c.textAlign='center'; c.globalAlpha=.9; c.fillStyle='#fff'; c.font='900 '+(44+pr*10)+'px system-ui,sans-serif'; c.fillText(g.combo,LW/2,250); c.font='800 14px system-ui,sans-serif'; c.fillStyle=g.odOn?'#ffd24a':'#b9b0ee'; c.fillText('COMBO'+(g.odOn?' · ×2':'  ×'+(1+Math.min(4,Math.floor(g.combo/10))*.25).toFixed(2)),LW/2,272); c.globalAlpha=1; }
   // hp & overdrive bars
   bar(c,760,60,200,14,(g.hp||0)/(g.maxHp||1),'#4be39a','HP'); bar(c,760,96,200,14,(g.od||0)/100,g.odOn?'#ffd24a':'#b07cff',(g.od>=100&&!g.odOn)?'OVERDRIVE READY · SPACE':'OVERDRIVE');
   // progress
-  if(g.phase==='play'){ var pp=Math.max(0,Math.min(1,t/g.ch.len)); c.fillStyle='rgba(255,255,255,.12)'; c.fillRect(0,LH-6,LW,6); c.fillStyle=col; c.fillRect(0,LH-6,LW*pp,6); if(t<0){ c.textAlign='center'; c.fillStyle='#fff'; c.font='900 60px system-ui,sans-serif'; c.fillText(Math.ceil(-t)||'GO',LW/2,330); } }
+  if(g.phase==='play'){ var pp=Math.max(0,Math.min(1,(g.stage+Math.max(0,Math.min(1,t/g.ch.len)))/NST)); c.fillStyle='rgba(255,255,255,.12)'; c.fillRect(0,LH-6,LW,6); c.fillStyle=col; c.fillRect(0,LH-6,LW*pp,6); c.fillStyle='rgba(255,255,255,.7)'; for(var zb=1;zb<NST;zb++) c.fillRect(LW*zb/NST-1,LH-10,2,10); c.font='700 10px system-ui,sans-serif'; c.textAlign='right'; c.fillStyle='#b9b0ee'; c.fillText(Math.round(pp*100)+'% of the song',LW-8,LH-12); if(t<0){ c.textAlign='center'; c.fillStyle='#fff'; c.font='900 60px system-ui,sans-serif'; c.fillText(Math.ceil(-t)||'GO',LW/2,330); } }
   c.restore();
 }
 function bar(c,x,y,w,h,p,col,label){ c.fillStyle='rgba(255,255,255,.12)'; c.fillRect(x,y,w,h); c.fillStyle=col; c.fillRect(x,y,w*Math.max(0,Math.min(1,p)),h); c.fillStyle='#fff'; c.font='800 10px system-ui,sans-serif'; c.textAlign='left'; c.fillText(label,x+4,y+h-3.5); }
@@ -238,7 +241,7 @@ function overlay(g){
   var ov=g.ov; if(!ov) return; var h='';
   if(g.phase==='ready'){
     var p=prog();
-    h='<div class="gx-card wide"><h2>🎵 Rhythm Reflector</h2><p>Reflect the caster\'s magic back on the beat across <b>six stages</b> that get faster and denser. Before every stage you answer <b>3 study questions</b> on <i>'+topicName()+'</i>: each right answer heals you and adds +10% score for the stage. Pick a track:</p><div class="rr-tracks">'+TRACKS.map(function(t){ var rec=p.tracks[t.id]; return '<button type="button" class="rr-track'+(g.track===t.id?' on':'')+'" data-rr-track="'+t.id+'" style="--tc:'+t.col+'"><span class="rr-ti">'+t.icon+'</span><b>'+t.name+'</b><small>'+t.bpm+'+ BPM · '+t.diff+'</small><em>'+(rec?'Rank '+rec.rank+' · '+rec.best:'Not played')+'</em></button>'; }).join('')+'</div>'+
+    h='<div class="gx-card wide"><h2>🎵 Rhythm Reflector</h2><p>Reflect the caster\'s magic back on the beat across <b>one long song in six zones</b> that gets faster and denser, with a checkpoint at every zone border. Before every zone you answer <b>3 study questions</b> on <i>'+topicName()+'</i>: each right answer heals you and adds +10% score for the zone. Pick a track:</p><div class="rr-tracks">'+TRACKS.map(function(t){ var rec=p.tracks[t.id]; return '<button type="button" class="rr-track'+(g.track===t.id?' on':'')+'" data-rr-track="'+t.id+'" style="--tc:'+t.col+'"><span class="rr-ti">'+t.icon+'</span><b>'+t.name+'</b><small>'+t.bpm+'+ BPM · '+t.diff+'</small><em>'+(rec?'Rank '+rec.rank+' · '+rec.best:'Not played')+'</em></button>'; }).join('')+'</div>'+
       '<ul class="gx-keys"><li><kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd> or <kbd>←</kbd><kbd>↓</kbd><kbd>↑</kbd><kbd>→</kbd> or tap a lane — reflect when the orb hits the ring</li><li><kbd>Space</kbd> Overdrive when the meter is full (×2 score, wider timing) · <kbd>P</kbd> pause · <kbd>Shift</kbd>+<kbd>F</kbd> fullscreen (or the ⛶ button)</li></ul>'+
       '<p class="gx-stats">Your Indexling: Focus '+(stats().focus||0)+' (timing window) · Vitality → HP '+g.maxHp+' · Luck charges Overdrive · Power boosts score</p>'+
       '<div class="rr-off">Audio offset <button type="button" data-rr-off="-10">−</button><b>'+g.offset+' ms</b><button type="button" data-rr-off="10">+</button><small>Raise if you hit late, lower if early. Headphones recommended.</small></div>'+
@@ -251,10 +254,10 @@ function overlay(g){
       '<div class="gx-res"><div><b>'+g.stScore+'</b><span>Stage score</span></div><div><b>'+g.score+'</b><span>Run score</span></div><div><b>'+g.hp+'/'+g.maxHp+'</b><span>HP</span></div><div><b>'+g.maxCombo+'</b><span>Best combo</span></div></div>'+
       '<p class="gx-fine">Next: Stage '+(g.stage+2)+' of '+NST+' - '+nx.name+' · '+nx.bpm+' BPM. Study questions first.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-rr-next>Next stage ▶ <span class="gx-fine">(Space)</span></button><button class="btn btn-ghost" data-rr-end>End run</button></div></div>';
   } else if(g.phase==='stagefail'){
-    h='<div class="gx-card"><h2>💔 Overwhelmed</h2><p>You ran out of HP in <b>Stage '+(g.stage+1)+' - '+STAGE_NAMES[g.stage]+'</b>. That stage does not count, but your earlier stages are safe.</p><p class="gx-fine">Retry with fresh study questions (HP back to 70%). Right answers heal you again. Tip: Overdrive widens your timing window.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-rr-retry>Retry stage <span class="gx-fine">(Space)</span></button><button class="btn btn-ghost" data-rr-end>End run</button></div></div>';
+    h='<div class="gx-card"><h2>💔 Overwhelmed</h2><p>You ran out of HP in <b>Zone '+(g.stage+1)+' - '+STAGE_NAMES[g.stage]+'</b>. That zone does not count, but your earlier zones and checkpoint are safe.</p><p class="gx-fine">Retry with fresh study questions (HP back to 70%). Right answers heal you again. Tip: Overdrive widens your timing window.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-rr-retry>Retry from checkpoint <span class="gx-fine">(Space)</span></button><button class="btn btn-ghost" data-rr-end>End run</button></div></div>';
   } else if(g.phase==='done'||g.phase==='failed'){
     var r=g.result, f=g.phase==='failed', quit=f&&g.endWhy==='quit';
-    h='<div class="gx-card wide"><h2>'+(f?(g.endWhy==='quit'?'🏁 Run ended':'💔 Run over'):'🎉 Track complete')+'</h2><div class="rr-rank" style="color:'+(f?'#ff8a9a':rankCol(r.rank))+'">'+(f?'—':r.rank)+'</div><p>'+g.tr.name+' · '+g.cleared+'/'+NST+' stages · '+Math.round(r.acc*1000)/10+'% accuracy'+(g.newBest?' · <span class="gx-newbest">New best!</span>':'')+'</p>'+
+    h='<div class="gx-card wide"><h2>'+(f?(g.endWhy==='quit'?'🏁 Run ended':'💔 Run over'):'🎉 Track complete')+'</h2><div class="rr-rank" style="color:'+(f?'#ff8a9a':rankCol(r.rank))+'">'+(f?'—':r.rank)+'</div><p>'+g.tr.name+' · '+g.cleared+'/'+NST+' zones · '+Math.round(r.acc*1000)/10+'% accuracy'+(g.newBest?' · <span class="gx-newbest">New best!</span>':'')+'</p>'+
       '<div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.maxCombo+'</b><span>Max combo</span></div><div><b>'+g.cnt.perfect+'</b><span>Perfect</span></div><div><b>'+g.cnt.great+'/'+g.cnt.good+'</b><span>Great/Good</span></div></div>'+
       (window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.qT?'<p class="gx-fine">This run: '+g.qC+' / '+g.qT+' study questions correct'+(g.retries?' · '+g.retries+' retr'+(g.retries>1?'ies':'y'):'')+'</p>':'')+
       '<p class="gx-stats">'+g.cnt.miss+' missed'+(g.coins?' · +'+g.coins+' 🪙':'')+(f&&!quit?' · Keep your combo alive and use Overdrive.':'')+'</p>'+

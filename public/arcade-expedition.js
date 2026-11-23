@@ -3,14 +3,15 @@
    Overrides the arcade Expedition hooks from the main script. Saves to gameProgress.expedition. */
 (function(){
 'use strict';
-var LW=1000, LH=562, COLS=16, TAU=Math.PI*2, SINGLE={0:1,5:1,10:1,15:1};
+var LW=1000, LH=562, COLS=16, TAU=Math.PI*2, SINGLE={0:1,5:1,10:1,15:1}, NFLOOR=6, FLR=COLS-1, TOTAL=NFLOOR*FLR, FLOORN=['The Upper Galleries','The Fungal Warrens','The Sunken Crypts','The Ember Vaults','The Hollow Deep','The Warden\'s Sanctum'], BOSSN=[['The Gate Warden','🦂'],['The Brood Mother','🕷️'],['The Drowned King','🐙'],['The Cinder Knight','🔥'],['The Hollow Titan','🗿'],['The Warden','🐲']];
+function gdepth(g){ return g.floor*FLR+g.cur.c; }
 var clamp=function(n,a,b){ return Math.max(a,Math.min(b,n)); };
 function $(id){ return document.getElementById(id); }
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return((t^t>>>14)>>>0)/4294967296; }; }
 function esc2(s){ return (typeof esc==='function')?esc(String(s==null?'':s)):String(s==null?'':s); }
 function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
 function studyHtml(){ try{ return (window.GameStudy&&GameStudy.summaryHtml())||''; }catch(e){ return ''; } }
-try{ (ARCADE_MODES.filter(function(m){ return m.id==='expedition'; })[0]||{}).desc='A 15-room branching dungeon crawl: study questions before every room power up your rolls, two mini-bosses and a final boss.'; }catch(e){}
+try{ (ARCADE_MODES.filter(function(m){ return m.id==='expedition'; })[0]||{}).desc='A 90-room branching dungeon crawl in six floors: study questions before every room power up your rolls, a checkpoint on each floor, mini-bosses and a final boss.'; }catch(e){}
 function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 var NT={monster:{icon:'⚔️',name:'Monster',col:'#ff7a7a'},elite:{icon:'💀',name:'Elite',col:'#ff4a8a'},event:{icon:'❓',name:'Mystery',col:'#9bb0ff'},treasure:{icon:'💰',name:'Treasure',col:'#ffd24a'},camp:{icon:'🔥',name:'Campfire',col:'#ffa24a'},shop:{icon:'🛒',name:'Merchant',col:'#7ae8c0'},trap:{icon:'⚠️',name:'Trap',col:'#ffb04a'},boss:{icon:'👑',name:'Boss',col:'#ff5aa0'},miniboss:{icon:'☠️',name:'Mini-boss',col:'#ff3a6a'},start:{icon:'🚪',name:'Entrance',col:'#aaa'}};
 
@@ -153,13 +154,13 @@ window.arcadeExpeditionStart=function(){
   var s=arcadeCharacterStats(), seed=(Math.random()*1e9)|0, map=genMap(seed);
   var maxHp=10+s.vitality*2;
   var g={seed:seed,map:map,cur:map[0][0],s:s,hp:maxHp,maxHp:maxHp,torch:20,maxTorch:20,gold:12,relics:[],items:['potion'],mods:{power:Math.round(s.power),speed:Math.round(s.speed),luck:Math.round(s.luck),wits:Math.max(0,Math.floor((s.focus||100)/50))},
-    dmg:3+Math.round(s.power),phase:'ready',busy:false,steps:0,kills:0,col:0,log:[],time:0,tok:{x:map[0][0].x,y:map[0][0].y},hover:null,parts:[],texts:[],shake:0,flash:0,enc:null,score:0,nextRelic:null,wasStart:true,roomBonus:0,studyOk:0,studyTotal:0};
-  map[0][0].vis=true; state.games={active:'expedition',keys:{},ex:g};
+    dmg:3+Math.round(s.power),phase:'ready',busy:false,steps:0,kills:0,col:0,log:[],time:0,tok:{x:map[0][0].x,y:map[0][0].y},hover:null,parts:[],texts:[],shake:0,flash:0,enc:null,score:0,nextRelic:null,wasStart:true,roomBonus:0,studyOk:0,studyTotal:0,floor:0};
+  map[0][0].vis=true; loadCk(g); state.games={active:'expedition',keys:{},ex:g};
 };
 window.arcadeExpeditionChoose=function(){};
 window.arcadeExpeditionHtml=function(){
   var g=state.games.ex; if(!g) return ''; setTimeout(mount,0); var ep=arcadeGameProgress().expedition||{};
-  var stats='<span class="arcade-pill">🏆 Best <b>'+(ep.best||0)+'</b></span><span class="arcade-pill">🏁 Clears <b>'+(ep.clears||0)+'</b></span><span class="arcade-pill">🗺 Deepest <b>'+(ep.bestDepth||0)+'/'+(COLS-1)+'</b></span>';
+  var stats='<span class="arcade-pill">🏆 Best <b>'+(ep.best||0)+'</b></span><span class="arcade-pill">🏁 Clears <b>'+(ep.clears||0)+'</b></span><span class="arcade-pill">🗺 Deepest <b>'+(ep.bestDepth||0)+'/'+TOTAL+'</b></span>';
   return arcadeFrame('Expedition Dash','Click a glowing room to advance · roll d20 + stat vs a difficulty · keep your torch lit · F fullscreen',stats,
     '<div class="gx-wrap ex-wrap" id="ex-wrap"><canvas id="ex-canvas" width="1000" height="562"></canvas><div class="gx-ov ex-ov" id="ex-ov"></div>'+
     '<div class="gx-tools"><button class="gx-mute" id="ex-mute" type="button" aria-label="Toggle sound">'+(muted()?'🔇':'🔊')+'</button><button class="gx-mute" id="ex-fs" type="button" aria-label="Fullscreen" title="Fullscreen (F)">⛶</button></div>'+
@@ -205,7 +206,9 @@ document.addEventListener('keydown',function(e){
 },true);
 function handle(g,a,v){
   if(g.busy&&a!=='noop') return;
-  if(a==='start'){ g.phase='map'; showOv(g); bar(g); return; }
+  if(a==='start'){ if(g.phase!=='ready') return; g.ck=null; try{ delete arcadeGameProgress().expedition.checkpoint; persistProgress(); }catch(e){} g.phase='map'; showOv(g); bar(g); return; }
+  if(a==='resume'){ if(g.phase==='ready'&&g.ck) resumeCk(g); return; }
+  if(a==='descend'){ if(g.phase==='floor') nextFloor(g); return; }
   if(a==='choice') return choose(g,+v);
   if(a==='act') return combatAct(g,v);
   if(a==='item') return useItem(g,v);
@@ -248,7 +251,7 @@ async function travel(g,n){
 }
 async function roomGate(g,n){
   var T=NT[n.type].name, hard=n.type==='boss'||n.type==='miniboss';
-  var r=await gate({title:'Room '+n.c+' of '+(COLS-1)+' · '+T,sub:hard?'A powerful foe waits ahead. Each correct answer sharpens your blade and your luck for this fight.':'Each correct answer gives +1 to every roll and +1 damage in this room. A perfect score also heals you.',count:2,label:'ROOM CHECKPOINT'});
+  var r=await gate({title:'Floor '+(g.floor+1)+'/'+NFLOOR+' · Room '+n.c+' of '+FLR+' · '+T,sub:hard?'A powerful foe waits ahead. Each correct answer sharpens your blade and your luck for this fight.':'Each correct answer gives +1 to every roll and +1 damage in this room. A perfect score also heals you.',count:2,label:'ROOM CHECKPOINT'});
   if(!(state.games&&state.games.ex===g)||g.phase==='over'||g.phase==='win') return false;
   if(r.skipped){ return true; }
   g.studyOk+=r.correct; g.studyTotal+=r.total; g.roomBonus=r.correct;
@@ -271,10 +274,10 @@ function enter(g,n){
   bar(g);
 }
 function pickMon(g,type){
-  var c=g.cur.c, tier=c<=4?0:c<=9?1:2;
-  if(type==='miniboss'){ var mb=MINI[c>=10?2:1]; return {n:mb.n,i:mb.i,hp:mb.hp,max:mb.hp,atk:mb.atk,type:'miniboss',boss:false,mini:true,intent:null,guard:false}; }
-  var base=type==='boss'?BOSS:type==='elite'?ELITE[(Math.random()*ELITE.length)|0]:MON[tier][(Math.random()*3)|0], sc=1+.05*c;
-  return {n:base.n,i:base.i,hp:Math.round(base.hp*(type==='boss'?1:sc)),max:Math.round(base.hp*(type==='boss'?1:sc)),atk:base.atk+(type==='boss'?0:Math.floor(c/4)),type:type,boss:!!base.boss,intent:null,guard:false};
+  var c=gdepth(g), fl=g.floor, tier=c<=30?0:c<=60?1:2;
+  if(type==='miniboss'){ var mb=MINI[fl>=3?2:1], mh=Math.round(mb.hp*(1+.08*fl)); return {n:mb.n,i:mb.i,hp:mh,max:mh,atk:mb.atk+Math.floor(fl/2),type:'miniboss',boss:false,mini:true,intent:null,guard:false}; }
+  var base=type==='boss'?BOSS:type==='elite'?ELITE[(Math.random()*ELITE.length)|0]:MON[tier][(Math.random()*3)|0], sc=1+.012*c, bs=type==='boss'?1+.1*fl:sc, bn=type==='boss'?BOSSN[fl]:null, bhp=Math.round(base.hp*bs);
+  return {n:bn?bn[0]:base.n,i:bn?bn[1]:base.i,hp:bhp,max:bhp,atk:base.atk+(type==='boss'?fl:Math.floor(c/16)),type:type,boss:!!base.boss,intent:null,guard:false};
 }
 function mimic(g){ return {n:'Mimic',i:'👾',hp:16,max:16,atk:5,type:'monster',intent:null}; }
 function ogre(g){ return {n:'Ogre',i:'👹',hp:20,max:20,atk:5,type:'monster',intent:null}; }
@@ -298,10 +301,29 @@ function resolveChoice(g,c,out,ok,res){
   showOv(g); bar(g);
   if(res) { var d=g.dice; var el=g.ov.querySelector('.ex-card'); if(el&&d){ var dv=document.createElement('div'); dv.id='ex-dice'; dv.className='ex-dice'; dv.innerHTML=diceHtml(d); el.insertBefore(dv,el.querySelector('.ex-outcome')); } }
 }
+var CKF=['hp','maxHp','torch','maxTorch','gold','relics','items','mods','dmg','steps','kills','score','studyOk','studyTotal'];
+function saveCk(g){
+  try{ var gp=arcadeGameProgress(); gp.expedition=gp.expedition||{}; var o={floor:g.floor}; CKF.forEach(function(k){ o[k]=JSON.parse(JSON.stringify(g[k]==null?0:g[k])); }); gp.expedition.checkpoint=o; g.ck=o; persistProgress(); }catch(e){}
+}
+function loadCk(g){
+  try{ var c=(arcadeGameProgress().expedition||{}).checkpoint; if(c&&typeof c.floor==='number'&&c.floor>=1&&c.floor<NFLOOR&&c.maxHp>0&&Array.isArray(c.relics)&&Array.isArray(c.items)&&c.mods) g.ck=c; }catch(e){}
+}
+function openFloor(g,f){
+  g.floor=f; g.map=genMap(((g.seed+f*7919)|0)); g.cur=g.map[0][0]; g.cur.vis=true; g.tok={x:g.cur.x,y:g.cur.y}; g.col=0; g.hover=null; g.enc=null; g.roomBonus=0; g.busy=false; g.phase='map';
+  addLog(g,'Floor '+(f+1)+' of '+NFLOOR+': '+FLOORN[f]+'.'); floatText(g,g.tok.x,g.tok.y-40,'FLOOR '+(f+1),'#e0d0ff'); sfx('good'); showOv(g); bar(g);
+}
+function floorClear(g){
+  g.phase='floor'; g.enc=null; g.hp=Math.min(g.maxHp,g.hp+Math.round(g.maxHp*.4)); g.torch=Math.max(g.torch,g.maxTorch);
+  var nf=g.floor; g.floor=nf+1; saveCk(g); g.floor=nf; showOv(g); bar(g);
+}
+function nextFloor(g){ openFloor(g,g.floor+1); }
+function resumeCk(g){
+  var c=g.ck; CKF.forEach(function(k){ g[k]=JSON.parse(JSON.stringify(c[k])); }); g.hp=Math.max(g.hp,Math.round(g.maxHp*.6)); g.torch=Math.max(g.torch,g.maxTorch); openFloor(g,c.floor);
+}
 function closeEnc(g){
   var e=g.enc; g.enc=null; g.dice=null; if(dead(g)) return;
   if(e&&e.res&&e.res.combat){ var m=e.res.combat==='mimic'?mimic(g):ogre(g); if(e.res.pre) m.hp=Math.max(1,m.hp-e.res.pre); startCombat(g,m,true); return; }
-  if(g.cur.type==='boss'&&e&&e.kind==='combat'&&e.won){ finish(g,true); return; }
+  if(g.cur.type==='boss'&&e&&e.kind==='combat'&&e.won){ if(g.floor<NFLOOR-1){ floorClear(g); } else finish(g,true); return; }
   showOv(g); bar(g);
 }
 function openTreasure(g){
@@ -354,8 +376,8 @@ async function combatAct(g,act){
 }
 function flashEl(root,sel){ if(!root) return; var x=root.querySelector(sel); if(!x) return; x.classList.remove('hit'); void x.offsetWidth; x.classList.add('hit'); }
 function winCombat(g){
-  var e=g.enc, m=e.m; e.won=true; g.kills++; var loot=m.boss?80:m.mini?50:m.type==='elite'?30+((Math.random()*10)|0):8+((Math.random()*8)|0)+g.cur.c; var fx={gold:loot}; if(m.type==='elite'||m.mini) fx.relic=1; if(m.mini) fx.hp=Math.round(g.maxHp*.3); else if(Math.random()<.3) fx.item=['potion','torch','bomb'][(Math.random()*3)|0];
-  var sum=fxSummary(g,fx); sfx('win'); addLog(g,'Defeated '+m.n+'.'); e.log.push(m.n+' is defeated!'); e.res={text:m.boss?'The Warden crumbles — the treasure vault lies open!':m.mini?m.n+' falls! You catch your breath and take its prize.':'Victory!',sum:sum,ok:true}; g.busy=false; showOv(g); bar(g);
+  var e=g.enc, m=e.m; e.won=true; g.kills++; var loot=m.boss?80+10*g.floor:m.mini?50:m.type==='elite'?30+((Math.random()*10)|0):8+((Math.random()*8)|0)+Math.round(g.cur.c*(1+.1*g.floor)); var fx={gold:loot}; if(m.type==='elite'||m.mini) fx.relic=1; if(m.mini) fx.hp=Math.round(g.maxHp*.3); else if(Math.random()<.3) fx.item=['potion','torch','bomb'][(Math.random()*3)|0];
+  var sum=fxSummary(g,fx); sfx('win'); addLog(g,'Defeated '+m.n+'.'); e.log.push(m.n+' is defeated!'); e.res={text:m.boss?(g.floor>=NFLOOR-1?'The Warden crumbles — the treasure vault lies open!':m.n+' falls — the stairs down are clear!'):m.mini?m.n+' falls! You catch your breath and take its prize.':'Victory!',sum:sum,ok:true}; g.busy=false; showOv(g); bar(g);
 }
 function useItem(g,k){
   var idx=g.items.indexOf(k); if(idx<0||g.busy) return; var e=g.enc, inFight=e&&e.kind==='combat'&&!e.won;
@@ -367,7 +389,7 @@ function useItem(g,k){
 }
 function finish(g,win){
   if(g.phase==='over'||g.phase==='win') return; g.phase=win?'win':'over'; g.enc=null; sfx(win?'win':'lose');
-  var depth=g.cur.c; g.score=g.gold+depth*20+(g.studyOk||0)*10+g.relics.length*15+g.kills*5+(win?150:0)+Math.max(0,g.hp)*2; var gp=arcadeGameProgress(); gp.expedition=gp.expedition||{}; var s=gp.expedition;
+  var depth=gdepth(g); if(win){ try{ delete arcadeGameProgress().expedition.checkpoint; }catch(e){} } g.score=g.gold+depth*20+(g.studyOk||0)*10+g.relics.length*15+g.kills*5+(win?150:0)+Math.max(0,g.hp)*2; var gp=arcadeGameProgress(); gp.expedition=gp.expedition||{}; var s=gp.expedition;
   g.newBest=g.score>(Number(s.best)||0); s.best=Math.max(Number(s.best)||0,g.score); s.runs=(Number(s.runs)||0)+1; s.clears=(Number(s.clears)||0)+(win?1:0); s.bestDepth=Math.max(Number(s.bestDepth)||0,depth); s.kills=(Number(s.kills)||0)+g.kills;
   try{ persistProgress(); }catch(e){} if(win){ try{ celebrate(); }catch(e){} }
   setTimeout(function(){ if(state.games&&state.games.ex===g){ showOv(g); bar(g); } },win?700:900);
@@ -378,10 +400,12 @@ function chip(g,c){ var out=''; if(c.s){ var p=Math.round(chance(g,c.s,c.dc)*100
 function showOv(g){
   var o=g.ov; if(!o) return; var h='', e=g.enc;
   if(g.phase==='ready'){
-    h='<div class="gx-card wide"><h2>🗺️ Expedition Dash</h2><p>Descend through a branching dungeon of <b>'+(COLS-1)+'</b> rooms, beat two mini-bosses and defeat <b>The Warden</b> in the final chamber.</p><ul class="gx-keys"><li>📚 <b>Study checkpoints:</b> answer 2 questions before every room. Correct answers boost your rolls and damage there; wrong answers burn torch.</li><li>🎲 <b>Stat checks:</b> roll a d20 + your stat against a difficulty. Choices show your odds.</li><li>🕯️ <b>Torch:</b> every move burns it. In the dark you bleed HP — rest at 🔥 campfires.</li><li>⚔️ <b>Combat:</b> enemies telegraph their next move — Guard vs heavy hits, Strike when they defend not.</li><li>💰 Shops, relics and consumables help. <kbd>F</kbd> fullscreen · <kbd>1–3</kbd> pick a choice</li></ul><p class="gx-stats">❤️ '+g.maxHp+' · 💪 '+g.mods.power+' · ⚡ '+g.mods.speed+' · 🍀 '+g.mods.luck+' · 🧠 '+g.mods.wits+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-ex="start">Enter the dungeon</button><button class="btn btn-ghost" data-ex-fs type="button">⛶ Fullscreen</button></div></div>';
+    h='<div class="gx-card wide"><h2>🗺️ Expedition Dash</h2><p>Descend through <b>'+NFLOOR+' floors</b> of a branching dungeon (<b>'+TOTAL+'</b> rooms in all). Each floor ends with a guardian and a saved checkpoint, and the monsters grow tougher as you go. Defeat <b>The Warden</b> on the last floor.</p>'+(g.ck?'<p class="gx-fine">💾 Checkpoint saved: Floor '+(g.ck.floor+1)+' of '+NFLOOR+'.</p>':'')+'<ul class="gx-keys"><li>📚 <b>Study checkpoints:</b> answer 2 questions before every room. Correct answers boost your rolls and damage there; wrong answers burn torch.</li><li>🎲 <b>Stat checks:</b> roll a d20 + your stat against a difficulty. Choices show your odds.</li><li>🕯️ <b>Torch:</b> every move burns it. In the dark you bleed HP — rest at 🔥 campfires.</li><li>⚔️ <b>Combat:</b> enemies telegraph their next move — Guard vs heavy hits, Strike when they defend not.</li><li>💰 Shops, relics and consumables help. <kbd>F</kbd> fullscreen · <kbd>1–3</kbd> pick a choice</li></ul><p class="gx-stats">❤️ '+g.maxHp+' · 💪 '+g.mods.power+' · ⚡ '+g.mods.speed+' · 🍀 '+g.mods.luck+' · 🧠 '+g.mods.wits+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-ex="start">'+(g.ck?'New expedition':'Enter the dungeon')+'</button>'+(g.ck?'<button class="btn btn-ghost btn-lg" data-ex="resume">Continue from Floor '+(g.ck.floor+1)+'</button>':'')+'<button class="btn btn-ghost" data-ex-fs type="button">⛶ Fullscreen</button></div></div>';
   } else if(g.phase==='win'||g.phase==='over'){
     var ep=arcadeGameProgress().expedition||{};
-    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Dungeon conquered!':'💀 Your expedition ends')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.cur.c+'/'+(COLS-1)+'</b><span>Depth</span></div><div><b>'+g.kills+'</b><span>Foes slain</span></div><div><b>'+g.gold+'🪙</b><span>Gold</span></div></div>'+studyHtml()+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(ep.best||0)+'</p>')+'<div class="ex-relics">'+g.relics.map(function(k){ return '<span title="'+RELICS[k].name+' — '+RELICS[k].d+'">'+RELICS[k].icon+'</span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-exp-replay">New expedition</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Dungeon conquered!':'💀 Your expedition ends')+'</h2><div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+gdepth(g)+'/'+TOTAL+'</b><span>Depth</span></div><div><b>'+g.kills+'</b><span>Foes slain</span></div><div><b>'+g.gold+'🪙</b><span>Gold</span></div></div>'+studyHtml()+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(ep.best||0)+'</p>')+'<div class="ex-relics">'+g.relics.map(function(k){ return '<span title="'+RELICS[k].name+' — '+RELICS[k].d+'">'+RELICS[k].icon+'</span>'; }).join('')+'</div><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-exp-replay">New expedition</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+  } else if(g.phase==='floor'){
+    h='<div class="gx-card wide"><h2>🏁 Floor '+(g.floor+1)+' cleared!</h2><p>'+esc2(BOSSN[g.floor][0])+' is down. 💾 Checkpoint saved. The next floor, <b>'+esc2(FLOORN[g.floor+1])+'</b>, is darker and more dangerous. You rest by the stairs: +40% HP and a refilled torch.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-ex="descend">Descend to Floor '+(g.floor+2)+' of '+NFLOOR+'</button></div></div>';
   } else if(e){
     if(e.kind==='event'){
       h='<div class="gx-card wide ex-card"><div class="ex-icon">'+e.ev.i+'</div><h2>'+esc2(e.ev.t)+'</h2><p>'+esc2(e.ev.x)+'</p>'+(e.res?outcome(g,e.res):'<div class="ex-choices">'+e.ev.c.map(function(c,i){ var dis=c.need&&((c.need.gold&&g.gold<c.need.gold)||(c.need.torch&&g.torch<c.need.torch)); return '<button type="button" class="ex-choice" data-ex="choice" data-v="'+i+'" data-key="'+(i+1)+'" '+(dis?'disabled':'')+'><kbd>'+(i+1)+'</kbd><span>'+esc2(c.l)+'</span>'+chip(g,c)+'</button>'; }).join('')+'</div>')+'</div>';
@@ -455,7 +479,7 @@ function hud(g,c){
   c.fillStyle='rgba(0,0,0,.6)'; c.fillRect(20,20,160,12); c.fillStyle=g.hp/g.maxHp>.3?'#6bff9a':'#ff5a6a'; c.fillRect(20,20,160*clamp(g.hp/g.maxHp,0,1),12); T('❤ '+Math.max(0,g.hp)+'/'+g.maxHp,24,31,11,'#fff');
   var fl=''; for(var i=0;i<Math.min(g.torch,15);i++) fl+='🕯'; T(g.torch>0?'🕯️ '+g.torch:'🕯️ DARK!',20,56,15,g.torch>3?'#ffd878':'#ff7a6a'); T('🪙 '+g.gold,100,56,15,'#ffe08a');
   T('⚔ '+dmgOut(g),190,56,14,'#ffb0b0');
-  T('Depth '+(g.cur.c)+'/'+(COLS-1),LW-110,30,16,'#e0d0ff','right'); T('Room '+g.steps,LW-110,50,12,'#a898d8','right'); if(g.roomBonus) T('📚 +'+g.roomBonus+' study bonus',LW-110,68,12,'#7dffa8','right');
+  T('Floor '+(g.floor+1)+'/'+NFLOOR+' · Room '+g.cur.c+'/'+FLR,LW-20,30,16,'#e0d0ff','right'); T('Depth '+gdepth(g)+'/'+TOTAL+' · '+g.steps+' moves',LW-20,50,12,'#a898d8','right'); c.fillStyle='rgba(0,0,0,.55)'; c.fillRect(LW-220,56,200,6); c.fillStyle='#b08cff'; c.fillRect(LW-220,56,200*clamp(gdepth(g)/TOTAL,0,1),6); for(var fi=1;fi<NFLOOR;fi++){ c.fillStyle='rgba(255,255,255,.6)'; c.fillRect(LW-220+200*fi/NFLOOR-1,54,2,10); } if(g.roomBonus) T('📚 +'+g.roomBonus+' study bonus',LW-20,80,12,'#7dffa8','right');
   if(g.phase==='map'&&!g.enc) T('Choose your next room — click a glowing node',LW/2,LH-16,15,'#ffe9a8','center');
   var ly=94; g.log.slice(0,4).forEach(function(l,i){ c.globalAlpha=1-i*.22; T(l,16,ly,12,'#d8ccf5'); ly+=16; }); c.globalAlpha=1;
 }

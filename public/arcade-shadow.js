@@ -10,11 +10,12 @@ function $(id){ return document.getElementById(id); }
 function mulberry(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; var t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return((t^t>>>14)>>>0)/4294967296; }; }
 function sleep(ms){ return new Promise(function(r){ setTimeout(r,ms); }); }
 var DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
-var MATCHES=3, carry=null;
+var MATCHES=18, OLDM=3, OLDF=6, carry=null; /* one floor = 18 matches = the 6 former floors. A save is written after every match. */
+function eq(f,m){ return {of:(f-1)*OLDF+Math.ceil(m/OLDM), mo:((m-1)%OLDM)+1}; }
 function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
 function studyHtml(){ try{ return (window.GameStudy&&GameStudy.summaryHtml())||''; }catch(e){ return ''; } }
-function isBoss(f,m){ return f%3===0&&m===MATCHES; }
-try{ (ARCADE_MODES.filter(function(m){ return m.id==='shadow'; })[0]||{}).desc='Three clone matches per floor with a boss clone every 3rd floor. A study question round before every match powers you up, and your cleared floor is saved.'; }catch(e){}
+function isBoss(f,m){ var e=eq(f,m); return e.of%3===0&&e.mo===OLDM; }
+try{ (ARCADE_MODES.filter(function(m){ return m.id==='shadow'; })[0]||{}).desc='Each floor is a long gauntlet of 18 clone matches with boss clones at matches 9 and 18, getting harder as you go. A study question round before every match powers you up, and your progress is saved after every match.'; }catch(e){}
 
 /* ------------------------------ abilities ------------------------------ */
 var AB=[
@@ -86,8 +87,8 @@ function genMap(f,spawnsN,sd){
   var t2=[]; for(var yy=0;yy<ROWS;yy++){ t2.push([]); for(var xx=0;xx<COLS;xx++) t2[yy].push(0); } return {t:t2,spawns:[{x:3,y:0},{x:4,y:0},{x:2,y:0},{x:5,y:0}].slice(0,spawnsN)};
 }
 function composition(f,m){
-  var st=(f-1)*MATCHES+m, r=mulberry(st*31+7), list=[];
-  if(isBoss(f,m)){ list.push('boss'); if(f>=6) list.push('shade'); if(f>=9) list.push('archer'); return list; }
+  var q=eq(f,m), st=(q.of-1)*OLDM+q.mo, of=q.of, r=mulberry(st*31+7), list=[];
+  if(isBoss(f,m)){ list.push('boss'); if(of>=6) list.push('shade'); if(of>=9) list.push('archer'); return list; }
   var n=Math.min(4,1+Math.floor((st-1)/4)), pool=['shade']; if(st>=3) pool.push('archer'); if(st>=6) pool.push('brute'); if(st>=8) pool.push('wisp');
   list.push(st===1?'shade':pool[(r()*pool.length)|0]); while(list.length<n) list.push(pool[(r()*pool.length)|0]);
   if(st>=2&&list.indexOf('shade')<0&&list.length>1) list[0]='shade';
@@ -98,18 +99,22 @@ function composition(f,m){
 var uidN=0;
 window.arcadeShadowStart=function(){
   var gp=arcadeGameProgress(); gp.shadow=gp.shadow||{floor:1}; var f=Math.max(1,Number(gp.shadow.floor)||1), s=arcadeCharacterStats();
+  if(!gp.shadow.lv2){ /* migrate saves from the old 3-match floors: 6 old floors = 1 new floor */
+    var of0=f, om0=clamp(Number(gp.shadow.match)||1,1,OLDM); if(Number(gp.shadow.matchFloor)&&Number(gp.shadow.matchFloor)!==of0) om0=1;
+    f=Math.ceil(of0/OLDF); gp.shadow.floor=f; gp.shadow.match=((of0-1)%OLDF)*OLDM+om0; gp.shadow.matchFloor=f; gp.shadow.bestFloor=Math.ceil((Number(gp.shadow.bestFloor)||0)/OLDF); gp.shadow.lv2=1; try{ persistProgress(); }catch(e){}
+  }
   var m=clamp(Number(gp.shadow.match)||1,1,MATCHES); if(Number(gp.shadow.matchFloor)&&Number(gp.shadow.matchFloor)!==f) m=1;
-  var st=(f-1)*MATCHES+m, lv=.07*(f-1)+.025*(m-1);
-  var comp=composition(f,m), map=genMap(f+(m-1)/3,comp.length,st);
-  var vet=Math.floor(f/4);
-  var g={floor:f,match:m,boss:isBoss(f,m),t:map.t,phase:'ready',turn:1,busy:false,sel:'move',s:s,
-    maxHp:10+s.vitality*2+Math.floor(f/3)*2, energyMax:3+(s.speed>=3?1:0), power:2+Math.max(0,Math.round(s.power))-1+vet, crit:.08+(s.luck||0)*.03,
+  var q=eq(f,m), of=q.of, st=(of-1)*OLDM+q.mo, lv=.07*(of-1)+.025*(q.mo-1);
+  var comp=composition(f,m), map=genMap(of+(q.mo-1)/3,comp.length,st);
+  var vet=Math.floor(of/4);
+  var g={floor:f,match:m,of:of,boss:isBoss(f,m),t:map.t,phase:'ready',turn:1,busy:false,sel:'move',s:s,
+    maxHp:10+s.vitality*2+Math.floor(of/3)*2, energyMax:3+(s.speed>=3?1:0), power:2+Math.max(0,Math.round(s.power))-1+vet, crit:.08+(s.luck||0)*.03,
     shield:0,empower:0,kills:0,log:[],fx:[],texts:[],parts:[],shake:0,flash:0,hover:null,time:0,banner:'',bannerT:0,dmgTaken:0,
     cdBar:'',enemies:[],studyOk:0,studyTotal:0};
   g.hp=(carry&&carry.floor===f&&carry.match===m)?clamp(carry.hp,1,g.maxHp):g.maxHp; g.energy=g.energyMax;
   g.p={id:'p',type:'p',x:3,y:ROWS-1,vx:3,vy:ROWS-1,hp:g.hp,flash:0,bump:null};
   comp.forEach(function(type,i){ var D=ENEMY[type], sc=1+lv, sp=map.spawns[i];
-    var hp=Math.round(D.hp*sc*(type==='boss'?1+f*.04:1)); g.enemies.push({id:'e'+(++uidN),type:type,x:sp.x,y:sp.y,vx:sp.x,vy:sp.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(st/8),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); });
+    var hp=Math.round(D.hp*sc*(type==='boss'?1+of*.04:1)); g.enemies.push({id:'e'+(++uidN),type:type,x:sp.x,y:sp.y,vx:sp.x,vy:sp.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(st/8),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); });
   state.games={active:'shadow',keys:{},sh:g};
   log(g,'Floor '+f+' · match '+m+'/'+MATCHES+' — '+comp.length+' enem'+(comp.length>1?'ies':'y')+' ahead.');
 };
@@ -322,7 +327,7 @@ async function enemyAct(g,e){
   /* shade clone & boss */
   if(e.type==='boss'){
     if(e.age%3===0){ var spots=[]; DIRS.forEach(function(d){ var nx=e.x+d[0], ny=e.y+d[1]; if(emptyTile(g,nx,ny)&&g.t[ny][nx]!==2) spots.push({x:nx,y:ny}); });
-      if(spots.length&&alive(g).length<5){ var s=spots[(Math.random()*spots.length)|0], D=ENEMY.shade, hp=Math.round(D.hp*(1+.09*(g.floor-1))); g.enemies.push({id:'e'+(++uidN),type:'shade',x:s.x,y:s.y,vx:s.x,vy:s.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(g.floor/4),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); parts(g,cx(s.x),cy(s.y),20,'#ff4aa0',180); sfx('step'); log(g,'Your Shadow summons a clone!'); await sleep(450); return; } }
+      if(spots.length&&alive(g).length<5){ var s=spots[(Math.random()*spots.length)|0], D=ENEMY.shade, hp=Math.round(D.hp*(1+.09*(g.of-1))); g.enemies.push({id:'e'+(++uidN),type:'shade',x:s.x,y:s.y,vx:s.x,vy:s.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(g.of/4),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); parts(g,cx(s.x),cy(s.y),20,'#ff4aa0',180); sfx('step'); log(g,'Your Shadow summons a clone!'); await sleep(450); return; } }
     var T2=dist(e,p)>2&&aligned(g,e,4); if(T2){ sfx('bolt'); g.fx.push({k:'bolt',x1:cx(e.x),y1:cy(e.y),x2:cx(p.x),y2:cy(p.y),l:.25,m:.25,c:'#ff4aa0'}); await sleep(200); hurtUnit(g,p,e.dmg,{}); log(g,'Your Shadow fires a bolt for '+e.dmg+'.'); await sleep(260); return; }
   }
   if(dist(e,p)>1) await moveEnemy(g,e,meleeStep(g,e,ENEMY[e.type].move)); if(!e.dead&&dist(e,p)===1) await enemyHit(g,e,p,e.dmg);
@@ -446,6 +451,8 @@ function hud(g,c){
   c.setTransform(g.sc*g.dpr,0,0,g.sc*g.dpr,g.ox*g.dpr,g.oy*g.dpr); c.textBaseline='alphabetic';
   function T(s,x,y,sz,col,al){ c.textAlign=al||'left'; c.font='900 '+sz+'px Inter,sans-serif'; c.lineWidth=4; c.strokeStyle='rgba(0,0,0,.7)'; c.strokeText(s,x,y); c.fillStyle=col||'#fff'; c.fillText(s,x,y); }
   T('FLOOR '+g.floor+' · MATCH '+g.match+'/'+MATCHES+(g.boss?' · BOSS':''),16,28,20,'#e0d0ff'); T('Turn '+g.turn,16,48,13,'#a898d8');
+  (function(){ var bx=250, bw=500, by=12, n=MATCHES; c.fillStyle='rgba(0,0,0,.55)'; c.fillRect(bx-3,by-3,bw+6,12); for(var i=0;i<n;i++){ var done=i<g.match-1, cur=i===g.match-1, bs=isBoss(g.floor,i+1); c.fillStyle=cur?'#ffd24a':done?'#7dffa8':bs?'rgba(255,74,160,.55)':'rgba(255,255,255,.16)'; c.fillRect(bx+i*bw/n+1,by,bw/n-2,6); }
+    c.textAlign='center'; c.font='800 10px Inter,sans-serif'; c.fillStyle='#b9a8e8'; c.fillText('ZONE '+Math.ceil(g.match/OLDM)+'/'+(MATCHES/OLDM)+' · '+(g.match-1)+'/'+n+' matches cleared · saved after every match',bx+bw/2,by+20); })();
   /* hp + energy */
   var hx=16, hy=LH-40; c.fillStyle='rgba(0,0,0,.55)'; c.beginPath(); rr(c,hx-6,hy-22,170,50,10); c.fill();
   c.fillStyle='rgba(0,0,0,.6)'; c.fillRect(hx,hy-14,150,12); c.fillStyle='#6bff9a'; c.fillRect(hx,hy-14,150*clamp(g.hp/g.maxHp,0,1),12); T('❤ '+Math.max(0,g.hp)+'/'+g.maxHp,hx+4,hy-4,11,'#fff');
