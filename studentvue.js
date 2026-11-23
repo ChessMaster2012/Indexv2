@@ -299,6 +299,7 @@ async function probe(base, user, pass) {
 
 function mount(app, opts) {
   const need = opts.requireUser;
+  const creds = opts.creds || null;
   const hits = new Map();   // per-account throttle so a wrong password can never lock someone out by hammering
   function throttle(req, res) {
     const key = req.user ? req.user.id : req.ip, now = Date.now(), list = (hits.get(key) || []).filter(t => now - t < 60000);
@@ -368,6 +369,28 @@ function mount(app, opts) {
     } catch (e) { fail(res, e); }
   });
 
+  /* Optional "keep me connected": the server keeps the login encrypted (see creds in server.js) so grades load fresh without typing the password. */
+  app.post('/api/studentvue/remember', need, async (req, res) => {
+    if (!creds) return res.status(503).json({ error: 'Not available.' });
+    const b = req.body || {}, base = normalizeBase(String(b.url || '')), user = String(b.username || '').trim().slice(0, 80), pass = String(b.password || '').slice(0, 200);
+    if (!base || !user || !pass) return res.status(400).json({ error: 'Missing login.' });
+    try { await creds.save(req, { url: String(b.url).slice(0, 200), user, pass }); res.json({ ok: true }); } catch (e) { res.status(503).json({ error: 'Could not save. Try again.' }); }
+  });
+  app.delete('/api/studentvue/remember', need, async (req, res) => { try { if (creds) await creds.clear(req); } catch (e) { } res.json({ ok: true }); });
+  app.post('/api/studentvue/auto', need, async (req, res) => {
+    if (!creds) return res.json({ ok: false, none: true });
+    if (!throttle(req, res)) return;
+    let c; try { c = await creds.load(req); } catch (e) { c = null; }
+    if (!c) return res.json({ ok: false, none: true });
+    const base = normalizeBase(String(c.url || '')); if (!base) return res.json({ ok: false, none: true });
+    const b = req.body || {}, period = Number.isInteger(Number(b.period)) && b.period !== '' && b.period != null ? Math.max(0, Math.min(20, Number(b.period))) : null;
+    try {
+      const data = await runGradebook(base, c.user, c.pass, period);
+      res.set('Cache-Control', 'no-store');
+      res.json({ ok: true, fetchedAt: Date.now(), district: base.host, url: c.url, user: c.user, ...data });
+    } catch (e) { fail(res, e); }
+  });
+
   app.post('/api/studentvue/gradebook', need, async (req, res) => {
     if (!throttle(req, res)) return;
     const b = req.body || {};
@@ -377,12 +400,15 @@ function mount(app, opts) {
     if (!user || !pass) return res.status(400).json({ error: 'Enter your Student ID and StudentVUE password.' });
     const period = Number.isInteger(Number(b.period)) && b.period !== '' && b.period != null ? Math.max(0, Math.min(20, Number(b.period))) : null;
     try {
-      const data = TEST_HOSTS.has(base.host) && !process.env.SV_TEST_MOBILE
-        ? parseGradebook(await soap(base, '/Service/PXPCommunication.asmx', 'PXPWebServices', 'Gradebook', '<Parms>' + (period != null ? '<ReportPeriod>' + period + '</ReportPeriod>' : '') + '</Parms>', { user, pass }))
-        : await mobileGradebook(base, user, pass, period);
+      const data = await runGradebook(base, user, pass, period);
       res.set('Cache-Control', 'no-store');
       res.json({ ok: true, fetchedAt: Date.now(), district: base.host, ...data });
     } catch (e) { fail(res, e); }
   });
 }
-module.exports = { mount, parseGradebook, normalizeBase, probe, mobileProbe };
+async function runGradebook(base, user, pass, period) {
+  return TEST_HOSTS.has(base.host) && !process.env.SV_TEST_MOBILE
+        ? parseGradebook(await soap(base, '/Service/PXPCommunication.asmx', 'PXPWebServices', 'Gradebook', '<Parms>' + (period != null ? '<ReportPeriod>' + period + '</ReportPeriod>' : '') + '</Parms>', { user, pass }))
+        : await mobileGradebook(base, user, pass, period);
+}
+module.exports = { runGradebook, mount, parseGradebook, normalizeBase, probe, mobileProbe };

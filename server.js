@@ -2904,6 +2904,7 @@ function sanitizeAccountState(input){
     credits: sanitizeCredits(src.credits),
     adminGrants: sanitizeAdminGrants(src.adminGrants),
     spins: sanitizeSpins(src.spins),
+    svCred: (src.svCred && typeof src.svCred === 'object') ? src.svCred : undefined,
     security: sanitizeSecurity(src.security),
     tutorChats: sanitizeTutorChats(src.tutorChats),
     tutorChatsAt: Math.max(0, Math.min(Date.now()+86400000, Number(src.tutorChatsAt)||0)),
@@ -3371,7 +3372,17 @@ app.post('/api/billing/webhook',async(req,res)=>{
   }
 });
 
-require('./studentvue').mount(app,{requireUser:(req,res,next)=>req.user?next():res.status(401).json({error:'Sign in to Index first.'})});
+/* Optional saved StudentVUE login ("keep me connected"). AES-256-GCM, key from GRADES_KEY (or a key file when unset), stored per account in accountData.svCred. */
+const GRADES_KEY=(()=>{ const e=String(process.env.GRADES_KEY||''); if(e.length>=16) return crypto.createHash('sha256').update(e).digest();
+  try{ const f=require('path').join(DATA_DIR,'grades.key'); if(fs.existsSync(f)) return Buffer.from(fs.readFileSync(f,'utf8').trim(),'hex'); const k=crypto.randomBytes(32); fs.mkdirSync(DATA_DIR,{recursive:true}); fs.writeFileSync(f,k.toString('hex'),{mode:0o600}); return k; }catch(x){ return null; } })();
+const svEnc=o=>{ const iv=crypto.randomBytes(12), c=crypto.createCipheriv('aes-256-gcm',GRADES_KEY,iv), ct=Buffer.concat([c.update(JSON.stringify(o),'utf8'),c.final()]); return {v:1,iv:iv.toString('base64'),tag:c.getAuthTag().toString('base64'),ct:ct.toString('base64')}; };
+const svDec=r=>{ try{ const d=crypto.createDecipheriv('aes-256-gcm',GRADES_KEY,Buffer.from(r.iv,'base64')); d.setAuthTag(Buffer.from(r.tag,'base64')); return JSON.parse(Buffer.concat([d.update(Buffer.from(r.ct,'base64')),d.final()]).toString('utf8')); }catch(e){ return null; } };
+const svCreds={
+  async save(req,o){ if(!GRADES_KEY) throw new Error('nokey'); await withGrantLock(req.user.id,async()=>{ await refreshAccountUserWithState(req); const u=req.user; if(!u.accountData) u.accountData={}; u.accountData.svCred=svEnc(o); await adminSaveUser(u); }); },
+  async clear(req){ await withGrantLock(req.user.id,async()=>{ await refreshAccountUserWithState(req); const u=req.user; if(u.accountData&&u.accountData.svCred){ delete u.accountData.svCred; await adminSaveUser(u); } }); },
+  async load(req){ if(!GRADES_KEY) return null; await refreshAccountUserWithState(req); const r=req.user.accountData&&req.user.accountData.svCred; return r?svDec(r):null; }
+};
+require('./studentvue').mount(app,{creds:svCreds,requireUser:(req,res,next)=>req.user?next():res.status(401).json({error:'Sign in to Index first.'})});
 
 /* ============================ ANTI-CHEAT + BANS ============================ */
 const SECURITY_LOG = [];
@@ -3714,7 +3725,7 @@ app.get('/api/account/state', async (req,res)=>{
       if (row) req.user = dbRowToUser(row);
       usersById.set(req.user.id, req.user);
     }
-    res.json({ok:true, state:req.user.accountData || null, owner:isOwnerUser(req.user), storage:SUPABASE_ENABLED?'supabase':'server-file'});
+    { const st=req.user.accountData?Object.assign({},req.user.accountData):null; const kept=!!(st&&st.svCred); if(st) delete st.svCred; res.json({ok:true, state:st, svKept:kept, owner:isOwnerUser(req.user), storage:SUPABASE_ENABLED?'supabase':'server-file'}); }
   } catch(e) {
     res.status(503).json({error:'Your account database is temporarily unavailable. Try again.'});
   }
@@ -3856,6 +3867,7 @@ app.put('/api/account/state', async (req,res)=>{
     // Admin grants are server-owned: a browser snapshot cannot add or erase them.
     mergedAccountState.adminGrants = existingAccountState.adminGrants;
     mergedAccountState.spins = existingAccountState.spins;
+    mergedAccountState.svCred = existingAccountState.svCred;
     // Classrooms are server-owned: a browser snapshot can never add, edit or erase them.
     mergedAccountState.classroom = existingAccountState.classroom;
     req.user.accountData = sanitizeAccountState(mergedAccountState);

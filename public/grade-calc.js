@@ -53,16 +53,18 @@ function fmt(p){ return p==null?'–':(Math.round(p*100)/100).toFixed(p%1===0?0:
 function changed(ci){ var k=ckey(ci); return Object.keys(S.edits[k]||{}).length>0||(S.added[k]||[]).length>0; }
 
 /* ---------- network ---------- */
+function keepOn(){ try{ var el=$('#gc-keep'); if(el) return !!el.checked; }catch(e){} return localStorage.getItem('index-grades-keep')!=='0'; }
 function post(path,body){
   return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body)}).then(function(r){
     return r.json().catch(function(){return {};}).then(function(d){ if(!r.ok) throw new Error(d.error||'Something went wrong.'); return d; });
   });
 }
 function connect(url,user,pass,period){
+  var keep=keepOn(); try{ localStorage.setItem('index-grades-keep',keep?'1':'0'); }catch(e){}
   S.busy=true; S.err=''; render();
   return post('/api/studentvue/gradebook',{url:url,username:user,password:pass,period:period==null?'':period}).then(function(d){
     var samePeriod=S.data&&S.data.period&&d.period&&S.data.period.name===d.period.name;
-    S.data=d; S.url=url; S.user=user; if(!samePeriod){ S.edits=S.edits; } S.open=(S.open>=0&&d.courses&&S.open<d.courses.length)?S.open:-1; S.needPass=null; save();
+    S.data=d; S.url=url; S.user=user; if(!samePeriod){ S.edits=S.edits; } S.open=(S.open>=0&&d.courses&&S.open<d.courses.length)?S.open:-1; S.needPass=null; save(); if(keep) post('/api/studentvue/remember',{url:url,username:user,password:pass}).catch(function(){});
   }).catch(function(e){ S.err=e.message; }).then(function(){ S.busy=false; render(); });
 }
 
@@ -82,6 +84,7 @@ function connectView(){
     '<label>StudentVUE address</label><input id="gc-url" type="text" placeholder="https://md-mcps-psv.edupoint.com" value="'+esc(S.url||'')+'" autocomplete="off">';
   return '<div class="gc-card gc-connect"><h3>Connect StudentVUE</h3><p class="gc-sub">Sign in once to pull in your classes and assignments. Then change any score to see what would happen to your grade.</p>'+where+
     '<div class="gc-row"><div><label>Student ID</label><input id="gc-user" type="text" value="'+esc(S.user||'')+'" autocomplete="off" inputmode="numeric" placeholder="6 or 8 digit ID"></div><div><label>StudentVUE password</label><input id="gc-pass" type="password" autocomplete="current-password"></div></div>'+
+    '<label class="gc-keep"><input type="checkbox" id="gc-keep" '+(localStorage.getItem('index-grades-keep')!=='0'?'checked':'')+'> Keep me connected so my grades load fresh every time I open this tab <span class="gc-muted">(your login is stored encrypted on the Index server; you can turn this off anytime with Disconnect)</span></label>'+
     (S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'')+
     '<div class="gc-actions"><button class="btn btn-primary" id="gc-go" type="button"'+(S.busy?' disabled':'')+'>'+(S.busy?'Signing in…':'Import my grades')+'</button> <button class="btn btn-ghost" id="gc-manual" type="button">Enter my grades by hand</button></div>'+privacy()+'</div>';
 }
@@ -100,7 +103,7 @@ function listView(){
     '<div class="gc-bar"><div><b>'+esc(per||'Current grading period')+'</b><span class="gc-muted"> · updated '+new Date(d.fetchedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span></div>'+
     '<div class="gc-bar-r">'+(opts?'<select id="gc-period" aria-label="Grading period">'+opts+'</select>':'')+'<button class="btn btn-ghost btn-sm" id="gc-refresh" type="button">'+ic('refresh-cw',14)+' Refresh</button><button class="btn btn-ghost btn-sm" id="gc-out" type="button">Disconnect</button></div></div>';
   return head+
-    (S.needPass?passForm():'')+
+    (S.auto?'<div class="gc-card"><b>Loading your latest grades…</b></div>':'')+(S.needPass?passForm():'')+
     '<div class="gc-sum"><div><span>Classes</span><b>'+d.courses.length+'</b></div><div><span>Average (projected)</span><b>'+fmt(avg)+'</b></div></div>'+
     (d.courses.length?'':'<div class="gc-card"><b>No classes yet.</b><p class="gc-sub">Press "Add a class" to start. Add each assignment with the score you got, then change scores to see what happens.</p></div>')+'<div class="gc-grid">'+d.courses.map(classCard).join('')+'</div>'+(S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'');
 }
@@ -110,16 +113,16 @@ function classForm(){
 }
 function passForm(){
   var n=S.needPass||{}, when=S.data&&S.data.fetchedAt?new Date(S.data.fetchedAt).toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'';
-  var sub=n.fresh?'Your saved grades from '+esc(when)+' are shown below. Enter your password to load the latest from StudentVUE. Grades are fetched fresh every time you open this tab, and your password is never saved.':'Your password is not saved, so StudentVUE needs it each time you refresh.';
+  var sub=n.fresh?'Sign in once to load the latest from StudentVUE'+(when?' (saved grades from '+esc(when)+' are shown below)':'')+'. Tick "Keep me connected" and this tab will load fresh grades by itself from now on.':'Your password is not saved, so StudentVUE needs it each time you refresh.';
   return '<form class="gc-card gc-pass" id="gc-passform" onsubmit="return false"><b>'+(n.label||'Sign in again')+'</b><p class="gc-sub">'+sub+'</p>'+
     '<input type="text" name="username" value="'+esc(S.user||'')+'" autocomplete="username" readonly hidden>'+
-    '<div class="gc-inline"><input id="gc-pass2" type="password" placeholder="StudentVUE password" autocomplete="current-password"><button class="btn btn-primary" id="gc-pass-go" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?'Loading…':(n.fresh?'Load fresh grades':'Continue'))+'</button><button class="btn btn-ghost" id="gc-pass-x" type="button">'+(n.fresh?'Keep saved':'Cancel')+'</button></div></form>';
+    '<div class="gc-inline"><input id="gc-pass2" type="password" placeholder="StudentVUE password" autocomplete="current-password"><button class="btn btn-primary" id="gc-pass-go" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?'Loading…':(n.fresh?'Load fresh grades':'Continue'))+'</button><button class="btn btn-ghost" id="gc-pass-x" type="button">'+(n.fresh?'Keep saved':'Cancel')+'</button></div>'+'<label class="gc-keep"><input type="checkbox" id="gc-keep" '+(localStorage.getItem('index-grades-keep')!=='0'?'checked':'')+'> Keep me connected so my grades load fresh every time I open this tab <span class="gc-muted">(your login is stored encrypted on the Index server; you can turn this off anytime with Disconnect)</span></label>'+'</form>';
 }
 function render(){
   var r=root(); if(!r) return;
   var inner;
   if(!state.account){ inner='<div class="gc-card"><h3>Sign in to use the grade calculator</h3><p class="gc-sub">The calculator keeps your imported grades with your Index account on this device.</p><button class="btn btn-primary" data-action="open-signin" type="button" id="gc-signin">Sign in</button></div>'; }
-  else if(!S.data) inner=connectView();
+  else if(!S.data) inner=S.auto?'<div class="gc-card"><b>Loading your grades…</b></div>':connectView();
   else if(S.open>=0&&S.data.courses[S.open]) inner=detailView(S.open);
   else inner=listView();
   var keep=document.activeElement&&document.activeElement.id;
@@ -154,7 +157,7 @@ function wire(){
       S.data.courses.push({title:nm,rawTitle:nm,period:'',room:'',teacher:'',mark:'',letter:'',percent:null,categories:cats,weighted:cats.length>1,assignments:[],totalPoints:null,manual:true});
       S.addingClass=false; S.open=S.data.courses.length-1; save(); render(); return;
     }
-    if(t.closest('#gc-out')){ if(confirm(S.data&&S.data.manual?'Remove all the classes you entered from this browser?':'Disconnect StudentVUE and remove the imported grades from this browser?')){ forget(); render(); } return; }
+    if(t.closest('#gc-out')){ if(confirm(S.data&&S.data.manual?'Remove all the classes you entered from this browser?':'Disconnect StudentVUE and remove the imported grades from this browser?')){ if(!(S.data&&S.data.manual)) fetch('/api/studentvue/remember',{method:'DELETE',credentials:'same-origin'}).catch(function(){}); forget(); render(); } return; }
     if(t.closest('#gc-refresh')){ S.needPass={label:'Refresh your grades'}; S.needPass.period=null; render(); return; }
     if(t.closest('#gc-pass-x')){ S.needPass=null; render(); return; }
     if(t.closest('#gc-pass-go')){ var p2=$('#gc-pass2').value; if(p2) connect(S.url,S.user,p2,S.needPass.period); return; }
@@ -211,11 +214,18 @@ function ensure(){
   wire(); return true;
 }
 /* Every time the Grades tab is opened, saved grades show instantly and a fresh load from StudentVUE is requested (the password is never stored). */
+function autoLoad(){
+  S.auto=true; S.err=''; render();
+  return post('/api/studentvue/auto',{period:null}).then(function(d){
+    if(d&&d.ok){ var keepEdits=S.edits, keepAdded=S.added; S.data=d; S.url=d.url||S.url; S.user=d.user||S.user; S.edits=keepEdits||{}; S.added=keepAdded||{}; S.needPass=null; S.open=(S.open>=0&&d.courses&&S.open<d.courses.length)?S.open:-1; save(); }
+    else if(S.data&&!S.data.manual&&S.url&&S.user) S.needPass={label:'Load your latest grades',fresh:true,period:null};
+  }).catch(function(e){ S.err=e.message; if(S.data&&!S.data.manual&&S.url&&S.user) S.needPass={label:'Sign in again to load your latest grades',fresh:true,period:null}; }).then(function(){ S.auto=false; render(); });
+}
 function onOpen(){
   ensure(); load();
-  if(S.data&&!S.data.manual&&S.url&&S.user&&!S.busy&&state.account) S.needPass={label:'Load your latest grades',fresh:true,period:null};
-  render();
-  setTimeout(function(){ var i=$('#gc-pass2'); if(i) try{ i.focus({preventScroll:true}); }catch(e){} },60);
+  if(!state.account||S.busy||S.auto) { render(); return; }
+  if(S.data&&S.data.manual){ render(); return; }
+  render(); autoLoad();
 }
 var lastView='';
 setInterval(function(){ var v=''; try{ v=state.view; }catch(e){} if(v==='grades'&&lastView!=='grades') onOpen(); lastView=v; },250);
