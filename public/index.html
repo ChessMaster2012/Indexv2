@@ -1795,7 +1795,7 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
     </section>
 
     <section class="view" id="view-studysets">
-      <div class="row"><div><h2 style="font-size:24px;font-weight:600;">Study sets</h2><p class="lede" style="margin-top:4px;">Build flashcards or a practice quiz from your notes, or straight from a topic.</p></div></div>
+      <div class="row"><div><h2 style="font-size:24px;font-weight:600;">Study sets</h2><p class="lede" style="margin-top:4px;">Build flashcards or a practice quiz from your notes, your own files (any format), or straight from a topic.</p></div></div>
       <div class="builder">
         <h3 style="font-size:15px;margin-bottom:14px;">Build a new set</h3>
         <div class="toggle-row" id="source-toggle"><button class="toggle-btn active" data-source="notes">From my notes</button><button class="toggle-btn" data-source="topic">From a topic</button></div>
@@ -4552,6 +4552,12 @@ async function generateStudySet(){
     if(picked.length===0){ statusEl.innerHTML = `<div class="error-note">Select at least one note to build from.</div>`; return; }
     sourceText = picked.map(n=>`${n.title}${n.topic?' ('+n.topic+')':''}: ${n.content}`).join('\n\n');
     topicLabel = picked.length===1 ? picked[0].title : `${picked.length} notes`;
+  }else if(source==='files'){
+    if(window.IXUpload&&IXUpload.busy()){ statusEl.innerHTML = `<div class="error-note">Still reading your files. One moment.</div>`; return; }
+    sourceText = window.IXUpload ? IXUpload.text() : '';
+    if(!sourceText){ statusEl.innerHTML = `<div class="error-note">Add at least one file that I can read first.</div>`; return; }
+    subjectId = document.getElementById('builder-subject-files').value || document.getElementById('builder-subject-notes').value;
+    topicLabel = IXUpload.label();
   }else{
     subjectId = document.getElementById('builder-subject-topic').value;
     unit = document.getElementById('builder-unit-topic').value;
@@ -4563,7 +4569,7 @@ async function generateStudySet(){
   reminderAt=days>0 ? Date.now()+days*86400000 : 0;
   statusEl.innerHTML = `<div class="loading-line"><span class="spinner"></span> Building your ${type==='flashcards'?'flashcards':'quiz'}…</div>`;
   try{
-    const setObj = await buildStudySet({subjectId, topic:source==='notes'?topicLabel:customTopic, unit, type, count, sourceText, reminderAt});
+    const setObj = await buildStudySet({subjectId, topic:source!=='topic'?topicLabel:customTopic, unit, type, count, sourceText, reminderAt});
     statusEl.innerHTML = `<div class="loading-line" style="color:var(--green-deep);">Done — "${esc(setObj.title)}" is ready. 🎉</div>`;
     renderStudySets(); openStudySetViewer(setObj.id);
   }catch(e){ statusEl.innerHTML = `<div class="error-note">Couldn't build that study set. Please try again.</div>`; }
@@ -9387,6 +9393,7 @@ setInterval(function(){
 <link rel="stylesheet" href="/arcade-gold.css?v=1">
 <link rel="stylesheet" href="/skin-crate-auto.css?v=1">
 <script src="/arcade-gauntlet.js?v=6"></script>
+<script src="/upload-any.js?v=1" defer></script>
 <script src="/lucky-spin.js?v=2" defer></script>
 <script src="/leaderboard.js?v=2" defer></script>
 <script src="/arcade-trial.js?v=4"></script>
@@ -9418,7 +9425,7 @@ setInterval(function(){
 <script src="/owner-mode.js?v=2"></script>
 <script src="/credits-plus.js?v=2"></script>
 <script src="/progress-plus.js?v=1"></script>
-<script src="/tutor-plus.js?v=3"></script>
+<script src="/tutor-plus.js?v=4"></script>
 <script src="/tutor-history.js?v=3"></script>
 <script src="/studysets-plus.js?v=5"></script>
 <script src="/county-sync.js?v=3"></script>

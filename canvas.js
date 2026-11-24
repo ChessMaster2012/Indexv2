@@ -18,7 +18,7 @@ const SYNC_TTL_MS = 4 * 60 * 1000;
 const MAX_COURSES = 40;
 const MAX_PAGES = 4;
 
-function init({ app, dataDir, publicBaseUrl, supabase }) {
+function init({ app, dataDir, publicBaseUrl, supabase, visionRead }) {
   const FILE = path.join(dataDir, 'canvas.json');
   const KEYFILE = path.join(dataDir, 'canvas.key');
   let store = {};
@@ -385,10 +385,10 @@ function init({ app, dataDir, publicBaseUrl, supabase }) {
       const name = String((req.body && req.body.name) || 'file').slice(0, 160), b64 = String((req.body && req.body.data) || '');
       if (!b64 || b64.length > 11.5 * 1024 * 1024) return res.status(400).json({ ok: false, error: 'That file is too large (8 MB max).' });
       const buf = Buffer.from(b64, 'base64'); if (!buf.length || buf.length > FILE_MAX) return res.status(400).json({ ok: false, error: 'That file is too large (8 MB max).' });
-      const text = await bufText(buf, '', name);
-      if (text == null) return res.status(415).json({ ok: false, error: 'Use a PDF, Word (.docx), or text file. For Google Slides/Docs: File > Download > PDF.' });
-      if (!text) return res.status(422).json({ ok: false, error: 'I couldn’t find any text in that file (is it a scanned image?).' });
-      res.json({ ok: true, name, text: text.slice(0, 9000) });
+      const r = await require('./fileread').readFile(buf, name, { vision: visionRead });
+      if (!r.text) return res.status(r.code || 422).json({ ok: false, error: r.error || 'I could not find any text in that file.' });
+      const cap = Math.max(2000, Math.min(24000, Number(req.body && req.body.max) || 9000));
+      res.json({ ok: true, name, text: r.text.slice(0, cap), truncated: r.text.length > cap });
     } catch (e) { console.error('Canvas extract error:', e.message); res.status(400).json({ ok: false, error: 'Could not read that file.' }); }
   });
 

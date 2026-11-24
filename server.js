@@ -4396,7 +4396,26 @@ LIBRARY.init({
   app, express, dataDir: DATA_DIR, containsConductViolation,
   supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest }
 });
-const CANVAS = require('./canvas').init({ app, dataDir: DATA_DIR, publicBaseUrl: PUBLIC_BASE_URL, supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest } });
+/* AI reader for photos, scanned PDFs and audio (Gemini). Used by the file-upload route. */
+async function visionRead(buf,mime,kind){
+  if(!GEMINI_API_KEY) throw new Error('No Gemini key.');
+  const prompt=kind==='audio'?'Transcribe all speech in this recording accurately as plain text. If it is a lecture, keep the content faithful. Reply with only the transcript.'
+    :'Read this document or picture and write out ALL of its text exactly as plain text, keeping headings and lists. For diagrams, graphs, maps or equations, add a one-line description in [brackets]. If a handwritten page, transcribe it. Reply with only the content.';
+  const ready=GEMINI_MODELS.filter(m=>!/lite/.test(m)&&(GEMINI_COOLDOWN.get(m)||0)<=Date.now()), list=(ready.length?ready:GEMINI_MODELS).slice(0,3); let last=null;
+  for(const model of list){
+    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),45000);
+    try{
+      const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},signal:ctl.signal,
+        body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:buf.toString('base64')}}]}],generationConfig:{maxOutputTokens:8000,temperature:0}})});
+      if(r.status===429){ GEMINI_COOLDOWN.set(model,Date.now()+60000); last=new Error('429'); continue; }
+      if(!r.ok){ last=new Error('HTTP '+r.status); continue; }
+      const d=await r.json(), text=(d?.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join('').trim();
+      if(text) return text; last=new Error('empty');
+    }catch(e){ last=e; } finally{ clearTimeout(t); }
+  }
+  throw last||new Error('vision failed');
+}
+const CANVAS = require('./canvas').init({ app, dataDir: DATA_DIR, visionRead, publicBaseUrl: PUBLIC_BASE_URL, supabase: { get enabled(){ return SUPABASE_ENABLED; }, request: supabaseRequest } });
 require('./liveengine').attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTitle, cappedDailyCoins });
 
 const SEC_ERR = SEC.errorHandlers();

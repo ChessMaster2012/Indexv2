@@ -86,7 +86,7 @@ function build(){
   // attach button + hidden multi-file input
   var btn=document.createElement('button'); btn.type='button'; btn.className='tp-attach'; btn.id='tp-attach';
   btn.setAttribute('aria-label','Attach files');
-  var fi=document.createElement('input'); fi.type='file'; fi.id='tp-file'; fi.hidden=true; fi.multiple=true; fi.accept='.pdf,.docx,.txt,.md,.csv,.html,.htm,.rtf';
+  var fi=document.createElement('input'); fi.type='file'; fi.id='tp-file'; fi.hidden=true; fi.multiple=true; fi.accept='';
   input.insertBefore(btn,comp); input.appendChild(fi);
   btn.addEventListener('click',function(){ if(S.docs.length>=MAX_FILES){ toastMsg('You can attach up to '+MAX_FILES+' files at a time. Remove one to add another.',true); return; } fi.click(); });
   fi.addEventListener('change',function(){ if(fi.files&&fi.files.length) addFiles(fi.files); fi.value=''; });
@@ -129,7 +129,7 @@ function renderDocs(){
   if(a){
     var n2=S.docs.length, full=n2>=MAX_FILES;
     a.innerHTML=I('paperclip',20)+(n2?'<span class="tp-badge">'+n2+'</span>':'');
-    a.title=full?'You have attached the maximum of '+MAX_FILES+' files':'Attach up to '+MAX_FILES+' files (PDF, Word, or text): assignments, notes, worksheets';
+    a.title=full?'You have attached the maximum of '+MAX_FILES+' files':'Attach up to '+MAX_FILES+' files in any format (PDF, Word, slides, spreadsheets, photos, audio, text): assignments, notes, worksheets';
     a.classList.toggle('full',full);
   }
 }
@@ -148,8 +148,6 @@ function addFiles(list){
   files.forEach(function(f){
     if(S.docs.length>=MAX_FILES){ over++; return; }
     if(S.docs.some(function(d){return d.name===f.name&&d.size===f.size;})){ skipped.push(f.name+' is already attached'); return; }
-    if(IMG.test(f.name)){ skipped.push(f.name+' is a photo (photos can’t be read yet)'); return; }
-    if(!OK.test(f.name)){ skipped.push(f.name+' isn’t a PDF, Word, or text file'); return; }
     if(f.size>MAX_BYTES){ skipped.push(f.name+' is over 8 MB'); return; }
     S.docs.push({id:++S.seq,name:f.name,size:f.size,text:'',state:'reading',file:f}); added++;
   });
