@@ -265,7 +265,7 @@ function winBattle(g){
   var gold=goldFor(g,kind); g.gold+=gold; g.goldGain=gold; g.wins++; if(relic(g,'vial')){ g.hp=Math.min(g.maxHp,g.hp+4); }
   g.relicGain='';
   if(kind==='elite'||kind==='boss'){ var pool=Object.keys(RELICS).filter(function(k){ return g.relics.indexOf(k)<0; }); if(pool.length){ var rid=pick(pool); g.relics.push(rid); g.relicGain=rid; if(rid==='vial'){} } }
-  if(kind==='boss'){ g.hp=Math.min(g.maxHp,g.hp+Math.round(g.maxHp*.4)); try{ addCoins(20,"Rogue's Sanctuary boss"); }catch(e){} try{ celebrate(); }catch(e){} }
+  if(kind==='boss'){ g.hp=Math.min(g.maxHp,g.hp+Math.round(g.maxHp*.4)); try{ noCoin(20,"Rogue's Sanctuary boss"); }catch(e){} try{ celebrate(); }catch(e){} }
   g.rewards=cardChoices(g,kind==='elite'||kind==='boss'?3:3,kind!=='fight');
   g.fxWin=1; g.b.e.hp=0;
   paint(g);
@@ -281,8 +281,8 @@ function advance(g){ if(finalBoss(g)){ g.ph='victory'; g.rewards=[]; save(g); re
 function endRun(g,won){
   g.ph=won?'won':'dead'; sfx(won?'win':'lose');
   var gp=arcadeGameProgress(), r=gp.rogue; var reached=g.floor;
-  g.reached=reached; g.won=!!won; g.coinsEarned=Math.min(360,Math.max(0,(reached-1)*3))+(won?Math.min(240,4*reached):0); /* same coins per floor as before; the win bonus scales with the longer run */
-  if(g.coinsEarned){ try{ addCoins(g.coinsEarned,"Rogue's Sanctuary run"); }catch(e){} }
+  g.reached=reached; g.won=!!won; g.coinsEarned=0; /* same coins per floor as before; the win bonus scales with the longer run */
+  if(g.coinsEarned){ try{ noCoin(g.coinsEarned,"Rogue's Sanctuary run"); }catch(e){} }
   g.best=Math.max(g.best||0,reached);
   r.best=g.best; r.wins=g.wins; r.clears=(Number(r.clears)||0)+(won?1:0); r.floor=1; r.deck=STARTER.slice(); r.hp=maxHpBase(); r.run=null; r.gold=0; r.relics=[]; try{ persistProgress(); }catch(e){}
   paint(g);

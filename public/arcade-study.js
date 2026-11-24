@@ -111,11 +111,11 @@ function advance(g){
 }
 function endStage(g){
   var st=g.stStat, tot=st.c+st.w, acc=tot?Math.round(st.c/tot*100):0, rec={name:sname(g.stage,g),c:st.c,w:st.w,pts:st.pts,acc:acc,pips:g.stPips.slice(),best:st.best,bonus:0,reward:''};
-  if(!g.review&&acc>=60){ try{ addCoins(10,'Study Mode stage clear'); g.coins+=10; rec.bonus=10; }catch(e){} try{ addXP(10); g.xp+=10; }catch(e){} }
+  if(!g.review&&acc>=60){ try{ noCoin(10,'Study Mode stage clear'); rec.bonus=10; }catch(e){} try{ addXP(10); g.xp+=10; }catch(e){} }
   if(!g.review&&tot&&st.w===0){ var k=['fifty','skip','time'][g.stage%3]; g.life[k]++; rec.reward=k; }
   g.stDone.push(rec); sfx(acc>=60?'streak':'life');
   if(!g.review&&(g.stage+1)%SPC===0){ var cs=g.stDone.slice(-SPC), cc=0, cw=0; cs.forEach(function(d){ cc+=d.c; cw+=d.w; });
-    if(cc+cw>=SPC*g.per*.6){ try{ addCoins(20,'Study Mode chapter complete'); g.coins+=20; rec.chapter=20; }catch(e){} try{ addXP(25); g.xp+=25; }catch(e){} }
+    if(cc+cw>=SPC*g.per*.6){ try{ noCoin(20,'Study Mode chapter complete'); rec.chapter=20; }catch(e){} try{ addXP(25); g.xp+=25; }catch(e){} }
     rec.saved=g.stage<g.stages-1; if(rec.saved) saveCk(g); }
   if(g.stage>=g.stages-1){ finish(g); return; }
   g.phase='stage'; g.mood=acc>=60?'happy':'ready'; g.say=acc>=80?'Stage cleared! 🌟':acc>=60?'On to the next! 💪':'Shake it off — next stage! 💡'; g.lastTick=Date.now(); paint(g);
@@ -131,7 +131,7 @@ function nextStage(g){
 function answer(g,ok,info){
   if(g.phase!=='q') return; info=info||{}; var r=g.cur, el=(Date.now()-g.t0)/1000; g.times.push(el);
   if(ok){ g.correct++; g.streak++; if(g.streak>g.bestStreak) g.bestStreak=g.streak; g.stStat.c++; g.stStat.best=Math.max(g.stStat.best,g.streak); var gl=GS(); if(gl){ gl.asked++; gl.correct++; } var speed=g.qMax?Math.max(0,g.qLeft/g.qMax):.5, gain=Math.round((100+speed*50)*mult(g)); g.points+=gain; g.stStat.pts+=gain; info.gain=gain; g.say=['Nice! 🔥','Got it! ✨','Brilliant! 🧠','On fire! 🔥','Yes! 💥'][(Math.random()*5)|0]; g.mood='happy';
-    if(!r.retry&&!g.review){ try{ addCoins(5,'Study Mode correct answer'); g.coins+=5; }catch(e){} try{ addXP(3); g.xp+=3; }catch(e){} }
+    if(!r.retry&&!g.review){ try{ noCoin(5,'Study Mode correct answer'); }catch(e){} try{ addXP(3); g.xp+=3; }catch(e){} }
     if(g.streak>0&&g.streak%5===0){ var k=['fifty','skip','time'][(g.streak/5)%3|0]; g.life[k]++; info.reward=k; g.say='Streak '+g.streak+'! Lifeline earned 🎁'; sfx('streak'); } else sfx('good');
     delete g.missed[r.key];
   } else { g.wrong++; g.stStat.w++; var gl2=GS(); if(gl2) gl2.asked++; g.streak=0; g.mood='sad'; g.say=info.timeout?'Time\'s up ⏰':'So close — review it! 💡'; sfx('bad'); g.missed[r.key]={prompt:r.kind==='tf'?r.statement:r.prompt,answer:r.answer,item:r.item};

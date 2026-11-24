@@ -99,14 +99,14 @@ function begin(g,buff){
 }
 function endRun(g,won){
   var r=g.run; if(!r||r.ended) return; r.ended=true; clearTimeout(g.hintT); g.ph=won?'done':'over'; var p=prog();
-  p.best=Math.max(Number(p.best)||0,r.score); p.bestRun=Math.max(Number(p.bestRun)||0,r.score); p.runs=(Number(p.runs)||0)+1; if(won){ r.runCoins=Number(p.runWins)?18:36; p.runWins=(Number(p.runWins)||0)+1; r.coins+=r.runCoins; try{ addCoins(r.runCoins,'Chrono Hex run complete'); }catch(e){} }
+  p.best=Math.max(Number(p.best)||0,r.score); p.bestRun=Math.max(Number(p.bestRun)||0,r.score); p.runs=(Number(p.runs)||0)+1; if(won){ r.runCoins=0; p.runWins=(Number(p.runWins)||0)+1; r.coins+=r.runCoins; try{ noCoin(r.runCoins,'Chrono Hex run complete'); }catch(e){} }
   p.bestCombo=Math.max(Number(p.bestCombo)||0,r.bestCombo); p.studyAsked=(Number(p.studyAsked)||0)+r.qT; p.studyCorrect=(Number(p.studyCorrect)||0)+r.qC; p.spells=g.spells;
   try{ persistProgress(); }catch(e){} paintFull(g);
 }
 function finishLevel(g,won){
   g.busy=true; clearTimeout(g.hintT); var p=prog(), r=g.run;
   p.best=Math.max(Number(p.best)||0,g.score); p.bestCombo=Math.max(Number(p.bestCombo)||0,g.maxCombo); p.spells=g.spells; if(r) r.bestCombo=Math.max(r.bestCombo,g.maxCombo);
-  if(won){ var first=g.level>=g.unlocked; if(first){ g.unlocked=Math.min(NST,g.level+1); p.level=g.unlocked; } p.cleared=Math.max(Number(p.cleared)||0,g.level); g.coins=first?4:1; if(r){ r.coins+=g.coins; r.cleared=Math.max(r.cleared,g.level); } try{ addCoins(g.coins,'Chrono Hex clear'); }catch(e){} g.bonus=g.moves*20; g.score+=g.bonus; if(r) r.score+=g.score; p.best=Math.max(p.best,g.score); sfx('win'); try{ celebrate(); }catch(e){} }
+  if(won){ var first=g.level>=g.unlocked; if(first){ g.unlocked=Math.min(NST,g.level+1); p.level=g.unlocked; } p.cleared=Math.max(Number(p.cleared)||0,g.level); g.coins=0; if(r){ r.coins+=g.coins; r.cleared=Math.max(r.cleared,g.level); } try{ noCoin(g.coins,'Chrono Hex clear'); }catch(e){} g.bonus=g.moves*20; g.score+=g.bonus; if(r) r.score+=g.score; p.best=Math.max(p.best,g.score); sfx('win'); try{ celebrate(); }catch(e){} }
   else sfx('lose');
   try{ persistProgress(); }catch(e){}
   setTimeout(function(){ if(G()!==g) return; if(won&&g.level>=NST){ g.run.ended=false; endRun(g,true); return; } g.ph=won?'win':'lose'; paintFull(g); },won?700:500);
@@ -277,10 +277,10 @@ function gateHtml(g){
 function studyLine(r){ var sh=(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml)?GameStudy.summaryHtml():''; return sh+(r.qT?'<p class="cx-fine">This run: '+r.qC+' / '+r.qT+' study questions correct'+(r.retries?' · '+r.retries+' retr'+(r.retries>1?'ies':'y'):'')+'</p>':''); }
 function endHtml(g){
   var r=g.run||{score:0,cleared:0,coins:0,qT:0,qC:0,retries:0,bestCombo:0}, ph=g.ph;
-  if(ph==='win') return '<div class="cx-title"><div class="cx-ling big hop">'+ling()+'</div><h2>Stage '+g.level+' of '+NST+' cleared!</h2>'+pips(g)+'<p>Score <b>'+g.score+'</b> (incl. +'+g.bonus+' for '+g.moves+' spare moves) · best combo ×'+g.maxCombo+' · <b>+'+g.coins+' 🪙</b></p><p class="cx-fine">Next: Stage '+(g.level+1)+', goal '+levelCfg(g.level+1).target+' points. Study questions first.</p><div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="next">Next stage ▶</button><button class="btn btn-ghost" data-cx="endrun">End run</button></div></div>';
+  if(ph==='win') return '<div class="cx-title"><div class="cx-ling big hop">'+ling()+'</div><h2>Stage '+g.level+' of '+NST+' cleared!</h2>'+pips(g)+'<p>Score <b>'+g.score+'</b> (incl. +'+g.bonus+' for '+g.moves+' spare moves) · best combo ×'+g.maxCombo+'</p><p class="cx-fine">Next: Stage '+(g.level+1)+', goal '+levelCfg(g.level+1).target+' points. Study questions first.</p><div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="next">Next stage ▶</button><button class="btn btn-ghost" data-cx="endrun">End run</button></div></div>';
   if(ph==='lose') return '<div class="cx-title"><div class="cx-ling big">'+ling()+'</div><h2>Out of moves</h2>'+pips(g)+'<p>You scored <b>'+g.score+'</b> of '+g.cfg.target+(g.iceLeft?' with '+g.iceLeft+' ice left':'')+'. This stage does not count yet, but your earlier stages and saved spells are kept. Retry it with fresh study questions.</p><div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="again">Retry stage ▶</button><button class="btn btn-ghost" data-cx="endrun">End run</button></div></div>';
   var won=ph==='done';
-  return '<div class="cx-title"><div class="cx-ling big '+(won?'hop':'')+'">'+ling()+'</div><h2>'+(won?'Run complete!':'Run ended')+'</h2><p>'+r.cleared+' / '+NST+' stages cleared · run score <b>'+r.score+'</b> · best combo ×'+r.bestCombo+' · <b>+'+r.coins+' 🪙</b></p>'+studyLine(r)+'<div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="start">Play again</button><button class="btn btn-ghost" data-cx="menu">Stage select</button></div></div>';
+  return '<div class="cx-title"><div class="cx-ling big '+(won?'hop':'')+'">'+ling()+'</div><h2>'+(won?'Run complete!':'Run ended')+'</h2><p>'+r.cleared+' / '+NST+' stages cleared · run score <b>'+r.score+'</b> · best combo ×'+r.bestCombo+'</p>'+studyLine(r)+'<div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="start">Play again</button><button class="btn btn-ghost" data-cx="menu">Stage select</button></div></div>';
 }
 function inner(g){ return g.ph==='title'?titleHtml(g):g.ph==='play'?playHtml(g):g.ph==='gate'?gateHtml(g):endHtml(g); }
 function paintFull(g){

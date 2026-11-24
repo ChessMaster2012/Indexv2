@@ -125,6 +125,7 @@
         o.classList.add('gs-out'); setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 180);
         if (keyHandler === onKey) keyHandler = null;
         if (session && !strict) { session.asked += qs.length; session.correct += right; }
+        try { chip(); } catch (e) { }
         resolve({ correct: right, total: strict ? right + wrong : qs.length, perfect: strict ? wrong === 0 : right === qs.length, streak: streak });
       }
       function render() {
@@ -246,7 +247,7 @@
           }
         } catch (e) { busy = false; err = String(e && e.message || 'Could not prepare questions.'); if (e && e.code === 'NO_CREDITS') err += ' You can still play with a saved study set (it is free).'; render(); return; }
         jset(LSK, Object.assign({ tab: tab }, state0));
-        busy = false; session = s; close(s);
+        busy = false; try { cashOut(); } catch (e) { } session = s; close(s);
       }
       o.addEventListener('click', function (e) {
         var t = e.target; if (!t.closest) return;
@@ -262,12 +263,36 @@
     });
   }
 
+
+  /* ---------- coins: every correct answer in a run is worth 1 coin, paid out when the run ends ----------
+     Rate 1 coin per correct answer, at most RUN_MAX per run (anti-farming). addCoins() enforces the 500/day cap, so once
+     it is hit no more coins are paid. Nothing else in the arcade pays coins any more. */
+  var COIN_PER_CORRECT = 1, RUN_MAX = 100;
+  window.noCoin = function () { return 0; };
+  function credit(c, a) { var s = session; if (!s) return; s.correct += c || 0; s.asked += a || 0; try { chip(); } catch (e) { } }
+  function pending() { var s = session; if (!s) return 0; return Math.max(0, Math.min(RUN_MAX, Math.floor((s.correct || 0) * COIN_PER_CORRECT)) - (s.paid || 0)); }
+  function leftToday() { try { return typeof dailyCoinsRemaining === 'function' ? dailyCoinsRemaining() : 500; } catch (e) { return 500; } }
+  function cashOut() {
+    var s = session; if (!s) return 0; var n = pending(); if (!n) return 0;
+    var got = 0;
+    try { if (typeof addCoins === 'function') got = addCoins(n, n + ' correct answer' + (n === 1 ? '' : 's')) || 0; } catch (e) { }
+    s.paid = (s.paid || 0) + n; hideChip(); return got;
+  }
+  function chip() {
+    var c = $('gs-coinchip');
+    if (!session) { if (c) c.remove(); return; }
+    if (!c) { c = document.createElement('div'); c.id = 'gs-coinchip'; c.setAttribute('aria-live', 'polite'); c.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:60;background:rgba(20,16,40,.92);color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:8px 14px;font:700 13px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.3);pointer-events:none'; document.body.appendChild(c); }
+    var n = (session.correct || 0), left = leftToday();
+    c.textContent = left <= 0 ? '🪙 Daily coin cap reached' : '✅ ' + n + ' correct · 🪙 ' + Math.min(RUN_MAX, n) + ' coins when you finish (' + left + ' left today)';
+  }
+  function hideChip() { var c = $('gs-coinchip'); if (c) c.remove(); }
+  window.addEventListener('pagehide', function () { try { cashOut(); } catch (e) { } });
   function summary() { var s = session; if (!s) return { asked: 0, correct: 0, pct: 0, title: '' }; return { asked: s.asked, correct: s.correct, pct: s.asked ? Math.round(s.correct / s.asked * 100) : 0, title: s.title }; }
   function summaryHtml() {
     var m = summary(); if (!session || !m.asked) return '';
-    return '<div class="gs-summary"><b>📚 Study score</b> ' + m.correct + ' / ' + m.asked + ' correct (' + m.pct + '%) · ' + E(m.title) + '</div>';
+    return '<div class="gs-summary"><b>📚 Study score</b> ' + m.correct + ' / ' + m.asked + ' correct (' + m.pct + '%) · ' + E(m.title) + '<br>🪙 ' + Math.min(RUN_MAX, m.correct) + ' coins for your correct answers, paid when you leave (500 per day max)</div>';
   }
-  function end() { session = null; var g = $('gs-gate'); if (g) { open = Math.max(0, open - 1); if (keyHandler) keyHandler = null; g.remove(); } }
+  function end() { try { cashOut(); } catch (e) { } session = null; hideChip(); var g = $('gs-gate'); if (g) { open = Math.max(0, open - 1); if (keyHandler) keyHandler = null; g.remove(); } }
 
   /* every game goes through arcadeStart: ask for the topic first (Troop Commander already has its own picker) */
   /* games that already ask study questions every level (the picker only runs for these) */
@@ -287,5 +312,5 @@
   }
   if (!install()) { var tries = 0, iv = setInterval(function () { if (install() || ++tries > 40) clearInterval(iv); }, 250); }
 
-  window.GameStudy = { pick: pick, gate: gate, take: take, isOpen: function () { return open > 0; }, summary: summary, summaryHtml: summaryHtml, end: end, get session() { return session; } };
+  window.GameStudy = { credit: credit, cashOut: cashOut, pending: pending, pick: pick, gate: gate, take: take, isOpen: function () { return open > 0; }, summary: summary, summaryHtml: summaryHtml, end: end, get session() { return session; } };
 })();

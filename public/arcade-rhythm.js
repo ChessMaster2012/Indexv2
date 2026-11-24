@@ -168,8 +168,8 @@ function endRun(g,won,why){
   g.phase=won?'done':'failed'; g.endWhy=why||(won?'':'hp'); g.paused=false; try{ AC.suspend(); }catch(e){}
   g.total=sumCnt(g.cnt); var rk=rankOf(g); g.result=rk; var p=prog(), key=g.tr.id, rec=p.tracks[key]||{best:0,rank:'-',combo:0,acc:0};
   g.newBest=g.score>rec.best; g.coins=0;
-  if(won){ var better=(RORD[rk.rank]||0)>(RORD[rec.rank]||-2); var base={B:4,A:8,S:12}[rk.rank]||0; g.coins=better?base:((RORD[rk.rank]>=2)?2:1); if(g.coins){ try{ addCoins(g.coins,'Rhythm Reflector '+rk.rank+' rank'); }catch(e){} } if(better) rec.rank=rk.rank; rec.acc=Math.max(rec.acc,Math.round(rk.acc*1000)/10); if(rk.rank==='S'&&g.cnt.miss===0){ try{ celebrate(); }catch(e){} } }
-  else if(g.cleared>=3){ g.coins=1; try{ addCoins(1,'Rhythm Reflector stages'); }catch(e){} }
+  if(won){ var better=(RORD[rk.rank]||0)>(RORD[rec.rank]||-2); var base={B:4,A:8,S:12}[rk.rank]||0; g.coins=0; if(g.coins){ try{ noCoin(g.coins,'Rhythm Reflector '+rk.rank+' rank'); }catch(e){} } if(better) rec.rank=rk.rank; rec.acc=Math.max(rec.acc,Math.round(rk.acc*1000)/10); if(rk.rank==='S'&&g.cnt.miss===0){ try{ celebrate(); }catch(e){} } }
+  else if(g.cleared>=3){ g.coins=0; try{ noCoin(1,'Rhythm Reflector stages'); }catch(e){} }
   rec.best=Math.max(rec.best,g.score); rec.combo=Math.max(rec.combo,g.maxCombo); p.tracks[key]=rec; p.best=Math.max(Number(p.best)||0,g.score);
   p.runs=(Number(p.runs)||0)+1; if(won) p.wins=(Number(p.wins)||0)+1; p.bestStage=Math.max(Number(p.bestStage)||0,g.cleared); p.studyAsked=(Number(p.studyAsked)||0)+g.qT; p.studyCorrect=(Number(p.studyCorrect)||0)+g.qC;
   try{ persistProgress(); }catch(e){} overlay(g);
