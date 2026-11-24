@@ -6864,9 +6864,9 @@ if(hasCompletedSetup()){
     commanderLoadQuestionFinal=loadQuestion6;
     commanderRetryQuestionFinal=loadQuestion6;
     commanderLaunchFinal=startWave6;
-    commanderStartWaveV5=startWave6;
-    commanderAnswerGateV5=answer6;
-    commanderNextQuestionFinal=function(){
+    window.commanderStartWaveV5=startWave6;
+    window.commanderAnswerGateV5=answer6;
+    window.commanderNextQuestionFinal=function(){
       const g=g6();
       if(g&&!g.questionGateOpen&&!g.finished&&Number(g.wave)>0&&Number(g.waveCoins)===0) finishWave6();
     };
