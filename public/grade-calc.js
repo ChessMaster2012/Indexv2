@@ -72,7 +72,9 @@ function connect(url,user,pass,period){
 
 /* ---------- views ---------- */
 function root(){ return $('#view-grades'); }
-function privacy(){ return '<p class="gc-priv">'+ic('lock',14)+' Your StudentVUE password is sent straight to your school\'s StudentVUE site and is never saved. Your grades stay in this browser, not on Index\'s servers.</p>'; }
+function privacy(){ return '<p class="gc-priv">'+ic('lock',14)+' Your StudentVUE password goes straight to your school\'s StudentVUE site. It is only stored if you tick "Keep me connected" (Gold and above), and then it is encrypted. Your grades stay in this browser. <a href="'+policyUrl()+'" target="_blank" rel="noopener">Grades &amp; what-if rules</a></p>'; }
+function policyUrl(){ var c=''; try{ c=(state&&state.county)||''; }catch(e){} return '/grades-policy.html'+(c?'?county='+encodeURIComponent(c):''); }
+function whatIfBanner(c){ return '<div class="gc-whatif" role="note"><b>What-if only.</b> Scores you change or add here are practice numbers saved in this browser. They are <u>not</u> sent to StudentVUE and do <u>not</u> change your real grade. Never show them to a teacher, parent or anyone else as your real grade. <a href="'+policyUrl()+'" target="_blank" rel="noopener">Read the rules</a></div>'; }
 function connectView(){
   if(/switched off/.test(S.err||'')) return '<div class="gc-card gc-connect"><h3>StudentVUE import is unavailable</h3><p class="gc-sub">StudentVUE has turned off the connection that outside tools use, so Index cannot pull your grades in right now. You can still use the calculator by entering your classes and scores yourself.</p><div class="gc-actions"><button class="btn btn-primary" id="gc-manual" type="button">Enter my grades by hand</button></div></div>';
   var cid=''; try{ cid=(typeof state!=='undefined'&&state&&state.county)||''; }catch(e){}
@@ -106,7 +108,7 @@ function listView(){
     '<div class="gc-bar-r">'+(opts?'<select id="gc-period" aria-label="Grading period">'+opts+'</select>':'')+'<button class="btn btn-ghost btn-sm" id="gc-refresh" type="button">'+ic('refresh-cw',14)+' Refresh</button><button class="btn btn-ghost btn-sm" id="gc-out" type="button">Disconnect</button></div></div>';
   return head+
     (S.auto?'<div class="gc-card"><b>Loading your latest grades…</b></div>':'')+(S.needPass?passForm():'')+
-    '<div class="gc-sum"><div><span>Classes</span><b>'+d.courses.length+'</b></div><div><span>Average (projected)</span><b>'+fmt(avg)+'</b></div></div>'+
+    '<div class="gc-sum"><div><span>Classes</span><b>'+d.courses.length+'</b></div><div><span>Average (what-if'+(d.courses.some(function(c,i){return changed(i);})?', changed':'')+')</span><b>'+fmt(avg)+'</b></div></div>'+
     (d.courses.length?'':'<div class="gc-card"><b>No classes yet.</b><p class="gc-sub">Press "Add a class" to start. Add each assignment with the score you got, then change scores to see what happens.</p></div>')+'<div class="gc-grid">'+d.courses.map(classCard).join('')+'</div>'+(S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'');
 }
 function classForm(){
@@ -119,6 +121,64 @@ function passForm(){
   return '<form class="gc-card gc-pass" id="gc-passform" onsubmit="return false"><b>'+(n.label||'Sign in again')+'</b><p class="gc-sub">'+sub+'</p>'+
     '<input type="text" name="username" value="'+esc(S.user||'')+'" autocomplete="username" readonly hidden>'+
     '<div class="gc-inline"><input id="gc-pass2" type="password" placeholder="StudentVUE password" autocomplete="current-password"><button class="btn btn-primary" id="gc-pass-go" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?'Loading…':(n.fresh?'Load fresh grades':'Continue'))+'</button><button class="btn btn-ghost" id="gc-pass-x" type="button">'+(n.fresh?'Keep saved':'Cancel')+'</button></div>'+keepBox()+'</form>';
+}
+function numIn(cls,id,val,ph){ return '<input type="number" step="any" min="0" class="'+cls+'" data-a="'+esc(id)+'" value="'+(val==null?'':val)+'" placeholder="'+(ph||'')+'">'; }
+function isGold(){
+  try{
+    if(window.OwnerMode&&OwnerMode.active()) return true;
+    var t=String((typeof state!=='undefined'&&state&&state.membership&&state.membership.tier)||'free').toLowerCase();
+    return t==='gold'||t==='platinum'||t==='diamond';
+  }catch(e){ return false; }
+}
+function rowHtml(o){
+  return '<div class="gc-tr'+(o.off?' off':'')+(o.dirty?' dirty':'')+(o.ungraded?' ungraded':'')+(o.added?' added':'')+'"'+o.attr+'>'+
+    '<div class="gc-td gc-d-date">'+esc(o.date||'')+'</div>'+
+    '<div class="gc-td gc-d-name"><b>'+esc(o.name)+'</b>'+(o.note?'<span>'+esc(o.note)+'</span>':'')+'</div>'+
+    '<div class="gc-td gc-d-score">'+numIn('gc-e',o.ke,o.earned,'–')+'<span>/</span>'+numIn('gc-p',o.kp,o.possible,'pts')+'</div>'+
+    '<div class="gc-td gc-d-cat">'+esc(o.cat||'')+'</div>'+
+    '<div class="gc-td gc-d-act">'+o.act+'</div></div>';
+}
+function detailView(ci){
+  var c=S.data.courses[ci], k=ckey(ci), ed=S.edits[k]||{}, add=S.added[k]||[];
+  var rows=c.assignments.map(function(a){
+    var e=ed[a.id]||{}, earned=e.earned!==undefined?e.earned:a.earned, poss=e.possible!==undefined?e.possible:a.possible, ex=e.excluded!==undefined?e.excluded:a.excluded;
+    var dirty=!!ed[a.id];
+    return rowHtml({off:ex,dirty:dirty,ungraded:a.earned==null,attr:' data-id="'+esc(a.id)+'"',date:a.date||a.due,name:a.name,note:a.earned==null?'Not graded yet':'',ke:'e:'+a.id,kp:'p:'+a.id,earned:earned,possible:poss,cat:a.category,
+      act:'<button type="button" class="gc-ic" data-tog="'+esc(a.id)+'" title="'+(ex?'Count this assignment':'Do not count this assignment')+'">'+ic(ex?'eye-off':'eye',16)+'</button>'+(c.manual?'<button type="button" class="gc-ic" data-delreal="'+esc(a.id)+'" title="Delete assignment">'+ic('trash-2',15)+'</button>':'')+(dirty?'<button type="button" class="gc-ic" data-rev="'+esc(a.id)+'" title="Undo changes">'+ic('rotate-ccw',15)+'</button>':'')});
+  }).join('');
+  var addRows=add.map(function(a,i){
+    return rowHtml({dirty:true,added:true,attr:' data-add="'+i+'"',date:'New',name:a.name,note:'What-if',ke:'ae:'+i,kp:'ap:'+i,earned:a.earned,possible:a.possible,cat:a.category||'',act:'<button type="button" class="gc-ic" data-del="'+i+'" title="Remove">'+ic('trash-2',15)+'</button>'});
+  }).join('');
+  var catOpts=c.categories.map(function(x){return '<option>'+esc(x.name)+'</option>';}).join('')||'<option value="">All assignments</option>';
+  var d=S.data, per=d.period?d.period.name:'';
+  var opts=(d.periods||[]).map(function(p){ return '<option value="'+p.index+'"'+(p.name===per?' selected':'')+'>'+esc(p.name)+'</option>'; }).join('');
+  var gold=isGold(), canAdd=c.manual||gold;
+  var addBtn='<button class="gc-tool gc-tool-add" id="gc-addtoggle" type="button" title="'+(c.manual?'Add an assignment':'Add an assignment (Gold)')+'" aria-label="Add an assignment">'+ic('file-plus',18)+(!c.manual&&!gold?'<em class="gc-gold">Gold</em>':'')+'</button>';
+  var goldBox=(!c.manual&&!gold&&S.goldNote)?'<div class="gc-card gc-goldnote"><b>Adding assignments is a Gold feature</b><p class="gc-sub">Gold members can add what-if assignments, like a test you have not taken yet, and see how they change the grade. Changing the scores you already have is free.</p><div class="gc-actions"><button class="btn btn-primary btn-sm" id="gc-gold-go" type="button">See memberships</button> <button class="btn btn-ghost btn-sm" id="gc-gold-x" type="button">Not now</button></div></div>':'';
+  var addBox=(canAdd&&S.addOpen)?'<div class="gc-addbox"><b>'+(c.manual?'Add an assignment':'Add a what-if assignment')+'</b><div class="gc-addrow"><input id="gc-an" type="text" placeholder="Name (e.g. Final exam)" maxlength="40"><select id="gc-ac">'+catOpts+'</select><input id="gc-ae" type="number" step="any" min="0" placeholder="Score"><input id="gc-ap" type="number" step="any" min="0" placeholder="Out of"><button class="btn btn-primary" id="gc-add" type="button">'+ic('plus',15)+' Add</button></div></div>':'';
+  return '<button type="button" class="gc-back" id="gc-back">'+ic('chevron-left',16)+' All classes</button>'+
+   (S.needPass?passForm():'')+
+   '<div class="gc-head"><div><h3>'+esc(c.title)+'</h3><span class="gc-per">'+esc(c.teacher||('Period '+(c.period||'')))+'</span></div><div class="gc-big" id="gc-big"></div></div>'+
+   '<div class="gc-bars" id="gc-cats"></div>'+
+   '<div class="gc-tools">'+
+     (d.manual?'':'<button class="gc-tool" id="gc-refresh" type="button" title="Refresh from StudentVUE" aria-label="Refresh">'+ic('refresh-cw',17)+'</button>')+
+     (!d.manual&&opts?'<select id="gc-period" class="gc-persel" aria-label="Grading period">'+opts+'</select>':'<span class="gc-flex"></span>')+
+     '<button class="gc-tool" id="gc-reset" type="button" title="Undo all my changes" aria-label="Reset changes">'+ic('rotate-ccw',17)+'</button>'+addBtn+
+     (c.manual?'<button class="gc-tool" id="gc-delclass" type="button" title="Delete class" aria-label="Delete class">'+ic('trash-2',17)+'</button>':'')+
+   '</div>'+goldBox+((add.length||Object.keys(ed).length||c.manual)?whatIfBanner(c):'')+
+   '<div class="gc-table"><div class="gc-thead"><div class="gc-td">DATE</div><div class="gc-td">ASSIGNMENT</div><div class="gc-td gc-d-score">SCORE</div><div class="gc-td">CATEGORY</div><div class="gc-td gc-d-act"></div></div>'+
+   (addRows+rows||'<p class="gc-hint" style="padding:16px">No assignments in this grading period yet.</p>')+'</div>'+
+   addBox+'<p class="gc-hint" style="margin-top:12px">Change a score, or fill in an empty one, to see what it does. The eye icon leaves an assignment out.</p>'+(S.err?'<p class="gc-err">'+esc(S.err)+'</p>':'');
+}
+function updateDetail(ci){
+  var c=S.data.courses[ci], p=projected(ci), orig=c.percent, big=$('#gc-big'); if(!big) return;
+  var ch=changed(ci);
+  big.innerHTML='<div class="gc-now"><b>'+fmt(p)+'</b><span class="gc-letter">'+letter(p)+'</span></div>'+(ch&&orig!=null&&p!=null?'<div class="gc-delta '+(p>=orig?'up':'down')+'">'+(p>=orig?'▲ +':'▼ ')+(Math.round((p-orig)*100)/100)+' vs '+fmt(orig)+' ('+(c.letter||letter(orig))+')</div>':(c.manual?'<div class="gc-delta">Worked out from the assignments you entered</div>':'<div class="gc-delta">StudentVUE: '+fmt(orig)+(c.letter?' ('+esc(c.letter)+')':'')+'</div>'));
+  var cs=$('#gc-cats'); if(cs){
+    var st=catStats(c,itemsFor(ci,true)), tone=function(x){ return x==null?'':x>=90?'a':x>=80?'b':x>=70?'c':'d'; };
+    var bar=function(label,pct,tail){ return '<div class="gc-barrow"><div class="gc-bar2 t-'+tone(pct)+((pct||0)<38?' low':'')+'"><i style="width:'+Math.max(0,Math.min(100,pct||0))+'%"></i><span>'+label+'</span></div><small>'+(tail||'')+'</small></div>'; };
+    cs.innerHTML=bar('Total'+(p!=null?' · '+fmt(p):''),p,'')+st.map(function(x){ return bar(esc(x.name)+' ('+fmt(x.pct)+')'+(c.weighted?' · '+x.weight+'% of grade':''),x.pct,(Math.round(x.earned*100)/100)+'/'+(Math.round(x.possible*100)/100)); }).join('');
+  }
 }
 function render(){
   var r=root(); if(!r) return;

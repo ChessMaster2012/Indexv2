@@ -117,3 +117,7 @@
 #view-grades .gc-where b{font-size:15px}
 .gc-upsell{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:12px 0;padding:12px 14px;border-radius:12px;background:linear-gradient(135deg,rgba(255,196,60,.16),rgba(255,122,77,.12));border:1px solid rgba(255,196,60,.35)}
 .gc-upsell b{flex:1 1 100%}.gc-upsell span{flex:1 1 240px;font-size:13px;opacity:.85}
+#view-grades .gc-whatif{margin:12px 0;padding:12px 16px;border:1px solid var(--rd-line);border-left:4px solid #e0a800;border-radius:var(--rd-r-md,10px);background:rgba(224,168,0,.1);font-size:13px;line-height:1.55;color:var(--rd-text-2)}
+#view-grades .gc-whatif b{color:var(--rd-text-1,inherit)}
+#view-grades .gc-whatif a,#view-grades .gc-priv a{color:var(--purple,#6846e8);font-weight:700}
+#view-grades .gc-tr.added .gc-d-name span{background:rgba(224,168,0,.18);border-radius:6px;padding:1px 7px;font-weight:700}

@@ -1862,6 +1862,7 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
     <a href="/mcps-review.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;"><span id="local-review-footer">Local Review</span></a>
     <a href="/privacy.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Privacy Policy</a>
     <a href="/terms.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Terms</a>
+    <a href="/grades-policy.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Grades rules</a>
     <a href="/contact.html" style="color:var(--purple);font-weight:800;text-decoration:none;margin:0 7px;">Contact</a>
     <button data-action="open-conduct" style="background:none;border:0;color:var(--purple);font-weight:800;cursor:pointer;margin:0 7px;">Student conduct</button>
   </div>
@@ -5579,6 +5580,7 @@ function applyLocalJurisdictionUI(){
   document.querySelectorAll('a[href="/mcps-review.html"]').forEach(a=>a.href=localPageUrl('/mcps-review.html'));
   document.querySelectorAll('a[href="/privacy.html"]').forEach(a=>a.href=localPageUrl('/privacy.html'));
   document.querySelectorAll('a[href="/terms.html"]').forEach(a=>a.href=localPageUrl('/terms.html'));
+  document.querySelectorAll('a[href="/grades-policy.html"]').forEach(a=>a.href=localPageUrl('/grades-policy.html'));
   document.querySelectorAll('a[href="/contact.html"]').forEach(a=>a.href=localPageUrl('/contact.html'));
   const gt=document.getElementById('gate-terms-link'); if(gt) gt.href=localPageUrl('/terms.html');
   const gp=document.getElementById('gate-privacy-link'); if(gp) gp.href=localPageUrl('/privacy.html');
@@ -9419,7 +9421,7 @@ setInterval(function(){
 <script src="/icons.js?v=4"></script>
 
 <script src="/ban-guard.js?v=1"></script>
-<script src="/grade-calc.js?v=10"></script>
+<script src="/grade-calc.js?v=11"></script>
 <script src="/owner-tools.js?v=14"></script>
 <script src="/account-extras.js?v=3"></script>
 <script src="/owner-mode.js?v=2"></script>
