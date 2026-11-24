@@ -11,7 +11,7 @@ function G(){ try{ return state&&state.games||null; }catch(e){ return null; } }
 /* ---- Long run: 60 waves per map (was open-ended and ramped steeply), checkpoint every 10 ---- */
 var TOTAL=60, CHECK=10;
 window.__cmdTotalWaves=TOTAL; window.__cmdCheckpointEvery=CHECK;
-window.__cmdWL=function(w){ return 'Wave '+Math.min(TOTAL,Math.max(1,Number(w)||1))+' / '+TOTAL; };
+window.__cmdWL=function(w){ return 'Wave '+Math.max(1,Number(w)||1)+(Number(w)>TOTAL?' · Endless':''); };
 /* Enemy HP: same as before for waves 1-10, then a gentler slope (4.6x at wave 60 instead of 7.6x). */
 window.__cmdHpScale=function(w){ w=Math.max(1,Number(w)||1); return w<=10?1+.11*w:2.1+.05*(w-10); };
 /* Enemies per wave: 10 at wave 1, rising slowly to 28 at wave 40, then flat (wave length ~ unchanged => rewards per minute unchanged). */
@@ -41,7 +41,7 @@ async function openGate(g){
     var n=need(g);
     var r=await GameStudy.gate({need:n,cooldown:COOLDOWN,label:'TROOP COMMANDER · STUDY GATE',
       title:'Answer to deploy',
-      sub:'Get '+n+' right to deploy your Indexlings. A wrong answer locks the card for 3 seconds. Answers do not earn coins; every wave gives the same deployment budget.'});
+      sub:'Get '+n+' right to deploy your Indexlings. A wrong answer locks the card for 3 seconds. Every correct answer earns 1 coin when you finish the run (500 per day max).'});
     if(r.skipped){ if(window.showRewardToast) try{ showRewardToast('No questions available. Pick a topic or study set first.'); }catch(e){} return; }
     if(G()!==g||!g.questionGateOpen||g.finished) return;
     g.waveCoins=FLAT_BUDGET; g.questionCorrectCount=n; g.questionAskedCount=r.total;
@@ -71,10 +71,10 @@ async function setupStep(g){
 function tick(){
   var g=G();
   if(g&&!picking&&g.active==='commander'&&g.commanderScreen==='setup'&&!(window.GameStudy&&GameStudy.isOpen())&&!document.getElementById('gs-picker')){ setupStep(g); return; }
-  if(g&&g.active==='commander'&&Number(g.wave)>1){ try{ var gpc=arcadeGameProgress(), cw=Math.min(TOTAL,Number(g.wave)-(g.running?1:0)); if(cw>(Number(gpc.commanderBest)||0)){ gpc.commanderBest=cw; persistProgress(); } }catch(e){} }
-  if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen&&!g.running&&!g.finished&&Number(g.wave)>=TOTAL){ victory(g); return; }
+  if(g&&g.active==='commander'&&Number(g.wave)>1){ try{ var gpc=arcadeGameProgress(), cw=Number(g.wave)-(g.running?1:0); if(cw>(Number(gpc.commanderBest)||0)){ gpc.commanderBest=cw; persistProgress(); } }catch(e){} }
+  if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen&&!g.running&&!g.finished&&false){ victory(g); return; }
   if(g&&g.active==='commander'&&g.phase==='battle'&&g.questionGateOpen&&!g.running&&!g.finished&&g.wave>0&&g.wave%CHECK===0&&g.__cmdCp!==g.wave){
-    g.__cmdCp=g.wave; try{ if(window.v6Save) window.v6Save(g); }catch(e){} toast('Checkpoint saved: wave '+g.wave+' / '+TOTAL+'. Continue from the save slot any time.');
+    g.__cmdCp=g.wave; try{ if(window.v6Save) window.v6Save(g); }catch(e){} toast('Checkpoint saved: wave '+g.wave+'. Continue from the save slot any time.');
   }
   if(!g||busy||g.active!=='commander'||g.phase!=='battle'||!g.questionGateOpen||g.finished) return;
   if(window.GameStudy&&GameStudy.isOpen()) return;

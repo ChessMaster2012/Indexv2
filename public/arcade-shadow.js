@@ -15,7 +15,7 @@ function eq(f,m){ return {of:(f-1)*OLDF+Math.ceil(m/OLDM), mo:((m-1)%OLDM)+1}; }
 function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
 function studyHtml(){ try{ return (window.GameStudy&&GameStudy.summaryHtml())||''; }catch(e){ return ''; } }
 function isBoss(f,m){ var e=eq(f,m); return e.of%3===0&&e.mo===OLDM; }
-try{ (ARCADE_MODES.filter(function(m){ return m.id==='shadow'; })[0]||{}).desc='Each floor is a long gauntlet of 18 clone matches with boss clones at matches 9 and 18, getting harder as you go. A study question round before every match powers you up, and your progress is saved after every match.'; }catch(e){}
+try{ (ARCADE_MODES.filter(function(m){ return m.id==='shadow'; })[0]||{}).desc='The tower is endless: each floor is a long gauntlet of 18 clone matches with boss clones at matches 9 and 18, getting harder as you go. A study question round before every match powers you up, and your progress is saved after every match.'; }catch(e){}
 
 /* ------------------------------ abilities ------------------------------ */
 var AB=[
@@ -89,7 +89,7 @@ function genMap(f,spawnsN,sd){
 function composition(f,m){
   var q=eq(f,m), st=(q.of-1)*OLDM+q.mo, of=q.of, r=mulberry(st*31+7), list=[];
   if(isBoss(f,m)){ list.push('boss'); if(of>=6) list.push('shade'); if(of>=9) list.push('archer'); return list; }
-  var n=Math.min(4,1+Math.floor((st-1)/4)), pool=['shade']; if(st>=3) pool.push('archer'); if(st>=6) pool.push('brute'); if(st>=8) pool.push('wisp');
+  var n=Math.min(4+Math.min(1,Math.floor((f-1)/2)),1+Math.floor((st-1)/4)+(f>1?1:0)), pool=['shade']; if(st>=3) pool.push('archer'); if(st>=6) pool.push('brute'); if(st>=8) pool.push('wisp');
   list.push(st===1?'shade':pool[(r()*pool.length)|0]); while(list.length<n) list.push(pool[(r()*pool.length)|0]);
   if(st>=2&&list.indexOf('shade')<0&&list.length>1) list[0]='shade';
   return list;
@@ -113,8 +113,8 @@ window.arcadeShadowStart=function(){
     cdBar:'',enemies:[],studyOk:0,studyTotal:0};
   g.hp=(carry&&carry.floor===f&&carry.match===m)?clamp(carry.hp,1,g.maxHp):g.maxHp; g.energy=g.energyMax;
   g.p={id:'p',type:'p',x:3,y:ROWS-1,vx:3,vy:ROWS-1,hp:g.hp,flash:0,bump:null};
-  comp.forEach(function(type,i){ var D=ENEMY[type], sc=1+lv, sp=map.spawns[i];
-    var hp=Math.round(D.hp*sc*(type==='boss'?1+of*.04:1)); g.enemies.push({id:'e'+(++uidN),type:type,x:sp.x,y:sp.y,vx:sp.x,vy:sp.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(st/8),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); });
+  comp.forEach(function(type,i){ var D=ENEMY[type], sc=1+lv+.08*(f-1), sp=map.spawns[i]; if(!sp) return; /* each further floor (loop) is tougher */
+    var hp=Math.round(D.hp*sc*(type==='boss'?1+of*.04:1)); g.enemies.push({id:'e'+(++uidN),type:type,x:sp.x,y:sp.y,vx:sp.x,vy:sp.y,hp:hp,max:hp,dmg:D.dmg+Math.floor(st/8)+Math.floor((f-1)/2),mark:null,cd:0,age:0,flash:0,bump:null,dead:false,fade:0,spawn:1}); });
   state.games={active:'shadow',keys:{},sh:g};
   log(g,'Floor '+f+' · match '+m+'/'+MATCHES+' — '+comp.length+' enem'+(comp.length>1?'ies':'y')+' ahead.');
 };
@@ -195,7 +195,7 @@ async function begin(g){
     log(g,'Study check '+c+'/'+r.total+(msg.length?' ('+msg.join(', ')+')':'')+'.');
     floatText(g,cx(g.p.x),cy(g.p.y)-52,c+'/'+r.total+' ✓',r.perfect?'#7dffa8':c?'#ffe08a':'#ff8a8a');
   }
-  g.phase='player'; overlay(g); banner(g,'YOUR TURN'); sfx('turn');
+  g.phase='player'; overlay(g); banner(g,g.match===1&&g.floor>1&&!g.loopShown?'LOOP '+g.floor:'YOUR TURN'); g.loopShown=1; sfx('turn');
 }
 function banner(g,t){ g.banner=t; g.bannerT=1.3; }
 
@@ -208,7 +208,7 @@ function overlay(g){
   } else if(g.phase==='win'||g.phase==='over'){
     var sp=arcadeGameProgress().shadow||{};
     var last=g.match>=MATCHES, won=g.phase==='win';
-    h='<div class="gx-card"><h2>'+(won?(last?'🏆 Floor '+g.floor+' cleared!':'⚔️ Match '+g.match+'/'+MATCHES+' won!'):'💀 Defeated')+'</h2><div class="gx-res" style="grid-template-columns:repeat(3,1fr)"><div><b>'+g.turn+'</b><span>Turns</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>'+Math.max(0,g.hp)+'</b><span>HP left</span></div></div>'+studyHtml()+'<p class="gx-fine">'+(won?(last?'Progress saved — next up: floor '+(g.floor+1)+'.':'You recover some HP. Next: match '+(g.match+1)+' of '+MATCHES+' on floor '+g.floor+'.'):'This match remains unfinished. Try a different approach!')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-shadow-next">'+(won?(last?'Next floor':'Next match'):'Retry match')+'</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    h='<div class="gx-card"><h2>'+(won?(last?'🏆 Floor '+g.floor+' cleared!':'⚔️ Match '+g.match+'/'+MATCHES+' won!'):'💀 Defeated')+'</h2><div class="gx-res" style="grid-template-columns:repeat(3,1fr)"><div><b>'+g.turn+'</b><span>Turns</span></div><div><b>'+g.kills+'</b><span>Kills</span></div><div><b>'+Math.max(0,g.hp)+'</b><span>HP left</span></div></div>'+studyHtml()+'<p class="gx-fine">'+(won?(last?'Progress saved — the tower never ends: floor '+(g.floor+1)+' (Loop '+(g.floor+1)+') awaits, tougher than before.':'You recover some HP. Next: match '+(g.match+1)+' of '+MATCHES+' on floor '+g.floor+'.'):'This match remains unfinished. Try a different approach!')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-shadow-next">'+(won?(last?'Next floor':'Next match'):'Retry match')+'</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   }
   o.innerHTML=h; o.style.display=h?'flex':'none';
 }
@@ -450,7 +450,7 @@ function intent(g,e){
 function hud(g,c){
   c.setTransform(g.sc*g.dpr,0,0,g.sc*g.dpr,g.ox*g.dpr,g.oy*g.dpr); c.textBaseline='alphabetic';
   function T(s,x,y,sz,col,al){ c.textAlign=al||'left'; c.font='900 '+sz+'px Inter,sans-serif'; c.lineWidth=4; c.strokeStyle='rgba(0,0,0,.7)'; c.strokeText(s,x,y); c.fillStyle=col||'#fff'; c.fillText(s,x,y); }
-  T('FLOOR '+g.floor+' · MATCH '+g.match+'/'+MATCHES+(g.boss?' · BOSS':''),16,28,20,'#e0d0ff'); T('Turn '+g.turn,16,48,13,'#a898d8');
+  T('FLOOR '+g.floor+(g.floor>1?' · Loop '+g.floor:'')+' · MATCH '+g.match+'/'+MATCHES+(g.boss?' · BOSS':''),16,28,20,'#e0d0ff'); T('Turn '+g.turn,16,48,13,'#a898d8');
   (function(){ var bx=250, bw=500, by=12, n=MATCHES; c.fillStyle='rgba(0,0,0,.55)'; c.fillRect(bx-3,by-3,bw+6,12); for(var i=0;i<n;i++){ var done=i<g.match-1, cur=i===g.match-1, bs=isBoss(g.floor,i+1); c.fillStyle=cur?'#ffd24a':done?'#7dffa8':bs?'rgba(255,74,160,.55)':'rgba(255,255,255,.16)'; c.fillRect(bx+i*bw/n+1,by,bw/n-2,6); }
     c.textAlign='center'; c.font='800 10px Inter,sans-serif'; c.fillStyle='#b9a8e8'; c.fillText('ZONE '+Math.ceil(g.match/OLDM)+'/'+(MATCHES/OLDM)+' · '+(g.match-1)+'/'+n+' matches cleared · saved after every match',bx+bw/2,by+20); })();
   /* hp + energy */

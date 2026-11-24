@@ -14,7 +14,11 @@
 'use strict';
 var $=function(id){ return document.getElementById(id); };
 var N=8, NST=48, ZN=6, ZS=8; /* 48 stages = 6 zones x 8 stages */
-function zoneOf(L){ return Math.min(ZN,Math.floor((L-1)/ZS)+1); }
+var MAXL=9999; /* endless: stage numbers keep counting; stored progress is capped here */
+function loopOf(L){ return Math.floor((Math.max(1,L)-1)/NST); }
+function effOf(L){ return (Math.max(1,L)-1)%NST+1; }
+function zoneOf(L){ return Math.min(ZN,Math.floor((effOf(L)-1)/ZS)+1); }
+function stageTxt(L){ var l=loopOf(L); return l?'Stage '+L+' · Loop '+(l+1):'Stage '+L+' / '+NST; }
 function gate(opts){ return (window.GameStudy&&GameStudy.session)?GameStudy.gate(opts):Promise.resolve({correct:0,total:0,perfect:false,skipped:true}); }
 var TYPES=[{n:'Ember',s:'🔥',c:'#ff7a5c',d:'#b92d18'},{n:'Tide',s:'💧',c:'#55b0ff',d:'#1b62b8'},{n:'Leaf',s:'🌿',c:'#5be68f',d:'#17844a'},{n:'Spark',s:'⚡',c:'#ffdc5a',d:'#b88a0a'},{n:'Void',s:'🔮',c:'#b98aff',d:'#6a3bc0'},{n:'Sun',s:'☀️',c:'#ffab5a',d:'#b8570a'}];
 function rnd(n){ return (Math.random()*n)|0; }
@@ -29,12 +33,13 @@ function ling(){ try{ return arcadeCharacterHtml(); }catch(e){ return ''; } }
 function prog(){ var gp=arcadeGameProgress(); gp.chrono=gp.chrono||{best:0,spells:0}; return gp.chrono; }
 
 /* ------------------------------ levels ------------------------------ */
-function levelCfg(L){
-  var s=stats();
+function levelCfg(L0){
+  var s=stats(), lp=Math.min(loopOf(L0),20), L=effOf(L0); /* beyond stage 48 the same generators loop with a difficulty scale */
   /* stages 1-8 are the old run; 9-48 keep climbing gently (about 65 -> 95 points needed per move) */
   var base=L<=8?250+L*150+(L>5?(L-5)*40:0):1570+(L-8)*32, mv=L<=8?18+Math.min(6,Math.floor(L/3)):24+Math.min(6,Math.floor((L-8)/7));
   var ice=L<3?0:L<=8?Math.min(14,2+L*2):14+Math.min(6,Math.floor((L-8)/7));
-  return {level:L,target:base,moves:mv+((s.speed||0)>=3?2:0),types:L<3?5:6,ice:ice};
+  base=Math.round(base*(1+.2*lp)); mv=Math.max(14,mv-Math.min(8,lp*2)); ice=Math.min(32,ice+lp*3);
+  return {level:L0,target:base,moves:mv+((s.speed||0)>=3?2:0),types:L<3?5:6,ice:ice,loop:lp};
 }
 function chargeMax(){ var f=stats().focus||100; return Math.max(14,26-Math.floor(f/45)); }
 
@@ -70,7 +75,7 @@ window.arcadeHexStart=function(){
   var g={active:'chrono',cx:1,ph:'title',nid:0,level:1,unlocked:Math.max(1,Number(p.level)||1),busy:false,sel:-1,tool:'',els:{},fx:[]};
   if(p.v!==2){ /* migrate the old 8-stage save: old stage k -> stage 6(k-1)+1 of the 48-stage run */
     var oc=Number(p.cleared)||0, ou=Math.max(1,Math.min(8,Number(p.level)||1)); p.level=oc>=8?NST:(ou-1)*6+1; p.cleared=oc>=8?NST:Math.max(0,(Math.max(ou-1,oc))*6); p.v=2; g.unlocked=p.level; try{ persistProgress(); }catch(e){} }
-  g.unlocked=Math.min(NST,g.unlocked); g.level=1; g.run=null; g.spells=Math.min(9,Number(p.spells)||0); g.charge=0;
+  g.unlocked=Math.min(MAXL,g.unlocked); g.level=1; g.run=null; g.spells=Math.min(9,Number(p.spells)||0); g.charge=0;
   state.games=g;
 };
 /* ---- run flow: title -> startRun -> [gate -> begin (play) -> win/lose] x 8 -> done ---- */
@@ -82,7 +87,7 @@ function startRun(g){
 }
 function startStage(g){
   var lv=g.level, n=lv; clearTimeout(g.hintT); g.busy=true; g.ph='gate'; g.cfg=levelCfg(lv); paintFull(g);
-  gate({title:'Stage '+n+' of '+NST,sub:'Each correct answer gives +2 moves for this stage; all correct also grants a free spell',count:gateCount(lv),label:'Chrono Hex · Stage '+n}).then(function(r){
+  gate({title:(loopOf(lv)>0&&effOf(lv)===1?'LOOP '+(loopOf(lv)+1)+' - ':'')+stageTxt(n).replace(' / ',' of '),sub:'Each correct answer gives +2 moves for this stage; all correct also grants a free spell',count:gateCount(lv),label:'Chrono Hex · Stage '+n}).then(function(r){
     if(G()!==g||g.ph!=='gate'||g.level!==lv) return;
     r=r||{}; var c=r.correct||0, t=r.total||0; g.run.qT+=t; g.run.qC+=c;
     begin(g,{c:c,t:t,moves:2*c,spell:(r.perfect&&t>0)?1:0});
@@ -94,8 +99,9 @@ function begin(g,buff){
   fillFresh(g);
   g.ice=[]; for(var i=0;i<N*N;i++) g.ice.push(0);
   var left=g.cfg.ice; while(left>0){ var k=rnd(N*N); if(!g.ice[k]){ g.ice[k]=1; left--; } }
-  g.iceTotal=g.cfg.ice; g.iceLeft=g.cfg.ice; g.say=buff.t?(buff.c+'/'+buff.t+' correct: +'+buff.moves+' moves'+(buff.spell?' and a free spell!':'')):'Match three or more gems!';
+  g.iceTotal=g.cfg.ice; g.iceLeft=g.cfg.ice; g.say=(g.cfg.loop>0&&effOf(g.level)===1)?('LOOP '+(g.cfg.loop+1)+': bigger goals, fewer moves!'):buff.t?(buff.c+'/'+buff.t+' correct: +'+buff.moves+' moves'+(buff.spell?' and a free spell!':'')):'Match three or more gems!';
   renderGames();
+  if(g.cfg.loop>0&&effOf(g.level)===1) floatText(g,27,'LOOP '+(g.cfg.loop+1),'combo');
 }
 function endRun(g,won){
   var r=g.run; if(!r||r.ended) return; r.ended=true; clearTimeout(g.hintT); g.ph=won?'done':'over'; var p=prog();
@@ -106,10 +112,10 @@ function endRun(g,won){
 function finishLevel(g,won){
   g.busy=true; clearTimeout(g.hintT); var p=prog(), r=g.run;
   p.best=Math.max(Number(p.best)||0,g.score); p.bestCombo=Math.max(Number(p.bestCombo)||0,g.maxCombo); p.spells=g.spells; if(r) r.bestCombo=Math.max(r.bestCombo,g.maxCombo);
-  if(won){ var first=g.level>=g.unlocked; if(first){ g.unlocked=Math.min(NST,g.level+1); p.level=g.unlocked; } p.cleared=Math.max(Number(p.cleared)||0,g.level); g.coins=0; if(r){ r.coins+=g.coins; r.cleared=Math.max(r.cleared,g.level); } try{ noCoin(g.coins,'Chrono Hex clear'); }catch(e){} g.bonus=g.moves*20; g.score+=g.bonus; if(r) r.score+=g.score; p.best=Math.max(p.best,g.score); sfx('win'); try{ celebrate(); }catch(e){} }
+  if(won){ var first=g.level>=g.unlocked; if(first){ g.unlocked=Math.min(MAXL,g.level+1); p.level=g.unlocked; } p.cleared=Math.min(MAXL,Math.max(Number(p.cleared)||0,g.level)); g.coins=0; if(r){ r.coins+=g.coins; r.cleared=Math.max(r.cleared,g.level); } try{ noCoin(g.coins,'Chrono Hex clear'); }catch(e){} g.bonus=g.moves*20; g.score+=g.bonus; if(r) r.score+=g.score; p.best=Math.max(p.best,g.score); sfx('win'); try{ celebrate(); }catch(e){} }
   else sfx('lose');
   try{ persistProgress(); }catch(e){}
-  setTimeout(function(){ if(G()!==g) return; if(won&&g.level>=NST){ g.run.ended=false; endRun(g,true); return; } g.ph=won?'win':'lose'; paintFull(g); },won?700:500);
+  setTimeout(function(){ if(G()!==g) return; g.ph=won?'win':'lose'; paintFull(g); },won?700:500);
 }
 function persist(g){ var p=prog(); p.best=Math.max(Number(p.best)||0,g.score); p.bestCombo=Math.max(Number(p.bestCombo)||0,g.maxCombo); p.spells=g.spells; try{ persistProgress(); }catch(e){} }
 
@@ -256,31 +262,31 @@ function hud(g){
 }
 function playHtml(g){
   var mute=muted()?'🔇':'🔊';
-  return '<div class="cx-top"><div class="cx-goalwrap"><b>Stage '+g.level+' / '+NST+'</b> <small>· Zone '+zoneOf(g.level)+'/'+ZN+'</small> · reach <b>'+g.cfg.target+'</b> points'+(g.iceTotal?' and break all the ice':'')+'<div class="cx-goalbar"><i id="cx-goalbar"></i></div></div><div class="cx-box" id="cx-movesbox"><small>Moves</small><b id="cx-moves">'+g.moves+'</b></div><div class="cx-box"><small>Score</small><b id="cx-score">'+g.score+'</b></div><span class="cx-ice" id="cx-ice"></span><div class="cx-tools"><button class="cx-tool" data-cx="mute" title="Sound">'+mute+'</button><button class="cx-tool" data-cx="fs" title="Fullscreen (F)">⛶</button></div></div>'+
+  return '<div class="cx-top"><div class="cx-goalwrap"><b>'+stageTxt(g.level)+'</b> <small>· Zone '+zoneOf(g.level)+'/'+ZN+'</small> · reach <b>'+g.cfg.target+'</b> points'+(g.iceTotal?' and break all the ice':'')+'<div class="cx-goalbar"><i id="cx-goalbar"></i></div></div><div class="cx-box" id="cx-movesbox"><small>Moves</small><b id="cx-moves">'+g.moves+'</b></div><div class="cx-box"><small>Score</small><b id="cx-score">'+g.score+'</b></div><span class="cx-ice" id="cx-ice"></span><div class="cx-tools"><button class="cx-tool" data-cx="mute" title="Sound">'+mute+'</button><button class="cx-tool" data-cx="fs" title="Fullscreen (F)">⛶</button></div></div>'+
     '<div class="cx-body"><div class="cx-side"><div class="cx-ling" id="cx-ling">'+ling()+'</div><div class="cx-say" id="cx-say"></div><div class="cx-charge"><small>Spell charge <span id="cx-chargetxt"></span></small><div class="cx-chbar"><i id="cx-chargebar"></i></div><div class="cx-sp">✨ Spells <b id="cx-spells">'+g.spells+'</b></div></div></div>'+
     '<div class="cx-main" id="cx-main"><div class="cx-boardwrap"><div class="cx-board" id="cx-board"></div><div class="cx-fx" id="cx-fx"></div></div>'+
     '<div class="cx-spellbar"><button data-cx="spell" data-k="rewind" title="+3 moves">⏪ Rewind <em>1</em></button><button data-cx="spell" data-k="hammer" title="Smash one gem">🔨 Hammer <em>1</em></button><button data-cx="spell" data-k="burst" title="Clear the most common element">🌈 Burst <em>2</em></button><button data-cx="spell" data-k="shuffle" title="Shuffle the board">🔀 Shuffle <em>1</em></button></div></div></div>';
 }
-function pips(g){ var h='', done=(g.ph==='win'?g.level:g.level-1), cur=zoneOf(g.level); for(var z=1;z<=ZN;z++){ var a=(z-1)*ZS, f=Math.max(0,Math.min(ZS,done-a)); h+='<i class="'+(f>=ZS?'done':(z===cur?'cur':''))+'" title="Zone '+z+': '+f+'/'+ZS+'"></i>'; } return '<div class="cx-pips" aria-label="Zone progress, '+done+' of '+NST+' stages cleared">'+h+'</div><p class="cx-fine">Stage '+g.level+' of '+NST+' · Zone '+cur+' of '+ZN+' · '+done+' cleared</p>'; }
+function pips(g){ var h='', done=(g.ph==='win'?effOf(g.level):effOf(g.level)-1), cur=zoneOf(g.level), lpn=loopOf(g.level), totDone=(g.ph==='win'?g.level:g.level-1); for(var z=1;z<=ZN;z++){ var a=(z-1)*ZS, f=Math.max(0,Math.min(ZS,done-a)); h+='<i class="'+(f>=ZS?'done':(z===cur?'cur':''))+'" title="Zone '+z+': '+f+'/'+ZS+'"></i>'; } return '<div class="cx-pips" aria-label="Zone progress, '+done+' of '+NST+' stages cleared this loop">'+h+'</div><p class="cx-fine">'+stageTxt(g.level).replace(' / ',' of ')+' · Zone '+cur+' of '+ZN+' · '+totDone+' cleared'+(lpn?' · endless':'')+'</p>'; }
 function topicTxt(){ return (window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic'):'your topic').replace(/[<>&"']/g,''); }
 function titleHtml(g){
   var p=prog(), c=levelCfg(g.level);
   var goal=c.target+' points'+(c.ice?' + break '+c.ice+' ice tiles':'');
-  return '<div class="cx-title"><div class="cx-ling big">'+ling()+'</div><h2>Chrono Hex Puzzle</h2><p>Clear <b>one long run of 48 stages</b> (six zones of eight) of match-3, each goal a little bigger than the last; your progress is saved after every stage. Before every stage you answer <b>2-3 study questions</b> on <i>'+topicTxt()+'</i>: every right answer gives +2 moves, and a perfect round gives a free spell. Match 4 for a line gem, L/T for a bomb, 5 for a rainbow.</p>'+
-    '<div class="cx-lv"><button class="cx-tool" data-cx="lv-" '+(g.level<=1?'disabled':'')+'>◀</button><div><small>Resume at stage (zone '+zoneOf(g.level)+' of '+ZN+')</small><b>'+g.level+' / '+NST+'</b></div><button class="cx-tool" data-cx="lv+" '+(g.level>=g.unlocked?'disabled':'')+'>▶</button></div>'+
+  return '<div class="cx-title"><div class="cx-ling big">'+ling()+'</div><h2>Chrono Hex Puzzle</h2><p>Clear <b>one long run of 48 stages</b> (six zones of eight) of match-3, each goal a little bigger than the last. Then it <b>loops</b>: bigger goals and fewer moves, endlessly; your progress is saved after every stage. Before every stage you answer <b>2-3 study questions</b> on <i>'+topicTxt()+'</i>: every right answer gives +2 moves, and a perfect round gives a free spell. Match 4 for a line gem, L/T for a bomb, 5 for a rainbow.</p>'+
+    '<div class="cx-lv"><button class="cx-tool" data-cx="lv-" '+(g.level<=1?'disabled':'')+'>◀</button><div><small>Resume at stage (zone '+zoneOf(g.level)+' of '+ZN+')</small><b>'+(loopOf(g.level)?g.level+' · Loop '+(loopOf(g.level)+1):g.level+' / '+NST)+'</b></div><button class="cx-tool" data-cx="lv+" '+(g.level>=g.unlocked?'disabled':'')+'>▶</button></div>'+
     '<div class="cx-facts"><span>🎯 '+goal+'</span><span>🔁 '+c.moves+' moves (+2 per right answer)</span><span>💠 Best '+(Number(p.best)||0)+'</span><span>🏁 Best run '+(Number(p.bestRun)||0)+'</span><span>✨ '+g.spells+' spells</span></div>'+
     '<div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="start">▶ Start run at stage '+g.level+'</button><button class="btn btn-ghost" data-cx="fs">⛶ Fullscreen</button></div><div class="cx-how"><span>Drag or click to swap</span><span>F fullscreen</span><span>Hint after 7s idle</span></div></div>';
 }
 function gateHtml(g){
-  return '<div class="cx-title"><div class="cx-ling big">'+ling()+'</div><h2>Stage '+g.level+' of '+NST+'</h2>'+pips(g)+'<p>Goal: <b>'+g.cfg.target+'</b> points'+(g.cfg.ice?' and break all <b>'+g.cfg.ice+'</b> ice tiles':'')+' in '+g.cfg.moves+' moves. Answer the study questions to earn extra moves.</p></div>';
+  return '<div class="cx-title"><div class="cx-ling big">'+ling()+'</div><h2>'+stageTxt(g.level).replace(' / ',' of ')+'</h2>'+pips(g)+'<p>Goal: <b>'+g.cfg.target+'</b> points'+(g.cfg.ice?' and break all <b>'+g.cfg.ice+'</b> ice tiles':'')+' in '+g.cfg.moves+' moves. Answer the study questions to earn extra moves.</p></div>';
 }
 function studyLine(r){ var sh=(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml)?GameStudy.summaryHtml():''; return sh+(r.qT?'<p class="cx-fine">This run: '+r.qC+' / '+r.qT+' study questions correct'+(r.retries?' · '+r.retries+' retr'+(r.retries>1?'ies':'y'):'')+'</p>':''); }
 function endHtml(g){
   var r=g.run||{score:0,cleared:0,coins:0,qT:0,qC:0,retries:0,bestCombo:0}, ph=g.ph;
-  if(ph==='win') return '<div class="cx-title"><div class="cx-ling big hop">'+ling()+'</div><h2>Stage '+g.level+' of '+NST+' cleared!</h2>'+pips(g)+'<p>Score <b>'+g.score+'</b> (incl. +'+g.bonus+' for '+g.moves+' spare moves) · best combo ×'+g.maxCombo+'</p><p class="cx-fine">Next: Stage '+(g.level+1)+', goal '+levelCfg(g.level+1).target+' points. Study questions first.</p><div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="next">Next stage ▶</button><button class="btn btn-ghost" data-cx="endrun">End run</button></div></div>';
+  if(ph==='win') return '<div class="cx-title"><div class="cx-ling big hop">'+ling()+'</div><h2>'+stageTxt(g.level).replace(' / ',' of ')+' cleared!</h2>'+pips(g)+'<p>Score <b>'+g.score+'</b> (incl. +'+g.bonus+' for '+g.moves+' spare moves) · best combo ×'+g.maxCombo+'</p><p class="cx-fine">Next: Stage '+(g.level+1)+', goal '+levelCfg(g.level+1).target+' points. Study questions first.</p><div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="next">Next stage ▶</button><button class="btn btn-ghost" data-cx="endrun">End run</button></div></div>';
   if(ph==='lose') return '<div class="cx-title"><div class="cx-ling big">'+ling()+'</div><h2>Out of moves</h2>'+pips(g)+'<p>You scored <b>'+g.score+'</b> of '+g.cfg.target+(g.iceLeft?' with '+g.iceLeft+' ice left':'')+'. This stage does not count yet, but your earlier stages and saved spells are kept. Retry it with fresh study questions.</p><div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="again">Retry stage ▶</button><button class="btn btn-ghost" data-cx="endrun">End run</button></div></div>';
   var won=ph==='done';
-  return '<div class="cx-title"><div class="cx-ling big '+(won?'hop':'')+'">'+ling()+'</div><h2>'+(won?'Run complete!':'Run ended')+'</h2><p>'+r.cleared+' / '+NST+' stages cleared · run score <b>'+r.score+'</b> · best combo ×'+r.bestCombo+'</p>'+studyLine(r)+'<div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="start">Play again</button><button class="btn btn-ghost" data-cx="menu">Stage select</button></div></div>';
+  return '<div class="cx-title"><div class="cx-ling big '+(won?'hop':'')+'">'+ling()+'</div><h2>'+(won?'Run complete!':'Run ended')+'</h2><p>'+r.cleared+' stages cleared · run score <b>'+r.score+'</b> · best combo ×'+r.bestCombo+'</p>'+studyLine(r)+'<div class="cx-btns"><button class="btn btn-primary btn-lg" data-cx="start">Play again</button><button class="btn btn-ghost" data-cx="menu">Stage select</button></div></div>';
 }
 function inner(g){ return g.ph==='title'?titleHtml(g):g.ph==='play'?playHtml(g):g.ph==='gate'?gateHtml(g):endHtml(g); }
 function paintFull(g){
@@ -290,7 +296,7 @@ function paintFull(g){
 window.arcadeHexHtml=function(){
   var g=state.games; if(!g||!g.cx) return '';
   var p=prog();
-  var statsH='<span class="arcade-pill">💠 Best <b>'+(Number(p.best)||0)+'</b></span><span class="arcade-pill">🔓 Stage <b>'+g.unlocked+'/'+NST+'</b></span><span class="arcade-pill">✨ <b>'+g.spells+'</b></span>';
+  var statsH='<span class="arcade-pill">💠 Best <b>'+(Number(p.best)||0)+'</b></span><span class="arcade-pill">🔓 Stage <b>'+(g.unlocked>NST?g.unlocked:g.unlocked+'/'+NST)+'</b></span><span class="arcade-pill">✨ <b>'+g.spells+'</b></span>';
   setTimeout(function(){ if(G()===g&&g.ph==='play'){ var bd=$('cx-board'); if(bd&&!bd.children.length){ buildBoard(g); hud(g); armHint(g); } } },0);
   return arcadeFrame('Chrono Hex Puzzle','Match gems, break ice and charge your Indexling\'s spells.',statsH,'<div id="cx-root" class="cx-root" data-ph="'+g.ph+'">'+inner(g)+'</div>');
 };
@@ -322,7 +328,7 @@ document.addEventListener('click',function(e){
   else if(a==='lv+'){ stepStart(g,1); paintFull(g); }
   else if(a==='start'){ if(g.ph==='title'){ startRun(g); } else { g.level=g.run?Math.max(1,g.run.start):1; g.level=Math.min(g.level,g.unlocked); startRun(g); } }
   else if(a==='again'){ if(g.ph==='lose'&&g.run){ g.run.retries++; startStage(g); } }
-  else if(a==='next'){ if(g.ph==='win'&&g.level<NST){ g.level++; startStage(g); } }
+  else if(a==='next'){ if(g.ph==='win'&&g.level<MAXL){ g.level++; startStage(g); } }
   else if(a==='endrun'){ if(g.run&&(g.ph==='win'||g.ph==='lose')) endRun(g,false); }
   else if(a==='menu'){ g.ph='title'; g.run=null; g.level=Math.min(g.level,g.unlocked); paintFull(g); }
   else if(a==='spell') spell(g,t.getAttribute('data-k'));
@@ -330,6 +336,6 @@ document.addEventListener('click',function(e){
 document.addEventListener('keydown',function(e){ var g=G(); if(!g||state.view!=='games') return; if(e.key==='f'||e.key==='F'){ toggleFS(); } },true);
 window.addEventListener('resize',function(){ if(G()) fit(); });
 document.addEventListener('fullscreenchange',function(){ if(G()) setTimeout(fit,60); });
-try{ (ARCADE_MODES.filter(function(m){return m.id==='chrono';})[0]||{}).desc='A 48-stage match-3 run (six zones) with steadily rising score goals and ice, saved after every stage. Pick a study topic, then answer 2-3 AI questions before every stage: right answers earn extra moves and a free spell.'; }catch(e){}
+try{ (ARCADE_MODES.filter(function(m){return m.id==='chrono';})[0]||{}).desc='An endless match-3 run (48 stages, six zones, then it loops harder) with steadily rising score goals and ice, saved after every stage. Pick a study topic, then answer 2-3 AI questions before every stage: right answers earn extra moves and a free spell.'; }catch(e){}
 window.__cx={get:function(){ return G(); },trySwap:trySwap,findMove:findMove,runs:runs,begin:begin,spell:spell,N:N};
 })();

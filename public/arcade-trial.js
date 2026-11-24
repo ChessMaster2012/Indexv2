@@ -56,8 +56,8 @@ function sfx(kind){
 var LEVEL_NAMES=['The Overgrown Ruins','The Sunken Halls','The Molten Forge','The Sky Sanctum','The Flooded Gauntlet','The Ancients\' Vault'];
 var TH=[0,1,2,3,1,2], BONUST=[0,12,0,28,18,24], NSEG=6, NLV=1, GATEQ=3, CONT0=2, CONTMAX=6;
 /* ONE long level made of six consecutive zones (the old six levels, in order of difficulty), with a checkpoint + study gate at every zone border */
-function buildLevel(){
-  var idx=0, L={solids:[],spikes:[],saws:[],pends:[],jets:[],turrets:[],walkers:[],bats:[],coins:[],gems:[],crystals:[],hearts:[],springs:[],cps:[],zoneX:[],th:[TH[0]],signs:[],relic:null,end:0,idx:0,base:0,segs:[]};
+function buildLevel(loop){
+  loop=loop||0; var idx=0, L={solids:[],spikes:[],saws:[],pends:[],jets:[],turrets:[],walkers:[],bats:[],coins:[],gems:[],crystals:[],hearts:[],springs:[],cps:[],zoneX:[],th:[TH[0]],signs:[],relic:null,end:0,idx:0,base:0,segs:[]};
   var cx=0, gy=760, i, s;
   function G(len,dy){ gy+=(dy||0); var s={x:cx,y:gy,w:len,h:H-gy,k:'g'}; L.solids.push(s); cx+=len; return s; }
   function gap(w){ cx+=w; }
@@ -69,7 +69,7 @@ function buildLevel(){
   function pend(px,py,len,amp,spd,ph){ L.pends.push({px:px,py:py,len:len,amp:amp,spd:spd,ph:ph||0,x:px,y:py+len}); }
   function jet(x,y,per,on,off){ L.jets.push({x:x,y:y,per:per,on:on,off:off,fire:false,warn:false}); }
   function turret(x,y,dir,per,off){ L.turrets.push({x:x,y:y,dir:dir,per:per,off:off||0,cd:per*.5+(off||0)}); }
-  function walker(x,y,x0,x1){ L.walkers.push({x:x,y:y,x0:x0,x1:x1,dir:1,alive:true,sq:0}); }
+  function walker(x,y,x0,x1){ L.walkers.push({x:x,y:y,x0:x0,x1:x1,dir:1,alive:true,sq:0,spd:55*(1+.12*Math.min(loop,8))}); }
   function bat(x,y,amp,rng,ph){ L.bats.push({x:x,y:y,y0:y,x0:x,amp:amp,rng:rng,ph:ph||0,alive:true}); }
   function coin(x,y){ L.coins.push({x:x,y:y,got:false}); }
   function coinLine(x,y,n,dx,dy){ for(var i=0;i<n;i++) coin(x+i*dx,y+i*(dy||0)); }
@@ -164,7 +164,15 @@ function buildLevel(){
     gap(250); s=G(260,0); bat(s.x+130,gy-170,40,90); coinArc(s.x+10,gy-60,5,230,70);
     finish(520);
   }
-  var sb=clamp(Math.round((cx-segX)/290*(2.9-.14*idx))+34+BONUST[idx],72,190); L.base+=sb; L.segs.push({x:segX,base:sb});
+  var sb=clamp(Math.round((cx-segX)/290*(2.9-.14*idx))+34+BONUST[idx],72,190); sb=Math.round(sb*Math.max(.72,1-.04*loop)); L.base+=sb; L.segs.push({x:segX,base:sb});
+  }
+  if(loop>0){ /* endless escalation: every loop makes the hazards faster and denser */
+    var f=1+.16*Math.min(loop,10), e;
+    L.turrets.forEach(function(t){ t.per=Math.max(.9,t.per/f); t.cd=t.per*.5+t.off; });
+    L.saws.forEach(function(w){ w.spd*=f; }); L.pends.forEach(function(w){ w.spd*=Math.min(f,1.8); });
+    L.jets.forEach(function(j){ j.on=Math.min(j.per-.7,j.on*(1+.06*Math.min(loop,8))); });
+    L.solids.forEach(function(m){ if(m.k==='m') m.spd*=Math.min(f,1.7); });
+    L.bats.slice().forEach(function(b){ if(loop>=2) L.bats.push({x:b.x,y:b.y,y0:b.y0,x0:b.x0,amp:b.amp*1.1,rng:b.rng*.8,ph:b.ph+1.7,alive:true}); });
   }
   L.coinsTotal=L.coins.length+L.gems.length*5;
   /* base clock = the sum of the six old per-level clocks (each zone's length, later zones tighter) */
@@ -179,13 +187,13 @@ function resetPlayer(g){
   g.cam.x=0; g.cam.y=clamp(sp.y-(g.vh||620)*.62,-420,H-(g.vh||620)+60); g.darts=[]; g.parts=[]; g.texts=[]; g.ghosts=[]; g.freeze=0; g.zone=-1; g.keys={}; g.btn={};
 }
 function loadLevel(g,idx){
-  g.L=buildLevel(); g.lvl=0; g.time=0; g.limit=g.L.segs[0].base; g.timeouts=0; g.coinBase=g.coins; resetPlayer(g);
+  g.L=buildLevel(g.loop||0); g.lvl=0; g.time=0; g.limit=g.L.segs[0].base; g.timeouts=0; g.coinBase=g.coins; resetPlayer(g);
 }
 window.arcadeTrialStart=function(){
   clearGameTimers();
   var s=arcadeCharacterStats(), L=buildLevel(), sp=L.solids[0];
   var maxH=3+Math.floor((s.vitality||3)/3);
-  var g={L:L,lvl:0,phase:'ready',t:0,time:0,limit:L.segs[0].base,hearts:maxH,maxH:maxH,coins:0,coinsAll:0,gems:0,score:0,kills:0,deaths:0,runTime:0,leftSum:0,limSum:0,qTotal:0,qCorrect:0,timeouts:0,
+  var g={L:L,lvl:0,loop:0,phase:'ready',t:0,time:0,limit:L.segs[0].base,hearts:maxH,maxH:maxH,coins:0,coinsAll:0,gems:0,score:0,kills:0,deaths:0,runTime:0,leftSum:0,limSum:0,qTotal:0,qCorrect:0,timeouts:0,
     run:290*(.92+.04*(s.speed||2)),
     p:{x:90,y:sp.y,vx:0,vy:0,face:1,ground:null,coy:0,jbuf:0,jcut:false,dashT:0,dashCd:0,airDash:false,inv:0,wall:0,wlock:0,sq:1,sqv:0,anim:0,hist:[],hT:0,wasG:true,spawn:{x:90,y:sp.y}},
     cam:{x:0,y:600},keys:{},btn:{},darts:[],parts:[],texts:[],ghosts:[],shake:0,flash:0,banner:'',bannerT:0,zone:-1,s:s,freeze:0,dead:false,mouse:0,vw:1000,vh:620};
@@ -263,34 +271,36 @@ document.addEventListener('keydown',keyDown,true); document.addEventListener('ke
 window.addEventListener('blur',function(){ var g=state.games&&state.games.tr; if(g&&g.phase==='play') togglePause(g); });
 function begin(g){ if(g.phase!=='ready') return; startLevel(g); }
 function startLevel(g){
-  var n=g.lvl+1; g.phase='gate'; g.keys={}; g.btn={}; overlay(g); var lv=g.lvl;
-  gate({title:'The Trial of the Ancients - Zone 1 of '+NSEG+': '+LEVEL_NAMES[0],sub:'One long run through six zones. Each correct answer gives +1 heart and +10 seconds; a new question round waits at every zone checkpoint',count:GATEQ,label:'Level '+n}).then(function(r){
+  var n=g.lvl+1, lp=g.loop||0, zn=lp*NSEG+1; g.phase='gate'; g.keys={}; g.btn={}; overlay(g); var lv=g.lvl;
+  gate({title:'The Trial of the Ancients - Zone '+zn+(lp?' · Loop '+(lp+1):'')+': '+LEVEL_NAMES[0],sub:(lp?'Loop '+(lp+1)+': the traps are faster and deadlier. ':'')+'An endless run through six-zone loops. Each correct answer gives +1 heart and +10 seconds; a new question round waits at every zone checkpoint',count:GATEQ,label:'Level '+(lp*NLV+n)}).then(function(r){
     if(!state.games||state.games.tr!==g||g.phase!=='gate'||g.lvl!==lv) return;
     r=r||{}; var c=r.correct||0, t=r.total||0;
     g.qTotal+=t; g.qCorrect+=c; g.limit=g.L.segs[0].base+10*c; g.hearts=Math.min(g.maxH,g.hearts+c); g.keys={}; g.btn={};
     g.phase='play'; g.last=performance.now(); overlay(g);
-    banner(g,'ZONE 1 - '+LEVEL_NAMES[0]); if(t) floatText(g,g.p.x,g.p.y-90,c+'/'+t+' correct: +'+(10*c)+'s'+(c?', +'+c+' ❤':''),c?'#7cf0a0':'#ffb0b0'); if(g.texts.length) g.texts[g.texts.length-1].l=3;
+    banner(g,(lp?'LOOP '+(lp+1)+' · ':'')+'ZONE '+zn+' - '+LEVEL_NAMES[0]); if(t) floatText(g,g.p.x,g.p.y-90,c+'/'+t+' correct: +'+(10*c)+'s'+(c?', +'+c+' ❤':''),c?'#7cf0a0':'#ffb0b0'); if(g.texts.length) g.texts[g.texts.length-1].l=3;
   });
 }
 function zoneGate(g,seg){
   var L=g.L; g.limit+=L.segs[seg].base; g.phase='gate'; g.keys={}; g.btn={}; overlay(g);
-  gate({title:'Zone '+(seg+1)+' of '+NSEG+' - '+LEVEL_NAMES[seg],sub:'Checkpoint saved. +'+L.segs[seg].base+'s added to your clock. Each correct answer gives +1 heart and +10 seconds',count:GATEQ,label:'Zone '+(seg+1)}).then(function(r){
+  var zn2=(g.loop||0)*NSEG+seg+1, lp2=g.loop||0;
+  gate({title:'Zone '+zn2+(lp2?' · Loop '+(lp2+1):'')+' - '+LEVEL_NAMES[seg],sub:'Checkpoint saved. +'+L.segs[seg].base+'s added to your clock. Each correct answer gives +1 heart and +10 seconds',count:GATEQ,label:'Zone '+zn2}).then(function(r){
     if(!state.games||state.games.tr!==g||g.phase!=='gate') return;
     r=r||{}; var c=r.correct||0, t=r.total||0; g.qTotal+=t; g.qCorrect+=c; g.limit+=10*c; g.hearts=Math.min(g.maxH,g.hearts+c); g.keys={}; g.btn={};
-    g.phase='play'; g.last=performance.now(); overlay(g); banner(g,'ZONE '+(seg+1)+' - '+LEVEL_NAMES[seg]);
+    g.phase='play'; g.last=performance.now(); overlay(g); banner(g,'ZONE '+zn2+' - '+LEVEL_NAMES[seg]);
   });
 }
 function levelClear(g){
   if(g.phase!=='play') return;
   var left=Math.max(0,g.limit-g.time), cn=g.L.coinsTotal;
-  var bonus=Math.round(left)*5+g.hearts*60+(g.lvl+1)*100;
+  var bonus=Math.round(left)*5+g.hearts*60+((g.loop||0)*NSEG+g.lvl+1)*100;
   g.score+=bonus; g.runTime+=g.time; g.leftSum+=left; g.limSum+=g.limit; g.coinsAll+=cn; g.lastBonus=bonus; g.lastLeft=Math.round(left);
   sfx('win'); try{ celebrate(); }catch(e){}
-  if(g.lvl>=NLV-1){ end(g,true); return; }
-  g.phase='clear'; g.keys={}; g.btn={}; overlay(g);
+  /* endless: the relic opens the next, harder loop instead of ending the run */
+  g.loop=(g.loop||0)+1; loadLevel(g,0); g.phase='gate'; g.zone=-1; startLevel(g);
 }
 function nextLevel(g){ if(g.phase!=='clear') return; loadLevel(g,g.lvl+1); startLevel(g); }
 function togglePause(g){ if(g.phase==='play'){ g.phase='pause'; overlay(g); } else if(g.phase==='pause'){ g.phase='play'; g.last=performance.now(); overlay(g); } }
+function zonesReached(g){ var z=0; for(var q=0;q<g.L.zoneX.length;q++) if(g.p.x>=g.L.zoneX[q]) z=q; return (g.loop||0)*NSEG+z+1; }
 function banner(g,t){ g.banner=t; g.bannerT=2.6; }
 
 /* ------------------------------ overlays ------------------------------ */
@@ -298,14 +308,14 @@ function overlay(g){
   var o=g.ov; if(!o) return; var h='';
   if(g.phase==='ready'){
     var tp=arcadeGameProgress().trial||{};
-    h='<div class="gx-card"><h2>🏃 Trial of the Ancients</h2><p>Run one <b>huge level made of six zones</b>, each harder than the last, with a checkpoint and question round at every border. Claim the relic at the very end before the clock runs out. Before every level you answer <b>3 study questions</b> on <i>'+(window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic').replace(/[<>&]/g,''):'your topic')+'</i>: every right answer gives <b>+1 heart</b> and <b>+10 seconds</b>.</p><ul class="gx-keys"><li><kbd>A/D</kbd> or <kbd>←/→</kbd> run</li><li><kbd>W</kbd> / <kbd>Space</kbd> jump — hold for height</li><li><kbd>Shift</kbd> dash (also crosses wide gaps)</li><li>Slide on walls, then jump to leap off them</li><li>Stomp enemies · collect 🪙 and 💎 · ⏳ adds time · altars are checkpoints · running out of time costs a heart</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">'+g.maxH+' hearts (Vitality) · run speed (Speed '+g.s.speed.toFixed(1)+') · each level has its own clock'+(tp.bestRun?' · best full run '+tp.bestRun+'s':'')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-start>Start trial</button><button class="btn btn-ghost" data-tr-fs type="button">⛶ Fullscreen</button></div></div>';
+    h='<div class="gx-card"><h2>🏃 Trial of the Ancients</h2><p>Run one <b>huge level made of six zones</b>, each harder than the last, with a checkpoint and question round at every border. Claim the relic and the trial loops again, harder, forever: survive as long as you can. Before every level you answer <b>3 study questions</b> on <i>'+(window.GameStudy&&GameStudy.session?String(GameStudy.session.title||'your topic').replace(/[<>&]/g,''):'your topic')+'</i>: every right answer gives <b>+1 heart</b> and <b>+10 seconds</b>.</p><ul class="gx-keys"><li><kbd>A/D</kbd> or <kbd>←/→</kbd> run</li><li><kbd>W</kbd> / <kbd>Space</kbd> jump — hold for height</li><li><kbd>Shift</kbd> dash (also crosses wide gaps)</li><li>Slide on walls, then jump to leap off them</li><li>Stomp enemies · collect 🪙 and 💎 · ⏳ adds time · altars are checkpoints · running out of time costs a heart</li><li><kbd>F</kbd> fullscreen · <kbd>P</kbd> pause</li></ul><p class="gx-stats">'+g.maxH+' hearts (Vitality) · run speed (Speed '+g.s.speed.toFixed(1)+') · each level has its own clock'+(tp.bestRun?' · best full run '+tp.bestRun+'s':'')+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-start>Start trial</button><button class="btn btn-ghost" data-tr-fs type="button">⛶ Fullscreen</button></div></div>';
   } else if(g.phase==='pause'){
     h='<div class="gx-card"><h2>⏸ Paused</h2><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-resume>Resume</button><button class="btn btn-ghost" data-tr-fs type="button">⛶ Fullscreen</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   } else if(g.phase==='clear'){
     h='<div class="gx-card"><h2>🏺 Level '+(g.lvl+1)+' complete!</h2><p>Relic claimed in <b>'+LEVEL_NAMES[g.lvl]+'</b>. '+g.lastLeft+'s left on the clock.</p><div class="gx-res"><div><b>+'+g.lastBonus+'</b><span>Level bonus</span></div><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+g.hearts+'/'+g.maxH+'</b><span>Hearts</span></div></div><p class="gx-fine">Next: Level '+(g.lvl+2)+' of '+NLV+' - '+LEVEL_NAMES[g.lvl+1]+'. Study questions first.</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-tr-next>Next level <span class="gx-fine">(Space)</span></button></div></div>';
   } else if(g.phase==='win'||g.phase==='over'){
     var tp2=arcadeGameProgress().trial||{}, st=''; for(var i=0;i<3;i++) st+=(i<g.stars?'★':'☆');
-    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Trial conquered!':'💀 Out of hearts')+'</h2>'+(g.phase==='win'?'<div style="font-size:42px;color:#ffd24a;letter-spacing:6px">'+st+'</div>':'')+'<div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+(g.phase==='win'?NSEG:(function(){var z=0;for(var q=0;q<g.L.zoneX.length;q++) if(g.p.x>=g.L.zoneX[q]) z=q;return z;})())+'/'+NSEG+'</b><span>Zones</span></div><div><b>'+g.coins+'</b><span>Coins</span></div><div><b>'+g.kills+'</b><span>Stomps</span></div></div>'+(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(tp2.best||0)+'</p>')+'<p class="gx-fine">Furthest zone: '+(function(){var z=0;for(var q=0;q<g.L.zoneX.length;q++) if(g.p.x>=g.L.zoneX[q]) z=q;return (z+1)+' - '+LEVEL_NAMES[z];})()+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-trial-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
+    h='<div class="gx-card wide"><h2>'+(g.phase==='win'?'🏆 Trial conquered!':'💀 Out of hearts')+'</h2><p class="gx-fine">Reached zone '+zonesReached(g)+' · Loop '+((g.loop||0)+1)+'</p>'+(g.phase==='win'?'<div style="font-size:42px;color:#ffd24a;letter-spacing:6px">'+st+'</div>':'')+'<div class="gx-res"><div><b>'+g.score+'</b><span>Score</span></div><div><b>'+zonesReached(g)+'</b><span>Zones</span></div><div><b>'+g.coins+'</b><span>Coins</span></div><div><b>'+g.kills+'</b><span>Stomps</span></div></div>'+(window.GameStudy&&GameStudy.session&&GameStudy.summaryHtml?GameStudy.summaryHtml():'')+(g.newBest?'<p class="gx-newbest">⭐ New personal best!</p>':'<p class="gx-fine">Personal best: '+(tp2.best||0)+'</p>')+'<p class="gx-fine">Furthest zone: '+(function(){var z=0;for(var q=0;q<g.L.zoneX.length;q++) if(g.p.x>=g.L.zoneX[q]) z=q;return zonesReached(g)+' - '+LEVEL_NAMES[z]+((g.loop||0)?' (Loop '+((g.loop||0)+1)+')':'');})()+'</p><div class="gx-endbtns"><button class="btn btn-primary btn-lg" data-action="arcade-trial-replay">Play again</button><button class="btn btn-ghost" data-action="arcade-hub">← All games</button></div></div>';
   }
   o.innerHTML=h; o.style.display=h?'flex':'none';
 }
@@ -317,7 +327,7 @@ function end(g,win,why){
   g.newBest=g.score>(Number(gp.trial.best)||0);
   gp.trial.best=Math.max(Number(gp.trial.best)||0,g.score);
   if(win){ var rt=Math.round(g.runTime); gp.trial.bestRun=gp.trial.bestRun?Math.min(Number(gp.trial.bestRun),rt):rt; gp.trial.stars=Math.max(Number(gp.trial.stars)||0,g.stars); gp.trial.wins=(Number(gp.trial.wins)||0)+1; }
-  gp.trial.runs=(Number(gp.trial.runs)||0)+1; gp.trial.coins=(Number(gp.trial.coins)||0)+g.coins; gp.trial.bestZone=Math.max(Number(gp.trial.bestZone)||0,g.lvl+1); gp.trial.bestLevel=Math.max(Number(gp.trial.bestLevel)||0,win?NLV:g.lvl+1);
+  gp.trial.runs=(Number(gp.trial.runs)||0)+1; gp.trial.coins=(Number(gp.trial.coins)||0)+g.coins; gp.trial.bestZone=Math.max(Number(gp.trial.bestZone)||0,zonesReached(g)); gp.trial.bestLoop=Math.max(Number(gp.trial.bestLoop)||0,(g.loop||0)+1); gp.trial.bestLevel=Math.max(Number(gp.trial.bestLevel)||0,win?NLV:g.lvl+1);
   gp.trial.studyAsked=(Number(gp.trial.studyAsked)||0)+g.qTotal; gp.trial.studyCorrect=(Number(gp.trial.studyCorrect)||0)+g.qCorrect;
   try{ persistProgress(); }catch(e){}
   setTimeout(function(){ if(state.games&&state.games.tr===g) overlay(g); },win?900:600);
@@ -416,7 +426,7 @@ function step(g,dt){
     if(dead){ g.darts.splice(i,1); } }
   /* enemies */
   function stomp(e,ex,ey,w,h){ if(p.vy>80&&p.y-8<ey+h*.5&&p.dashT<=0){ e.alive=false; g.kills++; g.score+=50; p.vy=-640; p.jcut=true; p.airDash=false; sfx('stomp'); spawnParts(g,ex,ey,12,'#9be06a',200); floatText(g,ex,ey-30,'+50','#fff'); return true; } return false; }
-  L.walkers.forEach(function(w){ if(!w.alive) return; w.x+=w.dir*55*dt; if(w.x<w.x0){ w.x=w.x0; w.dir=1; } if(w.x>w.x1){ w.x=w.x1; w.dir=-1; } w.sq=Math.sin(g.t*8+w.x)*.1;
+  L.walkers.forEach(function(w){ if(!w.alive) return; w.x+=w.dir*(w.spd||55)*dt; if(w.x<w.x0){ w.x=w.x0; w.dir=1; } if(w.x>w.x1){ w.x=w.x1; w.dir=-1; } w.sq=Math.sin(g.t*8+w.x)*.1;
     if(hit(bx,by,bw,bh,w.x-16,w.y-26,32,26)){ if(!stomp(w,w.x,w.y-26,32,26)) hurt(g,'enemy'); else if(p.dashT>0){} } });
   L.bats.forEach(function(b){ if(!b.alive) return; b.x=b.x0+Math.sin(g.t*1.3+b.ph)*b.rng; b.y=b.y0+Math.sin(g.t*2.6+b.ph)*b.amp;
     if(hit(bx,by,bw,bh,b.x-16,b.y-12,32,24)){ if(!stomp(b,b.x,b.y-12,32,24)) hurt(g,'enemy'); } });
@@ -578,7 +588,7 @@ function hud(g,c){
   var s=''; for(var i=0;i<g.maxH;i++) s+=i<g.hearts?'❤️':'🖤'; T(s,14,32*sc,22);
   var left=Math.max(0,g.limit-g.time), mm=Math.floor(left/60), ss=Math.floor(left%60);
   T('⏱ '+mm+':'+(ss<10?'0':'')+ss,vw/2,32*sc,26,left<20?(Math.floor(g.t*4)%2?'#ff5a5a':'#fff'):'#fff','center');
-  T('🪙 '+g.coins+'   ⭐ '+g.score,vw-104*sc,32*sc,20,'#ffe08a','right'); T('ZONE '+(function(){var z=0;for(var q=0;q<L.zoneX.length;q++) if(g.p.x>=L.zoneX[q]) z=q;return z+1;})()+' / '+NSEG,vw-104*sc,56*sc,13,'#fff','right');
+  T('🪙 '+g.coins+'   ⭐ '+g.score,vw-104*sc,32*sc,20,'#ffe08a','right'); T('ZONE '+zonesReached(g)+((g.loop||0)?' · Loop '+((g.loop||0)+1):''),vw-104*sc,56*sc,13,'#fff','right');
   /* progress bar */
   var bw=Math.min(420,vw*.45), bx=vw/2-bw/2, by=46*sc; c.fillStyle='rgba(0,0,0,.45)'; c.fillRect(bx,by,bw,7*sc); var pr=clamp(g.p.x/L.end,0,1); c.fillStyle='#ffd24a'; c.fillRect(bx,by,bw*pr,7*sc);
   L.zoneX.forEach(function(zx){ c.fillStyle='rgba(255,255,255,.6)'; c.fillRect(bx+bw*zx/L.end-1,by-2,2,11*sc); }); L.cps.forEach(function(k){ c.fillStyle=k.on?'#6ae8ff':'#888'; c.fillRect(bx+bw*k.x/L.end-2,by-4,4,15*sc); });
@@ -587,5 +597,5 @@ function hud(g,c){
   var p=g.p, dr=clamp(1-p.dashCd/DASHCD,0,1); c.fillStyle='rgba(0,0,0,.45)'; c.fillRect(14,46*sc,70*sc,8*sc); c.fillStyle=dr>=1?'#7ad4ff':'#4a6a8a'; c.fillRect(14,46*sc,70*sc*dr,8*sc); T('DASH',14,70*sc,11,dr>=1?'#7ad4ff':'#889',null);
   if(g.bannerT>0){ var al=clamp(Math.min(g.bannerT,2.6-g.bannerT)*3,0,1); c.globalAlpha=al; T(g.banner,vw/2,vh*.3,38,'#fff','center'); c.globalAlpha=1; }
 }
-try{ (ARCADE_MODES.filter(function(m){return m.id==='trial';})[0]||{}).desc='A six-level platformer: every level has harder traps, its own clock and a relic at the end. Pick a study topic, then answer 3 AI questions before each level: right answers give hearts and extra seconds.'; }catch(e){}
+try{ (ARCADE_MODES.filter(function(m){return m.id==='trial';})[0]||{}).desc='An endless platformer: every level has harder traps, its own clock and a relic at the end. Pick a study topic, then answer 3 AI questions before each level: right answers give hearts and extra seconds.'; }catch(e){}
 })();

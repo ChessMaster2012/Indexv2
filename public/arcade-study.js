@@ -9,10 +9,14 @@
 'use strict';
 var cfg={timed:true};
 var SPC=5, CHAPS=6, STAGES=SPC*CHAPS, PER=8, SNAMES=['Warm-up','Building','Deep dive','Challenge','Final boss'], QT=[20,19,17,16,14,13];
-function chapOf(stage){ return Math.floor(stage/SPC); }
-function sname(stage,g){ if(g&&g.review) return 'Review'; var k=stage%SPC; if(k===SPC-1) return stage>=STAGES-1?'Final boss':'Chapter boss'; return SNAMES[k]; }
-function qmaxFor(stage){ return cfg.timed?QT[Math.min(QT.length-1,chapOf(stage))]:0; }
-function getCk(){ try{ var c=(arcadeGameProgress().study||{}).checkpoint; if(c&&Number.isInteger(c.stage)&&c.stage>=SPC&&c.stage<STAGES&&c.stage%SPC===0&&Array.isArray(c.stDone)&&c.stDone.length===c.stage) return c; }catch(e){} return null; }
+function chapOf(stage){ return Math.floor((stage%STAGES)/SPC); }
+function rndOf(stage){ return Math.floor(stage/STAGES); }
+function rndTag(stage){ var r=rndOf(stage); return r>0?'Round '+(r+1)+' · ':''; }
+/* Endless: after the last stage the material loops as Round 2, 3...; timers shrink and lifelines are capped. */
+function applyRound(g){ var r=rndOf(g.stage); if(r<1||g.review) return; g.deck=[]; var cap=Math.max(0,2-r); ['fifty','skip','time'].forEach(function(k){ g.life[k]=Math.min(g.life[k],cap); }); }
+function sname(stage,g){ if(g&&g.review) return 'Review'; var k=stage%SPC; if(k===SPC-1) return (stage%STAGES)===STAGES-1?'Round boss':'Chapter boss'; return SNAMES[k]; }
+function qmaxFor(stage){ return cfg.timed?Math.max(6,QT[Math.min(QT.length-1,chapOf(stage))]-rndOf(stage)*3):0; }
+function getCk(){ try{ var c=(arcadeGameProgress().study||{}).checkpoint; if(c&&Number.isInteger(c.stage)&&c.stage>=SPC&&c.stage%SPC===0&&Array.isArray(c.stDone)&&c.stDone.length===c.stage) return c; }catch(e){} return null; }
 function GS(){ return (window.GameStudy&&GameStudy.session)||null; }
 var $=function(id){ return document.getElementById(id); };
 function esc2(s){ return (typeof esc==='function')?esc(String(s==null?'':s)):String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -29,12 +33,12 @@ function ling(){ try{ var id=(state.progress.equipped&&state.progress.equipped.i
 window.arcadeStudySetup=function(){
   var sp=(arcadeGameProgress().study)||{}, S=GS(), CK=getCk();
   var pills='<span class="arcade-pill">🔥 Best streak <b>'+(sp.bestStreak||0)+'</b></span><span class="arcade-pill">⭐ Best score <b>'+(sp.best||0)+'</b></span><span class="arcade-pill">📚 Sessions <b>'+(sp.sessions||0)+'</b></span>';
-  if(!S) return arcadeFrame('Study Mode','Choose your material, then play '+STAGES*PER+' rounds in '+CHAPS+' chapters.',pills,'<div class="st-setup"><div class="st-opts"><p>Pick an AI topic, a saved study set or one of your notes to begin.</p></div><button class="btn btn-primary btn-lg" data-st="repick">Choose what to study</button></div>');
-  return arcadeFrame('Study Mode',STAGES*PER+' rounds: '+CHAPS+' chapters of '+SPC+' stages, saved at every chapter end. Questions get faster as you go.',pills,
+  if(!S) return arcadeFrame('Study Mode','Choose your material, then study round after round until you quit.',pills,'<div class="st-setup"><div class="st-opts"><p>Pick an AI topic, a saved study set or one of your notes to begin.</p></div><button class="btn btn-primary btn-lg" data-st="repick">Choose what to study</button></div>');
+  return arcadeFrame('Study Mode','Endless: '+CHAPS+' chapters of '+SPC+' stages, then the material loops with faster timers. Saved at every chapter end.',pills,
     '<div class="st-setup"><div class="st-opts"><div class="st-optrow"><b>Studying</b><span>'+esc2(S.title)+'</span></div>'+
     '<div class="st-optrow"><b>Question timer</b><div class="st-pills" id="st-tm">'+[[true,'20 → 13 sec'],[false,'Relaxed']].map(function(o){ return '<button type="button" class="st-pill '+(cfg.timed===o[0]?'on':'')+'" data-st="timed" data-v="'+o[0]+'">'+o[1]+'</button>'; }).join('')+'</div></div></div>'+
     '<div class="st-how"><span>✅ Multiple choice</span><span>⌨️ Type from memory</span><span>⚖️ True / False</span><span>🧩 Match pairs (flashcard sets)</span><span>🔥 Streak multiplier</span><span>🎁 Earn lifelines</span></div></div>'+
-    '<div class="st-rbtns" style="margin-top:12px;justify-content:flex-start">'+(CK?'<button class="btn btn-primary btn-lg" data-st="resume">Continue: chapter '+(chapOf(CK.stage)+1)+' of '+CHAPS+' ('+CK.stage*PER+'/'+STAGES*PER+' rounds)</button>':'')+'<button class="btn '+(CK?'btn-ghost':'btn-primary')+' btn-lg" data-st="begin">'+(CK?'New ':'Start ')+STAGES*PER+'-round study</button><button class="btn btn-ghost" data-st="repick">Change topic</button></div>');
+    '<div class="st-rbtns" style="margin-top:12px;justify-content:flex-start">'+(CK?'<button class="btn btn-primary btn-lg" data-st="resume">Continue: '+rndTag(CK.stage)+'chapter '+(chapOf(CK.stage)+1)+' of '+CHAPS+' ('+CK.stage*PER+' questions so far)</button>':'')+'<button class="btn '+(CK?'btn-ghost':'btn-primary')+' btn-lg" data-st="begin">'+(CK?'New ':'Start ')+'endless study</button><button class="btn btn-ghost" data-st="repick">Change topic</button></div>');
 };
 
 /* ------------------------------ session build ------------------------------ */
@@ -52,7 +56,7 @@ window.arcadeStudyStart=function(id,opts){
     stages:stages,per:per,stage:0,sIdx:0,stPips:[],stStat:{c:0,w:0,pts:0,best:0},stDone:[],
     correct:0,wrong:0,skipped:0,streak:0,bestStreak:0,points:0,coins:0,xp:0,elapsed:0,
     qMax:qmaxFor(ck?ck.stage:0),qLeft:qmaxFor(ck?ck.stage:0),life:{fifty:1,skip:1,time:1},missed:{},log:[],review:!!opts.review,paused:false,mood:'ready',say:'Let\'s learn! 💪',times:[],lastTick:Date.now(),fbUntil:0};
-  if(ck){ g.stage=ck.stage; g.n=ck.stage*PER; g.stDone=JSON.parse(JSON.stringify(ck.stDone)); ['correct','wrong','skipped','bestStreak','points','coins','xp','elapsed'].forEach(function(k){ g[k]=Number(ck[k])||0; }); if(ck.life) ['fifty','skip','time'].forEach(function(k){ g.life[k]=Math.max(0,Number(ck.life[k])||0); }); g.say='Welcome back! Chapter '+(chapOf(g.stage)+1)+' 💪'; }
+  if(ck){ g.stage=ck.stage; g.n=ck.stage*PER; g.stDone=JSON.parse(JSON.stringify(ck.stDone)); ['correct','wrong','skipped','bestStreak','points','coins','xp','elapsed'].forEach(function(k){ g[k]=Number(ck[k])||0; }); if(ck.life) ['fifty','skip','time'].forEach(function(k){ g.life[k]=Math.max(0,Number(ck.life[k])||0); }); g.say='Welcome back! '+rndTag(g.stage)+'Chapter '+(chapOf(g.stage)+1)+' 💪'; applyRound(g); }
   else if(!opts.review){ try{ delete arcadeGameProgress().study.checkpoint; persistProgress(); }catch(e){} }
   state.games=g; nextRound(g);
   if(!g.cur){ state.games={active:null,setupType:'study'}; return; }
@@ -116,15 +120,16 @@ function endStage(g){
   g.stDone.push(rec); sfx(acc>=60?'streak':'life');
   if(!g.review&&(g.stage+1)%SPC===0){ var cs=g.stDone.slice(-SPC), cc=0, cw=0; cs.forEach(function(d){ cc+=d.c; cw+=d.w; });
     if(cc+cw>=SPC*g.per*.6){ try{ noCoin(20,'Study Mode chapter complete'); rec.chapter=20; }catch(e){} try{ addXP(25); g.xp+=25; }catch(e){} }
-    rec.saved=g.stage<g.stages-1; if(rec.saved) saveCk(g); }
-  if(g.stage>=g.stages-1){ finish(g); return; }
+    rec.saved=true; saveCk(g); }
+  if(!g.review&&(g.stage%STAGES)===STAGES-1){ rec.roundEnd=rndOf(g.stage)+1; try{ addXP(40); g.xp+=40; }catch(e){} }
+  if(g.review&&g.stage>=g.stages-1){ finish(g); return; }
   g.phase='stage'; g.mood=acc>=60?'happy':'ready'; g.say=acc>=80?'Stage cleared! 🌟':acc>=60?'On to the next! 💪':'Shake it off — next stage! 💡'; g.lastTick=Date.now(); paint(g);
 }
 function saveCk(g){
   try{ var gp=arcadeGameProgress(); gp.study=gp.study||{}; gp.study.checkpoint={stage:g.stage+1,correct:g.correct,wrong:g.wrong,skipped:g.skipped,bestStreak:g.bestStreak,points:g.points,coins:g.coins,xp:g.xp,elapsed:Math.round(g.elapsed),life:{fifty:g.life.fifty,skip:g.life.skip,time:g.life.time},stDone:JSON.parse(JSON.stringify(g.stDone)),title:(GS()||{}).title||''}; persistProgress(); }catch(e){}
 }
 function nextStage(g){
-  if(g.phase!=='stage') return; g.stage++; g.sIdx=0; g.stPips=[]; g.stStat={c:0,w:0,pts:0,best:0}; g.lastTick=Date.now(); nextRound(g);
+  if(g.phase!=='stage') return; g.stage++; applyRound(g); g.sIdx=0; g.stPips=[]; g.stStat={c:0,w:0,pts:0,best:0}; g.lastTick=Date.now(); nextRound(g);
 }
 
 /* ------------------------------ answering ------------------------------ */
@@ -150,7 +155,7 @@ function finish(g){
   if(g.phase==='done') return; g.phase='done'; clearInterval(g.timerId); sfx('done'); var tot=g.correct+g.wrong; g.acc=tot?Math.round(g.correct/tot*100):0;
   var gp=arcadeGameProgress(); gp.study=gp.study||{}; var s=gp.study;
   if(!g.review){ g.newBest=g.points>(Number(s.best)||0); s.best=Math.max(Number(s.best)||0,g.points); s.sessions=(Number(s.sessions)||0)+1; s.correct=(Number(s.correct)||0)+g.correct; s.answered=(Number(s.answered)||0)+tot; s.bestStreak=Math.max(Number(s.bestStreak)||0,g.bestStreak); s.bestAcc=Math.max(Number(s.bestAcc)||0,tot>=5?g.acc:0); s.minutes=(Number(s.minutes)||0)+Math.round(g.elapsed/60);
-    if(g.stDone.length>=g.stages){ delete s.checkpoint; } }
+    if(g.stDone.length>=g.stages&&g.review){ delete s.checkpoint; } }
   try{ persistProgress(); }catch(e){} if(g.acc>=80&&tot>=8){ try{ celebrate(); }catch(e){} }
   paint(g);
 }
@@ -161,8 +166,8 @@ function pips(g,arr,cur){
   var h='<div class="st-pips">'; for(var i=0;i<g.per;i++){ h+='<i class="'+(i<arr.length?(arr[i]?'ok':'bad'):(cur&&i===arr.length?'cur':''))+'"></i>'; } return h+'</div>';
 }
 function topbar(g){
-  var m=mult(g), done=g.stage*g.per+Math.min(g.sIdx,g.per), all=g.stages*g.per;
-  return '<div class="st-top"><div class="st-clock"><span class="st-time">'+(g.review?'Review':'Chapter '+(chapOf(g.stage)+1)+'/'+CHAPS+' <small>· Stage '+(g.stage%SPC+1)+'/'+SPC+' · '+esc2(sname(g.stage,g))+'</small>')+'</span> <span class="st-fine">Round '+Math.min(g.sIdx+1,g.per)+'/'+g.per+(g.review?'':' · '+done+'/'+all+' overall')+' · <span id="st-elapsed">'+fmt(g.elapsed)+'</span></span>'+pips(g,g.stPips,g.phase!=='stage')+(g.review?'':'<div style="height:5px;background:rgba(128,128,128,.25);border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:'+Math.round(done/all*100)+'%;background:#b08cff;border-radius:3px"></i></div>')+'</div>'+
+  var m=mult(g), done=(g.review?g.stage:g.stage%STAGES)*g.per+Math.min(g.sIdx,g.per), all=g.stages*g.per;
+  return '<div class="st-top"><div class="st-clock"><span class="st-time">'+(g.review?'Review':rndTag(g.stage)+'Chapter '+(chapOf(g.stage)+1)+'/'+CHAPS+' <small>· Stage '+(g.stage%SPC+1)+'/'+SPC+' · '+esc2(sname(g.stage,g))+'</small>')+'</span> <span class="st-fine">Round '+Math.min(g.sIdx+1,g.per)+'/'+g.per+(g.review?'':' · '+done+'/'+all+(rndOf(g.stage)>0?' this round':' overall'))+' · <span id="st-elapsed">'+fmt(g.elapsed)+'</span></span>'+pips(g,g.stPips,g.phase!=='stage')+(g.review?'':'<div style="height:5px;background:rgba(128,128,128,.25);border-radius:3px;margin-top:4px"><i style="display:block;height:100%;width:'+Math.round(done/all*100)+'%;background:#b08cff;border-radius:3px"></i></div>')+'</div>'+
     '<div class="st-stats"><span class="st-chip">✅ <b>'+g.correct+'</b></span><span class="st-chip '+(g.streak>=3?'hot':'')+'">🔥 <b>'+g.streak+'</b>'+(m>1?' <em>×'+m.toFixed(1)+'</em>':'')+'</span><span class="st-chip">⭐ <b>'+g.points+'</b></span></div>'+
     '<div class="st-tools"><button type="button" class="st-tool" data-st="pause" title="Pause (P)">'+(g.paused?'▶':'⏸')+'</button><button type="button" class="st-tool" data-st="fs" title="Focus mode (F)">⛶</button></div></div>';
 }
@@ -199,10 +204,11 @@ function paint(g){
 }
 function stageScreen(g){
   var rec=g.stDone[g.stDone.length-1], nx=g.stage+1;
-  return '<div class="st-stage">'+companion(g)+'<div class="st-card ok"><span class="st-tag">Stage '+(g.stage+1)+' of '+g.stages+' complete · chapter '+(chapOf(g.stage)+1)+'/'+CHAPS+'</span><h3>'+esc2(rec.name)+'</h3>'+pips(Object.assign({},g,{per:g.per}),rec.pips,false)+
+  return '<div class="st-stage">'+companion(g)+'<div class="st-card ok"><span class="st-tag">'+(g.review?'Stage '+(g.stage+1)+' of '+g.stages:rndTag(g.stage)+'Stage '+(g.stage%STAGES+1)+' of '+STAGES)+' complete · chapter '+(chapOf(g.stage)+1)+'/'+CHAPS+'</span><h3>'+esc2(rec.name)+'</h3>'+pips(Object.assign({},g,{per:g.per}),rec.pips,false)+
     '<div class="st-rgrid"><div><b>'+rec.c+'/'+(rec.c+rec.w)+'</b><span>Correct · '+rec.acc+'%</span></div><div><b>'+rec.pts+'</b><span>Stage score</span></div><div><b>🔥 '+rec.best+'</b><span>Best streak</span></div><div><b>'+(rec.bonus?'+'+rec.bonus+' 🪙':'—')+'</b><span>Stage bonus</span></div></div>'+
     (rec.saved?'<div class="st-reward">💾 Checkpoint saved: chapter '+(chapOf(g.stage)+1)+' complete'+(rec.chapter?' · +'+rec.chapter+' 🪙 chapter bonus':'')+'</div>':'')+(rec.reward?'<div class="st-reward">🎁 Flawless stage — lifeline earned: '+({fifty:'50/50',skip:'Skip',time:'Timer reset'}[rec.reward])+'</div>':'')+
-    '<p class="st-fine">Up next: stage '+(nx+1)+' · '+esc2(sname(nx,g))+' · '+(g.stages-nx)+' stage'+(g.stages-nx>1?'s':'')+' to go</p><button type="button" class="btn btn-primary btn-lg" data-st="stagego">Start stage '+(nx+1)+' ▸</button></div></div>';
+    (rec.roundEnd?'<div class="st-reward">🔁 Round '+rec.roundEnd+' complete! Round '+(rec.roundEnd+1)+' loops the material again: reshuffled, faster timers, fewer lifelines.</div>':'')+
+    '<p class="st-fine">Up next: '+rndTag(nx)+'stage '+(nx%STAGES+1)+' · '+esc2(sname(nx,g))+(g.review?' · '+(g.stages-nx)+' to go':' · endless: keep going or quit any time')+'</p><button type="button" class="btn btn-primary btn-lg" data-st="stagego">'+(rec.roundEnd?'Begin Round '+(rec.roundEnd+1):'Start stage '+(nx%STAGES+1))+' ▸</button></div></div>';
 }
 function results(g){
   var tot=g.correct+g.wrong, avg=g.times.length?(g.times.reduce(function(a,b){ return a+b; },0)/g.times.length):0, miss=Object.keys(g.missed).map(function(k){ return g.missed[k]; });

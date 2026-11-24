@@ -5,7 +5,7 @@
 <script src="/settings.js?v=4"></script>
 <script src="/device-data.js?v=1"></script>
 <script src="/membership-core.js?v=2"></script>
-<script src="/password-policy.js?v=1"></script>
+<script src="/password-policy.js?v=2"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Index — Study every AP class</title>
@@ -2000,7 +2000,7 @@ html body .county-option.selected { background: #f4f5fc !important; border-color
     <!-- Reset password from a one-time email link -->
     <div id="reset-panel" class="hidden">
       <p class="lede" style="font-size:12.5px;margin:0 0 14px;">Choose a new password for your Index account. This reset link expires after one hour.</p>
-      <div class="field"><label>New password</label><input type="password" id="reset-password" autocomplete="new-password" placeholder="At least 12 characters" data-nocopy="1"></div>
+      <div class="field"><label>New password</label><input type="password" id="reset-password" autocomplete="new-password" placeholder="At least 8 characters" data-nocopy="1"></div>
       <ul class="pw-rules" id="reset-pw-rules"></ul>
       <div class="field"><label>Retype new password <small style="font-weight:600;color:var(--ink-soft)">(pasting is turned off)</small></label><input type="password" id="reset-password-confirm" autocomplete="off" placeholder="Type it again" data-nopaste="1"></div>
       <div id="reset-status"></div>
@@ -5706,7 +5706,7 @@ function setAuthMode(mode){
   idInput.placeholder = mode==='signup' ? 'you@example.com' : 'you@example.com or username';
   idInput.autocomplete = mode==='signup' ? 'email' : 'username';
   document.getElementById('auth-password').autocomplete = mode==='signup' ? 'new-password' : 'current-password';
-  document.getElementById('auth-password').placeholder = mode==='signup' ? 'At least 12 characters' : 'Your password';
+  document.getElementById('auth-password').placeholder = mode==='signup' ? 'At least 8 characters' : 'Your password';
   document.getElementById('auth-signup-extra').classList.toggle('hidden', mode!=='signup');
   document.getElementById('auth-password').toggleAttribute('data-nocopy', mode==='signup');
   document.getElementById('auth-password-confirm').value='';
@@ -5816,7 +5816,7 @@ function openResetPanel(token){ try{ renderPwRules('reset-pw-rules','',{}); }cat
 }
 async function resetPasswordSubmit(){
   const a=document.getElementById('reset-password').value, b=document.getElementById('reset-password-confirm').value, status=document.getElementById('reset-status');
-  { const pc=window.PasswordPolicy?PasswordPolicy.check(a,{}):{ok:a.length>=12,message:'Password must be at least 12 characters.'}; if(!pc.ok){ status.innerHTML=`<div class="error-note">${esc(pc.message)}</div>`; renderPwRules('reset-pw-rules',a,{}); return; } }
+  { const pc=window.PasswordPolicy?PasswordPolicy.check(a,{}):{ok:a.length>=8,message:'Password must be at least 8 characters.'}; if(!pc.ok){ status.innerHTML=`<div class="error-note">${esc(pc.message)}</div>`; renderPwRules('reset-pw-rules',a,{}); return; } }
   if(a!==b){ status.innerHTML='<div class="error-note">The passwords do not match.</div>'; return; }
   status.innerHTML='<div class="loading-line"><span class="spinner"></span> Updating password…</div>';
   try{
@@ -9395,12 +9395,12 @@ setInterval(function(){
 <link rel="stylesheet" href="/arcade-rhythm.css?v=2">
 <link rel="stylesheet" href="/arcade-gold.css?v=1">
 <link rel="stylesheet" href="/skin-crate-auto.css?v=1">
-<script src="/arcade-gauntlet.js?v=6"></script>
+<script src="/arcade-gauntlet.js?v=7"></script>
 <script src="/upload-any.js?v=1" defer></script>
 <script src="/lucky-spin.js?v=2" defer></script>
 <script src="/leaderboard.js?v=2" defer></script>
-<script src="/arcade-trial.js?v=4"></script>
-<script src="/arcade-shadow.js?v=4"></script>
+<script src="/arcade-trial.js?v=5"></script>
+<script src="/arcade-shadow.js?v=5"></script>
 <script src="/arcade-study.js?v=6"></script>
 <script src="/arcade-expedition.js?v=3"></script>
 <script src="/arcade-rogue.js?v=5"></script>
@@ -9449,7 +9449,7 @@ setInterval(function(){
 <script src="/commander-runtime-v16.js?v=2"></script>
 <script src="/commander-runtime-v17.js?v=2"></script>
 <script src="/commander-runtime-v18.js?v=2"></script>
-<script src="/commander-gate.js?v=4"></script>
+<script src="/commander-gate.js?v=99"></script>
 
 
 
