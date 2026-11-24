@@ -4401,9 +4401,9 @@ async function visionRead(buf,mime,kind){
   if(!GEMINI_API_KEY) throw new Error('No Gemini key.');
   const prompt=kind==='audio'?'Transcribe all speech in this recording accurately as plain text. If it is a lecture, keep the content faithful. Reply with only the transcript.'
     :'Read this document or picture and write out ALL of its text exactly as plain text, keeping headings and lists. For diagrams, graphs, maps or equations, add a one-line description in [brackets]. If a handwritten page, transcribe it. Reply with only the content.';
-  const ready=GEMINI_MODELS.filter(m=>!/lite/.test(m)&&(GEMINI_COOLDOWN.get(m)||0)<=Date.now()), list=(ready.length?ready:GEMINI_MODELS).slice(0,3); let last=null;
+  const ready=GEMINI_MODELS.filter(m=>!/lite/.test(m)&&(GEMINI_COOLDOWN.get(m)||0)<=Date.now()), list=['gemini-2.5-flash'].concat(ready.length?ready:GEMINI_MODELS).filter((m,i,a)=>a.indexOf(m)===i).slice(0,kind==='image'?2:4); let last=null;
   for(const model of list){
-    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),45000);
+    const ctl=new AbortController(), t=setTimeout(()=>ctl.abort(),kind==='image'?12000:45000);
     try{
       const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent',{method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':GEMINI_API_KEY},signal:ctl.signal,
         body:JSON.stringify({contents:[{parts:[{text:prompt},{inline_data:{mime_type:mime,data:buf.toString('base64')}}]}],generationConfig:{maxOutputTokens:8000,temperature:0}})});

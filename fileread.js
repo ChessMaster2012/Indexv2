@@ -55,15 +55,20 @@ async function readFile(buf, name, opts) {
   opts = opts || {}; const ext = (String(name || '').split('.').pop() || '').toLowerCase(), vision = opts.vision;
   const sig = buf.slice(0, 8).toString('latin1'), isZip = sig.startsWith('PK'), isPdf = sig.startsWith('%PDF');
   const ask = async (mime, kind) => {
-    if (!vision) return { error: 'Photos, scans and audio need the AI reader, which is not available right now. Try a PDF or Word file instead.', code: 503 };
-    try { const t = await vision(buf, mime, kind); return t && t.trim().length > 2 ? { text: tidy(t) } : { error: kind === 'audio' ? 'I could not hear any speech in that recording.' : 'I could not find any readable text in that picture.', code: 422 }; }
-    catch (e) { return { error: 'The AI reader is busy. Try again in a minute.', code: 503 }; }
+    if (!vision && kind !== 'image') return { error: 'Audio and scanned PDFs need the AI reader, which is not available right now. Try a text-based PDF or a Word file instead.', code: 503 };
+    let t = '', failed = false;
+    try { t = vision ? await vision(buf, mime, kind) : ''; } catch (e) { failed = true; }
+    if ((!t || t.trim().length < 3) && kind === 'image') { try { t = await ocrImage(buf); } catch (e) { failed = true; } }
+    if (t && t.trim().length > 2) return { text: tidy(t) };
+    return failed ? { error: 'The reader is busy right now. Try again in a minute.', code: 503 } : { error: kind === 'audio' ? 'I could not hear any speech in that recording.' : 'I could not find any readable text in that picture.', code: 422 };
   };
   try {
     if (isPdf || ext === 'pdf') {
       let t = ''; try { t = tidy((await require('pdf-parse/lib/pdf-parse.js')(buf)).text); } catch (e) { }
       if (t.length >= 40) return { text: t };
-      const r = await ask('application/pdf', 'scan'); return r.text ? r : (t ? { text: t } : r);
+      let o = ''; try { o = tidy(await pdfOcr(buf, 8)); } catch (e) { }
+      if (o.length >= 20) return { text: o };
+      const r = await ask('application/pdf', 'scan'); return r.text ? r : (t ? { text: t } : { error: 'I could not find readable text in that PDF.', code: 422 });
     }
     if (IMG.test(ext) || /^(\x89PNG|\xff\xd8\xff|GIF8)/.test(sig)) return ask(MIME[ext] || (sig.startsWith('\x89PNG') ? 'image/png' : sig.startsWith('GIF8') ? 'image/gif' : 'image/jpeg'), 'image');
     if (AUD.test(ext)) return ask(MIME[ext], 'audio');
@@ -78,4 +83,34 @@ async function readFile(buf, name, opts) {
     return { error: 'I cannot read that kind of file yet. Try a PDF, Word, PowerPoint, Excel, text file, photo or recording.', code: 415 };
   } catch (e) { return { error: 'Could not read that file.', code: 400 }; }
 }
-module.exports = { readFile };
+/* Scanned PDFs: draw the first pages to pictures and OCR them locally. */
+async function pdfOcr(buf, maxPages) {
+  const nc = require('@napi-rs/canvas'); global.DOMMatrix = global.DOMMatrix || nc.DOMMatrix; global.Path2D = global.Path2D || nc.Path2D; global.ImageData = global.ImageData || nc.ImageData;
+  const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+  class CF { create(w, h) { const canvas = nc.createCanvas(w, h); return { canvas, context: canvas.getContext('2d') }; } reset(o, w, h) { o.canvas.width = w; o.canvas.height = h; } destroy(o) { o.canvas.width = 0; o.canvas.height = 0; } }
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(buf), useSystemFonts: true, disableFontFace: true, CanvasFactory: CF, canvasFactory: new CF() }).promise;
+  const out = [], n = Math.min(doc.numPages, maxPages || 8), started = Date.now();
+  for (let i = 1; i <= n && Date.now() - started < 40000; i++) {
+    const page = await doc.getPage(i), vp0 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: Math.min(2.5, 1800 / Math.max(vp0.width, vp0.height)) }), f = new CF().create(Math.ceil(vp.width), Math.ceil(vp.height));
+    await page.render({ canvasContext: f.context, viewport: vp, canvasFactory: new CF() }).promise;
+    const t = (await ocrImage(f.canvas.toBuffer('image/png'))).trim(); if (t) out.push(n > 1 ? 'Page ' + i + ':\n' + t : t);
+  }
+  return out.join('\n\n') + (doc.numPages > n ? '\n\n[Only the first ' + n + ' pages were read]' : '');
+}
+/* Local OCR (no AI key needed): tesseract.js with the English data bundled in node_modules. One shared worker, jobs queued. */
+let ocrWorker = null, ocrBusy = Promise.resolve();
+async function ocrImage(buf) {
+  const run = async () => {
+    if (!ocrWorker) {
+      const { createWorker } = require('tesseract.js'), path = require('path');
+      ocrWorker = await createWorker('eng', 1, { langPath: path.join(path.dirname(require.resolve('@tesseract.js-data/eng/package.json')), '4.0.0_best_int'), gzip: true, cachePath: require('os').tmpdir(), logger: () => {} });
+    }
+    try { /* shrink huge phone photos so OCR stays fast */
+      const nc = require('@napi-rs/canvas'), img = await nc.loadImage(buf), big = Math.max(img.width, img.height);
+      if (big > 2400) { const k = 2400 / big, c = nc.createCanvas(Math.round(img.width * k), Math.round(img.height * k)); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); buf = c.toBuffer('image/png'); }
+    } catch (e) { /* let tesseract try the original */ }
+    const r = await Promise.race([ocrWorker.recognize(buf), new Promise((_, rej) => setTimeout(() => rej(new Error('ocr timeout')), 60000))]); return String((r && r.data && r.data.text) || '');
+  };
+  const p = ocrBusy.then(run, run); ocrBusy = p.catch(() => {}); return p;
+}
+module.exports = { readFile, ocrImage };
