@@ -9106,6 +9106,7 @@ window.v6Save=v6Save;
 window.profile=profile;
 /* Expose the in-closure question flow that the wave runtime calls at wave end (otherwise unreachable because tdef below is undefined and halts this block). */
 try{window.commanderAdvanceToNextQuestion=commanderAdvanceToNextQuestion;window.__cmdRenderBattle=renderBattle;}catch(e){}
+if(typeof tdef!=="function")return; /* the rest of this block has never run (tdef is not defined here); stopping cleanly keeps behavior the same without a console error */
 window.tdef=tdef;
 function richStats(id,lvl){
   try{
