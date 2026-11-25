@@ -6,6 +6,7 @@
 <script src="/device-data.js?v=1"></script>
 <script src="/membership-core.js?v=2"></script>
 <script src="/password-policy.js?v=2"></script>
+<script src="/ling-accessories.js?v=1"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Index — Study every AP class</title>
@@ -2723,16 +2724,7 @@ const REWARD_COSMETICS = [
   {id:'ling-tinsel',type:'indexling',name:"Tinsel",icon:'🎄',shape:'plain',mark:'T',main:'#2f9a58',dark:'#0f4a28',accent:'#ffd34d',rarity:'Epic',pack:'winter'},
   {id:'ling-yule',type:'indexling',name:"Yuletide King",icon:'🎅',shape:'plain',mark:'Y',main:'#d63838',dark:'#6e1212',accent:'#fff7f0',rarity:'Legendary',pack:'winter'}
 ]
-const INDEXLING_SKINS = [
-  {id:'skin-gold',name:'Gold',icon:'🥇',rarity:'Common',effect:'gold',main:'#f5cf55',dark:'#8b6816',accent:'#fff0a6'},
-  {id:'skin-silver',name:'Silver',icon:'🥈',rarity:'Common',effect:'silver',main:'#d9e1ea',dark:'#68727d',accent:'#ffffff'},
-  {id:'skin-chrome',name:'Chrome',icon:'◈',rarity:'Common',effect:'chrome',main:'#aab4c0',dark:'#39434e',accent:'#f7fbff'},
-  {id:'skin-ruby',name:'Ruby',icon:'♦',rarity:'Rare',effect:'ruby',main:'#e84b68',dark:'#791d34',accent:'#ffd0d8'},
-  {id:'skin-sapphire',name:'Sapphire',icon:'◆',rarity:'Rare',effect:'sapphire',main:'#4f8cff',dark:'#1d397d',accent:'#d5e5ff'},
-  {id:'skin-emerald',name:'Emerald',icon:'◇',rarity:'Rare',effect:'emerald',main:'#39d49b',dark:'#17684d',accent:'#ceffe9'},
-  {id:'skin-lava',name:'Lava',icon:'🌋',rarity:'Epic',effect:'lava',main:'#6f2020',dark:'#2b0d0d',accent:'#ff9a2e'},
-  {id:'skin-ice',name:'Ice / Frost',icon:'❄',rarity:'Epic',effect:'ice',main:'#a8e8ff',dark:'#3d7fa1',accent:'#effcff'}
-];
+const INDEXLING_SKINS = window.LING_ACCS.list; /* accessories (head bands, arm bands, glasses, scarves, capes ...) replaced the old colour skins */
 
 /* Battle Pass rewards. Row = [coins, skinCrates, freePackTokens, indexlingId]. MIRRORED in server.js (applyQuestBattlePassRewards): keep both tables identical. */
 const BP_TABLE = [[60,0,0,''],[20,0,1,''],[20,1,0,''],[90,0,0,''],[150,5,1,''],[60,0,0,''],[20,0,1,'ling-gumdrop'],[20,1,0,''],[90,0,0,''],[150,5,2,''],[70,0,0,''],[25,0,1,''],[25,1,0,'ling-squire'],[100,0,0,''],[175,5,1,''],[70,0,0,''],[25,0,1,'ling-botlet'],[25,1,0,''],[100,0,0,''],[175,5,2,''],[80,0,0,''],[30,0,1,''],[30,1,0,'ling-guppy'],[110,0,0,''],[200,5,1,''],[80,0,0,''],[30,0,1,'ling-token'],[30,1,0,''],[110,0,0,''],[200,5,2,''],[90,0,0,''],[35,0,1,''],[35,1,0,'ling-knight'],[120,0,0,''],[225,5,1,''],[90,0,0,''],[35,0,1,'ling-alchemist'],[35,1,0,''],[120,0,0,''],[225,5,2,''],[100,0,0,''],[40,0,1,''],[40,1,0,'ling-nebula'],[130,0,0,''],[250,5,1,''],[100,0,0,''],[40,0,1,'ling-royalmage'],[40,1,0,''],[130,0,0,'ling-voidling'],[1500,10,5,'*legendary']];
@@ -2752,7 +2744,7 @@ const BP_REWARDS = BP_TABLE.map(function(r,i){
     kind:finale?'finale':(level%5===0?'bundle':'standard'),label:parts.join(' + '),
     icon:finale?'👑':ling?'🧬':level%5===0?'🧰':r[1]?'🧰':r[2]?'🎟️':'🪙'};
 });
-function skinById(id){ return Array.isArray(INDEXLING_SKINS)?INDEXLING_SKINS.find(s=>s.id===id):null; }
+function skinById(id){ return window.LING_ACCS.byId(id); } /* one accessory id, or an outfit "id-id-id" */
 function indexPackArt(c,kind){
   const key=String(kind||c?.id||'').toLowerCase();
   const data={
@@ -2950,22 +2942,14 @@ function updateCoinDisplays(){
   const accountCoins=document.getElementById('account-coins'); if(accountCoins) accountCoins.textContent=coins;
   renderSidebarBadge();
 }
-const SKIN_CRATE_WEIGHTS=[
-  {id:'skin-gold',weight:26},
-  {id:'skin-silver',weight:18},
-  {id:'skin-chrome',weight:18},
-  {id:'skin-ruby',weight:11},
-  {id:'skin-sapphire',weight:11},
-  {id:'skin-emerald',weight:8},
-  {id:'skin-lava',weight:4},
-  {id:'skin-ice',weight:4}
-];
+const SKIN_RARITY_WEIGHT={Common:60,Rare:30,Epic:10,Legendary:3};
+function accWeight(sk,L){ const w=SKIN_RARITY_WEIGHT[sk.rarity]||10; return sk.rarity==='Common'?w:w*(1+(L-1)*(sk.rarity==='Epic'?1:.6)); }
 function weightedSkinRoll(){
   const L=Math.max(1,Number(window.LuckySpin&&window.LuckySpin.mult&&window.LuckySpin.mult('crate'))||1);
-  const W=SKIN_CRATE_WEIGHTS.map(x=>({id:x.id,weight:x.weight*(x.weight<=11?(x.weight<=4?L:1+(L-1)*.6):1)}));
+  const W=INDEXLING_SKINS.map(x=>({id:x.id,weight:accWeight(x,L)}));
   let n=randomUnit()*W.reduce((a,x)=>a+x.weight,0);
   for(const item of W){ n-=item.weight;if(n<0)return skinById(item.id); }
-  return skinById('skin-gold');
+  return INDEXLING_SKINS[0];
 }
 function availableSkinIndexlings(){
   ensureRewardUnlocks();
@@ -2984,8 +2968,10 @@ function rollSkinPair(){
     if(!skinPairOwned(ling.id,sk.id))candidates.push({indexlingId:ling.id,skinId:sk.id});
   }));
   if(candidates.length){
-    const pair=candidates[Math.floor(randomUnit()*candidates.length)];
-    return {indexling:cosmeticById(pair.indexlingId),skin:skinById(pair.skinId)};
+    const L=Math.max(1,Number(window.LuckySpin&&window.LuckySpin.mult&&window.LuckySpin.mult('crate'))||1);
+    const ws=candidates.map(c=>accWeight(skinById(c.skinId),L)); let n=randomUnit()*ws.reduce((a,x)=>a+x,0),pick=candidates[candidates.length-1];
+    for(let q=0;q<candidates.length;q++){ n-=ws[q]; if(n<0){ pick=candidates[q]; break; } }
+    return {indexling:cosmeticById(pick.indexlingId),skin:skinById(pick.skinId)};
   }
   const indexling=lings[Math.floor(randomUnit()*lings.length)];
   return {indexling,skin:weightedSkinRoll()};
@@ -3006,7 +2992,7 @@ function ensureSkinCrateModal(){
   modal=document.createElement('div');
   modal.id='skin-crate-modal';
   modal.className='skin-crate-modal hidden';
-  modal.innerHTML='<div class="skin-crate-card"><div class="skin-crate-head"><h3>🧰 Skin Crate</h3><button class="skin-crate-close" data-action="close-skin-crate" aria-label="Close">×</button></div><div class="reward-muted">A random Indexling and a random skin are being rolled for your collection.</div><div class="skin-reel-window"><div class="skin-reel-marker"></div><div class="skin-reel-track" id="skin-reel-track"></div></div><div class="skin-crate-result" id="skin-crate-result"><div class="reward-muted">Rolling…</div></div></div>';
+  modal.innerHTML='<div class="skin-crate-card"><div class="skin-crate-head"><h3>🧰 Skin Crate</h3><button class="skin-crate-close" data-action="close-skin-crate" aria-label="Close">×</button></div><div class="reward-muted">A random Indexling and a random accessory (head band, arm bands, glasses, scarf, cape…) are being rolled for your collection.</div><div class="skin-reel-window"><div class="skin-reel-marker"></div><div class="skin-reel-track" id="skin-reel-track"></div></div><div class="skin-crate-result" id="skin-crate-result"><div class="reward-muted">Rolling…</div></div></div>';
   document.body.appendChild(modal);
   return modal;
 }
@@ -3015,23 +3001,23 @@ function closeSkinCrateModal(){
   document.getElementById('skin-crate-modal')?.classList.add('hidden');
 }
 function equipSkinRecord(indexlingId,skinId){
+  /* an accessory toggles on/off; wearing a new one in the same slot swaps it. Up to 5 slots (head, face, neck, arms, back) at once. */
   ensureRewardUnlocks();
   const ling=cosmeticById(indexlingId),sk=skinById(skinId);
-  if(!ling||!sk||!skinPairOwned(ling.id,sk.id))return;
+  if(!ling||!sk||sk.outfit||!skinPairOwned(ling.id,sk.id))return;
   const eq=state.progress.equipped||{};
   if(!eq.skinByIndexling||typeof eq.skinByIndexling!=='object')eq.skinByIndexling={};
-  eq.indexling=ling.id;
-  eq.indexlingSkin=sk.id;
-  eq.skinByIndexling[ling.id]=sk.id;
+  const cur=getEquippedSkinId(ling.id),next=window.LING_ACCS.toggle(cur,sk.id),worn=window.LING_ACCS.has(next,sk.id);
+  if(next)eq.skinByIndexling[ling.id]=next; else delete eq.skinByIndexling[ling.id];
+  if(eq.indexling===ling.id)eq.indexlingSkin=next;
   state.progress.equipped=eq;
   persistProgress();
   persistProgressLocalOnly();
   renderProfileSlot();
   if(state.view==='rewards')renderRewards();
-  showRewardToast('✨ '+sk.name+' equipped on '+ling.name);
+  showRewardToast(worn?('✨ '+ling.name+' is now wearing '+sk.name):(sk.name+' taken off '+ling.name));
 }
 function equipIndexlingSkin(skinId,indexlingId){
-  // Backward-compatible argument order for any old buttons still on the page.
   if(indexlingId) equipSkinRecord(indexlingId,skinId);
 }
 function unequipIndexlingSkin(indexlingId){
@@ -3046,7 +3032,7 @@ function unequipIndexlingSkin(indexlingId){
   persistProgressLocalOnly();
   renderProfileSlot();
   if(state.view==='rewards')renderRewards();
-  showRewardToast('Skin removed from '+(cosmeticById(indexlingId)?.name||'Indexling'));
+  showRewardToast('All accessories removed from '+(cosmeticById(indexlingId)?.name||'Indexling'));
 }
 function openSkinCrate(){
   if(!state.account){promptAccountForPersistentView('rewards');return;}
@@ -3082,7 +3068,7 @@ function openSkinCrate(){
     state.skinCrateOpening=false;
     playPackReveal();celebrate();
     const duplicate=wasAlreadyOwned;
-    result.innerHTML='<div class="skin-crate-result-name">'+winner.skin.icon+' '+esc(winner.skin.name)+'</div><div class="skin-crate-result-meta">Rolled for <strong>'+esc(winner.indexling.name)+'</strong> · '+esc(winner.skin.rarity)+'</div><div class="skin-crate-result-meta">'+(duplicate?'Already owned this Indexling + skin pair.':'Added to your skin collection.')+'</div><div class="skin-crate-actions"><button class="btn btn-primary" data-action="equip-indexling-skin" data-indexling="'+winner.indexling.id+'" data-skin="'+winner.skin.id+'">Equip Skin</button><button class="btn btn-ghost" data-action="close-skin-crate">Keep in Inventory</button></div>';
+    result.innerHTML='<div class="skin-crate-result-name">'+winner.skin.icon+' '+esc(winner.skin.name)+'</div><div class="skin-crate-result-meta">Rolled for <strong>'+esc(winner.indexling.name)+'</strong> · '+esc(winner.skin.rarity)+'</div><div class="skin-crate-result-meta">'+(duplicate?'Already owned this Indexling + skin pair.':'Added to your skin collection.')+'</div><div class="skin-crate-actions"><button class="btn btn-primary" data-action="equip-indexling-skin" data-indexling="'+winner.indexling.id+'" data-skin="'+winner.skin.id+'">Wear it</button><button class="btn btn-ghost" data-action="close-skin-crate">Keep in Inventory</button></div>';
     renderRewards();
   },5900);
 }
@@ -3498,10 +3484,11 @@ function indexlingArtHtmlBase(c,mini=false,skin=null,frameId=null){
     if(rar==='Rare')flair='<g fill="#fff" opacity=".95"><path d="M13 30l1.6 3.6 3.6 1.6-3.6 1.6L13 40l-1.6-3.2-3.6-1.6 3.6-1.6Z"/><path d="M88 58l1.2 2.6 2.6 1.2-2.6 1.2-1.2 2.6-1.2-2.6-2.6-1.2 2.6-1.2Z"/></g>';
     if(rar==='Epic')flair='<g fill="#fff"><path d="M12 28l2 4.4 4.4 2-4.4 2-2 4.4-2-4.4-4.4-2 4.4-2Z" opacity=".95"/><path d="M89 52l1.6 3.4 3.4 1.6-3.4 1.6-1.6 3.4-1.6-3.4-3.4-1.6 3.4-1.6Z" opacity=".9"/><circle cx="84" cy="22" r="1.8" opacity=".8"/><circle cx="14" cy="70" r="1.6" opacity=".75"/></g>';
     if(rar==='Legendary')flair='<g fill="#fff6c2"><path d="M12 28l2.2 4.8 4.8 2.2-4.8 2.2-2.2 4.8-2.2-4.8-4.8-2.2 4.8-2.2Z"/><path d="M89 50l1.8 3.8 3.8 1.8-3.8 1.8-1.8 3.8-1.8-3.8-3.8-1.8 3.8-1.8Z"/><circle cx="85" cy="20" r="2"/><circle cx="13" cy="72" r="1.8"/><circle cx="50" cy="3" r="1.6"/></g>';
+    var accL=(window.LING_ACCS&&window.LING_ACCS.layers)?window.LING_ACCS.layers(sk):{back:'',front:''};
     var rim=rar==='Legendary'?'url(#sqr-'+gid+')':'var(--ling-dark)';
     var glow=rar==='Epic'?'<rect x="19" y="23" width="62" height="61" rx="16" fill="none" stroke="var(--ling-accent)" stroke-width="3" opacity=".5" filter="url(#sqb-'+gid+')"/>':rar==='Legendary'?'<rect x="18" y="22" width="64" height="63" rx="17" fill="none" stroke="#ffd34d" stroke-width="3.5" opacity=".65" filter="url(#sqb-'+gid+')"/>':'';
     var shimmer=rar==='Legendary'?'<g clip-path="url(#sqc-'+gid+')"><rect x="-30" y="20" width="14" height="70" fill="#fff" opacity=".4" transform="rotate(20 50 50)"><animate attributeName="x" values="-30;120" dur="3.4s" repeatCount="indefinite"/></rect></g>':'';
-    return '<div class="indexling-svg'+cls+' indexling-square-v2 ling-r-'+rar.toLowerCase()+'" style="--ling-main:'+main+';--ling-dark:'+dark+';--ling-accent:'+accent+';'+frame+'"><svg viewBox="0 0 100 100" role="img" aria-label="'+esc(c?.name||'Indexling')+'"><defs><linearGradient id="sqg-'+gid+'" x1="10%" y1="5%" x2="90%" y2="95%"><stop offset="0%" stop-color="var(--ling-accent)" stop-opacity=".98"/><stop offset="25%" stop-color="var(--ling-main)"/><stop offset="78%" stop-color="var(--ling-main)"/><stop offset="100%" stop-color="var(--ling-dark)"/></linearGradient><radialGradient id="sqh-'+gid+'" cx="32%" cy="24%" r="75%"><stop offset="0%" stop-color="#fff" stop-opacity=".55"/><stop offset="45%" stop-color="#fff" stop-opacity=".08"/><stop offset="100%" stop-color="#000" stop-opacity=".22"/></radialGradient><linearGradient id="sqr-'+gid+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2a8"/><stop offset=".5" stop-color="#e0a82a"/><stop offset="1" stop-color="#8a5a10"/></linearGradient><clipPath id="sqc-'+gid+'"><rect x="21" y="25" width="58" height="57" rx="14"/></clipPath><filter id="sqs-'+gid+'" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="4" stdDeviation="2.5" flood-color="#172033" flood-opacity=".26"/></filter><filter id="sqb-'+gid+'" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.4"/></filter></defs><ellipse cx="50" cy="90" rx="26" ry="4" fill="#172033" opacity=".16"/>'+glow+'<g stroke="var(--ling-dark)" stroke-width="3.4" stroke-linecap="round"><ellipse cx="17" cy="66" rx="6.5" ry="5.4" fill="var(--ling-main)"/><ellipse cx="83" cy="66" rx="6.5" ry="5.4" fill="var(--ling-main)"/><rect x="27" y="80" width="14" height="8" rx="4" fill="var(--ling-main)"/><rect x="59" y="80" width="14" height="8" rx="4" fill="var(--ling-main)"/></g><g filter="url(#sqs-'+gid+')"><rect x="21" y="25" width="58" height="57" rx="14" fill="url(#sqg-'+gid+')" stroke="'+rim+'" stroke-width="4.2"/><rect x="21" y="25" width="58" height="57" rx="14" fill="url(#sqh-'+gid+')"/>'+'<g clip-path="url(#sqc-'+gid+')">'+tex+'<ellipse cx="50" cy="76" rx="22" ry="9" fill="#fff" opacity=".13"/><path d="M21 70q29 18 58 0v12H21Z" fill="#000" opacity=".1"/></g><rect x="27" y="31" width="46" height="43" rx="10" fill="none" stroke="var(--ling-accent)" stroke-opacity=".35" stroke-width="2"/><path d="M27 35Q40 26 56 29" fill="none" stroke="#fff" stroke-width="5.5" opacity=".38" stroke-linecap="round"/><circle cx="31" cy="40" r="1.8" fill="#fff" opacity=".6"/>'+shimmer+'<g clip-path="url(#sqc-'+gid+')">'+skinEffect+'</g>'+top+'</g>'+cheek+'<g fill="none" stroke="var(--ling-dark)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+faceSh+'</g><g fill="none" stroke="var(--ling-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+feature+'</g><text x="50" y="78" text-anchor="middle" font-size="9" font-weight="900" fill="var(--ling-accent)" opacity=".9">'+esc(c?.mark||'I')+'</text>'+flair+'</svg></div>';
+    return '<div class="indexling-svg'+cls+' indexling-square-v2 ling-r-'+rar.toLowerCase()+'" style="--ling-main:'+main+';--ling-dark:'+dark+';--ling-accent:'+accent+';'+frame+'"><svg viewBox="0 0 100 100" role="img" aria-label="'+esc(c?.name||'Indexling')+'"><defs><linearGradient id="sqg-'+gid+'" x1="10%" y1="5%" x2="90%" y2="95%"><stop offset="0%" stop-color="var(--ling-accent)" stop-opacity=".98"/><stop offset="25%" stop-color="var(--ling-main)"/><stop offset="78%" stop-color="var(--ling-main)"/><stop offset="100%" stop-color="var(--ling-dark)"/></linearGradient><radialGradient id="sqh-'+gid+'" cx="32%" cy="24%" r="75%"><stop offset="0%" stop-color="#fff" stop-opacity=".55"/><stop offset="45%" stop-color="#fff" stop-opacity=".08"/><stop offset="100%" stop-color="#000" stop-opacity=".22"/></radialGradient><linearGradient id="sqr-'+gid+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2a8"/><stop offset=".5" stop-color="#e0a82a"/><stop offset="1" stop-color="#8a5a10"/></linearGradient><clipPath id="sqc-'+gid+'"><rect x="21" y="25" width="58" height="57" rx="14"/></clipPath><filter id="sqs-'+gid+'" x="-35%" y="-35%" width="170%" height="170%"><feDropShadow dx="0" dy="4" stdDeviation="2.5" flood-color="#172033" flood-opacity=".26"/></filter><filter id="sqb-'+gid+'" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.4"/></filter></defs><ellipse cx="50" cy="90" rx="26" ry="4" fill="#172033" opacity=".16"/>'+glow+accL.back+'<g stroke="var(--ling-dark)" stroke-width="3.4" stroke-linecap="round"><ellipse cx="17" cy="66" rx="6.5" ry="5.4" fill="var(--ling-main)"/><ellipse cx="83" cy="66" rx="6.5" ry="5.4" fill="var(--ling-main)"/><rect x="27" y="80" width="14" height="8" rx="4" fill="var(--ling-main)"/><rect x="59" y="80" width="14" height="8" rx="4" fill="var(--ling-main)"/></g><g filter="url(#sqs-'+gid+')"><rect x="21" y="25" width="58" height="57" rx="14" fill="url(#sqg-'+gid+')" stroke="'+rim+'" stroke-width="4.2"/><rect x="21" y="25" width="58" height="57" rx="14" fill="url(#sqh-'+gid+')"/>'+'<g clip-path="url(#sqc-'+gid+')">'+tex+'<ellipse cx="50" cy="76" rx="22" ry="9" fill="#fff" opacity=".13"/><path d="M21 70q29 18 58 0v12H21Z" fill="#000" opacity=".1"/></g><rect x="27" y="31" width="46" height="43" rx="10" fill="none" stroke="var(--ling-accent)" stroke-opacity=".35" stroke-width="2"/><path d="M27 35Q40 26 56 29" fill="none" stroke="#fff" stroke-width="5.5" opacity=".38" stroke-linecap="round"/><circle cx="31" cy="40" r="1.8" fill="#fff" opacity=".6"/>'+shimmer+'<g clip-path="url(#sqc-'+gid+')">'+skinEffect+'</g>'+top+'</g>'+cheek+'<g fill="none" stroke="var(--ling-dark)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+faceSh+'</g><g fill="none" stroke="var(--ling-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">'+feature+'</g><text x="50" y="78" text-anchor="middle" font-size="9" font-weight="900" fill="var(--ling-accent)" opacity=".9">'+esc(c?.mark||'I')+'</text>'+flair+accL.front+'</svg></div>';
   }
   function avatarPreviewHtml(){
   ensureRewardUnlocks();
@@ -3559,8 +3546,8 @@ function renderRewards(){
       }).join('')+'</section>';
     }).join('');
     const ownedSkinRecords=(state.progress.unlockedSkins||[]).map(entry=>typeof entry==='string'?{skinId:entry,indexlingId:'ling-sugarbug'}:entry).filter(r=>r&&skinById(r.skinId)&&cosmeticById(r.indexlingId));
-    const ownedSkins=ownedSkinRecords.map(r=>{const sk=skinById(r.skinId),ling=cosmeticById(r.indexlingId),active=getEquippedSkinId(ling.id)===sk.id;return '<div class="skin-chip '+(active?'skin-chip-active':'')+'">'+sk.icon+' '+esc(sk.name)+' · '+esc(ling.name)+(active?' · Equipped':'')+'</div>';}).join('');
-    body='<div class="avatar-stage">'+avatarPreviewHtml()+'<div class="current-collectible">Your equipped Indexling and skin are synced to your account.</div></div><div class="skin-panel"><div><h3>Skin Crates</h3><p class="reward-muted">'+(state.progress.skinCrates||0)+' crates ready · '+ownedSkinRecords.length+' skin assignments owned.</p></div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>🧰 Open Skin Crate</button></div><div class="owned-skins">'+(ownedSkins||'<span class="reward-muted">No skins yet.</span>')+'</div><div class="panel"><h3>Indexling collection</h3><p class="reward-muted">Grouped by pack, then Common → Rare → Epic → Legendary. Locked Indexlings stay hidden until you unlock them.</p>'+grouped+'</div>';
+    const ownedSkins=ownedSkinRecords.map(r=>{const sk=skinById(r.skinId),ling=cosmeticById(r.indexlingId),active=window.LING_ACCS.has(getEquippedSkinId(ling.id),sk.id);return '<div class="skin-chip '+(active?'skin-chip-active':'')+'">'+sk.icon+' '+esc(sk.name)+' · '+esc(ling.name)+(active?' · Equipped':'')+'</div>';}).join('');
+    body='<div class="avatar-stage">'+avatarPreviewHtml()+'<div class="current-collectible">Your equipped Indexling and its accessories are synced to your account.</div></div><div class="skin-panel"><div><h3>Skin Crates</h3><p class="reward-muted">'+(state.progress.skinCrates||0)+' crates ready · '+ownedSkinRecords.length+' skin assignments owned.</p></div><button class="btn btn-primary" data-action="open-skin-crate" '+((state.progress.skinCrates||0)>0?'':'disabled')+'>🧰 Open Skin Crate</button></div><div class="owned-skins">'+(ownedSkins||'<span class="reward-muted">No skins yet.</span>')+'</div><div class="panel"><h3>Indexling collection</h3><p class="reward-muted">Grouped by pack, then Common → Rare → Epic → Legendary. Locked Indexlings stay hidden until you unlock them.</p>'+grouped+'</div>';
    } else if(tab==='inventory'){
     const groups=[['indexling','Indexlings']];
     const inventoryGroups=groups.map(([type,label])=>{
@@ -3582,10 +3569,10 @@ function renderRewards(){
     }).join('');
     const skinRecords=(state.progress.unlockedSkins||[]).map(entry=>typeof entry==='string'?{skinId:entry,indexlingId:'ling-sugarbug'}:entry).filter(r=>r&&skinById(r.skinId)&&cosmeticById(r.indexlingId));
     const skinCards=skinRecords.map(function(r){
-      const sk=skinById(r.skinId),ling=cosmeticById(r.indexlingId),active=getEquippedSkinId(ling.id)===sk.id;
-      return '<div class="skin-inventory-card '+(active?'active':'')+'"><div class="skin-inventory-art">'+indexlingArtHtml(ling,true,sk)+'</div><div><div class="skin-inventory-name">'+sk.icon+' '+esc(sk.name)+'</div><div class="skin-inventory-sub">'+esc(ling.name)+' · '+esc(sk.rarity)+'</div><div class="skin-tag" style="margin-top:6px;">'+(active?'★ Equipped':'Skin for '+esc(ling.name))+'</div></div><div class="skin-inventory-actions"><button class="btn '+(active?'btn-dark':'btn-primary')+' btn-sm" data-action="equip-indexling-skin" data-indexling="'+ling.id+'" data-skin="'+sk.id+'">'+(active?'Equipped':'Equip Skin')+'</button>'+(active?'<button class="btn btn-ghost btn-sm" data-action="unequip-indexling-skin" data-indexling="'+ling.id+'">Remove Skin</button>':'')+'</div></div>';
+      const sk=skinById(r.skinId),ling=cosmeticById(r.indexlingId),active=window.LING_ACCS.has(getEquippedSkinId(ling.id),sk.id);
+      return '<div class="skin-inventory-card '+(active?'active':'')+'"><div class="skin-inventory-art">'+indexlingArtHtml(ling,true,sk)+'</div><div><div class="skin-inventory-name">'+sk.icon+' '+esc(sk.name)+'</div><div class="skin-inventory-sub">'+esc(ling.name)+' · '+esc(sk.rarity)+'</div><div class="skin-tag" style="margin-top:6px;">'+(active?'★ Equipped':'Skin for '+esc(ling.name))+'</div></div><div class="skin-inventory-actions"><button class="btn '+(active?'btn-dark':'btn-primary')+' btn-sm" data-action="equip-indexling-skin" data-indexling="'+ling.id+'" data-skin="'+sk.id+'">'+(active?'Wearing · take off':'Wear')+'</button><button class="btn btn-ghost btn-sm" data-action="unequip-indexling-skin" data-indexling="'+ling.id+'">Strip all</button>'+'</div></div>';
     }).join('');
-    const skinSection='<div class="panel"><h3>✨ Skin Collection</h3><p class="reward-muted">Each skin belongs to the specific Indexling it was rolled for. You can keep multiple skins and equip or remove them independently.</p>'+(skinCards?'<div class="skin-inventory-grid">'+skinCards+'</div>':'<div class="reward-muted">No Indexling skins yet. Open a Skin Crate to start collecting.</div>')+'</div>';
+    const skinSection='<div class="panel"><h3>✨ Accessory Collection</h3><p class="reward-muted">Each accessory belongs to the Indexling it was rolled for. Wear one per slot (head, face, neck, arms, back) to deck it out.</p>'+(skinCards?'<div class="skin-inventory-grid">'+skinCards+'</div>':'<div class="reward-muted">No accessories yet. Open a Skin Crate to start collecting.</div>')+'</div>';
     body=`<div class="panel"><div class="inventory-summary"><div><h3 style="font-size:20px;">🎒 Inventory</h3><p class="reward-muted">Your Indexlings, assigned skins, and current equipment are shown here.</p></div><div class="inventory-count"><strong>${unlocked.length}</strong> / ${REWARD_COSMETICS.length} Indexlings · ${skinRecords.length} skins</div></div><div>${inventoryGroups}</div></div>`+skinSection;
   } else if(tab==='daily'){
     const wheelToday=String(state.progress.dailyWheelDate||'')===coinDayStr(), lastReward=Number(state.progress.dailyWheelReward)||0;
@@ -9359,9 +9346,9 @@ setInterval(function(){
 <link rel="stylesheet" href="/membership-ui.css?v=3">
 <link rel="stylesheet" href="/membership-pro.css?v=2">
 <link rel="stylesheet" href="/classroom.css?v=7">
-<script src="/rewards-ui.js?v=3"></script>
+<script src="/rewards-ui.js?v=4"></script>
 <script src="/rewards-ui-packs.js?v=4"></script>
-<script src="/rewards-ui-reel.js?v=4"></script>
+<script src="/rewards-ui-reel.js?v=4x"></script>
 <link rel="stylesheet" href="/season-pass.css?v=1">
 <link rel="stylesheet" href="/welcome-role.css?v=9">
 <script src="/season-core.js?v=1"></script>

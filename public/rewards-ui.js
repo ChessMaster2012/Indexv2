@@ -145,14 +145,14 @@
         '<button class="rw-btn ' + (isEq ? 'rw-btn-ghost' : 'rw-btn-blue') + ' rw-btn-sm" data-action="equip-cosmetic" data-id="' + c.id + '">' + (isEq ? '★ Equipped' : 'Equip') + '</button></div>';
     }).join('');
     var skinCards = skins.map(function (r) {
-      var sk = skinById(r.skinId), l = ling(r.indexlingId), act = typeof getEquippedSkinId === 'function' && getEquippedSkinId(l.id) === sk.id;
+      var sk = skinById(r.skinId), l = ling(r.indexlingId), act = typeof getEquippedSkinId === 'function' && window.LING_ACCS.has(getEquippedSkinId(l.id), sk.id);
       return '<div class="rw-skin ' + (act ? 'on' : '') + '"><div class="rw-skin-art">' + art(l, true, sk) + '</div><div class="rw-skin-t"><b>' + sk.icon + ' ' + E(sk.name) + '</b><span>' + E(l.name) + ' · ' + E(sk.rarity) + '</span></div>' +
-        '<div class="rw-skin-a"><button class="rw-btn ' + (act ? 'rw-btn-ghost' : 'rw-btn-blue') + ' rw-btn-sm" data-action="equip-indexling-skin" data-indexling="' + l.id + '" data-skin="' + sk.id + '">' + (act ? '★ Equipped' : 'Equip skin') + '</button>' + (act ? '<button class="rw-btn rw-btn-ghost rw-btn-sm" data-action="unequip-indexling-skin" data-indexling="' + l.id + '">Remove</button>' : '') + '</div></div>';
+        '<div class="rw-skin-a"><button class="rw-btn ' + (act ? 'rw-btn-ghost' : 'rw-btn-blue') + ' rw-btn-sm" data-action="equip-indexling-skin" data-indexling="' + l.id + '" data-skin="' + sk.id + '">' + (act ? '✓ Wearing · take off' : 'Wear') + '</button>' + '<button class="rw-btn rw-btn-ghost rw-btn-sm" data-action="unequip-indexling-skin" data-indexling="' + l.id + '">Strip all</button>' + '</div></div>';
     }).join('');
     return '<div class="rw-inv">' + stats + filters +
       '<div class="rw-inv-grid">' + (cards || '<div class="rw-empty">No Indexlings match these filters.</div>') + '</div>' +
-      '<section class="rw-inv-skins"><h3>Skin collection</h3><p>Each skin belongs to the Indexling it was rolled for. Keep several and equip them independently.</p>' +
-      (skinCards ? '<div class="rw-skin-grid">' + skinCards + '</div>' : '<div class="rw-empty">No skins yet — open a Skin Crate from the Battle Pass or quests.</div>') + '</section></div>';
+      '<section class="rw-inv-skins"><h3>Accessory collection</h3><p>Each accessory belongs to the Indexling it was rolled for. Wear one per slot (head, face, neck, arms, back) to deck your Indexling out, and keep its default look underneath.</p>' +
+      (skinCards ? '<div class="rw-skin-grid">' + skinCards + '</div>' : '<div class="rw-empty">No accessories yet — open a Skin Crate from the Battle Pass or quests.</div>') + '</section></div>';
   }
   document.addEventListener('click', function (e) {
     var b = e.target && e.target.closest ? e.target.closest('[data-rw-f]') : null;
