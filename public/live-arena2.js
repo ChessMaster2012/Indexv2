@@ -65,12 +65,13 @@ function indexSnap(s){
 }
 function onSnap(inst,s){
   s.ts=performance.now(); indexSnap(s);
+  if(s.wd&&(s.wd[0]!==W||s.wd[1]!==H)){ W=s.wd[0]; H=s.wd[1]; VAULT.x=W/2; VAULT.y=H/2; inst.camInit=false; layout(inst); }
   if(s.ob) inst.obs=s.ob;
   inst.buf.push(s); if(inst.buf.length>5) inst.buf.shift();
   if(inst.kind==='me'&&state.live.me) inst.meN=state.live.me.n;
   if(s.fx) s.fx.forEach(function(f){ doFx(inst,f); });
   if(s.an&&s.an[0]!==inst.anId){ inst.anId=s.an[0]; showAnn(inst,s.an[1],s.an[2]); }
-  var me=inst.meN!=null&&s.pm[inst.meN]; if(me){ inst.srv=me; if(!inst.pred||Math.hypot(inst.pred.x-me[1],inst.pred.y-me[2])>140) inst.pred={x:me[1],y:me[2]}; }
+  var me=inst.meN!=null&&s.pm[inst.meN]; if(me){ inst.srv=me; if(!inst.pred||Math.hypot(inst.pred.x-me[1],inst.pred.y-me[2])>220) inst.pred={x:me[1],y:me[2]}; }
   // permanent ground marks for explosions are added in doFx
   var now=performance.now(); if(now-inst.hudT>90){ inst.hudT=now; updateHud(inst,s,me); }
 }
@@ -125,8 +126,10 @@ function predict(inst,dt,T){
   var mx=inp.mx,my=inp.my; if(len>1){ mx/=len; my/=len; }
   var nx=clamp(p.x+mx*sp*dt,PR,W-PR), ny=clamp(p.y+my*sp*dt,PR,H-PR); var o=pushOut(nx,ny,PR,inst.obs); p.x=clamp(o[0],PR,W-PR); p.y=clamp(o[1],PR,H-PR);
   var e=Math.hypot(p.x-me[1],p.y-me[2]);
-  if(e>120){ p.x=me[1]; p.y=me[2]; }
-  else { var k=Math.min(1,dt*(len>0.1?3.2:9)); p.x+=(me[1]-p.x)*k; p.y+=(me[2]-p.y)*k; }
+  if(e>260){ p.x=me[1]; p.y=me[2]; }
+  else if(len>0.1){ /* moving: the server position lags ~150ms behind us, so only pull back the part of the gap beyond that lead (no rubber-banding) */
+    var lead=sp*0.2, ex=e-lead; if(ex>0){ var kk=Math.min(1,dt*5)*ex/e; p.x+=(me[1]-p.x)*kk; p.y+=(me[2]-p.y)*kk; } }
+  else { var k=Math.min(1,dt*9); p.x+=(me[1]-p.x)*k; p.y+=(me[2]-p.y)*k; }
 }
 
 /* ---------- frame ---------- */
@@ -136,7 +139,7 @@ function frame(ts){
   var inst=A.inst; if(!inst||!inst.root.isConnected||!inst.cw) { last=ts; return; }
   var dt=Math.min(0.05,(ts-last)/1000||0.016); last=ts;
   var now=performance.now(), br=bracket(inst,now-105); if(!br){ drawEmpty(inst); return; }
-  if(inst.kind==='me') predict(inst,dt,now);
+  if(inst.kind==='me') predict(inst,Math.min(0.12,(ts-(inst.lastP||ts))/1000||0.016),now); inst.lastP=ts; /* real elapsed time, so a slow frame never leaves us behind the server */
   render(inst,br,dt,now);
 }
 function interpRow(a,b,t){ if(!a) return b; return [b[0],lerp(a[1],b[1],t),lerp(a[2],b[2],t)].concat(b.slice(3)); }
@@ -145,7 +148,7 @@ function camera(inst,dt){
   if(inst.kind==='host'){ inst.camX=0; inst.camY=0; return; }
   var tx=inst.pred?inst.pred.x:W/2, ty=inst.pred?inst.pred.y:H/2;
   var off=vh*0.14, cx=vw>=W?W/2:clamp(tx,vw/2-40,W-vw/2+40), cy=vh>=H?H/2+off*0.6:clamp(ty+off,vh/2-40,H-vh/2+off+60);
-  if(!inst.camInit){ inst.camX=cx; inst.camY=cy; inst.camInit=true; } else { var k=Math.min(1,dt*8); inst.camX+=(cx-inst.camX)*k; inst.camY+=(cy-inst.camY)*k; }
+  if(!inst.camInit){ inst.camX=cx; inst.camY=cy; inst.camInit=true; } else { var k=Math.min(1,dt*16); inst.camX+=(cx-inst.camX)*k; inst.camY+=(cy-inst.camY)*k; }
 }
 function render(inst,br,dt,now){
   var g=inst.g, mode=inst.mode, a=br.a, b=br.b, t=br.t, sc=inst.sc, dpr=inst.dpr; camera(inst,dt);
@@ -171,22 +174,34 @@ function render(inst,br,dt,now){
   g.setTransform(1,0,0,1,0,0); if(inst.flashT>0){ g.fillStyle='rgba(255,240,200,'+Math.min(0.45,inst.flashT)+')'; g.fillRect(0,0,inst.cv.width,inst.cv.height); inst.flashT-=dt; } var cw=inst.cv.width,ch=inst.cv.height; var vg=g.createRadialGradient(cw/2,ch/2,Math.min(cw,ch)*0.35,cw/2,ch/2,Math.max(cw,ch)*0.75); vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,.5)'); g.fillStyle=vg; g.fillRect(0,0,cw,ch);
   if(inst.hurtT>0){ var hv=g.createRadialGradient(cw/2,ch/2,Math.min(cw,ch)*0.3,cw/2,ch/2,Math.max(cw,ch)*0.7); hv.addColorStop(0,'rgba(255,30,30,0)'); hv.addColorStop(1,'rgba(255,30,30,'+(inst.hurtT/0.45*0.7)+')'); g.fillStyle=hv; g.fillRect(0,0,cw,ch); inst.hurtT-=dt; }
   if(inst.annT){ var el=(now-inst.annT.at)/1000, D=3.2; if(el<D){ var al=el<0.15?el/0.15:(el>D-0.7?(D-el)/0.7:1), sc2=1+Math.max(0,0.18-el)*3, d=inst.dpr, fs=Math.min(cw/d/9,52)*d; g.save(); g.globalAlpha=al; g.translate(cw/2,ch*0.36); g.scale(sc2,sc2); g.textAlign='center'; g.font='900 '+fs+'px system-ui,sans-serif'; g.lineJoin='round'; g.lineWidth=fs*0.18; g.strokeStyle='rgba(0,0,0,.75)'; g.strokeText(inst.annT.t,0,0); g.shadowColor='rgba(255,90,60,.9)'; g.shadowBlur=24*d; g.fillStyle='#fff'; g.fillText(inst.annT.t,0,0); g.shadowBlur=0; g.font='700 '+(fs*0.34)+'px system-ui,sans-serif'; g.lineWidth=fs*0.08; g.strokeText(inst.annT.sub,0,fs*0.6); g.fillText(inst.annT.sub,0,fs*0.6); g.restore(); } }
+  if(inst.kind==='me') drawMini(inst,g,b);
   if(mode==='zombie') drawBossBar(inst,g,b);
+}
+/* minimap: the world is big, so show where everyone is (players are always sent, zombies are not) */
+function drawMini(inst,g,b){
+  var d=inst.dpr, mw=Math.round(Math.min(150,inst.cw*0.26)*d), mh=Math.round(mw*H/W), x0=Math.round(8*d), y0=Math.round(8*d), kx=mw/W, ky=mh/H;
+  g.setTransform(1,0,0,1,0,0); g.globalAlpha=0.78; g.fillStyle='rgba(8,8,16,.72)'; g.fillRect(x0,y0,mw,mh); g.strokeStyle='rgba(255,255,255,.35)'; g.lineWidth=d; g.strokeRect(x0,y0,mw,mh); g.globalAlpha=1;
+  if(inst.mode==='gems'){ g.fillStyle='#ffd84a'; g.fillRect(x0+VAULT.x*kx-3*d,y0+VAULT.y*ky-3*d,6*d,6*d); }
+  b.p.forEach(function(r){ if(r[6]&8) return; var me=r[0]===inst.meN; g.fillStyle=me?'#ffffff':'rgba(120,200,255,.85)'; var s=(me?3.4:1.8)*d; g.fillRect(x0+r[1]*kx-s/2,y0+r[2]*ky-s/2,s,s); });
+  if(inst.pred){ g.strokeStyle='rgba(255,255,255,.55)'; g.lineWidth=d; g.strokeRect(x0+(inst.pred.x-inst.vw/2)*kx,y0+(inst.pred.y-inst.vh/2)*ky,inst.vw*kx,inst.vh*ky); }
 }
 function drawEmpty(inst){ var g=inst.g; g.setTransform(1,0,0,1,0,0); g.fillStyle='#0b0b14'; g.fillRect(0,0,inst.cv.width,inst.cv.height); g.fillStyle='#fff'; g.font=(16*inst.dpr)+'px system-ui'; g.textAlign='center'; g.fillText('Connecting to the arena…',inst.cv.width/2,inst.cv.height/2); }
 
 /* ---------- world drawing helpers ---------- */
 var FLOOR={zombie:['#1d211c','#262c24','#3a4a32'],gems:['#17142b','#1f1b3d','#3d3478'],elimination:['#1a1013','#241418','#5a2830']};
+function viewBox(inst){ if(inst.kind==='host') return [0,0,W,H]; var hx=inst.vw/2+80, hy=inst.vh/2+80; return [inst.camX-hx,inst.camY-hy,inst.camX+hx,inst.camY+hy]; }
 function drawFloor(inst,g,T){
-  var c=FLOOR[inst.mode]; var gr=g.createRadialGradient(W/2,H/2,60,W/2,H/2,760); gr.addColorStop(0,c[1]); gr.addColorStop(1,c[0]); g.fillStyle=gr; g.fillRect(0,0,W,H);
-  g.strokeStyle='rgba(255,255,255,.045)'; g.lineWidth=1; g.beginPath(); for(var x=0;x<=W;x+=60){ g.moveTo(x,0); g.lineTo(x,H); } for(var y=0;y<=H;y+=60){ g.moveTo(0,y); g.lineTo(W,y); } g.stroke();
+  var c=FLOOR[inst.mode]; var gr=g.createRadialGradient(W/2,H/2,60,W/2,H/2,760); gr.addColorStop(0,c[1]); gr.addColorStop(1,c[0]); g.fillStyle=c[0]; g.fillRect(0,0,W,H); var vb=viewBox(inst); gr=g.createRadialGradient(W/2,H/2,60,W/2,H/2,900); gr.addColorStop(0,c[1]); gr.addColorStop(1,c[0]); g.fillStyle=gr; g.fillRect(Math.max(0,W/2-900),Math.max(0,H/2-900),1800,1800);
+  g.strokeStyle='rgba(255,255,255,.045)'; g.lineWidth=1; g.beginPath(); var gx0=Math.max(0,Math.floor(vb[0]/60)*60), gx1=Math.min(W,vb[2]), gy0=Math.max(0,Math.floor(vb[1]/60)*60), gy1=Math.min(H,vb[3]); for(var x=gx0;x<=gx1;x+=60){ g.moveTo(x,gy0); g.lineTo(x,gy1); } for(var y=gy0;y<=gy1;y+=60){ g.moveTo(gx0,y); g.lineTo(gx1,y); } g.stroke();
   if(inst.mode==='zombie'){ g.fillStyle='rgba(255,255,255,.03)'; for(var i=0;i<30;i++){ g.fillRect((i*197)%W,(i*263)%H,34,3); } }
   if(inst.mode==='elimination'){ g.strokeStyle='rgba(255,80,60,.10)'; g.lineWidth=3; g.beginPath(); g.arc(W/2,H/2,300,0,TAU); g.arc(W/2,H/2,180,0,TAU); g.stroke(); }
   g.strokeStyle=c[2]; g.lineWidth=6; g.strokeRect(3,3,W-6,H-6);
   g.strokeStyle='rgba(255,255,255,.12)'; g.lineWidth=1; g.strokeRect(10,10,W-20,H-20);
 }
 function drawObstacles(inst,g){
+  var vb=viewBox(inst);
   inst.obs.forEach(function(o){
+    if(o[0]>vb[2]||o[1]>vb[3]||o[0]+o[2]<vb[0]||o[1]+o[3]<vb[1]) return;
     g.fillStyle='rgba(0,0,0,.4)'; g.fillRect(o[0]+6,o[1]+8,o[2],o[3]);
     var gr=g.createLinearGradient(0,o[1],0,o[1]+o[3]); if(inst.mode==='gems'){ gr.addColorStop(0,'#4a3f94'); gr.addColorStop(1,'#2b2460'); } else { gr.addColorStop(0,'#6b5a3a'); gr.addColorStop(1,'#43371f'); }
     g.fillStyle=gr; g.fillRect(o[0],o[1],o[2],o[3]);
@@ -406,7 +421,7 @@ function pump(){
 var KEYMAP={ArrowLeft:'left',a:'left',A:'left',ArrowRight:'right',d:'right',D:'right',ArrowUp:'up',w:'up',W:'up',ArrowDown:'down',s:'down',S:'down',' ':'act',j:'act',J:'act',Shift:'ab',e:'ab',E:'ab',k:'ab',K:'ab'};
 function kd(down){ return function(e){
   if(!A.inst||A.inst.kind!=='me'||state.view!=='live') return; var t=e.target&&e.target.tagName; if(t==='INPUT'||t==='TEXTAREA'||t==='SELECT') return;
-  var k=KEYMAP[e.key]; if(!k||e.ctrlKey||e.metaKey||e.altKey) return; A.keys[k]=down; if(down&&k==='ab') A.inst.abLatch=true; e.preventDefault();
+  var k=KEYMAP[e.key]; if(!k||e.ctrlKey||e.metaKey||e.altKey) return; if(A.keys[k]===down&&down) { e.preventDefault(); return; } A.keys[k]=down; if(down&&k==='ab') A.inst.abLatch=true; e.preventDefault(); pump();
 }; }
 document.addEventListener('keydown',kd(true)); document.addEventListener('keyup',kd(false));
 window.addEventListener('blur',function(){ A.keys={}; });

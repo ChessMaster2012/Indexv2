@@ -8,7 +8,19 @@
  * Gem Heist with walls, patrol drones, power-ups and Gem Rush events, and a phase-based Last Stand
  * (meteors, lasers, cross beams, shockwaves, hunter orbs, lava, dash with i-frames, power-up orbs).
  */
-const W = 1200, H = 700, PR = 18, VAULT = { x: W / 2, y: H / 2, r: 90 };
+/* The arena is a grid of 1200x700 cells (3x3 up to ~24 players, 5x5 beyond), so it is MUCH bigger than the old single cell and
+   scales with the class size. W/H/VAULT/SC are per-room: use(room) loads them at every entry point (step is synchronous). */
+const CW = 1200, CH = 700, PR = 18;
+let W = CW * 3, H = CH * 3, SC = 3;
+const VAULT = { x: W / 2, y: H / 2, r: 90 };
+function use(room) { const A = room && room.arena; if (!A) return; W = A.W; H = A.H; SC = A.sc; VAULT.x = W / 2; VAULT.y = H / 2; }
+function tileObstacles(base, nx, ny) {
+  const out = [];
+  for (let cx = 0; cx < nx; cx++) for (let cy = 0; cy < ny; cy++) {
+    base.forEach(o => { const r = [o[0] + cx * CW, o[1] + cy * CH, o[2], o[3]]; out.push(r); });
+  }
+  return out;
+}
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const r1 = n => Math.round(n * 10) / 10;
@@ -44,9 +56,9 @@ function announce(A, text, sub) { A.an = [++A.anId, text, sub || '', A.t]; }
 function fx(A, k, x, y, v) { if (A.fx.length < 60) A.fx.push([k, Math.round(x), Math.round(y), v == null ? 0 : Math.round(v)]); }
 
 function placePlayer(room, p, near) {
-  const A = room.arena, obs = A ? A.obs : [];
+  use(room); const A = room.arena, obs = A ? A.obs : [];
   let x = W / 2, y = H / 2;
-  for (let i = 0; i < 12; i++) { const a = Math.random() * Math.PI * 2, d = rnd(40, 200); x = clamp((near ? near.x : W / 2) + Math.cos(a) * d, 30, W - 30); y = clamp((near ? near.y : H / 2) + Math.sin(a) * d, 30, H - 30); if (!inWall(x, y, PR, obs)) break; }
+  for (let i = 0; i < 12; i++) { const a = Math.random() * Math.PI * 2, d = rnd(40, near ? 200 : Math.min(900, 150 + 40 * Math.sqrt(room.players.size))); x = clamp((near ? near.x : W / 2) + Math.cos(a) * d, 30, W - 30); y = clamp((near ? near.y : H / 2) + Math.sin(a) * d, 30, H - 30); if (!inWall(x, y, PR, obs)) break; }
   if (room.mode === 'gems' && Math.hypot(x - VAULT.x, y - VAULT.y) < 30) x += 70;
   p.x = x; p.y = y;
   p.ang = 0; p.in = { mx: 0, my: 0, act: false, ab: false, at: 0 }; p.actPrev = false; p.abPrev = false; p.fireCd = 0; p.invuln = 0; p.down = false; p.stun = 0; p.dashT = 0; p.dx = 1; p.dy = 0; p.protect = 0; p.abCd = 0;
@@ -58,15 +70,16 @@ function initPlayer(room, p) {
   else if (room.mode === 'elimination') Object.assign(p, { lives: 3, shield: 0, pu: -1, puT: 0, bonus: 0 });
 }
 function setup(room) {
-  room.arena = { t: 0, id: 1, anId: 0, an: null, obs: OBST[room.mode] || [], zombies: [], bullets: [], gems: [], hazards: [], pk: [], bar: [], acid: [], drones: [],
+  const np = room.players.size, nx = np > 24 ? 5 : 3, ny = nx;
+  room.arena = { W: CW * nx, H: CH * ny, sc: nx, t: 0, id: 1, anId: 0, an: null, obs: tileObstacles(OBST[room.mode] || [], nx, ny), zombies: [], bullets: [], gems: [], hazards: [], pk: [], bar: [], acid: [], drones: [],
     spawnAcc: 0, hazAcc: 0, sweepAcc: 0, gemAcc: 0, fx: [], step: 0, secMark: 0, snapN: 0, phase: -1, pkAcc: 0 };
-  const A = room.arena;
+  const A = room.arena; use(room);
   if (room.mode === 'zombie') {
     A.wave = { n: 0, st: 0, timer: 4.5, queue: [], total: 0, spawnT: 0, bossAlive: false };
-    for (let i = 0; i < 5; i++) { const [x, y] = freeSpot(A.obs, 30, 40, false); if (Math.hypot(x - W / 2, y - H / 2) > 150) A.bar.push({ id: A.id++, x, y, hp: 3 }); }
+    for (let i = 0; i < 5 * SC; i++) { const [x, y] = freeSpot(A.obs, 30, 40, false); if (Math.hypot(x - W / 2, y - H / 2) > 150) A.bar.push({ id: A.id++, x, y, hp: 3 }); }
     announce(A, 'GET READY', 'Wave 1 incoming');
   } else if (room.mode === 'gems') {
-    const nd = 2 + Math.floor(room.players.size / 12);
+    const nd = (2 + Math.floor(room.players.size / 6)) * SC;
     for (let i = 0; i < nd; i++) { const [x, y] = freeSpot(A.obs, 20, 40, true); A.drones.push({ id: A.id++, x, y, tx: x, ty: y, stun: 0, hunt: 0 }); }
     A.rushT = rnd(28, 40); A.rushWarn = 0;
     announce(A, 'HEIST START', 'Grab gems · bank them in the vault');
@@ -121,7 +134,7 @@ function waveQueue(n, P) {
   if (n % 4 === 0) q.unshift(5);
   return q;
 }
-function spawnPickup(A, x, y, kind, life) { if (A.pk.length < 14) A.pk.push({ id: A.id++, x, y, k: kind, life: life || 18 }); }
+function spawnPickup(A, x, y, kind, life) { if (A.pk.length < 14 * SC) A.pk.push({ id: A.id++, x, y, k: kind, life: life || 18 }); }
 function dropLoot(A, x, y, boss) {
   if (boss) { for (let i = 0; i < 3; i++) spawnPickup(A, x + rnd(-50, 50), y + rnd(-40, 40), [0, 1, 3, 4, 2][Math.floor(Math.random() * 5)], 25); return; }
   if (Math.random() < 0.075) { const r = Math.random(); spawnPickup(A, x, y, r < 0.34 ? 0 : r < 0.54 ? 1 : r < 0.7 ? 2 : r < 0.86 ? 3 : r < 0.96 ? 4 : 5); }
@@ -166,7 +179,12 @@ function startWave(room, A, n) {
   announce(A, boss ? 'WAVE ' + n + ' — BOSS' : 'WAVE ' + n, boss ? 'A giant is coming. Focus fire!' : W_.total + ' zombies');
   if (boss) room._events.push({ type: 'boss', text: '👑 Boss wave ' + n + ' — focus fire!' });
 }
-function spawnEdge(A, type, boss) {
+function spawnEdge(A, type, boss, living) {
+  if (living && living.length) { /* big world: zombies appear just off-screen around a random survivor, not at the far world edge */
+    const tg = living[Math.floor(Math.random() * living.length)], a = Math.random() * Math.PI * 2, d = rnd(640, 860);
+    const x = clamp(tg.x + Math.cos(a) * d, 20, W - 20), y = clamp(tg.y + Math.sin(a) * d, 20, H - 20); const T = ZT[type];
+    A.zombies.push({ id: A.id++, x, y, type, hp: T.hp, mhp: T.hp, cd: 0, atk: rnd(2, 4), tel: 0, chg: 0, cx: 0, cy: 0, flash: 0, summon: 6 }); return;
+  }
   const side = Math.floor(Math.random() * 4); let x, y; const m = boss ? 60 : 24;
   if (side === 0) { x = rnd(0, W); y = -m; } else if (side === 1) { x = rnd(0, W); y = H + m; } else if (side === 2) { x = -m; y = rnd(0, H); } else { x = W + m; y = rnd(0, H); }
   const T = ZT[type];
@@ -185,8 +203,8 @@ function stepZombie(room, dt, now) {
     const interval = clamp(0.95 - W_.n * 0.04, 0.22, 0.95) / (0.6 + 0.16 * P);
     if (W_.queue.length && W_.spawnT <= 0 && A.zombies.length < 62) {
       W_.spawnT = interval; const t = W_.queue.shift();
-      if (t === 5) { spawnEdge(A, 5, true); A.zombies[A.zombies.length - 1].hp = A.zombies[A.zombies.length - 1].mhp = 60 + 22 * P + W_.n * 4; }
-      else spawnEdge(A, t);
+      if (t === 5) { spawnEdge(A, 5, true, living); A.zombies[A.zombies.length - 1].hp = A.zombies[A.zombies.length - 1].mhp = 60 + 22 * P + W_.n * 4; }
+      else spawnEdge(A, t, false, living);
     }
     if (!W_.queue.length && !A.zombies.some(z => !z.dead)) {
       W_.st = 0; W_.timer = 7;
@@ -286,7 +304,7 @@ function stepZombie(room, dt, now) {
   A.acid = A.acid.filter(a => a.life > 0);
   // pickups expire + barrels replenish
   for (const k of A.pk) k.life -= dt; A.pk = A.pk.filter(k => k.life > 0);
-  A.pkAcc += dt; if (A.pkAcc > 14) { A.pkAcc = 0; if (A.bar.length < 5) { const [x, y] = freeSpot(A.obs, 30, 40, false); if (Math.hypot(x - W / 2, y - H / 2) > 120) A.bar.push({ id: A.id++, x, y, hp: 3 }); } }
+  A.pkAcc += dt; if (A.pkAcc > 14) { A.pkAcc = 0; if (A.bar.length < 5 * SC) { const [x, y] = freeSpot(A.obs, 30, 40, false); if (Math.hypot(x - W / 2, y - H / 2) > 120) A.bar.push({ id: A.id++, x, y, hp: 3 }); } }
 }
 
 /* ---------------- Gem Heist ---------------- */
@@ -298,10 +316,10 @@ function stepGems(room, dt, now) {
   const left = room.endsAt - now, mult = left < 45000 ? 2 : 1;
   if (mult === 2 && !A.final) { A.final = true; announce(A, 'FINAL PUSH', 'Banked gems count DOUBLE!'); room._events.push({ type: 'final', text: '🔥 Final 45 seconds — banking is DOUBLE!' }); }
   // gems
-  const target = Math.min(44, 14 + 2 * living.length);
+  const target = Math.min(44 * SC * 1.6, (14 + 2 * living.length) * SC);
   A.gemAcc += dt;
-  while (A.gemAcc >= 0.35) {
-    A.gemAcc -= 0.35; if (A.gems.length >= target) continue;
+  while (A.gemAcc >= 0.35 / SC) {
+    A.gemAcc -= 0.35 / SC; if (A.gems.length >= target) continue;
     let x, y, tries = 0; do { [x, y] = freeSpot(A.obs, 14, 1, true); tries++; } while (tries < 8 && inWall(x, y, 14, A.obs));
     const r = Math.random(); A.gems.push({ id: A.id++, x, y, v: r < 0.06 ? 8 : r < 0.24 ? 3 : 1 });
   }
@@ -309,7 +327,7 @@ function stepGems(room, dt, now) {
   if (A.rushWarn > 0) { A.rushWarn -= dt; if (A.rushWarn <= 0) { for (let i = 0; i < 26; i++) { const a = (i / 26) * Math.PI * 2, d = 140 + (i % 3) * 55; const x = clamp(VAULT.x + Math.cos(a) * d, 40, W - 40), y = clamp(VAULT.y + Math.sin(a) * d * 0.8, 40, H - 40); if (!inWall(x, y, 12, A.obs)) A.gems.push({ id: A.id++, x, y, v: i % 6 === 0 ? 3 : 1 }); } fx(A, 14, VAULT.x, VAULT.y, 0); } }
   else { A.rushT -= dt; if (A.rushT <= 0) { A.rushT = rnd(38, 52); A.rushWarn = 3; announce(A, 'GEM RUSH', 'A shower of gems is about to drop at the vault!'); room._events.push({ type: 'rush', text: '💎 GEM RUSH incoming!' }); } }
   // power-ups
-  A.pkAcc += dt; if (A.pkAcc > 8 && A.pk.length < 3) { A.pkAcc = 0; const [x, y] = freeSpot(A.obs, 20, 30, true); A.pk.push({ id: A.id++, x, y, k: Math.floor(Math.random() * 4), life: 22 }); }
+  A.pkAcc += dt; if (A.pkAcc > 8 && A.pk.length < 3 * SC) { A.pkAcc = 0; const [x, y] = freeSpot(A.obs, 20, 30, true); A.pk.push({ id: A.id++, x, y, k: Math.floor(Math.random() * 4), life: 22 }); }
   for (const k of A.pk) k.life -= dt; A.pk = A.pk.filter(k => k.life > 0);
   // drones
   for (const d of A.drones) {
@@ -397,11 +415,11 @@ function stepDodge(room, dt, now) {
   A.sweepAcc += dt; const si = clamp(6.5 - prog * 3.2, 2.6, 6.5);
   if (ph >= 1 && A.sweepAcc >= si) {
     A.sweepAcc = 0; const r = Math.random(), pick = ph >= 2 ? r : r * 0.6;
-    if (pick < 0.35) { const v = Math.random() < 0.5; mk(A, 1, v ? 1 : 0, v ? rnd(60, W - 60) : rnd(60, H - 60), 46, 1.7); }
+    if (pick < 0.35) { const v = Math.random() < 0.5; const tg = aimAt(); mk(A, 1, v ? 1 : 0, v ? (tg ? clamp(tg.x + rnd(-380, 380), 60, W - 60) : rnd(60, W - 60)) : (tg ? clamp(tg.y + rnd(-260, 260), 60, H - 60) : rnd(60, H - 60)), 46, 1.7); }
     else if (pick < 0.6) { const tg = aimAt(); const x = tg ? clamp(tg.x, 80, W - 80) : W / 2, y = tg ? clamp(tg.y, 80, H - 80) : H / 2; mk(A, 3, x, y, 44, 1.9); }
-    else if (pick < 0.8 && ph >= 2) { mk(A, 2, rnd(250, W - 250), rnd(180, H - 180), 10, 0.01, { boom: 3.2, sp: 250 + prog * 80 }); }
-    else if (ph >= 3) { const tg = aimAt(); const side = Math.floor(Math.random() * 4); const x = side === 0 ? 0 : side === 1 ? W : rnd(0, W), y = side === 2 ? 0 : side === 3 ? H : rnd(0, H); mk(A, 4, x, y, 16, 0.01, { boom: 8, life: 8, tg: tg ? tg.id : null, sp: 95 + prog * 50 }); }
-    else { const v = Math.random() < 0.5; mk(A, 1, v ? 1 : 0, v ? rnd(60, W - 60) : rnd(60, H - 60), 46, 1.6); }
+    else if (pick < 0.8 && ph >= 2) { const tg = aimAt(); mk(A, 2, tg ? clamp(tg.x + rnd(-300, 300), 250, W - 250) : rnd(250, W - 250), tg ? clamp(tg.y + rnd(-200, 200), 180, H - 180) : rnd(180, H - 180), 10, 0.01, { boom: 3.2, sp: 250 + prog * 80 }); }
+    else if (ph >= 3) { const tg = aimAt(); const side = Math.floor(Math.random() * 4); const ra = Math.random() * Math.PI * 2, x = tg ? clamp(tg.x + Math.cos(ra) * 760, 0, W) : (side === 0 ? 0 : side === 1 ? W : rnd(0, W)), y = tg ? clamp(tg.y + Math.sin(ra) * 760, 0, H) : (side === 2 ? 0 : side === 3 ? H : rnd(0, H)); mk(A, 4, x, y, 16, 0.01, { boom: 8, life: 8, tg: tg ? tg.id : null, sp: 95 + prog * 50 }); }
+    else { const v = Math.random() < 0.5, tg = aimAt(); mk(A, 1, v ? 1 : 0, v ? (tg ? clamp(tg.x + rnd(-380, 380), 60, W - 60) : rnd(60, W - 60)) : (tg ? clamp(tg.y + rnd(-260, 260), 60, H - 60) : rnd(60, H - 60)), 46, 1.6); }
   }
   A.lavaAcc = (A.lavaAcc || 0) + dt;
   if (ph >= 3 && A.lavaAcc > 11 - prog * 4) { A.lavaAcc = 0; const tg = aimAt(); mk(A, 5, tg ? clamp(tg.x + rnd(-80, 80), 80, W - 80) : W / 2, tg ? clamp(tg.y + rnd(-80, 80), 80, H - 80) : H / 2, 85, 1.6, { boom: 7 }); }
@@ -411,7 +429,7 @@ function stepDodge(room, dt, now) {
     for (let i = 0; i < n; i++) { const f = (rev ? n - 1 - i : i) / (n - 1); const x = v ? 70 + f * (W - 140) : base + (i % 2) * 20, y = v ? base + (i % 2) * 20 + 40 : 60 + f * (H - 120); mk(A, 0, v ? x : W / 2 + (i % 2 ? 160 : -160), v ? y + 120 * (i % 3) : y, 44, 0.9 + i * 0.12); }
   }
   // power-up orbs
-  A.pkAcc += dt; if (A.pkAcc > 8 && A.pk.length < 2) { A.pkAcc = 0; const r = Math.random(); A.pk.push({ id: A.id++, x: rnd(100, W - 100), y: rnd(100, H - 100), k: r < 0.4 ? 0 : r < 0.65 ? 1 : 2, life: 14 }); }
+  A.pkAcc += dt; if (A.pkAcc > 8 && A.pk.length < 2 * SC) { A.pkAcc = 0; const r = Math.random(); A.pk.push({ id: A.id++, x: rnd(100, W - 100), y: rnd(100, H - 100), k: r < 0.4 ? 0 : r < 0.65 ? 1 : 2, life: 14 }); }
   for (const k of A.pk) k.life -= dt; A.pk = A.pk.filter(k => k.life > 0);
   for (const p of alive) {
     for (let i = A.pk.length - 1; i >= 0; i--) {
@@ -459,7 +477,7 @@ function stepDodge(room, dt, now) {
 const t = room => Date.now() - room.startedAt;
 
 function step(room, dt) {
-  const A = room.arena; if (!A) return; const now = Date.now(); A.t += dt; A.step++;
+  const A = room.arena; if (!A) return; use(room); const now = Date.now(); A.t += dt; A.step++;
   room._events = [];
   movePlayers(room, dt, now);
   if (room.mode === 'zombie') stepZombie(room, dt, now); else if (room.mode === 'gems') stepGems(room, dt, now); else stepDodge(room, dt, now);
@@ -468,6 +486,7 @@ function step(room, dt) {
 
 /** Applies the effect of a correct/wrong answer. Returns the message shown to the player. */
 function onAnswer(room, p, correct, speed, boost) {
+  use(room);
   const A = room.arena;
   if (room.mode === 'zombie') {
     if (!correct) return '🔫 No ammo this time';
@@ -494,7 +513,7 @@ function onAnswer(room, p, correct, speed, boost) {
 }
 
 function snapshot(room) {
-  const A = room.arena; if (!A) return null; const r = Math.round;
+  const A = room.arena; if (!A) return null; use(room); const r = Math.round;
   const pl = []; const mode = room.mode;
   for (const p of room.players.values()) {
     const shielded = (mode === 'gems' && p.protect > Date.now()) || (mode === 'elimination' && p.shield > 0);
@@ -506,7 +525,7 @@ function snapshot(room) {
     pl.push([p.n, r(p.x), r(p.y), r(p.ang * 100) / 100, a, b, fl, c, cd, x1, x2]);
   }
   const s = { t: r1(A.t), p: pl };
-  if (A.snapN++ % 20 === 0) s.ob = A.obs;
+  if (A.snapN++ % 20 === 0) { s.ob = A.obs; s.wd = [W, H]; }
   if (A.an && A.t - A.an[3] < 4.5) s.an = [A.an[0], A.an[1], A.an[2]];
   if (A.fx.length) { s.fx = A.fx; A.fx = []; }
   if (mode === 'zombie') {
@@ -534,4 +553,18 @@ function snapshot(room) {
   }
   return s;
 }
-module.exports = { W, H, VAULT, isArena, ARENA_MODES, setup, step, snapshot, onAnswer, initPlayer, placePlayer };
+/* Interest management: a player only receives the zombies/bullets/pickups/gems/drones near them (the world is big, the class is large).
+   Players, hazards and HUD data are always included. R must exceed half the visible screen diagonal. */
+const CULL_R = 1150;
+function cull(s, vx, vy) {
+  const R2 = CULL_R * CULL_R, near = (x, y) => (x - vx) * (x - vx) + (y - vy) * (y - vy) <= R2, o = Object.assign({}, s);
+  if (s.z) o.z = s.z.filter(z => near(z[1], z[2]));
+  if (s.b) o.b = s.b.filter(b => near(b[0], b[1]));
+  if (s.pk && s.pk.length > 6) o.pk = s.pk.filter(k => near(k[1], k[2]));
+  if (s.br) o.br = s.br.filter(b => near(b[1], b[2]));
+  if (s.ac) o.ac = s.ac.filter(a => near(a[0], a[1]));
+  if (s.g) o.g = s.g.filter(g => near(g[1], g[2]));
+  if (s.d) o.d = s.d.filter(d => near(d[1], d[2]));
+  return o;
+}
+module.exports = { cull, W, H, VAULT, isArena, ARENA_MODES, setup, step, snapshot, onAnswer, initPlayer, placePlayer };

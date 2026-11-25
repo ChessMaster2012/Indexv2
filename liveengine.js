@@ -40,7 +40,7 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
   }
   const publicPlayers = room => Array.from(room.players.values()).sort(MODES.compare(room)).map(p => pub(room, p));
   const remainingMs = room => room.status === 'running' ? Math.max(0, room.endsAt - Date.now()) : (room.status === 'ended' ? 0 : room.durationMs);
-  function meta(room) { return { arena: ARENA.isArena(room.mode) ? { w: ARENA.W, h: ARENA.H, vault: ARENA.VAULT } : undefined, trackLength: room.mode === 'rocket' ? MODES.trackLength(room) : undefined, durationMs: room.durationMs, pauseMs: room.config.wrongPauseMs, storm: MODES.stormNow(room) || undefined }; }
+  function meta(room) { return { arena: ARENA.isArena(room.mode) ? { w: room.arena ? room.arena.W : ARENA.W, h: room.arena ? room.arena.H : ARENA.H, vault: ARENA.VAULT } : undefined, trackLength: room.mode === 'rocket' ? MODES.trackLength(room) : undefined, durationMs: room.durationMs, pauseMs: room.config.wrongPauseMs, storm: MODES.stormNow(room) || undefined }; }
 
   /* ----- per-player question stream ----- */
   function buildOrder(room) { const idx = room.questions.map((_, i) => i); return room.config.shuffleQuestions ? shuffle(idx) : idx; }
@@ -75,7 +75,17 @@ function attach({ io, rooms, cleanDisplayName, nameViolationReason, cleanRoomTit
     if (room._pending) { events.push(...room._pending); room._pending = null; }
     events.forEach(e => io.to(room.code).emit('room:event', e));
     room.arenaN = (room.arenaN || 0) + 1;
-    if (room.arenaN % 2 === 0) { const snap = ARENA.snapshot(room); if (snap) io.to(room.code).emit('arena:snap', snap); }
+    if (room.arenaN % 2 === 0) {
+      const snap = ARENA.snapshot(room);
+      if (snap) {
+        const ids = [];
+        for (const p of room.players.values()) {
+          if (!p.socketId) continue; const sock = io.sockets.sockets.get(p.socketId); if (!sock) continue;
+          ids.push(p.socketId); sock.emit('arena:snap', ARENA.cull(snap, p.x || 0, p.y || 0));
+        }
+        io.to(room.code).except(ids).emit('arena:snap', snap); /* host / spectators see the whole world */
+      }
+    }
   }
   /* ----- lifecycle ----- */
   function startRunning(room) {
