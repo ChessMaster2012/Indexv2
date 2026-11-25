@@ -12,7 +12,19 @@
   }
   /* Each rule: id, label, test(pw, ctx) -> true when satisfied */
   var RULES = [
-    { id: 'len', label: 'At least ' + MIN + ' characters', test: function (p) { return p.length >= MIN && p.length <= MAX; } }
+    { id: 'len', label: 'At least ' + MIN + ' characters', test: function (p) { return p.length >= MIN && p.length <= MAX; } },
+    { id: 'lower', label: 'A lowercase letter (a–z)', test: function (p) { return /[a-z]/.test(p); } },
+    { id: 'upper', label: 'An uppercase letter (A–Z)', test: function (p) { return /[A-Z]/.test(p); } },
+    { id: 'digit', label: 'A number (0–9)', test: function (p) { return /[0-9]/.test(p); } },
+    { id: 'symbol', label: 'A symbol like ! ? # $ % & *', test: function (p) { return /[^A-Za-z0-9\s]/.test(p); } },
+    { id: 'nospace', label: 'No spaces at the start or end', test: function (p) { return p === p.trim(); } },
+    { id: 'unique', label: 'At least 6 different characters', test: function (p) { var o = {}, n = 0; for (var i = 0; i < p.length; i++) if (!o[p[i]]) { o[p[i]] = 1; n++; } return n >= 6; } },
+    { id: 'repeat', label: 'No character repeated 3 times in a row', test: function (p) { return !/(.)\1\1/.test(p); } },
+    { id: 'seq', label: 'No easy runs like abcd, 1234 or qwerty', test: function (p) { return !hasSequence(p); } },
+    { id: 'common', label: 'Not a common password or word', test: function (p) { var d = deleet(p), n = norm(p); for (var i = 0; i < COMMON.length; i++) if (d.indexOf(deleet(COMMON[i])) >= 0 || n.indexOf(COMMON[i]) >= 0) return false; return true; } },
+    { id: 'personal', label: 'Does not contain your name, username or email', test: function (p, c) {
+      c = c || {}; var d = deleet(p), n = norm(p), bits = [c.username, c.email && String(c.email).split('@')[0], c.firstName, c.lastName];
+      for (var i = 0; i < bits.length; i++) { var b = norm(bits[i]); if (b.length >= 3 && (n.indexOf(b) >= 0 || d.indexOf(deleet(b)) >= 0)) return false; } return true; } }
   ];
   function evaluate(pw, ctx) { pw = String(pw == null ? '' : pw); return RULES.map(function (r) { return { id: r.id, label: r.label, ok: !!r.test(pw, ctx) }; }); }
   function check(pw, ctx) { var f = evaluate(pw, ctx).filter(function (r) { return !r.ok; }); return { ok: f.length === 0, failed: f, message: f.length ? 'Password is too weak: ' + f.slice(0, 3).map(function (x) { return x.label.charAt(0).toLowerCase() + x.label.slice(1); }).join('; ') + '.' : '' }; }
