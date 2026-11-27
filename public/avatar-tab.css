@@ -1,0 +1,21 @@
+/* Avatar tab: clearer card layout, readable names on the dark theme */
+html body .indexling-pack-group{margin-top:34px}
+html body .indexling-pack-heading{padding:16px 20px!important;border-radius:16px!important}
+html body .indexling-pack-heading h3{font-size:22px!important;letter-spacing:.01em}
+html body .indexling-pack-heading .reward-muted{font-size:13px!important;margin-top:3px;color:#d8cfbe!important}
+html body .pack-group-count{font-size:14px!important;font-weight:900!important;padding:6px 14px;border-radius:99px;background:rgba(255,255,255,.12);color:#fff!important}
+html body .indexling-rarity-group{margin:22px 0 0}
+html body .indexling-rarity-heading{font-size:13px!important;padding:6px 4px 10px!important;color:var(--rd-text-2,#cdc3b1)!important}
+html body .cosmetic-grid{grid-template-columns:repeat(auto-fill,minmax(188px,1fr))!important;gap:16px!important}
+html body .cosmetic-card{display:flex!important;flex-direction:column;align-items:center;gap:8px;padding:18px 14px 16px!important;min-height:0!important;background:var(--card,#2a231c)!important;border:2px solid rgba(255,255,255,.14)!important;border-radius:20px!important;text-align:center}
+html body .cosmetic-card.unlocked{border-color:rgba(123,224,168,.55)!important}
+html body .cosmetic-card.equipped{border-color:#7be0a8!important;box-shadow:0 0 0 3px rgba(123,224,168,.25)!important}
+html body .cosmetic-card .cosmetic-icon{width:120px;height:120px;margin:0!important;display:grid;place-items:center;border-radius:18px;background:rgba(0,0,0,.28);overflow:hidden}
+html body .cosmetic-card .cosmetic-icon .indexling-svg,html body .cosmetic-card .cosmetic-icon svg{width:100%!important;height:100%!important}
+html body .cosmetic-card strong{display:block;max-width:100%;font:800 17px/1.2 var(--font-display,Fredoka,sans-serif)!important;color:#fff!important;overflow-wrap:anywhere;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+html body .cosmetic-card .reward-muted{font-size:12px!important;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 11px;border-radius:99px;background:rgba(255,255,255,.1);color:#e7dfd0!important}
+html body .cosmetic-card .btn{width:100%;margin-top:4px;padding:10px 12px!important;font-size:14px!important;font-weight:800!important}
+html body .cosmetic-card.indexling-locked-card{background:rgba(255,255,255,.06)!important;border-style:dashed!important;filter:none!important}
+html body .cosmetic-card.indexling-locked-card strong{color:#b9b0a0!important;text-shadow:none}
+html body .cosmetic-card.indexling-locked-card .cosmetic-icon{background:rgba(0,0,0,.2)!important}
+@media (max-width:640px){html body .cosmetic-grid{grid-template-columns:repeat(2,1fr)!important;gap:12px!important}html body .cosmetic-card .cosmetic-icon{width:100px;height:100px}}
