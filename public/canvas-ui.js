@@ -6,7 +6,7 @@
 var $=function(id){ return document.getElementById(id); };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function safe(fn,d){ try{ var v=fn(); return v==null?d:v; }catch(e){ return d; } }
-var CV={ status:null, data:null, loading:false, tab:'assignments', filter:'open', course:'all', plan:null, planning:false, host:'', oauthHost:null, msg:'' };
+var CV={ status:null, data:null, loading:false, tab:'dashboard', filter:'open', course:'all', plan:null, planning:false, host:'', oauthHost:null, msg:'' };
 var COLORS=['#7c5cff','#2f9bff','#22c08a','#ff8a3d','#ec4899','#e5b800','#14b8c6','#a855f7','#ef4444','#6b8f23'];
 var I=function(n,z){ return window.IX?IX.icon(n,z||16):''; };
 var BRAND=function(z){ return window.IX?IX.brand('canvas',z||20):''; };
@@ -52,7 +52,7 @@ function render(){
   if(!CV.status){ root.innerHTML=head+'<div class="cv-card cv-load"><span class="spinner"></span> Checking your Canvas connection…</div>'; return; }
   if(!CV.status.connection){ root.innerHTML=head+connectHtml(); wireConnect(); return; }
   if(!CV.data){ root.innerHTML=head+connectedBar()+(CV.loading?'<div class="cv-card cv-load"><span class="spinner"></span> Syncing from Canvas…</div>':'<div class="cv-card">'+esc(CV.msg||'No data yet.')+' <button class="btn btn-primary btn-sm" data-cv="sync">Try again</button></div>'); return; }
-  root.innerHTML=head+connectedBar()+summaryHtml()+plannerHtml()+tabsHtml();
+  root.innerHTML=head+connectedBar()+tabsHtml();
 }
 
 /* ---------- connect ---------- */
@@ -147,8 +147,18 @@ function runPlan(){
 /* ---------- tabs ---------- */
 function tabsHtml(){
   var t=function(id,l){ return '<button class="cv-tab '+(CV.tab===id?'on':'')+'" data-cv="tab" data-tab="'+id+'">'+l+'</button>'; };
-  var body=CV.tab==='classes'?classesHtml():CV.tab==='news'?newsHtml():assignmentsHtml();
-  return '<div class="cv-tabs">'+t('assignments',I('notebook-pen')+' Assignments')+t('classes',I('book-open')+' Classes')+t('news',I('megaphone')+' Announcements'+(CV.data.announcements.length?' ('+CV.data.announcements.length+')':''))+'</div>'+body;
+  var body=CV.tab==='classes'?classesHtml():CV.tab==='news'?newsHtml():CV.tab==='assignments'?summaryHtml()+assignmentsHtml():dashboardHtml();
+  return '<div class="cv-tabs">'+t('dashboard',I('layout-dashboard')+' Dashboard')+t('assignments',I('notebook-pen')+' Assignments')+t('classes',I('book-open')+' Classes')+t('news',I('megaphone')+' Announcements'+(CV.data.announcements.length?' ('+CV.data.announcements.length+')':''))+'</div>'+body;
+}
+function dashboardHtml(){
+  var D=CV.data, open=openList().slice().sort(function(a,b){ return (dueMs(a)==null?9e15:dueMs(a))-(dueMs(b)==null?9e15:dueMs(b)); });
+  var late=open.filter(function(a){ return urgency(a)==='overdue'||a.missing; });
+  var next=open.filter(function(a){ return urgency(a)!=='overdue'; }).slice(0,6);
+  var alert=late.length?'<div class="cv-card cv-dash-alert"><b>'+I('triangle-alert')+' '+late.length+' overdue or missing</b><span>'+late.slice(0,3).map(function(a){ return esc(a.name)+' ('+esc(a.course)+')'; }).join(' · ')+(late.length>3?' · +'+(late.length-3)+' more':'')+'</span><button class="btn btn-ghost btn-sm" data-cv="gotoover">See them</button></div>':'';
+  var dueCard='<div class="cv-card cv-dcard"><div class="cv-dcard-h"><h3>'+I('clock')+' Due next</h3><button class="btn btn-ghost btn-sm" data-cv="tab" data-tab="assignments">All assignments</button></div>'+(next.length?'<div class="cv-list">'+next.map(rowHtml).join('')+'</div>':'<p class="cv-empty">Nothing due. You\'re all caught up!</p>')+'</div>';
+  var grades='<div class="cv-card cv-dcard"><div class="cv-dcard-h"><h3>'+I('book-open')+' Class grades</h3><button class="btn btn-ghost btn-sm" data-cv="tab" data-tab="classes">All classes</button></div><div class="cv-mini-grades">'+D.courses.map(function(c){ var sc=c.score, gc=sc==null?'':(sc>=90?'a':sc>=80?'b':sc>=70?'c':'d'); return '<div class="cv-mg" style="--cc:'+courseColor(c.id)+'"><span>'+esc(c.name)+'</span><b class="cv-grade g-'+gc+'">'+(sc==null?'—':(Math.round(sc*10)/10)+'%')+'</b></div>'; }).join('')+'</div></div>';
+  var an=D.announcements.slice(0,3), news='<div class="cv-card cv-dcard"><div class="cv-dcard-h"><h3>'+I('megaphone')+' Latest announcements</h3><button class="btn btn-ghost btn-sm" data-cv="tab" data-tab="news">See all</button></div>'+(an.length?an.map(function(a){ return '<div class="cv-news"><b>'+esc(a.title)+'</b><span>'+esc(a.course)+(a.at?' · '+new Date(a.at).toLocaleDateString([], {month:'short',day:'numeric'}):'')+'</span></div>'; }).join(''):'<p class="cv-empty">No announcements in the last 2 weeks.</p>')+'</div>';
+  return summaryHtml()+alert+plannerHtml()+'<div class="cv-dgrid">'+dueCard+'<div class="cv-dcol">'+grades+news+'</div></div>';
 }
 function assignmentsHtml(){
   var f=CV.filter, list=CV.data.assignments.filter(function(a){ return CV.course==='all'||String(a.cid)===CV.course; });
@@ -266,6 +276,7 @@ document.addEventListener('click',function(e){
   else if(a==='gdisc'){ if(confirm('Disconnect Google Drive? Index will delete its saved access.')) api('/api/canvas/google/disconnect',{method:'POST',body:{}}).then(function(){ CV.status.drive.connected=false; CV.status.drive.email=''; render(); toast('Google Drive disconnected.'); }); }
   else if(a==='disconnect'){ if(confirm('Disconnect Canvas? Index will delete the saved connection.')) api('/api/canvas/disconnect',{method:'POST',body:{}}).then(function(){ CV.status.connection=null; CV.data=null; CV.plan=null; render(); toast('Canvas disconnected.'); }); }
   else if(a==='plan') runPlan();
+  else if(a==='gotoover'){ CV.tab='assignments'; CV.filter='overdue'; CV.course='all'; render(); }
   else if(a==='tab'){ CV.tab=b.getAttribute('data-tab'); render(); }
   else if(a==='filter'){ CV.filter=b.getAttribute('data-f'); render(); }
   else if(a==='classfilter'){ CV.course=b.getAttribute('data-cid'); CV.tab='assignments'; CV.filter='open'; render(); }
