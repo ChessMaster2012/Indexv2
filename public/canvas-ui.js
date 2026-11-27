@@ -174,7 +174,7 @@ function rowHtml(a){
   if(a.graded&&a.score!=null) st='<span class="cv-badge ok">Graded '+a.score+(a.points?'/'+a.points:'')+'</span>'; else if(a.submitted) st='<span class="cv-badge ok">Submitted</span>'; else if(a.excused) st='<span class="cv-badge">Excused</span>'; else if(a.missing) st='<span class="cv-badge bad">Missing</span>'; else if(u==='overdue') st='<span class="cv-badge bad">Overdue</span>'; else if(u==='today') st='<span class="cv-badge warn">Due soon</span>';
   if(a.late&&isOpen(a)===false) st+='<span class="cv-badge warn">Late</span>';
   return '<div class="cv-row u-'+(isOpen(a)?u:'done')+'" style="--cc:'+courseColor(a.cid)+'"><div class="cv-row-main"><b>'+esc(a.name)+'</b><span>'+esc(a.course)+' · '+esc(fmtDue(a))+(a.points!=null?' · '+a.points+' pts':'')+'</span></div><div class="cv-row-r">'+st+
-    (isOpen(a)?'<button class="btn btn-ghost btn-sm" data-cv="study" data-id="'+a.id+'" data-cid="'+a.cid+'">'+I('brain')+' Study this</button>':'')+(a.url?'<a class="btn btn-ghost btn-sm" href="'+esc(a.url)+'" target="_blank" rel="noopener noreferrer">Canvas ↗</a>':'')+'</div></div>';
+    '<button class="btn btn-ghost btn-sm" data-cv="study" data-mode="note" data-id="'+a.id+'" data-cid="'+a.cid+'">'+I('notebook-pen')+' Make note</button><button class="btn btn-ghost btn-sm" data-cv="study" data-mode="quiz" data-id="'+a.id+'" data-cid="'+a.cid+'">'+I('brain')+' Make study set</button>'+(a.url?'<a class="btn btn-ghost btn-sm" href="'+esc(a.url)+'" target="_blank" rel="noopener noreferrer">Canvas ↗</a>':'')+'</div></div>';
 }
 function classesHtml(){
   return '<div class="cv-courses">'+CV.data.courses.map(function(c){
@@ -187,7 +187,7 @@ function classesHtml(){
 }
 function newsHtml(){
   var l=CV.data.announcements; if(!l.length) return '<p class="cv-empty">No announcements in the last 2 weeks.</p>';
-  return '<div class="cv-list">'+l.map(function(a){ return '<div class="cv-news"><b>'+esc(a.title)+'</b><span>'+esc(a.course)+(a.at?' · '+new Date(a.at).toLocaleDateString([], {month:'short',day:'numeric'}):'')+'</span><p>'+esc(a.text)+'</p>'+(a.url?'<a href="'+esc(a.url)+'" target="_blank" rel="noopener noreferrer">Open in Canvas ↗</a>':'')+'</div>'; }).join('')+'</div>';
+  return '<div class="cv-list">'+l.map(function(a,i){ return '<div class="cv-news"><b>'+esc(a.title)+'</b><span>'+esc(a.course)+(a.at?' · '+new Date(a.at).toLocaleDateString([], {month:'short',day:'numeric'}):'')+'</span><p>'+esc(a.text)+'</p><div class="cv-news-act"><button class="btn btn-ghost btn-sm" data-cv="annmake" data-mode="note" data-i="'+i+'">'+I('notebook-pen')+' Make note</button><button class="btn btn-ghost btn-sm" data-cv="annmake" data-mode="quiz" data-i="'+i+'">'+I('brain')+' Make study set</button>'+(a.url?'<a class="btn btn-ghost btn-sm" href="'+esc(a.url)+'" target="_blank" rel="noopener noreferrer">Open in Canvas ↗</a>':'')+'</div></div>'; }).join('')+'</div>';
 }
 
 /* ---------- study from an assignment ---------- */
@@ -212,9 +212,9 @@ function askPaste(unread){
     document.body.appendChild(o);
   });
 }
-function studyThis(id,cid){
+function studyThis(id,cid,mode){ mode=mode||'quiz';
   var a=CV.data.assignments.filter(function(x){ return String(x.id)===String(id)&&String(x.cid)===String(cid); })[0]; if(!a) return;
-  if(!safe(function(){ return state.aiEnabled; },true)){ toast('AI is unavailable right now.',true); return; }
+  if(mode!=='note'&&!safe(function(){ return state.aiEnabled; },true)){ toast('AI is unavailable right now.',true); return; }
   toast('Reading “'+a.name+'” from Canvas…');
   fetch('/api/canvas/assignment?cid='+encodeURIComponent(cid)+'&id='+encodeURIComponent(id),{credentials:'same-origin'}).then(function(r){return r.json();}).catch(function(){return null;}).then(function(full){
     full=(full&&full.ok)?full:{text:a.desc||'',sources:[],unread:[],rubric:[]};
@@ -228,6 +228,7 @@ function studyThis(id,cid){
     return aiPickSubject(a,material).then(function(sid){
       if(!sid){ toast('Add a course in Index first.',true); return; }
       var subj=subjectById(sid), n=8;
+      if(mode==='note') return makeNote(a,material,sid,thin,full);
       var prompt='You are building a practice quiz for a student who must complete this exact school assignment.\nClass: '+a.course+'\nAssignment title: '+a.name+(a.points!=null?' ('+a.points+' points)':'')+'\n\n'+(material||'(No instructions were readable.)')+'\n\n'+
         'RULES: Write exactly '+n+' multiple-choice questions that test the specific content, skills, terms, texts, problems or topics named in the material above (use its real names, numbers and examples). '+
         (thin?'There is little readable text, so infer the most likely topic from the assignment title and class, and stay narrowly on that topic. ':'')+
@@ -245,6 +246,35 @@ function studyThis(id,cid){
       });
     }); });
   }).catch(function(){ toast('Could not build that quiz. Try again.',true); });
+}
+
+/* ---------- make a note from an assignment / announcement ---------- */
+function saveCanvasNote(title,content,sid,topic){
+  state.notes.push({id:uid(),title:String(title).slice(0,90),content:content,subjectId:sid||'',topic:topic||'',createdAt:Date.now()}); persistNotes();
+  toast('Note saved — find it in Notes & Study Sets.'); switchView('notes');
+}
+function makeNote(a,material,sid,thin,full){
+  var plain='# '+a.name+'\n'+a.course+(a.due?' · '+fmtDue(a):'')+'\n\n'+(material||a.desc||'(Canvas gave no readable text for this item.)');
+  if(!safe(function(){ return state.aiEnabled; },true)||!material||material.length<80){ saveCanvasNote(a.course+' — '+a.name,plain,sid,a.name); return; }
+  toast('Writing your note…');
+  var prompt='Turn this school assignment into clear study notes for the student. Class: '+a.course+'. Title: '+a.name+'.\n\n'+material.slice(0,9000)+'\n\nWrite helpful notes with: what the assignment asks, key terms/ideas to know, a short step-by-step plan, and anything to double-check before turning it in. Use short headings and bullet points. Never invent facts that are not in the material or common knowledge for this subject. Reply with ONLY JSON: {"title":"short title","notes":"the notes as plain text with line breaks"}';
+  return askJSON(prompt).then(function(r){
+    var txt=r&&String(r.notes||'').trim(); if(!txt) throw new Error('empty');
+    saveCanvasNote((r.title&&String(r.title))||(a.course+' — '+a.name),txt+'\n\n— From Canvas: '+a.name,sid,a.name);
+  }).catch(function(){ saveCanvasNote(a.course+' — '+a.name,plain,sid,a.name); });
+}
+/* announcements: same two buttons, built from the announcement text */
+function fromAnnouncement(i,mode){
+  var n=CV.data.announcements[i]; if(!n) return;
+  var a={id:'ann'+i,cid:'',course:n.course||'Canvas',name:n.title||'Announcement',desc:n.text||''}, material=String(n.text||'');
+  if(mode==='note'){ aiPickSubject(a,material).then(function(sid){ return makeNote(a,material,sid,false,{}); }).catch(function(){ makeNote(a,material,'',false,{}); }); return; }
+  if(material.length<60){ toast('That announcement is too short to make a study set from.',true); return; }
+  aiPickSubject(a,material).then(function(sid){
+    var subj=subjectById(sid), prompt='Write exactly 8 multiple-choice practice questions about the content of this teacher announcement from '+a.course+'.\n\n'+material.slice(0,6000)+'\n\nEach question needs exactly 4 options, one correct, plus a short explanation. Reply with ONLY JSON: {"title":"short quiz title","questions":[{"q":"...","options":["...","...","...","..."],"correct":0,"explanation":"..."}]} where "correct" is the zero-based index.';
+    toast('Writing questions…');
+    return askJSON(prompt).then(function(parsed){ var qs=normalizeGeneratedQuestions(parsed); if(!qs.length) throw new Error('empty');
+      state.studySets.push({id:uid(),subjectId:sid,type:'quiz',unit:'',topic:a.name,title:(subj&&subj.name?subj.name:a.course)+' — '+a.name,createdAt:Date.now(),reminderAt:0,reminderCompleted:false,questions:qs,attempts:[]}); persistSets(); toast('Study set ready'); switchView('studysets'); });
+  }).catch(function(){ toast('Could not build that study set. Try again.',true); });
 }
 
 /* ---------- actions ---------- */
@@ -276,11 +306,12 @@ document.addEventListener('click',function(e){
   else if(a==='gdisc'){ if(confirm('Disconnect Google Drive? Index will delete its saved access.')) api('/api/canvas/google/disconnect',{method:'POST',body:{}}).then(function(){ CV.status.drive.connected=false; CV.status.drive.email=''; render(); toast('Google Drive disconnected.'); }); }
   else if(a==='disconnect'){ if(confirm('Disconnect Canvas? Index will delete the saved connection.')) api('/api/canvas/disconnect',{method:'POST',body:{}}).then(function(){ CV.status.connection=null; CV.data=null; CV.plan=null; render(); toast('Canvas disconnected.'); }); }
   else if(a==='plan') runPlan();
+  else if(a==='annmake') fromAnnouncement(Number(b.getAttribute('data-i')),b.getAttribute('data-mode'));
   else if(a==='gotoover'){ CV.tab='assignments'; CV.filter='overdue'; CV.course='all'; render(); }
   else if(a==='tab'){ CV.tab=b.getAttribute('data-tab'); render(); }
   else if(a==='filter'){ CV.filter=b.getAttribute('data-f'); render(); }
   else if(a==='classfilter'){ CV.course=b.getAttribute('data-cid'); CV.tab='assignments'; CV.filter='open'; render(); }
-  else if(a==='study') studyThis(b.getAttribute('data-id'),b.getAttribute('data-cid'));
+  else if(a==='study') studyThis(b.getAttribute('data-id'),b.getAttribute('data-cid'),b.getAttribute('data-mode')||'quiz');
 });
 document.addEventListener('change',function(e){ var s=e.target.closest&&e.target.closest('[data-cv="course"]'); if(s){ CV.course=s.value; render(); } });
 

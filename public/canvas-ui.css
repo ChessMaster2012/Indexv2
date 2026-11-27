@@ -61,3 +61,4 @@
 .cv-dcard{padding:18px!important}.cv-dcard-h{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}.cv-dcard-h h3{display:flex;align-items:center;gap:8px;margin:0;font-size:17px}
 .cv-mini-grades{display:grid;gap:8px}.cv-mg{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.06);border-left:4px solid var(--cc,#888)}.cv-mg span{font-weight:700;font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:860px){.cv-dgrid{grid-template-columns:1fr}}
+.cv-news-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
